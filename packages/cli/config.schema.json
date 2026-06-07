@@ -117,7 +117,7 @@
             "runtime": {
               "type": "string",
               "enum": ["ort", "pytorch"],
-              "description": "运行时: ort (onnxruntime-node, RTF ~1.0), pytorch (Python子进程, RTF ~2.0)"
+              "description": "运行时: ort (onnxruntime-node, RTF ~1.0), pytorch (Python守护进程, RTF ~2.0)"
             },
             "device": {
               "type": "string",
