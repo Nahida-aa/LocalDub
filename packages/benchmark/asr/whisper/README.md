@@ -22,7 +22,7 @@ bun run packages/benchmark/asr/whisper/run-wp.ts
 
 # 仅 whisper-cli (GPU + CPU)
 bun run packages/benchmark/asr/whisper/run-whisper-cli.ts
-
+```
 结果写入 `results/whisper-bench.json`（`run-all.ts` 合并模式）或各后端独立 JSON 文件。
 
 ## 结果 (2026-06-09)

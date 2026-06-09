@@ -42,38 +42,38 @@ export async function cmdCheck(type: 'video' | 'asr' | undefined, taskId: string
 			process.exit(1);
 		}
 		const asr = JSON.parse(readFileSync(asrFile, 'utf-8'));
-		const utterances = asr.result?.utterances ?? [];
+		const segments = asr.result?.segments ?? [];
 		const audioDurationMs = asr.audio_info?.duration ?? 0;
-		const total = utterances.length;
+		const total = segments.length;
 		const timeline: Record<string, unknown>[] = [];
 		const issues: Record<string, unknown>[] = [];
 		let zeroGaps = 0;
 
 		for (let i = 0; i < total; i++) {
-			const u = utterances[i] as Record<string, any>;
+			const s = segments[i] as Record<string, any>;
 			const entry: Record<string, unknown> = {
 				idx: i + 1,
-				text: (u.text ?? '').slice(0, 60),
-				startMs: u.start_time,
-				endMs: u.end_time,
+				text: (s.text ?? '').slice(0, 60),
+				startMs: Math.round(s.start * 1000),
+				endMs: Math.round(s.end * 1000),
 			};
 			const gapMs =
 				i > 0
-					? u.start_time - (utterances[i - 1] as Record<string, any>).end_time
+					? Math.round((s.start - (segments[i - 1] as Record<string, any>).end) * 1000)
 					: 0;
 			entry.gapMs = gapMs;
 			if (gapMs === 0) zeroGaps++;
 			const warnings: string[] = [];
 			if (i > 0 && gapMs === 0) warnings.push('start 紧跟上段结束');
 			if (
-				u.end_time === audioDurationMs ||
+				Math.round(s.end * 1000) === audioDurationMs ||
 				(i < total - 1 &&
-					u.end_time === (utterances[i + 1] as Record<string, any>).start_time)
+					Math.round(s.end * 1000) === Math.round((segments[i + 1] as Record<string, any>).start * 1000))
 			)
 				warnings.push('end 拉到分段边界');
-			const duration = u.end_time - u.start_time;
-			if (duration > 5000)
-				warnings.push(`时长 ${(duration / 1000).toFixed(1)}s 超过 5s`);
+			const durationMs = Math.round((s.end - s.start) * 1000);
+			if (durationMs > 5000)
+				warnings.push(`时长 ${(durationMs / 1000).toFixed(1)}s 超过 5s`);
 			if (warnings.length > 0) entry.warnings = warnings;
 			timeline.push(entry);
 		}
@@ -102,7 +102,7 @@ export async function cmdCheck(type: 'video' | 'asr' | undefined, taskId: string
 			type: 'asr',
 			engine,
 			audioDurationMs,
-			utterances: total,
+			segments: total,
 			zeroGaps,
 			timeline,
 		};

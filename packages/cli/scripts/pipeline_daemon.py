@@ -89,21 +89,17 @@ def _load_demucs(device: str):
 # Stage handlers
 # ---------------------------------------------------------------------------
 
-def _to_ms(seconds: float) -> int:
-    return int(round(float(seconds) * 1000))
-
-
 def _convert_words(words: list) -> list:
     return [
-        {"text": w.get("word", ""), "start_time": _to_ms(w.get("start", 0.0)), "end_time": _to_ms(w.get("end", 0.0))}
+        {"text": w.get("word", ""), "start": w.get("start", 0.0), "end": w.get("end", 0.0)}
         for w in words or []
     ]
 
 
 def _convert_segments(segments: list) -> list:
     return [
-        {"text": seg.get("text", "").strip(), "start_time": _to_ms(seg.get("start", 0.0)),
-         "end_time": _to_ms(seg.get("end", 0.0)), "words": _convert_words(seg.get("words", []))}
+        {"text": seg.get("text", "").strip(), "start": seg.get("start", 0.0),
+         "end": seg.get("end", 0.0), "words": _convert_words(seg.get("words", []))}
         for seg in segments
     ]
 
@@ -178,16 +174,16 @@ def handle_asr(params: dict) -> dict:
     result = _WHISPER.transcribe(vocals_path, language=language, word_timestamps=False, verbose=False)
     process_time = time.perf_counter() - t1
 
-    utterances = _convert_segments(result.get("segments", []))
-    if not utterances:
+    segments = _convert_segments(result.get("segments", []))
+    if not segments:
         raise RuntimeError("Whisper did not return any segments.")
 
     duration_ms = len(AudioSegment.from_file(vocals_path))
     audio_duration_s = duration_ms / 1000.0
-    full_text = " ".join(u["text"] for u in utterances).strip()
+    full_text = " ".join(s["text"] for s in segments).strip()
     payload = {
         "audio_info": {"duration": duration_ms},
-        "result": {"text": full_text, "utterances": utterances},
+        "result": {"text": full_text, "segments": segments},
         "_device": device,
     }
 

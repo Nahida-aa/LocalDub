@@ -16,10 +16,10 @@ const SCRIPT = join(REPO_ROOT, 'packages', 'cli', 'scripts', 'separate', 'run.py
 const isWin = process.platform === 'win32';
 const PYTHON_BIN = join(REPO_ROOT, '.venv', isWin ? 'Scripts' : 'bin', isWin ? 'python.exe' : 'python');
 
-function measureLoadTime(device: string): number {
-  console.log('[PyTorch] Measuring model load time...');
+function measureLoadTime(device: string, shifts: number = 3): number {
+  console.log(`[PyTorch] Measuring model load time (shifts=${shifts})...`);
   const t0 = performance.now();
-  const result = spawnSync(PYTHON_BIN, [SCRIPT, '--benchmark-load', '--device', device], {
+  const result = spawnSync(PYTHON_BIN, [SCRIPT, '--benchmark-load', '--device', device, '--shifts', String(shifts)], {
     timeout: 600_000,
   });
   if (result.status !== 0) {
@@ -28,12 +28,12 @@ function measureLoadTime(device: string): number {
   return (performance.now() - t0) / 1000;
 }
 
-export async function benchmarkPyTorch(): Promise<BenchmarkResult[]> {
+export async function benchmarkPyTorch(shifts: number = 3): Promise<BenchmarkResult[]> {
   const results: BenchmarkResult[] = [];
   const device = 'cpu';
 
-  const loadTimeS = round(measureLoadTime(device), 3);
-  console.log(`[PyTorch] Model loaded in ${loadTimeS}s`);
+  const loadTimeS = round(measureLoadTime(device, shifts), 3);
+  console.log(`[PyTorch] Model loaded in ${loadTimeS}s (shifts=${shifts})`);
 
   for (const key of AUDIO_KEYS) {
     const audioPath = join(REF_DIR, `${key}.wav`);
@@ -48,7 +48,7 @@ export async function benchmarkPyTorch(): Promise<BenchmarkResult[]> {
     mkdirSync(outDir, { recursive: true });
 
     const t1 = performance.now();
-    const args = [SCRIPT, audioPath, outDir, '--device', device];
+    const args = [SCRIPT, audioPath, outDir, '--device', device, '--shifts', String(shifts)];
     const timeout = key === 'long' ? 3_600_000 : 600_000;
     const result = spawnSync(PYTHON_BIN, args, { timeout });
 
@@ -58,16 +58,17 @@ export async function benchmarkPyTorch(): Promise<BenchmarkResult[]> {
       continue;
     }
 
-    const processTimeS = (performance.now() - t1) / 1000;
+    const totalTimeS = (performance.now() - t1) / 1000;
+    const processTimeS = totalTimeS - loadTimeS;
 
     results.push({
       engine: 'pytorch',
       device,
       audioKey: key,
       audioDurationS: round(durationS, 3),
-      loadTimeS,
+      loadTimeS: round(loadTimeS, 3),
       processTimeS: round(processTimeS, 3),
-      totalTimeS: round(loadTimeS + processTimeS, 3),
+      totalTimeS: round(totalTimeS, 3),
       rtf: round(processTimeS / durationS, 3),
     });
 

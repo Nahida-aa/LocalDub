@@ -16,10 +16,6 @@ import sys
 from pathlib import Path
 
 
-def _to_ms(seconds: float) -> int:
-    return int(round(float(seconds) * 1000))
-
-
 def _parse_arg(name: str, default: str) -> str:
     if name in sys.argv:
         idx = sys.argv.index(name)
@@ -57,25 +53,26 @@ def main() -> None:
     model = Model(model_name, n_threads=n_threads, print_progress=False, print_realtime=False)
     segments = model.transcribe(str(audio_file))
 
-    utterances = []
+    segs = []
     for seg in segments:
-        utterances.append({
+        segs.append({
             "text": (seg.text or "").strip(),
-            "start_time": _to_ms(seg.t0),
-            "end_time": _to_ms(seg.t1),
+            "start": seg.t0,
+            "end": seg.t1,
             "words": [],
         })
-    full_text = " ".join(u["text"] for u in utterances).strip()
+    full_text = " ".join(s["text"] for s in segs).strip()
 
     metadata_dir = session_path / "metadata"
     metadata_dir.mkdir(parents=True, exist_ok=True)
     output_file = metadata_dir / "asr.json"
 
+    duration_s = max(s.t1 for s in segments) if segments else 0
     payload = {
-        "audio_info": {"duration": _to_ms(max(s.t1 for s in segments)) if segments else 0},
+        "audio_info": {"duration": int(round(duration_s * 1000))},
         "result": {
             "text": full_text,
-            "utterances": utterances,
+            "segments": segs,
         },
         "_device": "cpu",
     }

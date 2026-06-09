@@ -129,7 +129,7 @@ Speech-to-text via Whisper (PyTorch) or faster-whisper (CTranslate2).
 
 | Output | Destination | Description |
 |---|---|---|
-| `metadata/asr.json` | Whisper / subprocess | JSON with `{ audio_info, result: { text, utterances[] } }` |
+| `metadata/asr.json` | Whisper / subprocess | JSON with `{ audio_info, result: { text, segments[] } }` |
 | `metadata/local_info.json` | updated if detected | `asr_language` updated with detected language |
 
 **asr.json structure:**
@@ -138,12 +138,14 @@ Speech-to-text via Whisper (PyTorch) or faster-whisper (CTranslate2).
   "audio_info": { "duration": <ms> },
   "result": {
     "text": "full transcript...",
-    "utterances": [
-      { "text": "...", "start_time": <ms>, "end_time": <ms>, "words": [...] }
+    "segments": [
+      { "text": "...", "start": <s>, "end": <s>, "words": [...] }
     ]
   }
 }
 ```
+
+Note: `duration` is in **milliseconds** (used for boundary clamping in audio slicing), while `segments[].start/end` are in **float seconds** (native Whisper output format).
 
 ---
 

@@ -21,10 +21,6 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 WHISPER_CLI = REPO_ROOT / "submodule" / "whisper.cpp" / "build" / "bin" / "whisper-cli"
 
 
-def _to_ms(seconds: float) -> int:
-    return int(round(float(seconds) * 1000))
-
-
 def _parse_timing(output: str, key: str) -> float:
     m = re.search(rf"whisper_print_timings:\s+{key}\s+=\s+([\d.]+)\s+ms", output)
     return float(m.group(1)) / 1000 if m else 0.0
@@ -35,12 +31,12 @@ def _parse_segments(output: str) -> list[dict]:
     for line in output.split("\n"):
         m = re.match(r"^\[(\d+):(\d+):(\d+)\.(\d+)\s*-->\s*(\d+):(\d+):(\d+)\.(\d+)\]\s+(.*)", line)
         if m:
-            start_ms = int(m.group(1)) * 3600000 + int(m.group(2)) * 60000 + int(m.group(3)) * 1000 + int(m.group(4)) * 10
-            end_ms = int(m.group(5)) * 3600000 + int(m.group(6)) * 60000 + int(m.group(7)) * 1000 + int(m.group(8)) * 10
+            start_s = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3)) + int(m.group(4)) / 100
+            end_s = int(m.group(5)) * 3600 + int(m.group(6)) * 60 + int(m.group(7)) + int(m.group(8)) / 100
             segments.append({
                 "text": m.group(9).strip(),
-                "start_time": start_ms,
-                "end_time": end_ms,
+                "start": start_s,
+                "end": end_s,
                 "words": [],
             })
     return segments
@@ -111,7 +107,7 @@ def main() -> None:
     # Parse timing from stderr
     output = result.stderr or result.stdout
     total_time = _parse_timing(output, "total time")
-    duration_ms = _to_ms(total_time) if total_time > 0 else 0
+    duration_s = total_time if total_time > 0 else 0
 
     segments = _parse_segments(result.stdout)
     full_text = " ".join(s["text"] for s in segments).strip()
@@ -123,10 +119,10 @@ def main() -> None:
     output_file = metadata_dir / "asr.json"
 
     payload = {
-        "audio_info": {"duration": duration_ms},
+        "audio_info": {"duration": int(round(duration_s * 1000))},
         "result": {
             "text": full_text,
-            "utterances": segments,
+            "segments": segments,
         },
         "_device": "cpu" if force_cpu else "gpu",
     }

@@ -4,8 +4,11 @@ import { benchmarkPyTorch } from './pytorch-cpu';
 import { printSummary, RESULTS_DIR } from './bench-shared';
 
 async function main() {
-  console.log('=== Demucs PyTorch CPU Benchmark ===\n');
-  const results = await benchmarkPyTorch();
+  const shifts = process.argv.includes('--shifts')
+    ? Number(process.argv[process.argv.indexOf('--shifts') + 1])
+    : 3;
+  console.log(`=== Demucs PyTorch CPU Benchmark (shifts=${shifts}) ===\n`);
+  const results = await benchmarkPyTorch(shifts);
   printSummary(results);
 
   const existingPath = join(RESULTS_DIR, 'separate-bench.json');

@@ -27,15 +27,19 @@ from _engine import load_separator, separate_audio
 
 def main() -> None:
     if "--benchmark-load" in sys.argv:
-        # Only measure model load time — no audio processing
-        load_separator()
+        shifts = 3
+        if "--shifts" in sys.argv:
+            idx = sys.argv.index("--shifts")
+            if idx + 1 < len(sys.argv):
+                shifts = int(sys.argv[idx + 1])
+        load_separator(shifts=shifts)
         print("[BENCHMARK_LOAD_DONE]")
         return
 
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
 
     if len(args) < 2:
-        print(f"Usage: {sys.argv[0]} <video_path> <session_path> [--device cpu|cuda]", file=sys.stderr)
+        print(f"Usage: {sys.argv[0]} <video_path> <session_path> [--device cpu|cuda] [--shifts N]", file=sys.stderr)
         sys.exit(1)
 
     video_file = Path(args[0])
@@ -45,11 +49,17 @@ def main() -> None:
         print(f"Error: video file not found: {video_file}", file=sys.stderr)
         sys.exit(1)
 
+    shifts = 3
+    if "--shifts" in sys.argv:
+        idx = sys.argv.index("--shifts")
+        if idx + 1 < len(sys.argv):
+            shifts = int(sys.argv[idx + 1])
+
     def progress_callback(progress: int, message: str) -> None:
         print(f"[PROGRESS] {progress}")
 
     try:
-        vocals_file, bgm_file = separate_audio(video_file, session, progress_callback)
+        vocals_file, bgm_file = separate_audio(video_file, session, progress_callback, shifts=shifts)
     except Exception as exc:
         print(f"Demucs separation failed: {exc}", file=sys.stderr)
         sys.exit(1)

@@ -46,8 +46,8 @@ export async function stageTranslate(taskId: string, sessionPath: string) {
 	}
 
 	const data = JSON.parse(readFileSync(fixedFile, 'utf-8'));
-	const utterances = data.result.utterances;
-	const texts = utterances.map((u: any) => (u.text || '').trim());
+	const segments = data.result.segments;
+	const texts = segments.map((u: any) => (u.text || '').trim());
 	const fullText = (data.result.text || '').trim() || texts.join(' ');
 
 	let meta: any = {};
@@ -232,13 +232,13 @@ ${correctionsStr}
 		});
 	}
 
-	const translation = utterances.map((u: any, idx: number) => ({
+	const translation = segments.map((u: any, idx: number) => ({
 		src: texts[idx],
 		dst: dsts[idx]?.replace(/——/g, '，') || '',
 		src_lang: srcLangCode,
 		dst_lang: dstLangCode,
-		start_time: u.start_time,
-		end_time: u.end_time,
+		start_time: Math.round(u.start * 1000),
+		end_time: Math.round(u.end * 1000),
 		speaker: '1',
 	}));
 

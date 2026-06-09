@@ -47,7 +47,7 @@ def _demucs_source_path() -> Path:
     )
 
 
-def load_separator() -> Path:
+def load_separator(shifts: int = 3) -> Path:
     """Import demucs, construct Separator with full progress, return demucs_path.
     Used by --benchmark-load to measure model load time independently."""
     demucs_path = _demucs_source_path()
@@ -57,7 +57,7 @@ def load_separator() -> Path:
         model="htdemucs_ft",
         device=_device(),
         progress=True,
-        shifts=3,
+        shifts=shifts,
     )
     return demucs_path
 
@@ -66,6 +66,7 @@ def separate_audio(
     video_file: Path | str,
     session: Path | str,
     progress_callback: Callable[[int, str], None] | None = None,
+    shifts: int = 3,
 ) -> tuple[Path, Path]:
     video_file = Path(video_file)
     session = Path(session)
@@ -81,8 +82,6 @@ def separate_audio(
     bgm_file = media_dir / "audio_bgm.wav"
     if vocals_file.exists() and bgm_file.exists():
         return vocals_file, bgm_file
-
-    shifts = 3
 
     def report_progress(info: dict) -> None:
         if progress_callback is None:

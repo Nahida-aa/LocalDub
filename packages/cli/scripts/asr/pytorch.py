@@ -217,13 +217,9 @@ def _device() -> str:
     return "cuda"
 
 
-def _to_ms(seconds: float) -> int:
-    return int(round(float(seconds) * 1000))
-
-
 def _convert_words(words: list) -> list:
     return [
-        {"text": w.get("word", ""), "start_time": _to_ms(w.get("start", 0.0)), "end_time": _to_ms(w.get("end", 0.0))}
+        {"text": w.get("word", ""), "start": w.get("start", 0.0), "end": w.get("end", 0.0)}
         for w in words or []
     ]
 
@@ -232,8 +228,8 @@ def _convert_segments(segments: list) -> list:
     return [
         {
             "text": seg.get("text", "").strip(),
-            "start_time": _to_ms(seg.get("start", 0.0)),
-            "end_time": _to_ms(seg.get("end", 0.0)),
+            "start": seg.get("start", 0.0),
+            "end": seg.get("end", 0.0),
             "words": _convert_words(seg.get("words", [])),
         }
         for seg in segments
@@ -283,12 +279,12 @@ def main() -> None:
     result = model.transcribe(str(vocals_file), language=language, word_timestamps=False, verbose=False)
 
     segments = result.get("segments", [])
-    utterances = _convert_segments(segments)
-    if not utterances:
+    converted = _convert_segments(segments)
+    if not converted:
         print("Whisper did not return any segments.", file=sys.stderr)
         sys.exit(1)
 
-    duration_ms = _to_ms(max(seg.get("end", 0) for seg in segments))
+    duration_ms = int(round(max(seg.get("end", 0) for seg in segments) * 1000))
 
     metadata_dir = session_path / "metadata"
     metadata_dir.mkdir(parents=True, exist_ok=True)
@@ -297,7 +293,7 @@ def main() -> None:
         "audio_info": {"duration": duration_ms},
         "result": {
             "text": (result.get("text") or "").strip(),
-            "utterances": utterances,
+            "segments": converted,
         },
         "_device": device,
         "detected_language": result.get("language", language or "unknown"),

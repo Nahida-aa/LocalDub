@@ -16,11 +16,11 @@ export type AsrResult = {
 	};
 	result: {
 		text: string; // 完整转录文本
-		utterances: {
+		segments: {
 			text: string; // 该段文本
-			start_time: number; // 该段开始时间，单位 ms
-			end_time: number; // 该段结束时间，单位 ms
-			words: [];
+			start: number; // 该段开始时间，单位 s
+			end: number; // 该段结束时间，单位 s
+			words?: [];
 		}[];
 	};
 	_device: string; // 运行设备，如 "cuda"、"cpu" 等
@@ -131,15 +131,15 @@ export async function stageAsr(
 	const asrFile = resolve(metadataDir, 'asr.json');
 	if (existsSync(asrFile)) {
 		const data = JSON.parse(readFileSync(asrFile, 'utf-8'));
-		const duration = data.audio_info?.duration ?? 0;
-		if (duration > 0 && data.result?.utterances?.length) {
-			const before = data.result.utterances.length;
-			data.result.utterances = data.result.utterances.filter(
-				(u: Record<string, any>) => u.start_time < duration && u.end_time > 0,
+		const durationMs = data.audio_info?.duration ?? 0;
+		if (durationMs > 0 && data.result?.segments?.length) {
+			const before = data.result.segments.length;
+			data.result.segments = data.result.segments.filter(
+				(u: Record<string, any>) => u.start * 1000 < durationMs && u.end * 1000 > 0,
 			);
-			if (data.result.utterances.length < before) {
-				const removed = before - data.result.utterances.length;
-				emitLog(taskId, `[ASR] Removed ${removed} hallucinated segment(s) (start >= ${duration}ms or end <= 0ms)`);
+			if (data.result.segments.length < before) {
+				const removed = before - data.result.segments.length;
+				emitLog(taskId, `[ASR] Removed ${removed} hallucinated segment(s) (start >= ${durationMs}ms or end <= 0ms)`);
 				writeFileSync(asrFile, JSON.stringify(data, null, 2));
 			}
 		}

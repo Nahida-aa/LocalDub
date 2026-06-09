@@ -36,10 +36,6 @@ def _set_hsa_override() -> None:
         os.environ[HSA_OVERRIDE] = EXPECTED_HSA
 
 
-def _to_ms(seconds: float) -> int:
-    return int(round(float(seconds) * 1000))
-
-
 def _wake_gpu() -> None:
     """Force GPU init to ensure clean state after previous hangs."""
     import torch
@@ -67,22 +63,22 @@ def _transcribe_cpu(model_path: str, audio_path: str, language: str, compute_typ
 
 
 def _convert(segments: list, info) -> dict:
-    utterances = []
+    segs = []
     for seg in segments:
-        utterances.append(
+        segs.append(
             {
                 "text": (seg.text or "").strip(),
-                "start_time": _to_ms(seg.start),
-                "end_time": _to_ms(seg.end),
+                "start": seg.start,
+                "end": seg.end,
                 "words": [],
             }
         )
-    full_text = " ".join(u["text"] for u in utterances).strip()
+    full_text = " ".join(s["text"] for s in segs).strip()
     return {
-        "audio_info": {"duration": _to_ms(info.duration)},
+        "audio_info": {"duration": int(round(info.duration * 1000))},
         "result": {
             "text": full_text,
-            "utterances": utterances,
+            "segments": segs,
         },
     }
 
