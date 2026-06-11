@@ -263,8 +263,8 @@ export async function stageMergeVideo(taskId: string, sessionPath: string) {
 				translation: segments.map((seg: any) => ({
 					src: seg.text,
 					dst: seg.text,
-					start_time: Math.round(seg.start * 1000),
-					end_time: Math.round(seg.end * 1000),
+				start_time: Math.round(seg.start),
+				end_time: Math.round(seg.end),
 					speaker: '1',
 				})),
 			};

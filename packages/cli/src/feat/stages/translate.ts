@@ -255,8 +255,8 @@ ${correctionsStr}
 		dst: dsts[idx]?.replace(/——/g, '，') || '',
 		src_lang: srcLangCode,
 		dst_lang: dstLangCode,
-		start_time: Math.round(u.start * 1000),
-		end_time: Math.round(u.end * 1000),
+		start_time: u.start,
+		end_time: u.end,
 		speaker: '1',
 	}));
 

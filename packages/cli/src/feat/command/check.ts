@@ -54,24 +54,24 @@ export async function cmdCheck(type: 'video' | 'asr' | undefined, taskId: string
 			const entry: Record<string, unknown> = {
 				idx: i + 1,
 				text: (s.text ?? '').slice(0, 60),
-				startMs: Math.round(s.start * 1000),
-				endMs: Math.round(s.end * 1000),
-			};
-			const gapMs =
-				i > 0
-					? Math.round((s.start - (segments[i - 1] as Record<string, any>).end) * 1000)
-					: 0;
+			startMs: Math.round(s.start),
+			endMs: Math.round(s.end),
+		};
+		const gapMs =
+			i > 0
+				? Math.round(s.start - (segments[i - 1] as Record<string, any>).end)
+				: 0;
 			entry.gapMs = gapMs;
 			if (gapMs === 0) zeroGaps++;
 			const warnings: string[] = [];
 			if (i > 0 && gapMs === 0) warnings.push('start 紧跟上段结束');
 			if (
-				Math.round(s.end * 1000) === audioDurationMs ||
+				Math.round(s.end) === audioDurationMs ||
 				(i < total - 1 &&
-					Math.round(s.end * 1000) === Math.round((segments[i + 1] as Record<string, any>).start * 1000))
+					Math.round(s.end) === Math.round((segments[i + 1] as Record<string, any>).start))
 			)
 				warnings.push('end 拉到分段边界');
-			const durationMs = Math.round((s.end - s.start) * 1000);
+			const durationMs = Math.round(s.end - s.start);
 			if (durationMs > 5000)
 				warnings.push(`时长 ${(durationMs / 1000).toFixed(1)}s 超过 5s`);
 			if (warnings.length > 0) entry.warnings = warnings;

@@ -104,8 +104,8 @@ export async function stageSplitAudio(taskId: string, sessionPath: string) {
 			dst: translation[i].dst,
 			src_lang: translation[i].src_lang,
 			dst_lang: translation[i].dst_lang,
-			start_time: Math.floor(seg.start * 1000),
-			end_time: Math.ceil(seg.end * 1000),
+			start_time: Math.floor(seg.start),
+			end_time: Math.ceil(seg.end),
 			speaker: translation[i].speaker ?? '1',
 		}));
 	} else {
@@ -115,8 +115,8 @@ export async function stageSplitAudio(taskId: string, sessionPath: string) {
 			dst: seg.text,
 			src_lang: srcLangCode,
 			dst_lang: srcLangCode,
-			start_time: Math.floor(seg.start * 1000),
-			end_time: Math.ceil(seg.end * 1000),
+			start_time: Math.floor(seg.start),
+			end_time: Math.ceil(seg.end),
 			speaker: '1',
 		}));
 	}

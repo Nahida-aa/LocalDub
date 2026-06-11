@@ -2,12 +2,12 @@ import { readJson, writeJson } from './fileOps.ts';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { readConfig } from '../config/config.ts';
-import { emitLog, nowISO, updateStageDB } from './utils.ts';
+import { emitLog, nowISO, srtTime, updateStageDB } from './utils.ts';
 import { segmentsToPrompt, parseLines, fixWithLLM } from './asr/llm.ts';
 
-function padSegments(segments: any[], startPad = 0.1, endPad = 0.3): any[] {
+function padSegments(segments: any[], startPad = 100, endPad = 300): any[] {
   if (!segments.length) return segments;
-  const minGap = 0.05;
+  const minGap = 50;
 
   const startPadAt = (idx: number): number => {
     const origStart = segments[idx].start;
@@ -58,7 +58,7 @@ export async function stageAsrFix(taskId: string, sessionPath: string) {
   const data = readJson(asrFile, 'ASR Fix');
   let segments: any[] = (data.result?.segments || [])
     .map((s: any) => ({ text: (s.text || '').trim(), start: s.start, end: s.end }))
-    .filter((s: any) => s.text && (data.audio_info?.duration ? s.start < (data.audio_info.duration / 1000) : true));
+    .filter((s: any) => s.text && (data.audio_info?.duration ? s.start < data.audio_info.duration : true));
 
   if (!segments.length) throw new Error('ASR result has no segments.');
 
@@ -104,6 +104,7 @@ export async function stageAsrFix(taskId: string, sessionPath: string) {
     emitLog(taskId, `[ASR Fix] Segment padding disabled`);
   }
 
+  segments = segments.map((s: any) => ({ ...s, start_fmt: srtTime(s.start), end_fmt: srtTime(s.end) }));
   const resultText = segments.map((s: any) => s.text).join(' ');
   writeJson(srtFile, {
     audio_info: data.audio_info || {},

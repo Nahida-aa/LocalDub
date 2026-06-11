@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { ocrFrame } from "../../ml/ocr/ocr.ts";
 import { REPO_ROOT, readConfig } from "../config/config.ts";
 import { ensureDir, writeJson } from "./fileOps.ts";
-import { emitLog, ffmpeg, nowISO, updateStageDB } from "./utils.ts";
+import { emitLog, ffmpeg, nowISO, srtTime, updateStageDB } from "./utils.ts";
 
 interface FrameResult {
 	text: string;
@@ -43,7 +43,7 @@ function mergeFrames(frames: FrameResult[]): Segment[] {
 		segments.push({ text: currentText, start: currentStart, end: lastTs });
 	}
 
-	return segments.filter((s) => s.end - s.start >= 0.5);
+	return segments.filter((s) => s.end - s.start >= 500);
 }
 
 export async function stageOcr(taskId: string, sessionPath: string) {
@@ -94,7 +94,7 @@ export async function stageOcr(taskId: string, sessionPath: string) {
 	const frameResults: FrameResult[] = [];
 	for (let i = 0; i < frameFiles.length; i++) {
 		const framePath = join(frameDir, frameFiles[i]);
-		const timestamp = i / fps;
+		const timestampMs = Math.round((i / fps) * 1000);
 		try {
 			const lines = ocrFrame(framePath, { textScore });
 			const best = lines.reduce(
@@ -103,11 +103,11 @@ export async function stageOcr(taskId: string, sessionPath: string) {
 			);
 			frameResults.push({
 				text: best.text,
-				timestamp: parseFloat(timestamp.toFixed(2)),
+				timestamp: timestampMs,
 				confidence: best.confidence,
 			});
 		} catch {
-			frameResults.push({ text: "", timestamp, confidence: 0 });
+			frameResults.push({ text: "", timestamp: timestampMs, confidence: 0 });
 		}
 
 		if ((i + 1) % 50 === 0 || i === frameFiles.length - 1) {
@@ -124,7 +124,7 @@ export async function stageOcr(taskId: string, sessionPath: string) {
 
 	// 4. Build output text
 	const text = segments.map((s) => s.text).join(" ");
-	const audioDur = segments.length > 0 ? segments[segments.length - 1].end : 0;
+	const audioDurMs = segments.length > 0 ? segments[segments.length - 1].end : 0;
 
 	// 5. Probe video duration
 	const probe = spawnSync(
@@ -145,11 +145,12 @@ export async function stageOcr(taskId: string, sessionPath: string) {
 	// 6. Write ocr.json (same format as asr_fix)
 	const metadataDir = resolve(sessionAbsPath, "metadata");
 	ensureDir(metadataDir, "OCR");
+	const segmentsOut = segments.map((s) => ({ ...s, start_fmt: srtTime(s.start), end_fmt: srtTime(s.end) }));
 	writeJson(
 		join(metadataDir, "ocr.json"),
 		{
-			audio_info: { duration: (audioDur || videoDurationS) * 1000 },
-			result: { text, segments },
+			audio_info: { duration: audioDurMs || Math.round(videoDurationS * 1000) },
+			result: { text, segments: segmentsOut },
 			_engine: "rapidocr-onnxruntime",
 			_fps: fps,
 			_textScore: textScore,

@@ -9,7 +9,7 @@ import {
 	readConfig,
 	setLocalInfo,
 } from '../config/config.ts';
-import { emitLog, ffmpeg, nowISO, readTaskLanguages, updateStageDB } from './utils.ts';
+import { emitLog, ffmpeg, nowISO, readTaskLanguages, srtTime, updateStageDB } from './utils.ts';
 import { AsrOptions } from './asr/types.ts';
 import { parseAsrOutput } from './asr/utils.ts';
 
@@ -163,7 +163,7 @@ export async function stageAsr(
 		if (durationMs > 0 && data.result?.segments?.length) {
 			const before = data.result.segments.length;
 			data.result.segments = data.result.segments.filter(
-				(u: Record<string, any>) => u.start * 1000 < durationMs && u.end * 1000 > 0,
+				(u: Record<string, any>) => u.start < durationMs && u.end > 0,
 			);
 			if (data.result.segments.length < before) {
 				const removed = before - data.result.segments.length;
@@ -298,12 +298,12 @@ function emitAsrTiming(taskId: string, asr: Record<string, any>, elapsedSec: num
 	}
 }
 
-function segmentRms(audioPath: string, startS: number, endS: number): Promise<number> {
+function segmentRms(audioPath: string, startMs: number, endMs: number): Promise<number> {
 	return new Promise((resolve, reject) => {
 		const args = [
 			'-y', '-i', audioPath,
-			'-ss', String(startS),
-			'-to', String(endS),
+			'-ss', String(startMs / 1000),
+			'-to', String(endMs / 1000),
 			'-af', 'astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-',
 			'-f', 'null', '-',
 		];
@@ -387,10 +387,14 @@ async function asrWhisperCpp(
 	const emitWords = readConfig().stages?.asr?.wordsOutput ?? true;
 
 	const segments = transcription.map((s: any) => {
+		const startMs = s.offsets?.from ?? 0;
+		const endMs = s.offsets?.to ?? 0;
 		const seg: Record<string, any> = {
 			text: (s.text || '').trim(),
-			start: (s.offsets?.from ?? 0) / 1000,
-			end: (s.offsets?.to ?? 0) / 1000,
+			start: startMs,
+			end: endMs,
+			start_fmt: srtTime(startMs),
+			end_fmt: srtTime(endMs),
 		};
 		if (emitWords) {
 			seg.words = (s.tokens || [])
@@ -400,8 +404,8 @@ async function asrWhisperCpp(
 				})
 				.map((t: any) => ({
 					word: t.text.trim(),
-					start: (t.offsets.from ?? 0) / 1000,
-					end: (t.offsets.to ?? 0) / 1000,
+					start: t.offsets.from ?? 0,
+					end: t.offsets.to ?? 0,
 					probability: t.p,
 				}));
 		}
@@ -412,13 +416,14 @@ async function asrWhisperCpp(
 	const metadataDir = resolve(sessionAbsPath, 'metadata');
 	ensureDir(metadataDir, 'ASR');
 
+	const lastEndMs = segments.length ? segments[segments.length - 1].end : 0;
 	const asrOutput = {
-		audio_info: { duration: segments.length ? segments[segments.length - 1].end * 1000 : 0 },
+		audio_info: { duration: lastEndMs },
 		result: { text, segments },
 		_engine: 'whisper.cpp',
 		_device: 'vulkan',
-		_rtf: elapsedSec > 0 && segments.length > 0
-			? (elapsedSec / (segments[segments.length - 1].end)).toFixed(3)
+		_rtf: elapsedSec > 0 && lastEndMs > 0
+			? (elapsedSec / (lastEndMs / 1000)).toFixed(3)
 			: '0',
 	};
 	writeJson(join(metadataDir, 'asr.json'), asrOutput, 'ASR');
@@ -429,9 +434,9 @@ async function asrWhisperCpp(
 
 	emitLog(taskId, `[ASR] Transcribed in ${elapsedSec.toFixed(1)}s`);
 	if (segments.length > 0) {
-		const audioDurationS = segments[segments.length - 1].end;
-		emitLog(taskId, `[ASR] Audio duration ${audioDurationS.toFixed(1)}s`);
-		emitLog(taskId, `[ASR] RTF ${(elapsedSec / audioDurationS).toFixed(3)}`);
+		const audioDurationMs = segments[segments.length - 1].end;
+		emitLog(taskId, `[ASR] Audio duration ${(audioDurationMs / 1000).toFixed(1)}s`);
+		emitLog(taskId, `[ASR] RTF ${(elapsedSec / (audioDurationMs / 1000)).toFixed(3)}`);
 	}
 }
 

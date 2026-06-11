@@ -55,8 +55,8 @@ export function transcribeWithWords(
 
 	const segments: WhisperVulkanSegment[] = rawSegments.map((s: any) => ({
 		text: (s.text || '').trim(),
-		start: (s.offsets?.from ?? 0) / 1000,
-		end: (s.offsets?.to ?? 0) / 1000,
+		start: s.offsets?.from ?? 0,
+		end: s.offsets?.to ?? 0,
 		words: (s.tokens || [])
 			.filter((t: any) => {
 				const txt = t.text?.trim();
@@ -64,8 +64,8 @@ export function transcribeWithWords(
 			})
 			.map((t: any) => ({
 				word: t.text.trim(),
-				start: (t.offsets.from ?? 0) / 1000,
-				end: (t.offsets.to ?? 0) / 1000,
+				start: t.offsets.from ?? 0,
+				end: t.offsets.to ?? 0,
 				probability: t.p,
 			})),
 	}));
