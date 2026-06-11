@@ -9,6 +9,10 @@
 #include <sstream>
 #include <iomanip>
 
+#ifndef M_PI_2
+#define M_PI_2 1.57079632679489661923
+#endif
+
 #include "onnxruntime_cxx_api.h"
 #include "image.h"
 #include "geometry.h"
@@ -21,8 +25,8 @@ constexpr int REC_H = 48;
 constexpr int REC_MAX_W = 320;
 
 constexpr float DET_THRESH = 0.3f;
-constexpr float BOX_THRESH = 0.7f;
-constexpr float UNCLIP_RATIO = 2.0f;
+
+constexpr float UNCLIP_RATIO = 1.6f;
 constexpr int MAX_CANDIDATES = 1000;
 
 struct OCRResult {
@@ -195,28 +199,34 @@ static std::vector<std::pair<Polygon,float>> dbPostprocess(
     const float* heatmap, int H, int W, int origH, int origW,
     float thresh, float boxThresh, float unclipRatio, int maxCandidates)
 {
-    // Check if model output is raw logits (needs sigmoid) or already sigmoid
-    // If max > 1, it's logits; otherwise assume sigmoid is built in
     float hmax = heatmap[0];
     for (int i = 1; i < H * W; ++i) hmax = std::max(hmax, heatmap[i]);
 
     std::vector<float> prob(H * W);
     if (hmax > 1.0f) {
-        // Raw logits → apply sigmoid
         for (int i = 0; i < H * W; ++i)
             prob[i] = 1.0f / (1.0f + std::exp(-heatmap[i]));
     } else {
-        // Already sigmoid
         std::copy(heatmap, heatmap + H * W, prob.begin());
     }
 
-    // Threshold → binary bitmap
     std::vector<uint8_t> bitmap(H * W);
     for (int i = 0; i < H * W; ++i)
         bitmap[i] = prob[i] > thresh ? 1 : 0;
 
-    // Connected components
-    auto components = connectedComponents(bitmap.data(), H, W);
+    // 2x2 dilation before connectedComponents — matches Python use_dilation:true
+    std::vector<uint8_t> dilated(H * W, 0);
+    for (int y = 0; y < H; ++y) {
+        for (int x = 0; x < W; ++x) {
+            if (bitmap[y * W + x]) {
+                dilated[y * W + x] = 1;
+                if (x + 1 < W) dilated[y * W + x + 1] = 1;
+                if (y + 1 < H) dilated[(y + 1) * W + x] = 1;
+                if (x + 1 < W && y + 1 < H) dilated[(y + 1) * W + x + 1] = 1;
+            }
+        }
+    }
+    auto components = connectedComponents(dilated.data(), H, W);
     std::vector<std::pair<Polygon,float>> results;
 
     int nComp = std::min((int)components.size(), maxCandidates);
@@ -224,45 +234,34 @@ static std::vector<std::pair<Polygon,float>> dbPostprocess(
         auto& comp = components[i];
         if (comp.empty()) continue;
 
-        // Trace contour
         Polygon contour = traceContour(comp, H, W);
         if (contour.size() < 4) continue;
 
-        // Minimum area rectangle
         auto rect = minAreaRect(contour);
         Polygon boxPts = boxPoints(rect);
         float sside = std::min(rect.width, rect.height);
         if (sside < 3) continue;
 
-        // Score
         Polygon boxPtsForScore = boxPts;
         float score = boxScore(prob.data(), H, W, boxPtsForScore);
         if (score < boxThresh) continue;
 
-        // Expand box: axis-aligned padding
-        float x1=boxPts[0].x, x2=boxPts[0].x, y1=boxPts[0].y, y2=boxPts[0].y;
-        for (auto& p : boxPts) {
-            x1 = std::min(x1, p.x); x2 = std::max(x2, p.x);
-            y1 = std::min(y1, p.y); y2 = std::max(y2, p.y);
-        }
-        float pad = std::max(3.0f, (x2-x1)*(y2-y1)*unclipRatio / (2*(x2-x1+y2-y1)+1));
-        Polygon aaBox = {
-            {x1 - pad, y1 - pad}, {x2 + pad, y1 - pad},
-            {x2 + pad, y2 + pad}, {x1 - pad, y2 + pad},
-        };
-        auto rect2 = minAreaRect(aaBox);
-        Polygon boxFinal = boxPoints(rect2);
+        // Expand rotated rect uniformly (pyclipper-equivalent for rectangles)
+        float dist = rect.width * rect.height * unclipRatio / (2.0f * (rect.width + rect.height));
+        dist = std::max(3.0f, dist);
+        rect.width += 2.0f * dist;
+        rect.height += 2.0f * dist;
+        Polygon boxFinal = boxPoints(rect);
         {
-            float sside2 = std::min(rect2.width, rect2.height);
+            float sside2 = std::min(rect.width, rect.height);
             if (sside2 < 5) continue;
         }
 
-        // Scale to original image coordinates
         for (auto& p : boxFinal) {
             p.x = std::round(p.x / W * origW);
             p.y = std::round(p.y / H * origH);
-            p.x = std::max(0.0f, std::min((float)origW, p.x));
-            p.y = std::max(0.0f, std::min((float)origH, p.y));
+            p.x = std::max(0.0f, std::min((float)origW - 1, p.x));
+            p.y = std::max(0.0f, std::min((float)origH - 1, p.y));
         }
 
         results.push_back({boxFinal, score});
@@ -271,27 +270,31 @@ static std::vector<std::pair<Polygon,float>> dbPostprocess(
     return results;
 }
 
-// --- Crop a box from image ---
-static Image cropImage(const Image& img, const Polygon& box) {
-    int xmin = (int)std::floor(box[0].x), xmax = (int)std::ceil(box[0].x);
-    int ymin = (int)std::floor(box[0].y), ymax = (int)std::ceil(box[0].y);
-    for (auto& p : box) {
-        xmin = std::min(xmin, (int)std::floor(p.x));
-        xmax = std::max(xmax, (int)std::ceil(p.x));
-        ymin = std::min(ymin, (int)std::floor(p.y));
-        ymax = std::max(ymax, (int)std::ceil(p.y));
-    }
-    xmin = std::max(0, xmin); xmax = std::min(img.w, xmax);
-    ymin = std::max(0, ymin); ymax = std::min(img.h, ymax);
+// --- Warp rotated crop using RotatedRect (affine rotation + bilinear sampling) ---
+static Image warpRotatedCrop(const Image& img, const RotatedRect& rect) {
+    int dstW = std::max(1, (int)std::round(rect.width));
+    int dstH = std::max(1, (int)std::round(rect.height));
+    if (dstW > img.w * 2) dstW = std::min(dstW, img.w);
+    if (dstH > img.h * 2) dstH = std::min(dstH, img.h);
 
-    int w = xmax - xmin, h = ymax - ymin;
-    Image crop;
-    crop.w = w; crop.h = h; crop.c = 3;
-    crop.data.resize(w * h * 3);
-    for (int y = 0; y < h; ++y) {
-        std::memcpy(&crop.data[y * w * 3], &img.data[(ymin + y) * img.w * 3 + xmin * 3], w * 3);
+    Image out;
+    out.w = dstW; out.h = dstH; out.c = img.c;
+    out.data.resize(dstW * dstH * img.c, 0);
+
+    float cosA = std::cos(rect.angle), sinA = std::sin(rect.angle);
+    float cx = rect.center.x, cy = rect.center.y;
+
+    for (int dy = 0; dy < dstH; ++dy) {
+        float perp = dy - dstH / 2.0f;
+        for (int dx = 0; dx < dstW; ++dx) {
+            float proj = dx - dstW / 2.0f;
+            float sx = proj * cosA - perp * sinA + cx;
+            float sy = proj * sinA + perp * cosA + cy;
+            for (int c = 0; c < img.c; ++c)
+                out.data[(dy * dstW + dx) * img.c + c] = (uint8_t)std::round(sampleBilinear(img, sx, sy, c));
+        }
     }
-    return crop;
+    return out;
 }
 
 // --- Rotate image 180° ---
@@ -379,8 +382,9 @@ static OCRResult runOcr(
             if (yCenter < 620 || yCenter > 700) continue;
         }
 
-        // Crop box from image (axis-aligned)
-        Image crop = cropImage(img, boxPts);
+        // Determine orientation from minAreaRect
+        auto rotRect = minAreaRect(boxPts);
+        Image crop = warpRotatedCrop(img, rotRect);
         if (crop.w < 4 || crop.h < 4) continue;
 
         // Cls inference

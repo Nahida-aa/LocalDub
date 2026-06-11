@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <vector>
 #include <cmath>
+#include <algorithm>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -20,6 +21,20 @@ static Image loadImage(const char* path) {
     img.data.assign(pixels, pixels + img.w * img.h * 3);
     stbi_image_free(pixels);
     return img;
+}
+
+static float sampleBilinear(const Image& img, float x, float y, int c) {
+    if (x < 0 || x >= img.w || y < 0 || y >= img.h) return 0;
+    int x0 = std::max(0, std::min((int)x, img.w - 2));
+    int y0 = std::max(0, std::min((int)y, img.h - 2));
+    int x1 = std::min(x0 + 1, img.w - 1);
+    int y1 = std::min(y0 + 1, img.h - 1);
+    float fx = x - x0, fy = y - y0;
+    auto px = [&](int px, int py) -> float {
+        return img.data[(py * img.w + px) * img.c + c];
+    };
+    return (1-fy)*(1-fx)*px(x0,y0) + (1-fy)*fx*px(x1,y0)
+         + fy*(1-fx)*px(x0,y1) + fy*fx*px(x1,y1);
 }
 
 static void resizeBilinear(const uint8_t* src, int sw, int sh, uint8_t* dst, int dw, int dh) {
