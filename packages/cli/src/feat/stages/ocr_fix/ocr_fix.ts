@@ -1,4 +1,4 @@
-import { readJson, writeJson } from '../utils/fileOps.ts';
+import { readJson, writeJson } from '../fileOps.ts';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { readConfig } from '../../config/config.ts';

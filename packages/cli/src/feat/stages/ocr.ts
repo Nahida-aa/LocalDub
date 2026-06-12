@@ -3,7 +3,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { ocrFrame } from "../../ml/ocr/ocr.ts";
 import { REPO_ROOT, readConfig } from "../config/config.ts";
-import { ensureDir, writeJson } from "./utils/fileOps.ts";
+import { ensureDir, writeJson } from "./fileOps.ts";
 import { emitLog, ffmpeg, nowISO, srtTime, updateStageDB } from "./utils/utils.ts";
 
 import { FrameResult, mergeFrames } from "./utils/ocrMerge.ts";

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { readJson, writeFile } from './utils/fileOps.ts';
+import { readJson, writeFile } from './fileOps.ts';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { stage } from './utils/context.ts';

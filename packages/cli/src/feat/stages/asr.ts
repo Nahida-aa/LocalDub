@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { readJson, writeJson, ensureDir, removeFile } from './utils/fileOps.ts';
+import { readJson, writeJson, ensureDir, removeFile } from './fileOps.ts';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { MLDaemon } from '../../ml/daemon/client.ts';

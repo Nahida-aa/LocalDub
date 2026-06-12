@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { readJson, writeFile, ensureDir, removeFile } from './utils/fileOps.ts';
+import { readJson, writeFile, ensureDir, removeFile } from './fileOps.ts';
 import { existsSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {

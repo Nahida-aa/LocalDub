@@ -1,4 +1,4 @@
-import { readJson, writeJson, writeFile, ensureDir } from './utils/fileOps.ts';
+import { readJson, writeJson, writeFile, ensureDir } from './fileOps.ts';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
