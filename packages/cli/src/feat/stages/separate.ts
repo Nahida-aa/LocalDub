@@ -235,6 +235,16 @@ async function separateGgml(
 		throw new Error(`ffmpeg extract failed: ${ffmpegResult.stderr?.toString().slice(-200)}`);
 	}
 
+	if (!existsSync(ggmlBin)) {
+		throw new Error(
+			`GGML binary not found at ${ggmlBin}\n`
+			+ `To use ggml runtime, build from submodule/demucs.cpp first:\n`
+			+ `  1. git submodule update --init submodule/demucs.cpp\n`
+			+ `  2. See submodule/demucs.cpp/README for build instructions\n`
+			+ `Or set separate.runtime to "ort" in config to use ONNX instead.`,
+		);
+	}
+
 	const t0 = performance.now();
 	const result = spawnSync(ggmlBin, [ggmlModel, audioPath, outDir, '4'], {
 		timeout: 600_000,
@@ -242,6 +252,9 @@ async function separateGgml(
 	});
 	const elapsedSec = (performance.now() - t0) / 1000;
 
+	if (result.error) {
+		throw new Error(`GGML separate failed to spawn: ${result.error.message}`);
+	}
 	if (result.status !== 0) {
 		throw new Error(`GGML separate failed (${result.status}): ${result.stderr?.toString().slice(-300)}`);
 	}
