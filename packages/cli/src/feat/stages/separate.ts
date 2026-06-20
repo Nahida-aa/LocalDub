@@ -408,11 +408,51 @@ async function tryBuildGgml(sessionPath: string): Promise<boolean> {
 			cmakeGen = ['-G', 'MinGW Makefiles'];
 			log('[Separate] Found MinGW (g++), using MinGW Makefiles generator');
 		} else {
-			log('[Separate] No C++ compiler found on Windows.\n'
-				+ '  Install Visual Studio Build Tools (with "Desktop development with C++" workload):\n'
-				+ '    https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022\n'
-				+ '  Or install MinGW-w64 via winget: winget install MSYS2.MSYS2');
-			return false;
+			log('[Separate] No C++ compiler found, attempting to install MinGW-w64 via MSYS2...');
+			const msysInstall = spawnSync('winget', ['install', '--silent', '--accept-package-agreements', 'MSYS2.MSYS2'], {
+				timeout: 120_000,
+			});
+			if (msysInstall.status !== 0) {
+				log('[Separate] MSYS2 winget install failed.\n'
+					+ '  Install Visual Studio Build Tools: https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022\n'
+					+ '  Or install MSYS2 manually: winget install MSYS2.MSYS2');
+				return false;
+			}
+			const msysCandidates = [
+				'C:\\tools\\msys64',
+				'C:\\msys64',
+				join(process.env.USERPROFILE || '', 'AppData', 'Local', 'MSYS2'),
+				join(process.env.LOCALAPPDATA || '', 'MSYS2'),
+			];
+			const msysRoot = msysCandidates.find(p => existsSync(join(p, 'usr', 'bin', 'pacman.exe')));
+			if (!msysRoot) {
+				log('[Separate] MSYS2 installed but could not find pacman.exe.\n'
+					+ '  Please restart your terminal and run:\n'
+					+ '    pacman -S mingw-w64-x86_64-gcc\n'
+					+ '  Then add to PATH the mingw64\\bin directory.');
+				return false;
+			}
+			const pacmanPath = join(msysRoot, 'usr', 'bin', 'pacman.exe');
+			log('[Separate] Installing mingw-w64-gcc via pacman (may take a while)...');
+			const gccInstall = spawnSync(pacmanPath, ['-S', '--noconfirm', 'mingw-w64-x86_64-toolchain'], {
+				timeout: 300_000,
+			});
+			if (gccInstall.status !== 0) {
+				log('[Separate] pacman install mingw-w64-toolchain failed.\n'
+					+ '  Open MSYS2 clang64.exe and run:\n'
+					+ '    pacman -S mingw-w64-x86_64-toolchain');
+				return false;
+			}
+			const mingwBin = join(msysRoot, 'mingw64', 'bin');
+			const gppPath = join(mingwBin, 'g++.exe');
+			if (!existsSync(gppPath)) {
+				log(`[Separate] g++ not found at ${gppPath}.`);
+				return false;
+			}
+			process.env.PATH = `${mingwBin};${process.env.PATH || ''}`;
+			log(`[Separate] Added ${mingwBin} to PATH`);
+			cmakeGen = ['-G', 'MinGW Makefiles'];
+			log('[Separate] Using MinGW Makefiles generator');
 		}
 	}
 
