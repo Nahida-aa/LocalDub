@@ -333,15 +333,20 @@ async function tryBuildGgml(sessionPath: string): Promise<boolean> {
 
 	const demucsCppDir = join(REPO_ROOT, 'submodule', 'demucs.cpp');
 	const buildDir = join(demucsCppDir, 'build');
-
-	emitLog(sessionPath, '[Separate] Initializing submodule...');
-	const initResult = spawnSync('git', ['submodule', 'update', '--init', 'submodule/demucs.cpp'], {
+	let initResult = spawnSync('git', ['submodule', 'update', '--init', 'submodule/demucs.cpp'], {
 		cwd: REPO_ROOT,
 		timeout: 120_000,
 	});
 	if (initResult.status !== 0) {
-		emitLog(sessionPath, '[Separate] git submodule init failed (SSH key may be required)');
-		return false;
+		emitLog(sessionPath, '[Separate] SSH submodule init failed, retrying with HTTPS...');
+		rmSync(demucsCppDir, { recursive: true, force: true });
+		initResult = spawnSync('git', ['clone', '--recurse-submodules', 'https://github.com/sevagh/demucs.cpp.git', demucsCppDir], {
+			timeout: 120_000,
+		});
+		if (initResult.status !== 0) {
+			emitLog(sessionPath, '[Separate] HTTPS clone also failed');
+			return false;
+		}
 	}
 
 	mkdirSync(buildDir, { recursive: true });
