@@ -3,7 +3,9 @@
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
-    "setup": "bun scripts/setup.ts"
+    "setup": "bun scripts/setup.ts",
+    "test": "bun test",
+    "prepare": "bun scripts/install-hooks.ts"
   },
   "workspaces": [
     "packages/*"

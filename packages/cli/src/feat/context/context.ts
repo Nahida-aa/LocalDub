@@ -2,7 +2,7 @@ import { RawConfigInput, TargetLang } from "../config/types";
 import { readFileSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { env, REPO_ROOT, WORKFOLDER } from '@repo/config';
-import { to } from '@repo/shared/lib/utils/try.ts';
+
 import { fileLog, getLastSegment } from '../stages/utils/fileOps.ts';
 
 export const getTaskId = (sessionPath: string) => getLastSegment(sessionPath)
@@ -94,18 +94,17 @@ export const setCtx = (
 	const ctx = _writeCtx( { ...existing, ...patch });
 	console.log(`[${ctx.task.current_stage}] [File] set ${ctxPath(sessionPath)}:`, JSON.stringify(patch));
 };
-export async function readTask(sessionPath: string) {
-	const ctx_path = ctxPath(sessionPath)
-	const [ctx, err] = await to<Context>(Bun.file(ctx_path).json());
-	if (err) throw new Error(`Task ${ctx_path} not found`);
-	
+export const readTask = (sessionPath: string) => {
+	const path = ctxPath(sessionPath);
+	const raw = readFileSync(path, 'utf-8');
+	const ctx = JSON.parse(raw) as Context;
 	return ctx.task;
 }
 export const writeTask = ( task: Task) => {
 		setCtx(task.session_path, { task });
 }
-export const  setTask = async (sessionPath: string, patch: Partial<Task>) => {
-	const existing = (await readTask(sessionPath)) ?? ({} as Task);
+export const setTask = (sessionPath: string, patch: Partial<Task>) => {
+	const existing = readTask(sessionPath) ?? ({} as Task);
 	const updated = { ...existing, ...patch };
 	writeTask(updated);
 }

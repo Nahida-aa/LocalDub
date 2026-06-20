@@ -212,3 +212,5 @@ pretrained_models/
 packages/cli/config.json 
 
 **/build2
+
+build/

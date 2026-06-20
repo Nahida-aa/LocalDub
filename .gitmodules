@@ -10,7 +10,7 @@
 	url = https://github.com:OpenBMB/VoxCPM.git
 [submodule "submodule/whisper.cpp"]
 	path = submodule/whisper.cpp
-	url = https://github.com/ggerganov/whisper.cpp
+	url = https://github.com/ggerganov/whisper.cpp.git
 [submodule "demucs.cpp"]
 	path = submodule/demucs.cpp
-	url = https://github.com:sevagh/demucs.cpp.git
+	url = https://github.com/sevagh/demucs.cpp.git

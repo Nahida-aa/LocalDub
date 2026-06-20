@@ -43,7 +43,7 @@ function snapshotConfig(sessionPath: string) {
 export async function runPipeline(ctx: Context, daemon?: MLDaemon) {
 	const taskId= ctx.task.id
 	const sessionPath = ctx.task.session_path
-	let task = await readTask(sessionPath);
+	let task = readTask(sessionPath);
 	mkdirSync(sessionPath, { recursive: true });
 
 	const pipeline = readPipeline(sessionPath);
@@ -95,7 +95,7 @@ export async function runPipeline(ctx: Context, daemon?: MLDaemon) {
 			throw err;
 		}
 
-		const next = await readTask(sessionPath)
+		const next = readTask(sessionPath)
 		if (next) {
 			task = next;
 		}
@@ -117,7 +117,7 @@ export async function resumePipeline(
 ) {
 		const taskId= ctx.task.id
 	const sessionPath = ctx.task.session_path
-	let task = await readTask(sessionPath);
+	let task = readTask(sessionPath);
 
 	const [info, err] = to(() => readCtx(sessionPath));
 	if (err) {
@@ -250,7 +250,7 @@ export async function resumePipeline(
 			throw err;
 		}
 
-		const next = await readTask(sessionPath)
+		const next = readTask(sessionPath)
 		if (next) {
 			task = next;
 		}
@@ -272,7 +272,7 @@ export async function rerunSingleStage(
 ) {
 	const taskId= ctx.task.id
 	const sessionPath = ctx.task.session_path
-	const task = await readTask(sessionPath)
+	const task = readTask(sessionPath)
 
 	const pipeline = readPipeline(sessionPath);
 	const stages = getStages(pipeline);
