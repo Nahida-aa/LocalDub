@@ -305,8 +305,21 @@ async function tryBuildGgml(sessionPath: string): Promise<boolean> {
 		return false;
 	}
 	if (spawnSync('cmake', ['--version'], { timeout: 5000 }).status !== 0) {
-		emitLog(sessionPath, '[Separate] cmake not found, cannot build');
-		return false;
+		emitLog(sessionPath, '[Separate] cmake not found, attempting to install...');
+		const isWin = process.platform === 'win32';
+		if (isWin) {
+			const install = spawnSync('winget', ['install', '--silent', '--accept-package-agreements', 'Kitware.CMake'], {
+				timeout: 120_000,
+			});
+			if (install.status !== 0) {
+				emitLog(sessionPath, '[Separate] winget install failed (may need admin rights). Install CMake manually: winget install Kitware.CMake');
+				return false;
+			}
+			emitLog(sessionPath, '[Separate] CMake installed via winget');
+		} else {
+			emitLog(sessionPath, '[Separate] Install CMake via your package manager (e.g. apt install cmake, brew install cmake)');
+			return false;
+		}
 	}
 
 	const demucsCppDir = join(REPO_ROOT, 'submodule', 'demucs.cpp');
