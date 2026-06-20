@@ -2,12 +2,11 @@ import { spawnSync } from 'node:child_process';
 import {
 	existsSync,
 	mkdirSync,
-	readdirSync,
 	readFileSync,
 	statSync,
 	writeFileSync,
 } from 'node:fs';
-import { join, relative } from 'node:path';
+import { basename, join, relative } from 'node:path';
 import { env, REPO_ROOT, WORKFOLDER, YOUTUBE_COOKIE_PATH } from '@repo/config';
 import { sanitizeText } from './../../feat/tasks/fn.ts';
 import { extractVideoId, isYouTubeUrl } from './../../feat/tasks/validate.ts';
@@ -39,10 +38,7 @@ export async function stageDownload(
 		mkdirSync(mediaDir, { recursive: true });
 		mkdirSync(join(sessionPath, 'metadata'), { recursive: true });
 
-		const files = readdirSync(sessionPath).filter((f) => f !== '.' && f !== '..');
-		if (files.length === 0)
-			throw new Error(`Upload directory empty: ${sessionPath}`);
-		const sourceFile = join(sessionPath, files[0]);
+		const sourceFile = ctx.task.url;
 
 		const t0 = Date.now();
 		ffmpeg([
@@ -78,7 +74,7 @@ export async function stageDownload(
 			...existing,
 			task: {
 				...existing.task,
-				title: files[0].replace(/\.\w+$/, ''),
+				title: basename(sourceFile).replace(/\.\w+$/, ''),
 			},
 		});
 
