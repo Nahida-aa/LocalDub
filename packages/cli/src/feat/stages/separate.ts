@@ -297,6 +297,39 @@ async function separateGgml(
 	}
 }
 
+function findCmakePath(): string | null {
+	const candidates = [
+		join(process.env.ProgramFiles || 'C:\\Program Files', 'CMake', 'bin', 'cmake.exe'),
+		join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'CMake', 'bin', 'cmake.exe'),
+		join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WinGet', 'Links', 'cmake.exe'),
+		join(process.env.USERPROFILE || '', 'AppData', 'Local', 'Microsoft', 'WinGet', 'Links', 'cmake.exe'),
+	];
+	for (const p of candidates) {
+		if (existsSync(p)) return p;
+	}
+	return null;
+}
+
+let _cmakePath: string | null = null;
+
+function cmakeBin(): string {
+	if (_cmakePath) return _cmakePath;
+	const fromPath = spawnSync('where', ['cmake'], { timeout: 5000, shell: true });
+	if (fromPath.status === 0) {
+		const lines = fromPath.stdout?.toString().trim().split(/\r?\n/);
+		if (lines && lines.length > 0 && lines[0].length > 0) {
+			_cmakePath = lines[0].trim();
+			return _cmakePath;
+		}
+	}
+	const found = findCmakePath();
+	if (found) {
+		_cmakePath = found;
+		return _cmakePath;
+	}
+	return 'cmake';
+}
+
 async function tryBuildGgml(sessionPath: string): Promise<boolean> {
 	const log = (msg: string) => { console.log(msg); emitLog(sessionPath, msg); };
 
@@ -306,7 +339,8 @@ async function tryBuildGgml(sessionPath: string): Promise<boolean> {
 		log('[Separate] git not found, cannot init submodule');
 		return false;
 	}
-	if (spawnSync('cmake', ['--version'], { timeout: 5000 }).status !== 0) {
+	const cmakeCheck = spawnSync('cmake', ['--version'], { timeout: 5000 });
+	if (cmakeCheck.status !== 0) {
 		log('[Separate] cmake not found, attempting to install...');
 		const isWin = process.platform === 'win32';
 		if (isWin) {
@@ -317,11 +351,16 @@ async function tryBuildGgml(sessionPath: string): Promise<boolean> {
 				log('[Separate] winget install failed (may need admin rights). Install CMake manually: winget install Kitware.CMake');
 				return false;
 			}
-			log('[Separate] CMake installed via winget');
-			if (spawnSync('cmake', ['--version'], { timeout: 5000 }).status !== 0) {
-				log('[Separate] cmake still not found after winget install (may need new terminal or restart)');
+			log('[Separate] CMake installed via winget, probing install location...');
+			const found = findCmakePath();
+			if (!found) {
+				log('[Separate] Could not locate cmake.exe after install.\n'
+					+ '  Try running: winget install Kitware.CMake\n'
+					+ '  Then restart your terminal and re-run the pipeline.');
 				return false;
 			}
+			_cmakePath = found;
+			log(`[Separate] cmake found at ${found}`);
 		} else if (process.platform === 'darwin') {
 			const install = spawnSync('brew', ['install', 'cmake'], {
 				timeout: 120_000,
@@ -377,8 +416,9 @@ async function tryBuildGgml(sessionPath: string): Promise<boolean> {
 		}
 	}
 
-	log('[Separate] Running cmake configure...');
-	const cmakeConfigure = spawnSync('cmake', [...cmakeGen, '..', '-DCMAKE_BUILD_TYPE=Release'], {
+	const cmakePath = cmakeBin();
+	log(`[Separate] Running cmake configure (${cmakePath})...`);
+	const cmakeConfigure = spawnSync(cmakePath, [...cmakeGen, '..', '-DCMAKE_BUILD_TYPE=Release'], {
 		cwd: buildDir,
 		timeout: 60_000,
 	});
@@ -388,8 +428,8 @@ async function tryBuildGgml(sessionPath: string): Promise<boolean> {
 		return false;
 	}
 
-	log('[Separate] Building binary (may take several minutes)...');
-	const cmakeBuild = spawnSync('cmake', ['--build', '.', '--config', 'Release', '-j', '4'], {
+	log(`[Separate] Building binary (may take several minutes)...`);
+	const cmakeBuild = spawnSync(cmakePath, ['--build', '.', '--config', 'Release', '-j', '4'], {
 		cwd: buildDir,
 		timeout: 600_000,
 	});
