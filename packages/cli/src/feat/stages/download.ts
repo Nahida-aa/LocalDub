@@ -38,12 +38,10 @@ export async function stageDownload(
 		mkdirSync(mediaDir, { recursive: true });
 		mkdirSync(join(sessionPath, 'metadata'), { recursive: true });
 
-		const sourceFile = ctx.task.url;
-
 		const t0 = Date.now();
 		ffmpeg([
 			'-i',
-			sourceFile,
+			ctx.task.url,
 			'-map',
 			'0:v:0',
 			'-map',
@@ -74,7 +72,7 @@ export async function stageDownload(
 			...existing,
 			task: {
 				...existing.task,
-				title: basename(sourceFile).replace(/\.\w+$/, ''),
+				title: basename(ctx.task.url).replace(/\.\w+$/, ''),
 			},
 		});
 

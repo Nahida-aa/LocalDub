@@ -7,10 +7,10 @@
 	url = https://github.com/FunAudioLLM/CosyVoice.git
 [submodule "submodule/VoxCPM"]
 	path = submodule/VoxCPM
-	url = git@github.com:OpenBMB/VoxCPM.git
+	url = https://github.com:OpenBMB/VoxCPM.git
 [submodule "submodule/whisper.cpp"]
 	path = submodule/whisper.cpp
 	url = https://github.com/ggerganov/whisper.cpp
 [submodule "demucs.cpp"]
 	path = submodule/demucs.cpp
-	url = git@github.com:sevagh/demucs.cpp
+	url = https://github.com:sevagh/demucs.cpp.git
