@@ -316,8 +316,17 @@ async function tryBuildGgml(sessionPath: string): Promise<boolean> {
 				return false;
 			}
 			emitLog(sessionPath, '[Separate] CMake installed via winget');
+		} else if (process.platform === 'darwin') {
+			const install = spawnSync('brew', ['install', 'cmake'], {
+				timeout: 120_000,
+			});
+			if (install.status !== 0) {
+				emitLog(sessionPath, '[Separate] brew install cmake failed');
+				return false;
+			}
+			emitLog(sessionPath, '[Separate] CMake installed via brew');
 		} else {
-			emitLog(sessionPath, '[Separate] Install CMake via your package manager (e.g. apt install cmake, brew install cmake)');
+			emitLog(sessionPath, '[Separate] Install CMake:\n  Ubuntu/Debian: sudo apt install cmake\n  Fedora:        sudo dnf install cmake\n  Arch:          sudo pacman -S cmake');
 			return false;
 		}
 	}
