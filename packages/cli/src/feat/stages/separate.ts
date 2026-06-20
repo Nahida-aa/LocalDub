@@ -248,7 +248,7 @@ async function separateGgml(
 				+ `  1. git submodule update --init submodule/demucs.cpp\n`
 				+ `  2. cd submodule/demucs.cpp && mkdir build && cd build\n`
 				+ `  3. cmake .. && cmake --build . --config Release -j4\n`
-				+ `Or set separate.runtime to "ort" in config to use ONNX instead.`,
+				+ `Or set separate.runtime to "ort" or "pytorch" in config to use ONNX or Python instead.`,
 			);
 		}
 		emitLog(sessionPath, `[Separate] Auto-build succeeded`);
@@ -298,35 +298,41 @@ async function separateGgml(
 }
 
 async function tryBuildGgml(sessionPath: string): Promise<boolean> {
-	emitLog(sessionPath, '[Separate] Checking build prerequisites...');
+	const log = (msg: string) => { console.log(msg); emitLog(sessionPath, msg); };
+
+	log('[Separate] Checking build prerequisites...');
 
 	if (spawnSync('git', ['--version'], { timeout: 5000 }).status !== 0) {
-		emitLog(sessionPath, '[Separate] git not found, cannot init submodule');
+		log('[Separate] git not found, cannot init submodule');
 		return false;
 	}
 	if (spawnSync('cmake', ['--version'], { timeout: 5000 }).status !== 0) {
-		emitLog(sessionPath, '[Separate] cmake not found, attempting to install...');
+		log('[Separate] cmake not found, attempting to install...');
 		const isWin = process.platform === 'win32';
 		if (isWin) {
 			const install = spawnSync('winget', ['install', '--silent', '--accept-package-agreements', 'Kitware.CMake'], {
 				timeout: 120_000,
 			});
 			if (install.status !== 0) {
-				emitLog(sessionPath, '[Separate] winget install failed (may need admin rights). Install CMake manually: winget install Kitware.CMake');
+				log('[Separate] winget install failed (may need admin rights). Install CMake manually: winget install Kitware.CMake');
 				return false;
 			}
-			emitLog(sessionPath, '[Separate] CMake installed via winget');
+			log('[Separate] CMake installed via winget');
+			if (spawnSync('cmake', ['--version'], { timeout: 5000 }).status !== 0) {
+				log('[Separate] cmake still not found after winget install (may need new terminal or restart)');
+				return false;
+			}
 		} else if (process.platform === 'darwin') {
 			const install = spawnSync('brew', ['install', 'cmake'], {
 				timeout: 120_000,
 			});
 			if (install.status !== 0) {
-				emitLog(sessionPath, '[Separate] brew install cmake failed');
+				log('[Separate] brew install cmake failed');
 				return false;
 			}
-			emitLog(sessionPath, '[Separate] CMake installed via brew');
+			log('[Separate] CMake installed via brew');
 		} else {
-			emitLog(sessionPath, '[Separate] Install CMake:\n  Ubuntu/Debian: sudo apt install cmake\n  Fedora:        sudo dnf install cmake\n  Arch:          sudo pacman -S cmake');
+			log('[Separate] Install CMake:\n  Ubuntu/Debian: sudo apt install cmake\n  Fedora:        sudo dnf install cmake\n  Arch:          sudo pacman -S cmake');
 			return false;
 		}
 	}
@@ -338,13 +344,13 @@ async function tryBuildGgml(sessionPath: string): Promise<boolean> {
 		timeout: 120_000,
 	});
 	if (initResult.status !== 0) {
-		emitLog(sessionPath, '[Separate] SSH submodule init failed, retrying with HTTPS...');
+		log('[Separate] SSH submodule init failed, retrying with HTTPS...');
 		rmSync(demucsCppDir, { recursive: true, force: true });
 		initResult = spawnSync('git', ['clone', '--recurse-submodules', 'https://github.com/sevagh/demucs.cpp.git', demucsCppDir], {
 			timeout: 120_000,
 		});
 		if (initResult.status !== 0) {
-			emitLog(sessionPath, '[Separate] HTTPS clone also failed');
+			log('[Separate] HTTPS clone also failed');
 			return false;
 		}
 	}
@@ -356,27 +362,40 @@ async function tryBuildGgml(sessionPath: string): Promise<boolean> {
 	if (isWin) {
 		const hasMSVC = spawnSync('cl', ['/?'], { timeout: 5000 }).status === 0;
 		const hasMinGW = spawnSync('g++', ['--version'], { timeout: 5000 }).status === 0;
-		if (hasMSVC) cmakeGen = ['-G', 'Visual Studio 17 2022'];
-		else if (hasMinGW) cmakeGen = ['-G', 'MinGW Makefiles'];
+		if (hasMSVC) {
+			cmakeGen = ['-G', 'Visual Studio 17 2022'];
+			log('[Separate] Found MSVC (cl.exe), using Visual Studio generator');
+		} else if (hasMinGW) {
+			cmakeGen = ['-G', 'MinGW Makefiles'];
+			log('[Separate] Found MinGW (g++), using MinGW Makefiles generator');
+		} else {
+			log('[Separate] No C++ compiler found on Windows.\n'
+				+ '  Install Visual Studio Build Tools (with "Desktop development with C++" workload):\n'
+				+ '    https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022\n'
+				+ '  Or install MinGW-w64 via winget: winget install MSYS2.MSYS2');
+			return false;
+		}
 	}
 
-	emitLog(sessionPath, '[Separate] Running cmake configure...');
+	log('[Separate] Running cmake configure...');
 	const cmakeConfigure = spawnSync('cmake', [...cmakeGen, '..', '-DCMAKE_BUILD_TYPE=Release'], {
 		cwd: buildDir,
 		timeout: 60_000,
 	});
 	if (cmakeConfigure.status !== 0) {
-		emitLog(sessionPath, '[Separate] cmake configure failed');
+		const stderr = cmakeConfigure.stderr?.toString() || '(no stderr)';
+		log(`[Separate] cmake configure failed:\n${stderr.slice(0, 500)}`);
 		return false;
 	}
 
-	emitLog(sessionPath, '[Separate] Building binary (may take several minutes)...');
+	log('[Separate] Building binary (may take several minutes)...');
 	const cmakeBuild = spawnSync('cmake', ['--build', '.', '--config', 'Release', '-j', '4'], {
 		cwd: buildDir,
 		timeout: 600_000,
 	});
 	if (cmakeBuild.status !== 0) {
-		emitLog(sessionPath, '[Separate] Build failed');
+		const stderr = cmakeBuild.stderr?.toString() || '(no stderr)';
+		log(`[Separate] Build failed:\n${stderr.slice(0, 1000)}`);
 		return false;
 	}
 
