@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import type { MLDaemon } from '../../ml/daemon/client.ts';
 import { Demucs } from './../../ml/demucs/demucs.ts';
@@ -235,18 +235,31 @@ async function separateGgml(
 		throw new Error(`ffmpeg extract failed: ${ffmpegResult.stderr?.toString().slice(-200)}`);
 	}
 
-	if (!existsSync(ggmlBin)) {
-		throw new Error(
-			`GGML binary not found at ${ggmlBin}\n`
-			+ `To use ggml runtime, build from submodule/demucs.cpp first:\n`
-			+ `  1. git submodule update --init submodule/demucs.cpp\n`
-			+ `  2. See submodule/demucs.cpp/README for build instructions\n`
-			+ `Or set separate.runtime to "ort" in config to use ONNX instead.`,
-		);
+	const isWin = process.platform === 'win32';
+	const ggmlBinPath = isWin && !ggmlBin.endsWith('.exe') ? `${ggmlBin}.exe` : ggmlBin;
+
+	if (!existsSync(ggmlBinPath)) {
+		emitLog(sessionPath, `[Separate] Binary not found at ${ggmlBinPath}, attempting auto-build...`);
+		const built = await tryBuildGgml(sessionPath);
+		if (!built) {
+			throw new Error(
+				`GGML binary not found at ${ggmlBinPath}\n`
+				+ `Auto-build failed. To build manually:\n`
+				+ `  1. git submodule update --init submodule/demucs.cpp\n`
+				+ `  2. cd submodule/demucs.cpp && mkdir build && cd build\n`
+				+ `  3. cmake .. && cmake --build . --config Release -j4\n`
+				+ `Or set separate.runtime to "ort" in config to use ONNX instead.`,
+			);
+		}
+		emitLog(sessionPath, `[Separate] Auto-build succeeded`);
+	}
+
+	if (!existsSync(ggmlModel)) {
+		await ensureGgmlModel(sessionPath, ggmlModel);
 	}
 
 	const t0 = performance.now();
-	const result = spawnSync(ggmlBin, [ggmlModel, audioPath, outDir, '4'], {
+	const result = spawnSync(ggmlBinPath, [ggmlModel, audioPath, outDir, '4'], {
 		timeout: 600_000,
 		env: { ...process.env, OMP_NUM_THREADS: '2' },
 	});
@@ -282,4 +295,85 @@ async function separateGgml(
 	if (durationS > 0) {
 		emitLog(sessionPath, `[Separate] RTF ${(elapsedSec / durationS).toFixed(3)}`);
 	}
+}
+
+async function tryBuildGgml(sessionPath: string): Promise<boolean> {
+	emitLog(sessionPath, '[Separate] Checking build prerequisites...');
+
+	if (spawnSync('git', ['--version'], { timeout: 5000 }).status !== 0) {
+		emitLog(sessionPath, '[Separate] git not found, cannot init submodule');
+		return false;
+	}
+	if (spawnSync('cmake', ['--version'], { timeout: 5000 }).status !== 0) {
+		emitLog(sessionPath, '[Separate] cmake not found, cannot build');
+		return false;
+	}
+
+	const demucsCppDir = join(REPO_ROOT, 'submodule', 'demucs.cpp');
+	const buildDir = join(demucsCppDir, 'build');
+
+	emitLog(sessionPath, '[Separate] Initializing submodule...');
+	const initResult = spawnSync('git', ['submodule', 'update', '--init', 'submodule/demucs.cpp'], {
+		cwd: REPO_ROOT,
+		timeout: 120_000,
+	});
+	if (initResult.status !== 0) {
+		emitLog(sessionPath, '[Separate] git submodule init failed (SSH key may be required)');
+		return false;
+	}
+
+	mkdirSync(buildDir, { recursive: true });
+
+	const isWin = process.platform === 'win32';
+	let cmakeGen: string[] = [];
+	if (isWin) {
+		const hasMSVC = spawnSync('cl', ['/?'], { timeout: 5000 }).status === 0;
+		const hasMinGW = spawnSync('g++', ['--version'], { timeout: 5000 }).status === 0;
+		if (hasMSVC) cmakeGen = ['-G', 'Visual Studio 17 2022'];
+		else if (hasMinGW) cmakeGen = ['-G', 'MinGW Makefiles'];
+	}
+
+	emitLog(sessionPath, '[Separate] Running cmake configure...');
+	const cmakeConfigure = spawnSync('cmake', [...cmakeGen, '..', '-DCMAKE_BUILD_TYPE=Release'], {
+		cwd: buildDir,
+		timeout: 60_000,
+	});
+	if (cmakeConfigure.status !== 0) {
+		emitLog(sessionPath, '[Separate] cmake configure failed');
+		return false;
+	}
+
+	emitLog(sessionPath, '[Separate] Building binary (may take several minutes)...');
+	const cmakeBuild = spawnSync('cmake', ['--build', '.', '--config', 'Release', '-j', '4'], {
+		cwd: buildDir,
+		timeout: 600_000,
+	});
+	if (cmakeBuild.status !== 0) {
+		emitLog(sessionPath, '[Separate] Build failed');
+		return false;
+	}
+
+	return true;
+}
+
+async function ensureGgmlModel(sessionPath: string, modelPath: string): Promise<void> {
+	const modelUrl = 'https://huggingface.co/datasets/Retrobear/demucs.cpp/resolve/main/ggml-model-htdemucs-4s-f16.bin';
+
+	emitLog(sessionPath, `[Separate] Downloading model weights (84 MB) from HuggingFace...`);
+
+	mkdirSync(dirname(modelPath), { recursive: true });
+
+	const response = await fetch(modelUrl);
+	if (!response.ok) {
+		throw new Error(
+			`Failed to download ggml model: HTTP ${response.status}\n`
+			+ `Download manually from ${modelUrl}\n`
+			+ `and place at ${modelPath}`,
+		);
+	}
+
+	const buffer = await response.arrayBuffer();
+	writeFileSync(modelPath, Buffer.from(buffer));
+
+	emitLog(sessionPath, '[Separate] Model weights downloaded');
 }
