@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import type { MLDaemon } from '../../ml/daemon/client.ts';
 import { Demucs } from './../../ml/demucs/demucs.ts';
@@ -394,6 +394,25 @@ async function tryBuildGgml(sessionPath: string): Promise<boolean> {
 		}
 	}
 
+	// Patch cli-apps source for GCC >= 14: std::filesystem::path no longer
+	// implicitly converts to std::string.  Add .string() calls.
+	const cliAppsDir = join(demucsCppDir, 'cli-apps');
+	if (existsSync(cliAppsDir)) {
+		for (const f of readdirSync(cliAppsDir)) {
+			if (!f.endsWith('.cpp')) continue;
+			const fp = join(cliAppsDir, f);
+			let src = readFileSync(fp, 'utf-8');
+			const patched = src.replace(
+				/(write_audio_file\s*\(\s*\w+\s*,\s*)(\w+)(\s*\))/g,
+				(_, prefix, arg, suffix) => `${prefix}${arg}.string()${suffix}`,
+			);
+			if (src !== patched) {
+				writeFileSync(fp, patched);
+				log(`[Separate] Patched ${f} for GCC >= 14 (path→string)`);
+			}
+		}
+	}
+
 	mkdirSync(buildDir, { recursive: true });
 
 	const isWin = process.platform === 'win32';
@@ -458,7 +477,18 @@ async function tryBuildGgml(sessionPath: string): Promise<boolean> {
 
 	const cmakePath = cmakeBin();
 	log(`[Separate] Running cmake configure (${cmakePath})...`);
-	const cmakeConfigure = spawnSync(cmakePath, [...cmakeGen, '..', '-DCMAKE_BUILD_TYPE=Release'], {
+	const cmakeFlags = [
+		...cmakeGen,
+		'..',
+		'-DCMAKE_BUILD_TYPE=Release',
+		'-DCMAKE_POLICY_VERSION_MINIMUM=3.5',
+		'-DCMAKE_C_FLAGS=-include windows.h',
+		'-DCMAKE_CXX_FLAGS=-fpermissive',
+	];
+	if (isWin) {
+		cmakeFlags.push('-DCMAKE_MAKE_PROGRAM=C:/msys64/mingw64/bin/mingw32-make.exe');
+	}
+	const cmakeConfigure = spawnSync(cmakePath, cmakeFlags, {
 		cwd: buildDir,
 		timeout: 60_000,
 	});
