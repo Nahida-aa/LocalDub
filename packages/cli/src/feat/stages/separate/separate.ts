@@ -77,7 +77,10 @@ export async function stageSeparate(
 		if (sr.process_time_s)
 			emitLog(sessionPath, `[Separate] Processed in ${sr.process_time_s}s`);
 		if (sr.audio_duration_s)
-			emitLog(sessionPath, `[Separate] Audio duration ${sr.audio_duration_s.toFixed(1)}s`);
+			emitLog(
+				taskId,
+				`[Separate] Audio duration ${sr.audio_duration_s.toFixed(1)}s`,
+			);
 		if (sr.rtf) emitLog(sessionPath, `[Separate] RTF ${sr.rtf}`);
 	} else if (runtime === 'pytorch') {
 		await separatePytorch(taskId, sessionPath, videoPath, device);
