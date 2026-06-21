@@ -105,9 +105,19 @@ function setupPython(venv: string, gpuMode: 'cuda' | 'cpu', skipPipUpgrade: bool
 		log('跳过 pip 升级', 'gray');
 	}
 
+	// CUDA 时先安装 PyTorch CUDA 版本
+	if (gpuMode === 'cuda') {
+		const pytorchCu = join(repoRoot, 'requirements-pytorch-cu128.txt');
+		if (existsSync(pytorchCu)) {
+			log('安装 PyTorch CUDA 12.8...', 'yellow');
+			run([pip, 'install', '-r', pytorchCu, '--quiet'], { cwd: repoRoot });
+		}
+	}
+
+	// 安装其他依赖（CPU 时指定 index URL）
 	const torchIndex = gpuMode === 'cpu'
 		? ['--index-url', 'https://download.pytorch.org/whl/cpu']
-		: ['--index-url', 'https://download.pytorch.org/whl/cu124'];
+		: [];
 
 	log(`安装 Python 依赖 (${gpuMode})...`, 'yellow');
 	const args = [pip, 'install', '-r', join(repoRoot, 'requirements.txt'), '--quiet'];
