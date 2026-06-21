@@ -1,0 +1,9 @@
+# demucs 运行时核心依赖
+# （避免安装 demucs 自己的 requirements.txt，因为它有严格的版本约束与 Python 3.12 不兼容）
+
+dora-search>=0.1.12
+julius>=0.2.3
+einops
+openunmix
+lameenc>=1.2
+tqdm

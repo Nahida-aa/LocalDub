@@ -466,7 +466,7 @@ def tcp_server(port: int) -> None:
             break
 
         with conn:
-            f = conn.makefile("rw")
+            f = conn.makefile("rw", encoding="utf-8")
             def _tcp_emit(obj: dict) -> None:
                 f.write(json.dumps(obj, ensure_ascii=False) + "\n")
                 f.flush()

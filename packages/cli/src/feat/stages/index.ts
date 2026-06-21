@@ -1,6 +1,6 @@
 import type { MLDaemon } from '../../ml/daemon/client.ts';
 import { stageDownload } from './download.ts';
-import { stageSeparate } from './separate.ts';
+import { stageSeparate } from './separate/separate.ts';
 import { stageSeparateAfter } from './separate_after.ts';
 import { stageAsr } from './asr.ts';
 import { stageAsrFix } from './asr_fix.ts';

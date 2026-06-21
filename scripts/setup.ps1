@@ -1,4 +1,4 @@
-﻿param(
+param(
   [switch]$Dev  # development mode (skip DB init)
 )
 
@@ -70,6 +70,62 @@ if (-not (Test-Path "node_modules")) {
   bun install
 } else {
   Write-Host "[JS] node_modules 已存在"
+}
+
+# ── 读取 config.json ──────────────────────────────────
+$ConfigPath = Join-Path $RepoRoot "packages\cli\config.json"
+if (Test-Path $ConfigPath) {
+    $Config = Get-Content $ConfigPath | ConvertFrom-Json
+    $SepRuntime = $Config.stages.separate.runtime
+    $TtsRuntime = $Config.stages.tts.runtime
+    Write-Host "[CFG] separate.runtime=$SepRuntime, tts.runtime=$TtsRuntime" -ForegroundColor Cyan
+} else {
+    $SepRuntime = $null
+    $TtsRuntime = $null
+    Write-Host "[CFG] config.json not found, skipping submodule init" -ForegroundColor Yellow
+}
+
+# ── 子模块初始化 ──────────────────────────────────────
+$SubmodulesToInit = @()
+if ($SepRuntime -eq "pytorch" -or $SepRuntime -eq "ggml") {
+    $SubmodulesToInit += "submodule/demucs"
+}
+if ($SepRuntime -eq "ggml") {
+    $SubmodulesToInit += "submodule/demucs.cpp"
+}
+if ($TtsRuntime -eq "pytorch") {
+    $SubmodulesToInit += "submodule/CosyVoice"
+    $SubmodulesToInit += "submodule/VoxCPM"
+}
+
+# 去重
+$SubmodulesToInit = $SubmodulesToInit | Sort-Object -Unique
+
+foreach ($sm in $SubmodulesToInit) {
+    $smPath = Join-Path $RepoRoot $sm.Replace("/", "\")
+    if ((Test-Path (Join-Path $smPath ".git"))) {
+        Write-Host "[SUB] $sm already initialized" -ForegroundColor Gray
+    } else {
+        Write-Host "[SUB] Initializing $sm ..." -ForegroundColor Yellow
+        git submodule update --init $sm
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[SUB] Failed to init $sm" -ForegroundColor Red
+        }
+    }
+}
+if ($SubmodulesToInit.Count -eq 0) {
+    Write-Host "[SUB] No submodules needed based on config" -ForegroundColor Gray
+}
+
+# ── GGML 构建检查 ─────────────────────────────────────
+if ($SepRuntime -eq "ggml") {
+    $GgmlBinary = Join-Path $RepoRoot "submodule\demucs.cpp\build\demucs_mt.cpp.main.exe"
+    if (-not (Test-Path $GgmlBinary)) {
+        Write-Host "[GGML] Binary not found, build required" -ForegroundColor Yellow
+        # cmake 构建将在 runtime 时自动进行
+    } else {
+        Write-Host "[GGML] Binary exists: $GgmlBinary" -ForegroundColor Gray
+    }
 }
 
 # ── 工作目录 ────────────────────────────────────────
