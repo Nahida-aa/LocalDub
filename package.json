@@ -4,6 +4,7 @@
   "license": "Apache-2.0",
   "scripts": {
     "setup": "bun scripts/setup.ts",
+    "run": "bun --cwd packages/cli run-task.ts",
     "test": "bun test",
     "prepare": "bun scripts/install-hooks.ts"
   },
