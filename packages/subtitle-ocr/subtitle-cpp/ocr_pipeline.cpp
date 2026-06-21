@@ -745,30 +745,8 @@ static int runMain(int argc, char* argv[]) {
             } catch (const std::exception& e) {
                 std::cerr << "[OCR] CUDA EP unavailable (" << e.what() << "), falling back to CPU" << std::endl;
             }
-        } else if (device == "dml" || device == "directml") {
-            try {
-                OrtDmlProviderOptions dmlOpts{};
-                sessionOptions.AppendExecutionProvider_DML(dmlOpts, 0);
-                std::cerr << "[OCR] Using DirectML execution provider" << std::endl;
-            } catch (const std::exception& e) {
-                std::cerr << "[OCR] DirectML EP unavailable (" << e.what() << "), falling back to CPU" << std::endl;
-            }
-        } else if (device == "coreml") {
-            try {
-                OrtCoreMLProviderOptions coremlOpts{};
-                sessionOptions.AppendExecutionProvider_CoreML(coremlOpts);
-                std::cerr << "[OCR] Using CoreML execution provider" << std::endl;
-            } catch (const std::exception& e) {
-                std::cerr << "[OCR] CoreML EP unavailable (" << e.what() << "), falling back to CPU" << std::endl;
-            }
-        } else if (device == "rocm") {
-            try {
-                OrtRocmProviderOptions rocmOpts{};
-                sessionOptions.AppendExecutionProvider_ROCM(rocmOpts);
-                std::cerr << "[OCR] Using ROCm execution provider" << std::endl;
-            } catch (const std::exception& e) {
-                std::cerr << "[OCR] ROCm EP unavailable (" << e.what() << "), falling back to CPU" << std::endl;
-            }
+        // Note: DML/CoreML/ROCm providers not available in official onnxruntime build
+        // These would require building onnxruntime from source with respective options
         } else {
             std::cerr << "[OCR] Using CPU execution provider" << std::endl;
         }
@@ -800,14 +778,10 @@ static int runMain(int argc, char* argv[]) {
 }
 
 int main(int argc, char* argv[]) {
-#ifdef _WIN32
-    __try {
+    try {
         return runMain(argc, argv);
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        std::cerr << "SEH exception (code 0x" << std::hex << GetExceptionCode() << std::dec << ")" << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "Exception: " << e.what() << std::endl;
         return 1;
     }
-#else
-    return runMain(argc, argv);
-#endif
 }

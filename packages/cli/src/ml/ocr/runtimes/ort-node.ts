@@ -1,5 +1,5 @@
 import * as ort from 'onnxruntime-node';
-import { readFileSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { Transformer, ResizeFit } from '@napi-rs/image';
 // @ts-ignore - no types published
@@ -13,7 +13,33 @@ export interface OCRLine {
 	box: number[][];
 }
 
-const MODEL_DIR = resolve(REPO_ROOT, '.venv', 'lib', 'python3.14', 'site-packages', 'rapidocr_onnxruntime', 'models');
+/**
+ * Dynamically locate rapidocr model directory.
+ * On Windows: .venv/Lib/site-packages/rapidocr_onnxruntime/models
+ * On Linux:   .venv/lib/python3.x/site-packages/rapidocr_onnxruntime/models
+ */
+function findRapidOCRModelsDir(): string {
+	const venvBase = resolve(REPO_ROOT, '.venv');
+	const sitePackagesBase = resolve(venvBase, process.platform === 'win32' ? 'Lib' : 'lib', 'site-packages');
+	if (!existsSync(sitePackagesBase)) {
+		throw new Error(`site-packages not found: ${sitePackagesBase}`);
+	}
+	let spDir = sitePackagesBase;
+	if (process.platform !== 'win32') {
+		const entries = readdirSync(spDir, { withFileTypes: true });
+		const pyDir = entries.find(e => e.isDirectory() && e.name.startsWith('python'));
+		if (pyDir) {
+			spDir = join(spDir, pyDir.name);
+		}
+	}
+	const modelsDir = join(spDir, 'rapidocr_onnxruntime', 'models');
+	if (!existsSync(modelsDir)) {
+		throw new Error(`rapidocr models not found: ${modelsDir}`);
+	}
+	return modelsDir;
+}
+
+const MODEL_DIR = findRapidOCRModelsDir();
 const POSTPROCESS_PY = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'postprocess_det.py');
 const TMP_DIR = join(REPO_ROOT, 'packages', 'tmp');
 
