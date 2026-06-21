@@ -123,7 +123,7 @@ export async function stageSplitAudio({
 	// Read authoritative timings from srt.json (seconds)
 	const srtData = await readJson(srtFilePath, ctx);
 	const segmentsSrc: { text: string; start: number; end: number }[] = srtData.result?.segments;
-	if (!segmentsSrc?.length) throw new Error('srt.json has no segments');
+	if (!segmentsSrc?.length) throw new Error(`${srtFilePath} has no segments`);
 
 	// Read translated text from translation.json, or original from srt.json
 	const translateEnabled = ctx.input?.stages?.translate?.enabled ?? true;
