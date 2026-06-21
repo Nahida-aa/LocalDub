@@ -1,3 +1,5 @@
+#define _CRT_SECURE_NO_WARNINGS 1
+
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -11,6 +13,22 @@
 
 #ifndef M_PI_2
 #define M_PI_2 1.57079632679489661923
+#endif
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOGDI
+#define NOMINMAX
+#include <windows.h>
+static std::wstring toWide(const std::string& s) {
+    int len = MultiByteToWideChar(CP_ACP, 0, s.c_str(), -1, nullptr, 0);
+    std::wstring wstr(len, L'\0');
+    MultiByteToWideChar(CP_ACP, 0, s.c_str(), -1, &wstr[0], len);
+    return wstr;
+}
+#define ORT_PATH(s) toWide(s).c_str()
+#else
+#define ORT_PATH(s) (s).c_str()
 #endif
 
 #include "onnxruntime_cxx_api.h"
@@ -498,7 +516,7 @@ static std::string toJson(const OCRResult& r) {
     return ss.str();
 }
 
-int main(int argc, char* argv[]) {
+static int runMain(int argc, char* argv[]) {
     if (argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <image_path> [text_score] [--subtitle-only]" << std::endl;
         return 1;
@@ -513,25 +531,23 @@ int main(int argc, char* argv[]) {
     }
 
     try {
-        // Find model directory relative to executable
+        // Find model directory (set by TypeScript wrapper via OCR_MODELS_DIR)
         std::string modelDir;
         const char* envModels = std::getenv("OCR_MODELS_DIR");
-        if (envModels) {
-            modelDir = envModels;
-        } else {
-            // Default: relative to venv
-            modelDir = std::string(std::getenv("HOME")) + "/repos/env_ls/LocalDub/.venv/lib/python3.14/site-packages/rapidocr_onnxruntime/models";
+        if (!envModels) {
+            std::cerr << "OCR_MODELS_DIR not set. The TypeScript wrapper should set this." << std::endl;
+            return 1;
         }
+        modelDir = envModels;
 
-        // Find char list
+        // Find char list (set by TypeScript wrapper via OCR_KEYS_PATH)
         std::string keysPath;
         const char* envKeys = std::getenv("OCR_KEYS_PATH");
-        if (envKeys) {
-            keysPath = envKeys;
-        } else {
-            // Default: same dir as this binary, or relative path
-            keysPath = std::string(std::getenv("HOME")) + "/repos/env_ls/LocalDub/packages/benchmark/ocr/compute/ppocr_keys.json";
+        if (!envKeys) {
+            std::cerr << "OCR_KEYS_PATH not set. The TypeScript wrapper should set this." << std::endl;
+            return 1;
         }
+        keysPath = envKeys;
 
         auto charList = loadCharList(keysPath);
         if (charList.empty()) {
@@ -555,9 +571,9 @@ int main(int argc, char* argv[]) {
         auto clsPath = modelDir + "/ch_ppocr_mobile_v2.0_cls_infer.onnx";
         auto recPath = modelDir + "/ch_PP-OCRv3_rec_infer.onnx";
 
-        Ort::Session detSession(env, detPath.c_str(), sessionOptions);
-        Ort::Session clsSession(env, clsPath.c_str(), sessionOptions);
-        Ort::Session recSession(env, recPath.c_str(), sessionOptions);
+        Ort::Session detSession(env, ORT_PATH(detPath), sessionOptions);
+        Ort::Session clsSession(env, ORT_PATH(clsPath), sessionOptions);
+        Ort::Session recSession(env, ORT_PATH(recPath), sessionOptions);
 
         // Run OCR
         auto result = runOcr(imagePath, charList, detSession, clsSession, recSession, memInfo,
@@ -572,4 +588,17 @@ int main(int argc, char* argv[]) {
     }
 
     return 0;
+}
+
+int main(int argc, char* argv[]) {
+#ifdef _WIN32
+    __try {
+        return runMain(argc, argv);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        std::cerr << "SEH exception (code 0x" << std::hex << GetExceptionCode() << std::dec << ")" << std::endl;
+        return 1;
+    }
+#else
+    return runMain(argc, argv);
+#endif
 }

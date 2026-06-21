@@ -3,8 +3,17 @@ import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { REPO_ROOT } from "../../feat/config/config.ts";
 
-const BINARY_PATH = resolve(REPO_ROOT, "packages", "ocr-cpp", "build", "ocr_pipeline");
-const LD_PATH = resolve(REPO_ROOT, "packages", "ocr-cpp", "build");
+const BUILD_DIR = resolve(REPO_ROOT, "packages", "ocr-cpp", "build");
+const LD_PATH = BUILD_DIR;
+
+function ocrBinaryPathInner(): string {
+	const name = "ocr_pipeline" + (process.platform === "win32" ? ".exe" : "");
+	const candidates = [
+		resolve(BUILD_DIR, "Release", name),
+		resolve(BUILD_DIR, name),
+	];
+	return candidates.find(c => existsSync(c)) || candidates[0];
+}
 
 const LIB_PATH_KEY = process.platform === "win32" ? "PATH" : "LD_LIBRARY_PATH";
 
@@ -14,26 +23,82 @@ export interface OCRLine {
 	box: number[][];
 }
 
+const OCR_KEYS_PATH = resolve(REPO_ROOT, "packages", "benchmark", "ocr", "compute", "ppocr_keys.json");
+
+interface OcrEnv {
+	OCR_MODELS_DIR: string;
+	OCR_KEYS_PATH: string;
+}
+
+let _ocrEnv: OcrEnv | null = null;
+
+function resolveOcrEnv(): OcrEnv {
+	if (_ocrEnv) return _ocrEnv;
+
+	const keysPath = OCR_KEYS_PATH;
+	if (!existsSync(keysPath)) {
+		throw new Error(`OCR keys not found at ${keysPath}`);
+	}
+
+	const pyBin = process.env.VIRTUAL_ENV
+		? join(process.env.VIRTUAL_ENV, "Scripts", "python.exe")
+		: "python";
+	const r = spawnSync(pyBin, ["-c",
+		"import rapidocr_onnxruntime, os; print(os.path.join(os.path.dirname(rapidocr_onnxruntime.__file__), 'models'))",
+	], { timeout: 15_000, encoding: "utf-8" });
+	if (r.status !== 0) {
+		throw new Error(
+			`Failed to resolve OCR model path (is rapidocr-onnxruntime installed?): ${(r.stderr || "").slice(-200)}`,
+		);
+	}
+	const modelsDir = r.stdout.trim();
+	if (!existsSync(modelsDir)) {
+		throw new Error(`OCR models dir resolved but not found: ${modelsDir}`);
+	}
+
+	_ocrEnv = { OCR_MODELS_DIR: modelsDir, OCR_KEYS_PATH: keysPath };
+	return _ocrEnv;
+}
+
+export function ocrBinaryPath(): string {
+	return ocrBinaryPathInner();
+}
+
+export function existsOcrBinary(): boolean {
+	const name = "ocr_pipeline" + (process.platform === "win32" ? ".exe" : "");
+	return existsSync(resolve(BUILD_DIR, "Release", name)) || existsSync(resolve(BUILD_DIR, name));
+}
+
+export function ocrOrtDir(): string {
+	if (process.platform === "win32") {
+		return resolve(REPO_ROOT, "packages", "tmp", "onnxruntime-win-x64-1.26.0", "onnxruntime-win-x64-1.26.0");
+	}
+	return "/tmp/onnxruntime-linux-x64-1.24.4";
+}
+
 export function ocrFrame(
 	framePath: string,
 	opts?: { textScore?: number; subtitleOnly?: boolean },
 ): OCRLine[] {
-	if (!existsSync(BINARY_PATH)) {
+	if (!existsOcrBinary()) {
 		throw new Error(
-			`ocr_pipeline binary not found at ${BINARY_PATH}. Run 'npm run build' in packages/ocr-cpp/`,
+			`ocr_pipeline binary not found at ${ocrBinaryPath()}. Run 'npm run build' in packages/ocr-cpp/`,
 		);
 	}
+
+	const env = resolveOcrEnv();
 
 	const args: string[] = [framePath];
 	if (opts?.textScore != null) args.push(String(opts.textScore));
 	if (opts?.subtitleOnly) args.push("--subtitle-only");
 
-	const r = spawnSync(BINARY_PATH, args, {
+	const r = spawnSync(ocrBinaryPath(), args, {
 		timeout: 60_000,
 		encoding: "utf-8",
 		env: {
 			...process.env,
-			[LIB_PATH_KEY]: LD_PATH,
+			...env,
+			[LIB_PATH_KEY]: `${LD_PATH}${process.platform === "win32" ? ";" : ":"}${process.env[LIB_PATH_KEY] || ""}`,
 		},
 	});
 

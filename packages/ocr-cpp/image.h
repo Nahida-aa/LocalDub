@@ -3,9 +3,15 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <stdexcept>
+#include <string>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 struct Image {
     int w, h, c;
@@ -14,8 +20,31 @@ struct Image {
 
 static Image loadImage(const char* path) {
     Image img;
-    int n;
-    unsigned char* pixels = stbi_load(path, &img.w, &img.h, &n, 3);
+    int n = 0;
+    unsigned char* pixels = nullptr;
+
+#ifdef _WIN32
+    int wlen = MultiByteToWideChar(CP_ACP, 0, path, -1, nullptr, 0);
+    if (wlen <= 0) {
+        throw std::runtime_error(std::string("Failed to convert path to wide (err=") + std::to_string(GetLastError()) + "): " + path);
+    }
+    std::wstring wpath(wlen, L'\0');
+    MultiByteToWideChar(CP_ACP, 0, path, -1, &wpath[0], wlen);
+    FILE* f = _wfopen(wpath.c_str(), L"rb");
+    if (!f) {
+        DWORD err = GetLastError();
+        // Fallback: try ANSI fopen
+        f = fopen(path, "rb");
+        if (!f) {
+            throw std::runtime_error(std::string("Failed to open file (err=") + std::to_string(err) + "): " + path);
+        }
+    }
+    pixels = stbi_load_from_file(f, &img.w, &img.h, &n, 3);
+    fclose(f);
+#else
+    pixels = stbi_load(path, &img.w, &img.h, &n, 3);
+#endif
+
     if (!pixels) throw std::runtime_error("Failed to load image");
     img.c = 3;
     img.data.assign(pixels, pixels + img.w * img.h * 3);

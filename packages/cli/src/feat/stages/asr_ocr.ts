@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { ocrFrame } from '../../ml/ocr/ocr.ts';
+import { ocrFrame, existsOcrBinary, ocrBinaryPath } from '../../ml/ocr/ocr.ts';
+import { tryBuildOcr } from '../../ml/ocr/ocr-build.ts';
 import { ensureDir, writeJson, readJson } from './utils/fileOps.ts';
 import { emitLog, nowISO, srtTime } from './utils/utils.ts';
 import { FrameResult, mergeFrames } from './utils/ocrMerge.ts';
@@ -22,6 +23,14 @@ export async function stageAsrOcr(ctx: Context) {
 	const asrFile = join(sessionPath, 'metadata', 'asr.json');
 	if (!existsSync(asrFile)) {
 		throw new Error(`asr.json not found: ${asrFile}`);
+	}
+
+	if (!existsOcrBinary()) {
+		emitLog(sessionPath, `[ASR+OCR] OCR binary not found at ${ocrBinaryPath()}, attempting build...`);
+		const built = await tryBuildOcr(sessionPath);
+		if (!built) {
+			throw new Error(`OCR binary not found at ${ocrBinaryPath()} and build failed.`);
+		}
 	}
 
 	const ocrCfg = ctx.input?.stages?.ocr;
@@ -95,21 +104,17 @@ export async function stageAsrOcr(ctx: Context) {
 		const framePath = join(frameDir, frameFiles[i]);
 		const tsMatch = frameFiles[i].match(/frame_(\d+)\.jpg/);
 		const timestampMs = tsMatch ? parseInt(tsMatch[1]) : 0;
-		try {
-			const lines = ocrFrame(framePath, { textScore, subtitleOnly });
-			const best = lines.reduce(
-				(a, b) => (a.confidence > b.confidence ? a : b),
-				{ text: '', confidence: 0, box: [] },
-			);
-			frameResults.push({
-				text: best.text,
-				timestamp: timestampMs,
-				confidence: best.confidence,
-				box: best.box,
-			});
-		} catch {
-			frameResults.push({ text: '', timestamp: timestampMs, confidence: 0 });
-		}
+		const lines = ocrFrame(framePath, { textScore, subtitleOnly });
+		const best = lines.reduce(
+			(a, b) => (a.confidence > b.confidence ? a : b),
+			{ text: '', confidence: 0, box: [] },
+		);
+		frameResults.push({
+			text: best.text,
+			timestamp: timestampMs,
+			confidence: best.confidence,
+			box: best.box,
+		});
 
 		if ((i + 1) % 50 === 0 || i === frameFiles.length - 1) {
 			emitLog(sessionPath, `[ASR+OCR] ${i + 1}/${frameFiles.length} frames`);
