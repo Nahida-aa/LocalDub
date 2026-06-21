@@ -17,8 +17,8 @@ With --port, also listens on TCP for outliving the spawning process.
 Models are lazy-loaded on first use and cached as module-level singletons.
 
 Usage (stdin, spawned by TS):
-  PYTHONPATH=submodule/VoxCPM/src:$PYTHONPATH \\
-    .venv/bin/python packages/cli/scripts/pipeline_daemon.py
+  PYTHONPATH=submodule/VoxCPM/src:$PYTHONPATH \
+  .venv/bin/python packages/cli/scripts/pipeline_daemon.py
 
 Usage (TCP, detached):
   .venv/bin/python packages/cli/scripts/pipeline_daemon.py --port 19109
@@ -33,6 +33,10 @@ import sys
 import threading
 import time
 import traceback
+
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
 import wave
 from pathlib import Path
 
@@ -91,15 +95,15 @@ def _load_demucs(device: str):
 
 def _convert_words(words: list) -> list:
     return [
-        {"text": w.get("word", ""), "start": w.get("start", 0.0), "end": w.get("end", 0.0)}
+        {"text": w.get("word", ""), "start": round(w.get("start", 0.0) * 1000), "end": round(w.get("end", 0.0) * 1000)}
         for w in words or []
     ]
 
 
 def _convert_segments(segments: list) -> list:
     return [
-        {"text": seg.get("text", "").strip(), "start": seg.get("start", 0.0),
-         "end": seg.get("end", 0.0), "words": _convert_words(seg.get("words", []))}
+        {"text": seg.get("text", "").strip(), "start": round(seg.get("start", 0.0) * 1000),
+         "end": round(seg.get("end", 0.0) * 1000), "words": _convert_words(seg.get("words", []))}
         for seg in segments
     ]
 

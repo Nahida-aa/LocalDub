@@ -5,6 +5,10 @@ import sys
 from pathlib import Path
 from typing import Callable
 
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
 

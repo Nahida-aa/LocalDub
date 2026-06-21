@@ -68,8 +68,8 @@ def _convert(segments: list, info) -> dict:
         segs.append(
             {
                 "text": (seg.text or "").strip(),
-                "start": seg.start,
-                "end": seg.end,
+                "start": round(seg.start * 1000),
+                "end": round(seg.end * 1000),
                 "words": [],
             }
         )

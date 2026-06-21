@@ -219,7 +219,7 @@ def _device() -> str:
 
 def _convert_words(words: list) -> list:
     return [
-        {"text": w.get("word", ""), "start": w.get("start", 0.0), "end": w.get("end", 0.0)}
+        {"text": w.get("word", ""), "start": round(w.get("start", 0.0) * 1000), "end": round(w.get("end", 0.0) * 1000)}
         for w in words or []
     ]
 
@@ -228,8 +228,8 @@ def _convert_segments(segments: list) -> list:
     return [
         {
             "text": seg.get("text", "").strip(),
-            "start": seg.get("start", 0.0),
-            "end": seg.get("end", 0.0),
+            "start": round(seg.get("start", 0.0) * 1000),
+            "end": round(seg.get("end", 0.0) * 1000),
             "words": _convert_words(seg.get("words", [])),
         }
         for seg in segments
