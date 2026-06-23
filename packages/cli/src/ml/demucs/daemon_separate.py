@@ -9,14 +9,10 @@ import time
 from pathlib import Path
 from typing import Callable
 
-
-def _demucs_source_path() -> Path:
-    """Get the demucs submodule path."""
-    repo_root = Path(__file__).resolve().parents[5]
-    demucs_path = repo_root / "submodule" / "demucs"
-    if (demucs_path / "demucs" / "api.py").exists():
-        return demucs_path
-    raise RuntimeError("Demucs submodule not found; run: git submodule update --init --recursive")
+# Reuse _engine.py helpers
+REPO_ROOT = Path(__file__).resolve().parents[5]
+sys.path.insert(0, str(REPO_ROOT / "packages" / "cli" / "src" / "ml" / "demucs"))
+from _engine import _demucs_source_path, _demucs_progress  # noqa: PLC0414,E402
 
 
 def _load_demucs(device: str):
@@ -26,19 +22,6 @@ def _load_demucs(device: str):
     from demucs.api import Separator
 
     return Separator
-
-
-def _demucs_progress(info: dict, shifts: int) -> int:
-    """Calculate demucs progress percentage."""
-    models = max(1, int(info.get("models") or 1))
-    model_index = max(0, int(info.get("model_idx_in_bag") or 0))
-    shift_index = max(0, int(info.get("shift_idx") or 0))
-    audio_length = max(0, int(info.get("audio_length") or 0))
-    segment_offset = max(0, int(info.get("segment_offset") or 0))
-    segment_ratio = min(segment_offset / audio_length, 1) if audio_length else 0
-    total_units = max(1, models * shifts)
-    completed_units = model_index * shifts + shift_index + segment_ratio
-    return max(0, min(99, int(completed_units / total_units * 100)))
 
 
 def handle_separate(

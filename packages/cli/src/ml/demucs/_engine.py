@@ -88,9 +88,8 @@ def separate_audio(
         "other": sep_dir / "target_2_other.wav",
         "vocals": sep_dir / "target_3_vocals.wav",
     }
-    bgm_file = sep_dir / "target_bgm.wav"
-    if all(f.exists() for f in files.values()) and bgm_file.exists():
-        return files["vocals"], bgm_file
+    if all(f.exists() for f in files.values()):
+        return files["vocals"]
 
     def report_progress(info: dict) -> None:
         if progress_callback is None:
@@ -107,13 +106,6 @@ def separate_audio(
     )
     _, separated = separator.separate_audio_file(str(video_file))
 
-    bgm = None
-    for stem, source in separated.items():
-        if stem == "vocals":
-            continue
-        bgm = source if bgm is None else bgm + source
-
     for stem, path in files.items():
         save_audio(separated[stem], str(path), samplerate=separator.samplerate)
-    save_audio(bgm, str(bgm_file), samplerate=separator.samplerate)
-    return files["vocals"], bgm_file
+    return files["vocals"]

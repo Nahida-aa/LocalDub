@@ -7,9 +7,9 @@ Usage:
 
 Sets DEMUCS_DEVICE env var before loading the backend, so resolve_device() picks it up.
 
-Writes target_{0,1,2,3}_{drums,bass,other,vocals}.wav and target_bgm.wav to <session_path>/separate/.
+Writes target_{0,1,2,3}_{drums,bass,other,vocals}.wav to <session_path>/separate/.
 Prints progress lines: [PROGRESS] <percent>
-Prints on success: <vocals_path>\n<bgm_path>
+Prints on success: <vocals_path>
 """
 from __future__ import annotations
 
@@ -59,13 +59,12 @@ def main() -> None:
         print(f"[PROGRESS] {progress}")
 
     try:
-        vocals_file, bgm_file = separate_audio(video_file, session, progress_callback, shifts=shifts)
+        vocals_file = separate_audio(video_file, session, progress_callback, shifts=shifts)
     except Exception as exc:
         print(f"Demucs separation failed: {exc}", file=sys.stderr)
         sys.exit(1)
 
     print(str(vocals_file))
-    print(str(bgm_file))
 
 
 if __name__ == "__main__":
