@@ -144,8 +144,8 @@ export async function stageAsr(
 	 * asr 后处理, 避免 asr_fix 拿到多余数据
 	 */
 	// 统一过滤超出音频时长的幻觉段（所有路径 shared）
-	const metadataDir = join(sessionPath, 'metadata');
-	const asrFile = join(metadataDir, 'asr.json');
+	const asrDir = join(sessionPath, 'asr');
+	const asrFile = join(asrDir, 'asr.json');
 	if (existsSync(asrFile)) {
 		const data = await readJson(asrFile, ctx);
 		const durationMs = data.audio_info?.duration ?? 0;
@@ -421,8 +421,8 @@ async function asrWhisperCpp(
 	});
 	const text = segments.map(s => s.text).join(' ');
 
-	const metadataDir = resolve(sessionPath, 'metadata');
-	ensureDir(metadataDir, ctx);
+	const asrDir = resolve(sessionPath, 'asr');
+	ensureDir(asrDir, ctx);
 
 	const lastEndMs = segments.length ? segments[segments.length - 1].end : 0;
 	const asrOutput = {
@@ -439,7 +439,7 @@ async function asrWhisperCpp(
 			? (elapsedSec / (lastEndMs / 1000)).toFixed(3)
 			: '0',
 	};
-	writeJson(join(metadataDir, 'asr.json'), asrOutput, ctx);
+	writeJson(join(asrDir, 'asr.json'), asrOutput, ctx);
 
 	// Cleanup tmp audio and json
 	removeFile(tmpAudio, ctx);

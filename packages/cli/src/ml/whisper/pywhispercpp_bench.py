@@ -2,8 +2,8 @@
 CLI ASR using pywhispercpp (whisper.cpp GGUF bindings).
 
 Usage:
-    .venv/bin/python packages/cli/scripts/asr/pywhispercpp.py <audio> <session_path> [language] [--model path/to/ggml-model.bin] [--n-threads 4]
-    .venv/bin/python packages/cli/scripts/asr/pywhispercpp.py --benchmark-load [--model path/to/ggml-model.bin]
+    .venv/bin/python packages/cli/src/ml/whisper/pywhispercpp.py <audio> <session_path> [language] [--model path/to/ggml-model.bin] [--n-threads 4]
+.venv/bin/python packages/cli/src/ml/whisper/pywhispercpp.py --benchmark-load [--model path/to/ggml-model.bin]
 
 Model is auto-downloaded from HuggingFace to ~/.cache/pywhispercpp/ on first use.
 Writes asr.json to <session_path>/metadata/asr.json

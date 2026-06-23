@@ -2,8 +2,8 @@
 CLI ASR using whisper-cli (whisper.cpp compiled with HIPBLAS GPU support).
 
 Usage:
-    .venv/bin/python packages/cli/scripts/asr/whisper_cli.py <audio> <session_path> [language] [--gpu] [--n-threads 4]
-    .venv/bin/python packages/cli/scripts/asr/whisper_cli.py --benchmark-load [--gpu]
+    .venv/bin/python packages/cli/src/ml/whisper/whisper_cli.py <audio> <session_path> [language] [--gpu] [--n-threads 4]
+.venv/bin/python packages/cli/src/ml/whisper/whisper_cli.py --benchmark-load [--gpu]
 
 Subprocess wrapper around submodule/whisper.cpp/build/bin/whisper-vulkan.
 GPU is used by default (Vulkan/RADV). Pass --no-gpu for CPU.

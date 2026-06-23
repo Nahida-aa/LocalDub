@@ -2,8 +2,8 @@
 CLI ASR using faster-whisper (CTranslate2) with GPU (float16) → CPU (float32) fallback.
 
 Usage:
-    .venv/bin/python packages/cli/scripts/asr/run.py <vocals_wav> <session_path> [language] [--cpu] [--compute-type float16|float32|int8]
-    .venv/bin/python packages/cli/scripts/asr/run.py --benchmark-load [--cpu] [--compute-type float16|float32|int8]
+    .venv/bin/python packages/cli/src/ml/whisper/run.py <vocals_wav> <session_path> [language] [--cpu] [--compute-type float16|float32|int8]
+.venv/bin/python packages/cli/src/ml/whisper/run.py --benchmark-load [--cpu] [--compute-type float16|float32|int8]
 
 Defaults: GPU → float16, CPU → float32 (aligned with PyTorch).
 Output:
@@ -115,7 +115,7 @@ def main() -> None:
         print(f"Error: vocals file not found: {vocals_file}", file=sys.stderr)
         sys.exit(1)
 
-    metadata_dir = session_path / "metadata"
+    metadata_dir = session_path / "asr"
     metadata_dir.mkdir(parents=True, exist_ok=True)
     output_file = metadata_dir / "asr.json"
 

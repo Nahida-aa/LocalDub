@@ -2,22 +2,21 @@
 PyTorch ASR using openai-whisper, standalone (no backend/ dependency).
 
 Usage:
-    .venv/bin/python packages/cli/scripts/asr/pytorch.py <vocals_wav> <session_path> [language] [--device cpu|cuda]
-    .venv/bin/python packages/cli/scripts/asr/pytorch.py --benchmark-load [--device cpu|cuda]
+    .venv/bin/python packages/cli/src/ml/whisper/pytorch.py <vocals_wav> <session_path> [language] [--device cpu|cuda]
+.venv/bin/python packages/cli/src/ml/whisper/pytorch.py --benchmark-load [--device cpu|cuda]
 
 Reads WHISPER_MODEL / WHISPER_DEVICE / DEVICE env vars.
 Writes asr.json to <session_path>/metadata/.
 """
 from __future__ import annotations
 
+import sys
+
 sys.stdout.reconfigure(encoding="utf-8")
 
 import json
 import os
-import sys
 from pathlib import Path
-
-sys.stdout.reconfigure(encoding="utf-8")
 
 import torch
 import torch.nn.functional as F
@@ -290,8 +289,8 @@ def main() -> None:
 
     duration_ms = int(round(max(seg.get("end", 0) for seg in segments) * 1000))
 
-    metadata_dir = session_path / "metadata"
-    metadata_dir.mkdir(parents=True, exist_ok=True)
+    asr_dir = session_path / "asr"
+    asr_dir.mkdir(parents=True, exist_ok=True)
 
     payload = {
         "audio_info": {"duration": duration_ms},
@@ -303,7 +302,7 @@ def main() -> None:
         "detected_language": result.get("language", language or "unknown"),
     }
 
-    output_file = metadata_dir / "asr.json"
+    output_file = asr_dir / "asr.json"
     output_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"ASR_OUTPUT:{output_file}")
 
