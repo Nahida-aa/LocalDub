@@ -253,9 +253,81 @@ function tryBuild(sessionPath: string): boolean {
 }
 
 function buildWhisperCpp(sessionPath: string): boolean {
-	emitLog(sessionPath, '[Whisper] Starting Vulkan-enabled build flow: ensure SDK then build');
-	if (!ensureVulkanSdk(sessionPath)) return false;
-	return tryBuild(sessionPath);
+	const { spawnSync } = require('child_process');
+	const os = require('os');
+	const cwd = whisperCppDir();
+
+	emitLog(sessionPath, '[Whisper] Attempting to build whisper.cpp (cmake configure + build)...');
+
+	// Check cmake availability
+	let r = spawnSync('cmake', ['--version'], { cwd, timeout: 30_000 });
+	if (r.status !== 0) {
+		emitLog(sessionPath, `[Whisper] cmake not available or failed --version (exit ${r.status}). Install CMake or ensure it's on PATH.`);
+		return false;
+	}
+
+	// Configure
+	emitLog(sessionPath, `[Whisper] Running: cmake -B build -DGGML_VULKAN=1`);
+	r = spawnSync('cmake', ['-B', 'build', '-DGGML_VULKAN=1'], { cwd, timeout: 600_000 });
+	if (r.status !== 0) {
+		emitLog(sessionPath, `[Whisper] cmake configure failed (exit ${r.status}) stdout=${(r.stdout||'').toString().slice(-2000)} stderr=${(r.stderr||'').toString().slice(-2000)}`);
+		const stderr = (r.stderr||'').toString();
+		// If Vulkan not found, attempt to auto-install Vulkan SDK then retry configure
+		if (stderr.includes('Could NOT find Vulkan') || stderr.includes('FindVulkan') || stderr.includes('Vulkan_LIBRARY')) {
+			emitLog(sessionPath, '[Whisper] Vulkan not detected. Attempting automatic Vulkan SDK install');
+			if (!ensureVulkanSdk(sessionPath)) {
+				emitLog(sessionPath, '[Whisper] Automatic Vulkan install failed');
+				return false;
+			}
+			// Retry configure with Vulkan enabled
+			emitLog(sessionPath, '[Whisper] Retrying: cmake -B build -DGGML_VULKAN=1');
+			r = spawnSync('cmake', ['-B', 'build', '-DGGML_VULKAN=1'], { cwd, timeout: 600_000 });
+			if (r.status !== 0) {
+				emitLog(sessionPath, `[Whisper] cmake configure still failed after Vulkan install (exit ${r.status}) stdout=${(r.stdout||'').toString().slice(-2000)} stderr=${(r.stderr||'').toString().slice(-2000)}`);
+				return false;
+			}
+		} else {
+			return false;
+		}
+	}
+
+	// Verify CMakeCache indicates Vulkan enabled; abort (no CPU fallback) if not
+	try {
+		const cachePath = join(cwd, 'build', 'CMakeCache.txt');
+		if (existsSync(cachePath)) {
+			const cache = require('fs').readFileSync(cachePath, 'utf8');
+			const hasVulkanOn = /GGML_VULKAN\s*[:=].*(ON|1|TRUE)/i.test(cache) || /GGML_VULKAN:BOOL=ON/i.test(cache) || /GGML_USE_VULKAN.*ON/i.test(cache);
+			if (!hasVulkanOn) {
+				emitLog(sessionPath, '[Whisper] CMake configure completed but GGML_VULKAN is not ON — aborting build (no CPU fallback as requested)');
+				return false;
+			}
+		} else {
+			emitLog(sessionPath, `[Whisper] CMakeCache not found at ${cachePath} — cannot verify Vulkan state`);
+			return false;
+		}
+	} catch (e:any) {
+		emitLog(sessionPath, `[Whisper] Failed to read CMakeCache to verify Vulkan: ${e?.message || e}`);
+		return false;
+	}
+
+	// Build
+	const cpus = Math.max(2, (os.cpus && os.cpus().length) || 2);
+	let buildArgs: string[];
+	if (process.platform === 'win32') {
+		buildArgs = ['--build', 'build', '--config', 'Release', '-j', String(cpus)];
+	} else {
+		buildArgs = ['--build', 'build', '-j', String(cpus)];
+	}
+	emitLog(sessionPath, `[Whisper] Running: cmake ${buildArgs.join(' ')}`);
+	// Allow up to 1 hour for build on slow machines
+	r = spawnSync('cmake', buildArgs, { cwd, timeout: 3_600_000 });
+	if (r.status !== 0) {
+		emitLog(sessionPath, `[Whisper] cmake build failed (exit ${r.status}) stdout=${(r.stdout||'').toString().slice(-2000)} stderr=${(r.stderr||'').toString().slice(-2000)}`);
+		return false;
+	}
+
+	emitLog(sessionPath, '[Whisper] Build completed');
+	return true;
 }
 
 export function ensureWhisperCppBinary(sessionPath: string): boolean {
