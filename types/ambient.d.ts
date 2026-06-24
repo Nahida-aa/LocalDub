@@ -1,1 +1,3 @@
-declare module 'onnxruntime-node';\ndeclare module 'onnxruntime-node-gpu';\n
+﻿declare module 'onnxruntime-node';
+declare module 'onnxruntime-node-gpu';
+
