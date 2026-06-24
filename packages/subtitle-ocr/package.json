@@ -8,6 +8,7 @@
     "./subtitle-cpp": "./subtitle-cpp/ts/ocr.ts"
   },
   "scripts": {
+    "test": "bun test",
     "build:cpp": "cmake -B subtitle-cpp/build && cmake --build subtitle-cpp/build --parallel",
     "postinstall": "cmake -B subtitle-cpp/build && cmake --build subtitle-cpp/build --parallel 2>/dev/null || echo 'subtitle-cpp: cmake build failed (install cmake + onnxruntime)'"
   },

@@ -61,7 +61,6 @@ export async function ocrFramesOpenCvCpp(
 		...(opts?.subtitleOnly ? ['--subtitle-only'] : []),
 		...(opts?.device && opts.device !== 'cpu' ? ['--device', opts.device] : []),
 	], {
-		timeout: 120_000,
 		encoding: 'utf-8',
 		env: ocrEnv(),
 	});
@@ -73,12 +72,24 @@ export async function ocrFramesOpenCvCpp(
 	return parseBatchOutput(r.stdout);
 }
 
+/** Directory containing onnxruntime.dll + MinGW runtime DLLs (libstdc++-6.dll, etc.) */
+const ORT_LIB_DIR = resolve(REPO_ROOT, 'packages', 'tmp', 'onnxruntime-win-x64-1.26.0',
+	'onnxruntime-win-x64-1.26.0', 'lib');
+
 function ocrEnv(): Record<string, string | undefined> {
-	const msys2Bin = 'C:\\msys64\\mingw64\\bin';
-	const extraPath = process.platform === 'win32' && existsSync(msys2Bin) ? `${msys2Bin};` : '';
+	const msys2Bin = resolve('C:\\', 'msys64', 'mingw64', 'bin');
+	const extra: string[] = [];
+	if (process.platform === 'win32') {
+		// MSYS2 MinGW OpenCV DLLs (libopencv_core-413.dll, etc.)
+		if (existsSync(msys2Bin)) extra.push(msys2Bin);
+		// MinGW runtime DLLs (libstdc++-6.dll, libgcc_s_seh-1.dll, libwinpthread-1.dll)
+		// shipped alongside onnxruntime.dll in the ORT package
+		if (existsSync(ORT_LIB_DIR)) extra.push(ORT_LIB_DIR);
+	}
+	const libPath = [...extra, BUILD_DIR, process.env[LIB_PATH_KEY] || ''].filter(Boolean).join(';');
 	return {
 		...process.env,
-		[LIB_PATH_KEY]: `${extraPath}${BUILD_DIR}${process.platform === 'win32' ? ';' : ':'}${process.env[LIB_PATH_KEY] || ''}`,
+		[LIB_PATH_KEY]: libPath,
 		OCR_MODELS_DIR: getRapidOCRModelsDir(),
 		OCR_KEYS_PATH,
 	};

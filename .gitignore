@@ -205,6 +205,9 @@ pretrained_models/
 /turbo-*
 /VP_*.json
 
+# OCR test artifacts
+packages/subtitle-ocr/.test-frames/
+
 **/results/**/*.wav
 **/results/**/*.m4a
 **/results/**/*.jpg
