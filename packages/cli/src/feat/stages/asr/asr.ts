@@ -352,7 +352,7 @@ async function asrWhisperCpp(
 		tmpAudio = audioPath;
 		emitLog(sessionPath, `[ASR] Using existing WAV input: ${tmpAudio}`);
 	} else {
-		// converted WAV will be placed under session asr directory
+		ensureDir(audioDir, ctx);
 		tmpAudio = join(audioDir, 'whisper-input.wav');
 		spawnSync('ffmpeg', ['-y', '-i', audioPath, '-ac', '1', tmpAudio], {
 			timeout: 30_000,
