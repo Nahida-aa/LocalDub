@@ -415,11 +415,11 @@ async function asrWhisperCpp(
 			...process.env,
 			[libPathKey]: [
 				// include build bin and Release folders so DLLs (ggml/*.dll, whisper.dll) are found on Windows
-				join(whisperCli, '..'),
-				join(whisperCli, '..', 'Release'),
-				join(whisperCli, '..', '..', 'src'),
-				join(whisperCli, '..', '..', 'ggml', 'src'),
-				join(whisperCli, '..', '..', 'ggml', 'src', 'ggml-hip'),
+				binDir,
+				join(binDir, 'Release'),
+				join(binDir, '..', 'src'),
+				join(binDir, '..', 'ggml', 'src'),
+				join(binDir, '..', 'ggml', 'src', 'ggml-hip'),
 				process.env[libPathKey] || '',
 			].filter(Boolean).join(delimiter),
 		},
