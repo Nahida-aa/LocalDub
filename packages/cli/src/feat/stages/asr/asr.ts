@@ -416,7 +416,7 @@ async function asrWhisperCpp(
 			[libPathKey]: [
 				// include build bin and Release folders so DLLs (ggml/*.dll, whisper.dll) are found on Windows
 				binDir,
-				join(binDir, 'Release'),
+				chosenReleaseDir,
 				join(binDir, '..', 'src'),
 				join(binDir, '..', 'ggml', 'src'),
 				join(binDir, '..', 'ggml', 'src', 'ggml-hip'),
