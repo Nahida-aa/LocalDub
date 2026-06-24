@@ -27,7 +27,7 @@ function whisperModelPath(): string {
 }
 
 export function whisperVulkanPath(): string {
-	// Explicitly prefer Release copy (stable DLL layout) to avoid intermittent selection
+	// Prefer Release or bin/Release copies then common locations.
 	const baseBin = join(whisperCppDir(), 'build', 'bin');
 	const buildRoot = join(whisperCppDir(), 'build');
 
