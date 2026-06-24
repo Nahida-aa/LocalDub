@@ -7,8 +7,8 @@
 
 - `packages/cli/src/feat/` — pipeline 流程（stages、config、tasks）
 - `packages/cli/src/ml/` — 模型实现（whisper、demucs 等）
-- `packages/cli/src/ml/ocr/ocr.ts` — OCR 二进制调用（subtitle-cpp），使用 `pythonBin()`（config.ts）而非内联 VIRTUAL_ENV
-- `packages/subtitle-ocr/` — 字幕专用 OCR 包（subtitle-cpp、subtitle-node.ts、subtitle-py.py）
+- `packages/cli/src/ml/ocr/ocr.ts` — OCR 二进制调用（ort-cpp），使用 `pythonBin()`（config.ts）而非内联 VIRTUAL_ENV
+- `packages/subtitle-ocr/` — 字幕专用 OCR 包（ort-cpp、subtitle-node.ts、subtitle-py.py）
 - `packages/benchmark/` — 性能测试与参数对比
 - `packages/benchmark/ocr/compute/` — OCR 基准测试脚本
 - `packages/benchmark/ocr/compute/postprocess_det.py` — 引用了 `packages/subtitle-ocr/ppocr_keys.json`
@@ -90,17 +90,17 @@ Key: `temp-*` params are extremely sensitive to BGM interference; sidechain is r
 
 | 引擎 | 配置 | normCER | 段数 | s_off | cover | FP | RTF |
 |------|------|:-------:|:----:|:-----:|:-----:|:--:|:---:|
-| C++ ORT | 2fps, so, ts0.45 | **0%** | 75 | +228ms | 68.2% | 0 | 0.186 |
+| C++ ORT (OpenCV) | 2fps, so, ts0.45 | **0%** | 75 | +228ms | 68.2% | 0 | 0.186 |
 | Python (rapidocr) | 1fps, so | 0.89% | 74 | -39ms | — | 0 | 0.538 |
 | Python (rapidocr) | 1fps | 1.25% | 72 | -159ms | — | 0 | 0.538 |
-| C++ ORT | 1fps, so, ts0.3 | 0.89~3.76% | 74-75 | -26ms | — | 0 | 0.186 |
-| C++ ORT | 1fps, so, ts0.4 | 0.89~3.40% | 74-75 | -26ms | — | 0 | 0.186 |
-| C++ ORT | 1fps, so, ts0.45 | 0.89% | 74 | -39ms | — | 0 | 0.186 |
-| C++ ORT | 1fps, so | 1.07~5.37% | 74-76 | -26ms | — | 0 | 0.186 |
+| C++ ORT (OpenCV) | 1fps, so, ts0.3 | 0.89~3.76% | 74-75 | -26ms | — | 0 | 0.186 |
+| C++ ORT (OpenCV) | 1fps, so, ts0.4 | 0.89~3.40% | 74-75 | -26ms | — | 0 | 0.186 |
+| C++ ORT (OpenCV) | 1fps, so, ts0.45 | 0.89% | 74 | -39ms | — | 0 | 0.186 |
+| C++ ORT (OpenCV) | 1fps, so | 1.07~5.37% | 74-76 | -26ms | — | 0 | 0.186 |
 | Node.js (onnxruntime-node) | 1fps, so | 3.58% | 74 | -119ms | — | 0 | 0.263 |
-| C++ ORT | 0.5fps, so | 20.75% | 54 | -639ms | — | 0 | 0.092 |
+| C++ ORT (OpenCV) | 0.5fps, so | 20.75% | 54 | -639ms | — | 0 | 0.092 |
 
-C++ ORT 方差全来自 ORT 多线程 run-to-run 非确定性（~0.89-5.37%），**ts 参数在 subtitleOnly 下影响被波动淹没**（27 次运行 FP=0）。所有引擎的 `subtitleOnly` → `textScore=0.3` override 已移除（C++ `ocr_pipeline.cpp:331`、Python `subtitle-py.py:29-30`、Node `subtitle-node.ts:171`），`subtitleOnly` 现在只做 Y 轴裁剪。
+C++ ORT (OpenCV) 方差全来自 ORT 多线程 run-to-run 非确定性（~0.89-5.37%），**ts 参数在 subtitleOnly 下影响被波动淹没**（27 次运行 FP=0）。所有引擎的 `subtitleOnly` → `textScore=0.3` override 已移除（C++ `ocr_pipeline.cpp:331`、Python `subtitle-py.py:29-30`、Node `subtitle-node.ts:171`），`subtitleOnly` 现在只做 Y 轴裁剪。
 
 **Cover 指标**：仅是描述性数据，标识检测到的段覆盖了多少时间线比例，**并非越高越好**。自然的口播字幕之间有空白间隙，100% cover 意味着段完全连续无间隙，只是反映结果的时间特性。
 

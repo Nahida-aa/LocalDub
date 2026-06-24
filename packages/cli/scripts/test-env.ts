@@ -45,11 +45,11 @@ const main = () => {
 	console.log('[TEST] OCR_MODELS_DIR:', OCR_MODELS_DIR);
 
 	// 检查 BUILD_DIR
-	const BUILD_DIR = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'subtitle-cpp', 'build');
+	const BUILD_DIR = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'ort-cpp', 'build');
 	console.log('[TEST] BUILD_DIR:', BUILD_DIR);
 
 	// 检查 OCR binary 路径
-	const ocrBinary = resolve(BUILD_DIR, 'ocr_pipeline.exe');
+	const ocrBinary = resolve(BUILD_DIR, 'subtitle_ocr_ort_cpp.exe');
 	console.log('[TEST] ocrBinary exists:', existsSync(ocrBinary));
 
 	// 检查 OCR_KEYS_PATH

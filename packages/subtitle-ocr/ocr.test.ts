@@ -3,10 +3,10 @@ import { existsSync, mkdirSync, cpSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, test, expect, beforeAll } from 'bun:test';
 import { findRapidOcrModelsDir } from './utils';
-// ---- helpers (mirrors ocrEnv logic in cli/src/ml/ocr/runtimes/ort-opencv-cpp.ts) ----
+// ---- helpers (mirrors ocrEnv logic in cli/src/ml/ocr/runtimes/ort-cpp.ts) ----
 const REPO_ROOT = resolve(import.meta.dir, '..', '..');
-const BUILD_DIR = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'subtitle-opencv-cpp', 'build');
-const BIN_NAME = 'ocr_pipeline_opencv' + (process.platform === 'win32' ? '.exe' : '');
+const BUILD_DIR = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'ort-cpp', 'build');
+const BIN_NAME = 'subtitle_ocr_ort_cpp' + (process.platform === 'win32' ? '.exe' : '');
 const BIN_PATH = resolve(BUILD_DIR, BIN_NAME);
 const MSYS2_BIN = resolve('C:\\', 'msys64', 'mingw64', 'bin');
 const ORT_LIB_DIR = resolve(REPO_ROOT, 'packages', 'tmp', 'onnxruntime-win-x64-1.26.0',

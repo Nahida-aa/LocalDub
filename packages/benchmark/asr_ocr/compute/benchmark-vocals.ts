@@ -4,8 +4,8 @@ import { join, resolve } from 'node:path';
 
 const REPO_ROOT = resolve(__dirname, '..', '..', '..', '..');
 const WER_PY = resolve(REPO_ROOT, 'packages', 'benchmark', 'separate', 'compute', 'wer.py');
-const CPP_BIN = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'subtitle-cpp', 'build', 'ocr_pipeline');
-const CPP_LD_PATH = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'subtitle-cpp', 'build');
+const CPP_BIN = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'ort-cpp', 'build', 'subtitle_ocr_ort_cpp');
+const CPP_LD_PATH = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'ort-cpp', 'build');
 const GROUND_TRUTH = resolve(REPO_ROOT, 'packages', 'benchmark', 'ref', 'metadata', 'srt_manual.json');
 const VIDEO_PATH = resolve(REPO_ROOT, 'packages', 'benchmark', 'ref', 'media', 'video_source.mp4');
 const VOCALS_ASR = resolve(REPO_ROOT, 'packages', 'benchmark', 'asr_ocr', 'results', 'sep-asr-ocr', 'metadata', 'asr.json');

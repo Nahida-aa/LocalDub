@@ -5,12 +5,12 @@
   "exports": {
     "./subtitle-node": "./subtitle-node.ts",
     "./subtitle-py": "./subtitle-py.py",
-    "./subtitle-cpp": "./subtitle-cpp/ts/ocr.ts"
+    "./subtitle-cpp": "./ort-cpp/ts/ocr.ts"
   },
   "scripts": {
     "test": "bun test",
-    "build:cpp": "cmake -B subtitle-cpp/build && cmake --build subtitle-cpp/build --parallel",
-    "postinstall": "cmake -B subtitle-cpp/build && cmake --build subtitle-cpp/build --parallel 2>/dev/null || echo 'subtitle-cpp: cmake build failed (install cmake + onnxruntime)'"
+    "build:cpp": "cmake -B ort-cpp/build && cmake --build ort-cpp/build --parallel",
+    "postinstall": "cmake -B ort-cpp/build && cmake --build ort-cpp/build --parallel 2>/dev/null || echo 'ort-cpp: cmake build failed (install cmake + onnxruntime + opencv)'"
   },
   "dependencies": {
     "@napi-rs/image": "^1.12.0",

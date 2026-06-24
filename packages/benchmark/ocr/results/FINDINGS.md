@@ -9,7 +9,7 @@ RapidOCR (PaddleOCR ONNX) on anime hard subtitles (720p video, 30fps, bottom-pos
 Three OCR engine variants compared:
 - **Python** (`subtitle-py.py`) — full pipeline via `rapidocr_onnxruntime` Python package
 - **Node.js** (`subtitle-node.ts`) — inference via `onnxruntime-node` (CPU), post-processing via Python subprocess
-- **C++ ORT** (`subtitle-cpp/ocr_pipeline.cpp`) — native ORT C++ pipeline with custom DB post-processing (no Python subprocess)
+- **C++ ORT** (`ort-cpp/ocr_pipeline.cpp`) — native ORT C++ pipeline with OpenCV DB post-processing (no Python subprocess)
 
 ### Comparison
 
@@ -93,9 +93,7 @@ Note: pyclipper (Python) is a binding of [Clipper2](https://github.com/AngusJohn
 - `subtitle-py.py` — Python RapidOCR wrapper with `--text-score`, `--full-frame`, `--subtitle-only` options (at `packages/subtitle-ocr/`)
 - `subtitle-node.ts` — Node.js OCR pipeline (onnxruntime-node + Python post-process subprocess) (at `packages/subtitle-ocr/`)
 - `postprocess_det.py` — Python helper for detection model post-processing (cv2 findContours, minAreaRect, unclip) (at `packages/subtitle-ocr/`)
-- `subtitle-cpp/ocr_pipeline.cpp` — C++ ORT native pipeline (single-file, cmake build), links system onnxruntime. Now at `packages/subtitle-ocr/subtitle-cpp/`.
-- `subtitle-cpp/geometry.h` — Convex hull, minAreaRect, connected components, polygon utilities. Now at `packages/subtitle-ocr/subtitle-cpp/`.
-- `subtitle-cpp/image.h` — stb_image loader + bilinear resize. Now at `packages/subtitle-ocr/subtitle-cpp/`.
+- `ort-cpp/ocr_pipeline.cpp` — C++ ORT native pipeline with OpenCV (single-file, cmake build), links system onnxruntime + OpenCV. At `packages/subtitle-ocr/ort-cpp/`.
 - `benchmark-ocr-video.ts` — Node.js orchestration (ffmpeg extraction → OCR → merge → CER eval), supports `--engine python|node|cpp`
 - `srt_manual.json` — Ground truth shared with ASR benchmark
 

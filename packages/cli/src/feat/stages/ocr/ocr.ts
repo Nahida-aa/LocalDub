@@ -26,7 +26,7 @@ export async function stageOcr(ctx: Context) {
 	const fps = ocrCfg?.fps ?? 2;
 	const textScore = ocrCfg?.textScore ?? 0.45;
 	const subtitleOnly = ocrCfg?.subtitleOnly ?? true;
-	const runtime = (ocrCfg?.runtime ?? 'ort-opencv-cpp') as OCRRuntime;
+	const runtime = (ocrCfg?.runtime ?? 'ort-cpp') as OCRRuntime;
 	const device = (ocrCfg?.device ?? 'cpu') as 'cpu' | 'cuda' | 'directml' | 'coreml' | 'rocm' | 'mps';
 	const cleanupFrames = ocrCfg?.cleanupFrames ?? false;
 	const isoThresholdMs = ocrCfg?.isoThresholdMs ?? 1500;

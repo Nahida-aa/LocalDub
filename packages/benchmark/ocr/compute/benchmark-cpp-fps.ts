@@ -5,9 +5,9 @@ import { mergeFrames } from '../../../cli/src/feat/stages/utils/ocrMerge.ts';
 
 const REPO_ROOT = resolve(__dirname, '..', '..', '..', '..');
 const VIDEO = resolve(REPO_ROOT, 'packages', 'benchmark', 'ref', 'media', 'video_source.mp4');
-const CPP = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'subtitle-cpp', 'build', 'ocr_pipeline');
-const LD = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'subtitle-cpp', 'build');
-const OUT = resolve(REPO_ROOT, 'packages/benchmark/ocr/results/subtitle-cpp-2fps-so-ts0.45');
+const CPP = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'ort-cpp', 'build', 'subtitle_ocr_ort_cpp');
+const LD = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'ort-cpp', 'build');
+const OUT = resolve(REPO_ROOT, 'packages/benchmark/ocr/results/ort-cpp-2fps-so-ts0.45');
 const TMP = resolve(REPO_ROOT, 'packages', 'tmp', 'ocr-2fps');
 const FPS = 2;
 const TEXT_SCORE = 0.45;
@@ -66,5 +66,5 @@ console.log(`Written: ${join(OUT, 'metadata', 'ocr.json')} (${filtered.length} s
 
 spawnSync('rm', ['-rf', TMP]);
 
-const rel = join('packages', 'benchmark', 'ocr', 'results', 'subtitle-cpp-2fps-so-ts0.45', 'metadata', 'ocr.json');
-console.log(`\nEval: bun run packages/benchmark/ref/compute/eval-ocr.ts ${rel} --label subtitle-cpp-2fps-so-ts0.45 --ms`);
+const rel = join('packages', 'benchmark', 'ocr', 'results', 'ort-cpp-2fps-so-ts0.45', 'metadata', 'ocr.json');
+console.log(`\nEval: bun run packages/benchmark/ref/compute/eval-ocr.ts ${rel} --label ort-cpp-2fps-so-ts0.45 --ms`);

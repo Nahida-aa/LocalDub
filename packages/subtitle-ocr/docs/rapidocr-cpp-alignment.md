@@ -1,8 +1,8 @@
-# RapidOCR (Python) vs subtitle-cpp —代码对齐研究
+# RapidOCR (Python) vs ort-cpp — 代码对齐研究
 
 ## 目标
 
-将 `packages/subtitle-ocr/subtitle-cpp/` 中的 C++ OCR pipeline 需要与 Python `rapidocr_onnxruntime` pip 包的行为对齐。对齐的关键不是跑分数字，而是实现细节，这样才能保证未来调整 `text_score` 等参数时，C++ 与 Python 产生等价结果。
+将 `packages/subtitle-ocr/ort-cpp/` 中的 C++ OCR pipeline 需要与 Python `rapidocr_onnxruntime` pip 包的行为对齐。对齐的关键不是跑分数字，而是实现细节，这样才能保证未来调整 `text_score` 等参数时，C++ 与 Python 产生等价结果。
 
 本文档按 **det post-process、rec preprocess、CTC decode、warpPerspective crop、`text_score` 阈值 五方面说明。
 
@@ -71,7 +71,7 @@ class DBPostProcess:
         return cv2.mean(bitmap[ymin:ymax+1, xmin:xmax+1], mask)[0]
 ```
 
-### 2.2 C++ 实现（`subtitle-cpp/ocr_pipeline.cpp + geometry.h）
+### 2.2 C++ 实现（`ort-cpp/ocr_pipeline.cpp）
 
 关键的 pipeline flow:
 

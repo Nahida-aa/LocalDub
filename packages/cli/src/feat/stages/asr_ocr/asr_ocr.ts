@@ -23,7 +23,7 @@ export async function stageAsrOcr(ctx: Context) {
 	const asrOcrCfg = ctx.input?.stages?.asr_ocr;
 	const textScore = asrOcrCfg?.textScore ?? 0.45;
 	const subtitleOnly = asrOcrCfg?.subtitleOnly ?? true;
-	const runtime = (asrOcrCfg?.runtime ?? 'ort-opencv-cpp') as OCRRuntime;
+	const runtime = (asrOcrCfg?.runtime ?? 'ort-cpp') as OCRRuntime;
 	const device = (asrOcrCfg?.device ?? 'cpu') as 'cpu' | 'cuda' | 'directml' | 'coreml' | 'rocm' | 'mps';
 	const cleanupFrames = asrOcrCfg?.cleanupFrames ?? false;
 

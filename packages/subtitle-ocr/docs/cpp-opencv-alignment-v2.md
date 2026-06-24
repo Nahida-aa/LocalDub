@@ -1,6 +1,6 @@
 # cpp-opencv Pipeline Alignment v2 — Python RapidOCR vs C++ OpenCV Pipeline
 
-本文档记录 `subtitle-opencv-cpp/` C++ pipeline 与 Python `rapidocr_onnxruntime` pip 包之间的差异，以及 v2 版本为减少差异所做的改动。
+本文档记录 `ort-cpp/` C++ pipeline 与 Python `rapidocr_onnxruntime` pip 包之间的差异，以及 v2 版本为减少差异所做的改动。
 
 ---
 

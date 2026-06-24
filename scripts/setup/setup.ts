@@ -702,7 +702,7 @@ function installOpenCV(): boolean {
 	// 所有方法都失败，给出手动安装提示
 	log('', 'yellow');
 	log('┌────────────────────────────────────────┐', 'yellow');
-	log('│ 需要安装 OpenCV 以编译 ort-opencv-cpp  │', 'yellow');
+	log('│ 需要安装 OpenCV 以编译 ort-cpp  │', 'yellow');
 	log('└────────────────────────────────────────┘', 'yellow');
 	log('', 'yellow');
 	log('手动安装 OpenCV:', 'yellow');
@@ -722,11 +722,11 @@ function installOpenCV(): boolean {
 }
 
 /**
- * 编译 OCR C++ 二进制
- * @param project - 'subtitle-cpp' (ort-cpp) 或 'subtitle-opencv-cpp' (ort-opencv-cpp)
- * @param binaryName - 'ocr_pipeline' 或 'ocr_pipeline_opencv'
+ * 编译 OCR C++ 二进制 (ort-cpp)
+ * @param project - 项目目录名 (目前只有 'ort-cpp')
+ * @param binaryName - 二进制名 'subtitle_ocr_ort_cpp'
  */
-function setupOcrCpp(project: 'subtitle-cpp' | 'subtitle-opencv-cpp', binaryName: 'ocr_pipeline' | 'ocr_pipeline_opencv') {
+function setupOcrCpp(project: 'ort-cpp', binaryName: 'subtitle_ocr_ort_cpp') {
 	const ortBase = join(repoRoot, 'packages', 'tmp', isWindows ? 'onnxruntime-win-x64-1.26.0' : 'onnxruntime-linux-x64-1.24.4');
 	const ortExtDir = join(ortBase, isWindows ? 'onnxruntime-win-x64-1.26.0' : 'onnxruntime-linux-x64-1.24.4');
 	const cppSourceDir = join(repoRoot, 'packages', 'subtitle-ocr', project);
@@ -739,8 +739,8 @@ function setupOcrCpp(project: 'subtitle-cpp' | 'subtitle-opencv-cpp', binaryName
 		return;
 	}
 
-	// subtitle-opencv-cpp 需要 OpenCV，先检查并安装
-	if (project === 'subtitle-opencv-cpp') {
+	// ort-cpp 需要 OpenCV，先检查并安装
+	if (project === 'ort-cpp') {
 		// 优先使用 MSYS2 pacman 安装的 OpenCV
 		const msys2Dir = 'C:\\msys64';
 		const msys2OpenCv = join(msys2Dir, 'mingw64');
@@ -804,12 +804,12 @@ function setupOcrCpp(project: 'subtitle-cpp' | 'subtitle-opencv-cpp', binaryName
 
 	// 添加 MSYS2 到 PATH
 	const msys2Dir = 'C:\\msys64';
-	const useMsys2 = project === 'subtitle-opencv-cpp' && isWindows;
+	const useMsys2 = isWindows;
 	const msys2Paths = isWindows
 		? join(msys2Dir, 'mingw64', 'bin') + ';' + join(msys2Dir, 'usr', 'bin') + ';'
 		: '';
 
-	// subtitle-opencv-cpp：使用 MSYS2 原生环境
+	// 使用 MSYS2 原生环境
 	const opencvDir = useMsys2
 		? join(msys2Dir, 'mingw64')
 		: (process.env.OpenCV_DIR || '');
@@ -831,15 +831,8 @@ function setupOcrCpp(project: 'subtitle-cpp' | 'subtitle-opencv-cpp', binaryName
 		`-DORT_DIR=${ortExtDir}`,
 	];
 
-	// subtitle-opencv-cpp 使用 MSYS2 cmake，不指定 OpenCV_DIR（从环境变量读取）
-	// subtitle-cpp 继续使用原来的配置
-	const cmakeExtraArgs = project === 'subtitle-opencv-cpp' && isWindows
-		? []
-		: (project === 'subtitle-cpp' ? [] : []);
-
 	const cmakeFinalArgs = [
 		...cmakeBaseArgs,
-		...cmakeExtraArgs,
 		...(isWindows ? ['-G', 'MinGW Makefiles'] : [])
 	];
 
@@ -963,9 +956,7 @@ function main() {
 
 	if (!skipOcr) {
 		if (ocrRuntime === 'ort-cpp') {
-			setupOcrCpp('subtitle-cpp', 'ocr_pipeline');
-		} else if (ocrRuntime === 'ort-opencv-cpp') {
-			setupOcrCpp('subtitle-opencv-cpp', 'ocr_pipeline_opencv');
+			setupOcrCpp('ort-cpp', 'subtitle_ocr_ort_cpp');
 		} else {
 			log(`asr_ocr.runtime=${ocrRuntime}，跳过 OCR C++ 编译`, 'gray');
 		}

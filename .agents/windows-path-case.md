@@ -2,7 +2,7 @@
 
 ## 现象
 
-调用 C++ 二进制（`ocr_pipeline.exe`、`ocr_pipeline_opencv.exe`、`whisper.exe` 等）时：
+调用 C++ 二进制（`ocr_pipeline.exe`、`subtitle_ocr_ort_cpp.exe`、`whisper.exe` 等）时：
 
 - 退出码 `exit=53`
 - `stderr` 和 `stdout` 均为空
@@ -60,8 +60,7 @@ const LIB_PATH_KEY = getLibPathKey();
 
 | 文件 | 说明 |
 |------|------|
-| `packages/cli/src/ml/ocr/runtimes/ort-opencv-cpp.ts` | OCR OpenCV C++ 运行时 |
-| `packages/cli/src/ml/ocr/runtimes/ort-cpp.ts` | OCR C++ 运行时 |
+| `packages/cli/src/ml/ocr/runtimes/ort-cpp.ts` | OCR OpenCV C++ 运行时 |
 | `packages/cli/src/feat/stages/asr/asr.ts` | ASR whisper.cpp 运行时 |
 
 ## 排查 checklist

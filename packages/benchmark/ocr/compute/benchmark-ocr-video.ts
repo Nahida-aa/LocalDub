@@ -62,10 +62,10 @@ function findFullBin(name: string): string {
 }
 const FFMPEG_BIN = process.env.BENCHMARK_FFMPEG || findFullBin('ffmpeg');
 const FFPROBE_BIN = process.env.BENCHMARK_FFPROBE || findFullBin('ffprobe');
-const CPP_BIN = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'subtitle-cpp', 'build', 'ocr_pipeline');
-const CPP_LD_PATH = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'subtitle-cpp', 'build');
-const CPP_OPENCV_BIN = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'subtitle-opencv-cpp', 'build', 'ocr_pipeline_opencv');
-const CPP_OPENCV_LD_PATH = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'subtitle-opencv-cpp', 'build');
+const CPP_BIN = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'ort-cpp', 'build', 'subtitle_ocr_ort_cpp');
+const CPP_LD_PATH = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'ort-cpp', 'build');
+const CPP_OPENCV_BIN = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'ort-cpp', 'build', 'subtitle_ocr_ort_cpp');
+const CPP_OPENCV_LD_PATH = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'ort-cpp', 'build');
 const RUST_BIN = resolve(REPO_ROOT, 'packages', 'subtitle-rust', 'target', 'release', 'ocr_pipeline_rs');
 const RUST_INFER_PY = resolve(REPO_ROOT, 'packages', 'subtitle-rust', 'infer_onnx.py');
 const OCR_MODELS_DIR = findRapidOCRModelsDir();
@@ -422,7 +422,7 @@ async function runOCRBenchmarkNode(label: string, fps: number, textScore?: numbe
 }
 
 function runOCRBenchmarkCpp(label: string, fps: number, textScore?: number, subtitleOnly?: boolean) {
-	return runBenchmarkCommon(label, fps, 'subtitle-cpp', { textScore, subtitleOnly },
+	return runBenchmarkCommon(label, fps, 'ort-cpp', { textScore, subtitleOnly },
 		({ frameFiles, step, srcFps }) => frameFiles.map((f, i) => {
 			const r = ocrFrameCpp(join(framesDir(label), f), textScore, subtitleOnly);
 			return {
@@ -439,7 +439,7 @@ function runOCRBenchmarkCpp(label: string, fps: number, textScore?: number, subt
 }
 
 function runOCRBenchmarkCppOpencv(label: string, fps: number, textScore?: number, subtitleOnly?: boolean, noNms?: boolean) {
-	return runBenchmarkCommon(label, fps, 'subtitle-opencv-cpp', { textScore, subtitleOnly },
+	return runBenchmarkCommon(label, fps, 'ort-cpp', { textScore, subtitleOnly },
 		({ frameFiles, step, srcFps, frameDir }) => {
 			const args: string[] = ['--dir', frameDir];
 			if (textScore != null) args.push(String(textScore));

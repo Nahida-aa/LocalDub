@@ -7,8 +7,8 @@ import { join, resolve } from 'node:path';
 import { levenshtein, FrameResult, mergeFrames, dedupOverlap } from '../../../cli/src/feat/stages/utils/ocrMerge';
 
 const REPO_ROOT = resolve(__dirname, '..', '..', '..', '..');
-const CPP_BIN = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'subtitle-cpp', 'build', 'ocr_pipeline');
-const CPP_LD_PATH = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'subtitle-cpp', 'build');
+const CPP_BIN = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'ort-cpp', 'build', 'subtitle_ocr_ort_cpp');
+const CPP_LD_PATH = resolve(REPO_ROOT, 'packages', 'subtitle-ocr', 'ort-cpp', 'build');
 const VIDEO_PATH = resolve(REPO_ROOT, 'packages', 'benchmark', 'ref', 'media', 'video_source.mp4');
 const ASR_SOURCE = process.env.ASR_SOURCE || 'ggml-s1-vocals';
 const ASR_PARAM = process.env.ASR_PARAM || 'baseline';

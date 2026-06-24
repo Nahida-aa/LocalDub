@@ -35,7 +35,7 @@ The hand-written `cpp` pipeline has near-identical timings (361ms vs 355ms); the
 
 ## Remaining opportunities in cpp-opencv
 
-The C++ pipeline still has hand-written image processing in three places (from `ocr_pipeline.cpp` in `subtitle-opencv-cpp/`):
+The C++ pipeline still has hand-written image processing in three places (from `ocr_pipeline.cpp` in `ort-cpp/`):
 
 | Step | Current | Can replace with `cv::` | Expected speedup per call |
 |------|---------|------------------------|---------------------------|

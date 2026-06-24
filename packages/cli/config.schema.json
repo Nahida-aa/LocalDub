@@ -506,10 +506,9 @@
               "properties": {
                 "runtime": {
                   "default": "ort-opencv-cpp",
-                  "description": "OCR 推理运行时: ort-cpp (C++ 二进制), ort-opencv-cpp (C++ + OpenCV 预处理), ort-node (onnxruntime-node), ort-py (Python rapidocr), ort-rust (Rust 二进制 + Python ONNX)",
+                  "description": "OCR 推理运行时: ort-opencv-cpp (C++ + OpenCV 预处理), ort-node (onnxruntime-node), ort-py (Python rapidocr), ort-rust (Rust 二进制 + Python ONNX)",
                   "type": "string",
                   "enum": [
-                    "ort-cpp",
                     "ort-opencv-cpp",
                     "ort-node",
                     "ort-py",
@@ -565,10 +564,9 @@
               "properties": {
                 "runtime": {
                   "default": "ort-opencv-cpp",
-                  "description": "OCR 推理运行时: ort-cpp (C++ 二进制), ort-opencv-cpp (C++ + OpenCV 预处理), ort-node (onnxruntime-node), ort-py (Python rapidocr), ort-rust (Rust 二进制 + Python ONNX)",
+                  "description": "OCR 推理运行时: ort-opencv-cpp (C++ + OpenCV 预处理), ort-node (onnxruntime-node), ort-py (Python rapidocr), ort-rust (Rust 二进制 + Python ONNX)",
                   "type": "string",
                   "enum": [
-                    "ort-cpp",
                     "ort-opencv-cpp",
                     "ort-node",
                     "ort-py",

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(ocr_pipeline_opencv CXX)
+project(subtitle_ocr_ort_cpp CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -57,37 +57,37 @@ message(STATUS "OpenCV include dirs: ${OpenCV_INCLUDE_DIRS}")
 message(STATUS "OpenCV libs: ${OpenCV_LIBS}")
 
 # --- Build executable --------------------------------------------------------
-add_executable(ocr_pipeline_opencv ocr_pipeline.cpp)
+add_executable(subtitle_ocr_ort_cpp ocr_pipeline.cpp)
 
-target_include_directories(ocr_pipeline_opencv PRIVATE
+target_include_directories(subtitle_ocr_ort_cpp PRIVATE
     "${ORT_INCLUDE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
-target_link_directories(ocr_pipeline_opencv PRIVATE "${ORT_LIB_DIR}")
+target_link_directories(subtitle_ocr_ort_cpp PRIVATE "${ORT_LIB_DIR}")
 
 if(WIN32)
     find_library(ONNXRUNTIME_LIB onnxruntime PATHS "${ORT_LIB_DIR}" NO_DEFAULT_PATH)
-    target_link_libraries(ocr_pipeline_opencv PRIVATE ${ONNXRUNTIME_LIB})
-    add_custom_command(TARGET ocr_pipeline_opencv POST_BUILD
+    target_link_libraries(subtitle_ocr_ort_cpp PRIVATE ${ONNXRUNTIME_LIB})
+    add_custom_command(TARGET subtitle_ocr_ort_cpp POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${ORT_LIB_DIR}/onnxruntime.dll"
-            "$<TARGET_FILE_DIR:ocr_pipeline_opencv>/"
+            "$<TARGET_FILE_DIR:subtitle_ocr_ort_cpp>/"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${ORT_LIB_DIR}/onnxruntime_providers_shared.dll"
-            "$<TARGET_FILE_DIR:ocr_pipeline_opencv>/"
+            "$<TARGET_FILE_DIR:subtitle_ocr_ort_cpp>/"
         COMMENT "Copying ORT DLLs"
     )
 else()
     find_library(ONNXRUNTIME_LIB onnxruntime PATHS "${ORT_LIB_DIR}" NO_DEFAULT_PATH)
-    target_link_libraries(ocr_pipeline_opencv PRIVATE ${ONNXRUNTIME_LIB} pthread)
-    add_custom_command(TARGET ocr_pipeline_opencv POST_BUILD
+    target_link_libraries(subtitle_ocr_ort_cpp PRIVATE ${ONNXRUNTIME_LIB} pthread)
+    add_custom_command(TARGET subtitle_ocr_ort_cpp POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${ORT_LIB_DIR}/libonnxruntime.so.1.24.4"
-            "$<TARGET_FILE_DIR:ocr_pipeline_opencv>/libonnxruntime.so.1"
+            "$<TARGET_FILE_DIR:subtitle_ocr_ort_cpp>/libonnxruntime.so.1"
         COMMENT "Copying ORT shared library"
     )
 endif()
 
 # Link OpenCV (after ORT to avoid symbol conflicts)
-target_link_libraries(ocr_pipeline_opencv PRIVATE ${OpenCV_LIBS})
+target_link_libraries(subtitle_ocr_ort_cpp PRIVATE ${OpenCV_LIBS})
