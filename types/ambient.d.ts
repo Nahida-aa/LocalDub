@@ -1,0 +1,1 @@
+declare module 'onnxruntime-node';\ndeclare module 'onnxruntime-node-gpu';\n
