@@ -345,7 +345,6 @@ async function asrWhisperCpp(
 	// whisper-cli writes <audioPath>.json alongside input; place input in the persistent asr directory for inspection
 	const audioDir = join(sessionPath, 'asr');
 	ensureDir(audioDir, ctx);
-
 	// Prepare input WAV for whisper-cli: if input is already WAV, use it directly to avoid unnecessary copies
 	let tmpAudio: string;
 	if (audioPath.toLowerCase().endsWith('.wav')) {
