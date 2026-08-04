@@ -9,17 +9,11 @@ export const cmdRerunStage = async (input: InputArgs) => {
 		console.error(
 			'rerunStage.taskDir and rerunStage.stageName required in input.json',
 		);
-		process.exit(1);
+		throw new Error('rerunStage.taskDir and rerunStage.stageName required in input.json');
 	}
 	const ctx = setCtx(taskDir, { input });
 	const taskId = ctx.task.id;
 	console.log(`[CLI] Rerunning stage "${stageName}" for task ${taskId}...`);
-	try {
-		await	rerunSingleStage(ctx),
-		console.log('[CLI] Stage completed');
-		process.exit(0);
-	} catch (err) {
-		console.error('[CLI] Stage failed:', err);
-		process.exit(1);
-	}
+	await	rerunSingleStage(ctx),
+	console.log('[CLI] Stage completed');
 }

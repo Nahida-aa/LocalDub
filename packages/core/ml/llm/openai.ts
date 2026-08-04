@@ -37,5 +37,10 @@ export const chat_completions = async (
     throw new Error(`LLM API ${resp.status}: ${err}`);
   }
   const json = await resp.json();
-  return (json.choices?.[0]?.message?.content || '').trim();
+  const content = (json.choices?.[0]?.message?.content || '').trim();
+  if (!content) {
+    const preview = JSON.stringify(json).slice(0, 500);
+    throw new Error(`LLM returned empty content. Response: ${preview}`);
+  }
+  return content;
 }

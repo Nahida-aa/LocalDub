@@ -5,6 +5,7 @@
   "dependencies": {
     "@repo/cli": "workspace:*",
     "@repo/config": "workspace:*",
+    "@repo/core": "workspace:*",
     "@repo/subtitle-ocr": "workspace:*",
     "@repo/voxlab": "workspace:*",
     "onnxruntime-node": "^1.26.0",

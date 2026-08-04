@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 # Reuse _convert_segments from pytorch.py
-REPO_ROOT = Path(__file__).resolve().parents[5]
+REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO_ROOT / "packages" / "cli" / "src" / "ml" / "whisper"))
 from pytorch import _convert_segments  # noqa: PLC0414,E402
 
@@ -28,6 +28,10 @@ def _load_whisper(device: str) -> None:
         if not torch.cuda.is_available():
             sys.stderr.write("[WARN] torch.cuda.is_available()=False, ASR falling back to CPU\n")
             device = "cpu"
+        else:
+            # Free GPU cache leftover from previous stages (e.g. separate/demucs)
+            torch.cuda.empty_cache()
+
     import whisper
 
     _WHISPER = whisper.load_model(

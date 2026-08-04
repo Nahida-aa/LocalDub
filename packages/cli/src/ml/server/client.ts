@@ -1,10 +1,38 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { delimiter, join } from 'node:path';
+import { homedir } from 'node:os';
 import { findServer } from '@repo/core/servers/discovery';
 import { ModelServerStatus } from '@repo/core/servers/type';
 import { pythonBin } from '@repo/config/path/bin';
 import { demucs_torch_server } from '@repo/config/path/scripts';
 import { REPO_ROOT } from '@repo/config/root';
+
+/** Prepend torch/torchaudio lib dirs to PATH and set whisper model cache. */
+function buildTorchEnv(env: Record<string, string>) {
+	const venvBase = join(REPO_ROOT, '.venv');
+	const torchLib = join(venvBase, 'Lib', 'site-packages', 'torch', 'lib');
+	const torchAudioLib = join(venvBase, 'Lib', 'site-packages', 'torchaudio', 'lib');
+	const venvScripts = join(venvBase, 'Scripts');
+	env.VIRTUAL_ENV = venvBase;
+	env.WHISPER_DOWNLOAD_ROOT = join(homedir(), '.cache', 'whisper');
+	// Filter out conda/anaconda/miniconda paths to prevent DLL version conflicts.
+	// Conda environments inject their own torch/cuda DLLs into PATH which can
+	// shadow the venv's torch installation.
+	const isCondaPath = (p: string) => /conda|miniconda|mamba/i.test(p);
+	const dllPath = [torchLib, torchAudioLib, venvScripts]
+		.concat(
+			(env.PATH || '')
+				.split(delimiter)
+				.filter(Boolean)
+				.filter((p) => !isCondaPath(p)),
+		)
+		.join(delimiter);
+	env.PATH = dllPath;
+	delete env.CONDA_PREFIX;
+	delete env.CONDA_DEFAULT_ENV;
+	delete env.CONDA_PROMPT_MODIFIER;
+	return env;
+}
 
 export const fetchStatsRes = (port: number) => fetch(`http://127.0.0.1:${port}/status`, {
   signal: AbortSignal.timeout(2000),
@@ -116,6 +144,7 @@ export async function startTorchServer(preferredPort: number = DEFAULT_PORT): Pr
 		...(process.env as Record<string, string>),
 		TORCHAUDIO_USE_BACKEND: 'soundfile',
 	};
+	buildTorchEnv(env);
 	const existingPy = env.PYTHONPATH || '';
 	env.PYTHONPATH = existingPy ? `${voxcpmSrc}${delimiter}${existingPy}` : voxcpmSrc;
 

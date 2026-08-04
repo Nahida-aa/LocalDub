@@ -71,7 +71,18 @@ switch (cmd) {
 	}
 	case 'task': {
 		const { cmdTask } = await import('@repo/core/cmd/tasks/task');
-		await cmdTask(input);
+		let exitCode = 0;
+		try {
+			await cmdTask(input);
+		} catch (e: any) {
+			console.error('[task]', e.message ?? String(e));
+			exitCode = 1;
+		} finally {
+			// Free GPU + RAM for next batch task
+			const { shutdownTorchServer } = await import('@repo/core/servers/ensure');
+			await shutdownTorchServer();
+			process.exit(exitCode);
+		}
 		break
 	}
 	case 'env': {

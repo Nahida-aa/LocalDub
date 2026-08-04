@@ -15,8 +15,8 @@ import {
 } from '@repo/ui-solid/base/sidebar';
 import { TooltipX } from '@repo/ui-solid/custom/tooltip';
 import { openSettings } from './settings/settings';
-import { ChevronRight, Folder, LayoutDashboard, Settings, SquarePlayIcon } from 'lucide-solid';
-import { createQuery, useQuery } from '@tanstack/solid-query';
+import { ChevronRight, Folder, LayoutDashboard, Plus, Settings, SquarePlayIcon } from 'lucide-solid';
+import { createQuery, useQuery, useQueryClient } from '@tanstack/solid-query';
 import { GroupInfo } from '@repo/core/cmd/tasks/get_task';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@repo/ui-solid/base/collapsible';
 import { For, Match, Show, Switch } from 'solid-js';
@@ -26,6 +26,7 @@ import { ScrollArea } from '@repo/ui-solid/base/scroll-area';
 import { client, fnrpc } from '#/integrations/fnrpc/client.ts';
 import { useLiveQuery } from '@tanstack/solid-db';
 import { taskGroupExpandCollection } from '#/feat/task_tree/sync.ts';
+import { openCreateBatchDialog } from './CreateBatchDialog';
 
 const getButtonPx = (depth: number) => ({
 	'padding-left': `${(2 + 6 * depth) * 0.25}rem`,
@@ -83,16 +84,20 @@ const TaskTree = (p: {items: GroupInfo[]}) => {
 }
 
 export function AppSidebar() {
-	// const api = useClientApi()
-	// const groupList1 = createQuery(()=>({
-	// 		queryKey: ['groupList'],
-	// 		queryFn: () => client.query(['getGroupList', null])
-	// 	}))
-
+	const queryClient = useQueryClient();
 	const groupListQ = createQuery(() => client.get_group_list.queryOptions(null))
+
+	const handleCreateBatch = () => {
+		openCreateBatchDialog(() => {
+			queryClient.invalidateQueries({
+				queryKey: client.get_group_list.queryKey(null),
+			});
+		});
+	};
+
 	return (
 		<Sidebar>
-			<SidebarHeader class="flex-row">
+			<SidebarHeader class="flex-row items-center justify-between">
 				<TooltipX content={`Version ${packageJson.version}`}>
 					<Link to="/">
 						<h1 class="flex gap-1">
@@ -100,6 +105,11 @@ export function AppSidebar() {
 							<span class="text-muted-foreground">Dub</span>
 						</h1>
 					</Link>
+				</TooltipX>
+				<TooltipX content="创建任务">
+					<SidebarMenuButton onClick={handleCreateBatch} class="size-8 p-0">
+						<Plus class="size-4" />
+					</SidebarMenuButton>
 				</TooltipX>
 			</SidebarHeader>
 			<SidebarContent>

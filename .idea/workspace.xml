@@ -9,8 +9,12 @@
   <component name="ChangeListManager">
     <list default="true" id="2551b379-47ce-4525-9b26-520d4341f0ed" name="更改" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/packages/app/src/components/pages/task/TaskDetailPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/TaskDetailPage.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/packages/core/stages/utils/filtering.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/stages/utils/filtering.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/ml/demucs/_engine.py" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/ml/demucs/_engine.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/ml/demucs/torch_server_separate.py" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/ml/demucs/torch_server_separate.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/ml/whisper/torch_server_asr.py" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/ml/whisper/torch_server_asr.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/demucs_torch_server/pytorch_server.py" beforeDir="false" afterPath="$PROJECT_DIR$/packages/demucs_torch_server/pytorch_server.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/shared/i18n/paraglide/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/packages/shared/i18n/paraglide/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/shared/i18n/project.inlang/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/packages/shared/i18n/project.inlang/.gitignore" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -54,27 +58,95 @@
   <component name="ProjectViewState">
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "git-widget-placeholder": "正在合并 main",
-    "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "G:/LocalDub/packages/cli",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
-    "org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon": "",
-    "ts.external.directory.path": "D:\\Intelji IDEA\\IntelliJ IDEA 2024.2.5\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;G:/LocalDub/packages/subtitle-ocr&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
+    &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;D:\\Intelji IDEA\\IntelliJ IDEA 2024.2.5\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="G:\LocalDub\packages\subtitle-ocr" />
+      <recent name="G:\LocalDub\packages\app\src\components\pages\task\Timeline\tracks" />
+      <recent name="G:\LocalDub\packages\app\src\components\pages\task\Timeline" />
       <recent name="G:\LocalDub\packages\cli" />
     </key>
+  </component>
+  <component name="RunManager">
+    <configuration default="true" type="JetRunConfigurationType">
+      <module name="LocalDub" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration default="true" type="KotlinStandaloneScriptRunConfigurationType">
+      <module name="LocalDub" />
+      <option name="filePath" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration default="true" type="PythonConfigurationType" factoryName="Python">
+      <module name="LocalDub" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="Python.FlaskServer">
+      <module name="LocalDub" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="launchJavascriptDebuger" value="false" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="Tox" factoryName="Tox">
+      <module name="LocalDub" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <method v="2" />
+    </configuration>
   </component>
   <component name="RustProjectSettings">
     <option name="toolchainHomeDirectory" value="$USER_HOME$/.cargo/bin" />
@@ -106,6 +178,12 @@
       <workItem from="1784986720965" duration="11968000" />
       <workItem from="1785030948216" duration="1572000" />
       <workItem from="1785032596369" duration="9774000" />
+      <workItem from="1785416979316" duration="577000" />
+      <workItem from="1785417748600" duration="26000" />
+      <workItem from="1785418211027" duration="7888000" />
+      <workItem from="1785427814177" duration="3881000" />
+      <workItem from="1785462340643" duration="141000" />
+      <workItem from="1785466755895" duration="78000" />
     </task>
     <servers />
   </component>
@@ -137,7 +215,6 @@
         <line-breakpoint enabled="true" type="javascript">
           <url>file://$PROJECT_DIR$/packages/app/src/components/app/AppSidebar.tsx</url>
           <line>67</line>
-          <properties lambdaOrdinal="-1" />
           <option name="timeStamp" value="1" />
         </line-breakpoint>
       </breakpoints>

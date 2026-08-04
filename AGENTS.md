@@ -100,3 +100,9 @@ async fn greet(ctx: &Ctx, input: GreetInput) -> GreetOutput {
 - `.agents/windows-path-case.md` — Windows PATH 大小写坑 (exit=53 + 空输出)
 - `docs/webgpu-oom.md` — WebGPU `VK_ERROR_DEVICE_LOST` 根因分析
 - `packages/benchmark/asr/whisper/results/FINDINGS.md` — ASR 参数基准测试详细结果（38 组合）
+
+## App 前端设计决策（lazy load）
+
+- 设计决策/复用约定写在 `packages/app/.agents/*.md`，**不要预加载到上下文**，仅在任务相关时用 Read 按需读取
+- 改 `packages/app/src/components/pages/task/Timeline/` 相关代码前，先 Read `packages/app/.agents/timeline-design.md`
+- 涉及 `query.ts` / `query_track.ts` 的数据组装时，同样按需读取该文件

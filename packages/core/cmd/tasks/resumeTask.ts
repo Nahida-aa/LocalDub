@@ -7,7 +7,7 @@ export const cmdResumeTask = async (input: InputArgs) => {
   const taskDir = input.task?.taskDir;
 		if (!taskDir) {
 			console.error('task.taskDir required in input.json');
-			process.exit(1);
+			throw new Error('task.taskDir required in input.json');
 		}
 		const ctx =  setCtx(taskDir, {
 			input: input,
@@ -17,14 +17,7 @@ export const cmdResumeTask = async (input: InputArgs) => {
 		const label = resumeFrom ? ` from "${resumeFrom}"` : '';
 
 		console.log(`[CLI] Resuming pipeline for task ${taskDir}${label}...`);
-		try {
-			await	resumePipeline(ctx),
-			console.log('[CLI] Pipeline completed');
-			playTaskSuccess()
-			process.exit(0);
-		} catch (err) {
-			console.error('[CLI] Pipeline failed:', err);
-			playTaskFail()
-			process.exit(1);
-		}
+		await	resumePipeline(ctx),
+		console.log('[CLI] Pipeline completed');
+		playTaskSuccess()
 }

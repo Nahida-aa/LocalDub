@@ -79,6 +79,11 @@ export async function stageTranslate(ctx: TaskCtx) {
     if (ret) return ret
     const m = raw.match(/\{.*\}/s);
     if (m) return JSON.parse(m[0]);
+    // fallback: LLM returned numbered list instead of JSON (e.g. deepseek-v4-flash)
+    const numbered = raw.match(/^\d+[.)、]\s*(.+)$/gm);
+    if (numbered && numbered.length > 0) {
+      return { dst: numbered.map((l) => l.replace(/^\d+[.)、]\s*/, '').trim()) };
+    }
     throw new Error(
 			`Failed to parse JSON from LLM response: ${raw.slice(0, 300)}`,
 		);

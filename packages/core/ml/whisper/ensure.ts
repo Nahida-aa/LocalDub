@@ -102,8 +102,8 @@ export function ensureWhisperCppModel(taskDir: string): boolean {
 	const dest = whisperModelPath();
 	if (existsSync(dest)) return true;
 
-	const url = `${HF_BASE}/ggml-large-v3-turbo.bin`;
 	emitLog(taskDir, `[Whisper] Whisper model not found at ${dest}`);
+	const url = `${HF_BASE}/ggml-large-v3-turbo.bin`;
 	return downloadFile(url, dest, taskDir);
 }
 
@@ -111,8 +111,8 @@ export function ensureVadModel(taskDir: string): boolean {
 	const dest = join(WHISPER_MODEL_DIR, vadModelFilename());
 	if (existsSync(dest)) return true;
 
-	const url = `${HF_BASE}/${vadModelFilename()}`;
 	emitLog(taskDir, `[Whisper] VAD model not found at ${dest}`);
+	const url = `${HF_BASE}/${vadModelFilename()}`;
 	return downloadFile(url, dest, taskDir);
 }
 

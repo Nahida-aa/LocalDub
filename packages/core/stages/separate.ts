@@ -2,7 +2,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
-import { runStage, getTorchServerUrl } from '../servers/client.ts';
+import { runStage } from '../servers/client.ts';
 import { Demucs } from '../ml/demucs/demucs.ts';
 import type { Stem } from '../ml/demucs/load.ts';
 import { DEMUCS_MODEL_DIR } from '@repo/config/path/models';
@@ -15,7 +15,7 @@ import { startLog } from './utils/log.ts';
 import { separateBurn } from '../ml/demucs/cli/burn_cli.ts';
 import { separateGgml } from '../ml/demucs/cli/ggml_cli.ts';
 import { pythonBin } from '@repo/config/path/bin';
-import { findServer } from '@repo/core/servers/discovery';
+import { ensureTorchServer } from '@repo/core/servers/ensure';
 import { REPO_ROOT } from '@repo/config/root';
 
 export async function stageSeparate(
@@ -57,8 +57,7 @@ export async function stageSeparate(
 	if (runtime === 'pytorch') {
 		emitLog(taskDir, `[Separate] Using Torch server (device=${device})`);
 
-		const {port} = await findServer('demucs_torch_server')
-		const sepUrl = getTorchServerUrl(port);
+		const sepUrl = await ensureTorchServer();
 		let lastTorchPct = -1;
 		const result = await runStage(sepUrl,
 			'separate',

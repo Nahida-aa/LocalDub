@@ -1,19 +1,17 @@
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@repo/ui-solid/base/context-menu";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@repo/ui-solid/base/context-menu";
 import { openModal } from "@repo/ui-solid/custom/modal/renderer";
 import { AudioPlayer } from "#/components/ui/audio-player";
 import { mediaUrl } from "#/lib/utils/path.ts";
 import type { Track, TrackSegment } from "../consts";
 import type { TtsSegment } from "@repo/core/stages/07_tts/types";
+import type { BaseTrackProps } from "./shared";
 
-interface Props {
-  track: Track;
-  totalPx: number;
-  pxPerMs: number;
-  onSeek: (ms: number) => void;
-  color: string;
-  taskDir: string;
-  filePath: string;
-}
+type Props = BaseTrackProps;
 
 export function TtsTrack(props: Props) {
   const { track, pxPerMs, onSeek, color, taskDir } = props;
@@ -27,28 +25,39 @@ export function TtsTrack(props: Props) {
     const url = mediaUrl(`${taskDir}/tts/wavs/${idx}.wav`);
     const label = `#${segIndex + 1} ${seg.text}`;
 
-    openModal(() => (
-      <div class="p-4 flex justify-center">
-        <AudioPlayer src={url} label={label} />
-      </div>
-    ), { title: `播放 TTS #${segIndex + 1}`, size: "sm" });
+    openModal(
+      () => (
+        <div class="p-4 flex justify-center">
+          <AudioPlayer src={url} label={label} />
+        </div>
+      ),
+      { title: `播放 TTS #${segIndex + 1}`, size: "sm" },
+    );
   };
 
   const statusColor = (status: string) => {
     switch (status) {
-      case "success": return `${color}33`;
-      case "error": return "#ef444433";
-      case "empty": return "#6b728033";
-      default: return `${color}22`;
+      case "success":
+        return `${color}33`;
+      case "error":
+        return "#ef444433";
+      case "empty":
+        return "#6b728033";
+      default:
+        return `${color}22`;
     }
   };
 
   const borderColor = (status: string) => {
     switch (status) {
-      case "success": return `${color}55`;
-      case "error": return "#ef444455";
-      case "empty": return "#6b728055";
-      default: return `${color}33`;
+      case "success":
+        return `${color}55`;
+      case "error":
+        return "#ef444455";
+      case "empty":
+        return "#6b728055";
+      default:
+        return `${color}33`;
     }
   };
 

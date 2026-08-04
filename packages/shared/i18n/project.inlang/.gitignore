@@ -17,4 +17,3 @@
 # everything is ignored except settings.json
 *
 !settings.json
-!.gitignore

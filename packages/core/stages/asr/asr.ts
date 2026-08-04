@@ -3,14 +3,14 @@ import { readJson, writeJson, ensureDir, removeFile } from '@repo/core/utils/fil
 import { copyFileSync, existsSync, renameSync } from 'node:fs';
 import { delimiter, join, resolve, basename } from 'node:path';
 import { homedir } from 'node:os';
-import { runStage, getTorchServerUrl } from '../../servers/client.ts';
+import { runStage } from '../../servers/client.ts';
 
 import {  emitLog, ffmpeg, nowISO, readTaskLanguages,video_source_path, vocalsPath, mixedVocalsPath, gatedVocalsPath } from '@repo/core/stages/utils/utils';
 import { AsrOptions, AsrResult } from './types.ts';
 import { parseAsrOutput } from './utils.ts';
 import { TaskCtx, setCtx, setStage } from '@repo/core/context/context.ts';
 import { pythonBin } from '@repo/config/path/bin';
-import { findServer } from '@repo/core/servers/discovery';
+import { ensureTorchServer } from '@repo/core/servers/ensure';
 import { REPO_ROOT } from '@repo/config/root';
 import { whisperCppModelPath } from '@repo/config/path/models';
 import { asrWhisperCpp } from '../../ml/whisper/runtime/ggml.ts';
@@ -61,8 +61,7 @@ export async function stageAsr(
 
 	if (runtime === 'pytorch') {
 		emitLog(taskDir, `[ASR] Using demucs_torch_server (device=${device})`);
-		const { port } = await findServer('demucs_torch_server')
-		const asrUrl = getTorchServerUrl(port);
+		const asrUrl = await ensureTorchServer();
 		const result = await runStage(asrUrl, 'asr', taskId, {
 			vocals_path: audioPath,
 			task_dir: taskDir,

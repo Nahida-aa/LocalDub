@@ -8,6 +8,16 @@ export type AsrRunInfo = {
 	fallback_to_cpu: boolean | null,
 };
 
+export type BatchFileInfo = {
+	name: string,
+	path: string,
+};
+
+export type BatchFolderResult = {
+	folder_path: string,
+	files: BatchFileInfo[],
+};
+
 export type Capabilities = {
 	webgpu: boolean,
 	vulkan: boolean,
@@ -303,7 +313,11 @@ export type Procedures = {
   stop_voxcpm: { kind: "mutate"; method: "POST"; input: null; output: null; error: RpcErr };
   device_info: { kind: "query"; method: "GET"; input: null; output: DeviceInfo; error: RpcErr };
   resume_task: { kind: "mutate"; method: "POST"; input: [string, string]; output: null; error: RpcErr };
-
+  pick_batch_folder: { kind: "query"; method: "GET"; input: null; output: {
+	folder_path: string,
+	files: BatchFileInfo[],
+} | null; error: RpcErr };
+  start_new_task: { kind: "mutate"; method: "POST"; input: [string, string, string | null, string | null]; output: null; error: RpcErr };
 }
 
 export const __procedureMeta = {
@@ -328,5 +342,7 @@ export const __procedureMeta = {
   start_voxcpm: { kind: "mutate", method: "POST" },
   stop_voxcpm: { kind: "mutate", method: "POST" },
   device_info: { kind: "query", method: "GET" },
-	resume_task: { kind: "mutate", method: "POST" },
+  resume_task: { kind: "mutate", method: "POST" },
+  pick_batch_folder: { kind: "query", method: "GET" },
+  start_new_task: { kind: "mutate", method: "POST" },
 } as const;

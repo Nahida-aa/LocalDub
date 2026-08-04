@@ -40,6 +40,20 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+# Reduce CUDA memory fragmentation — recommended by PyTorch docs for
+# workloads that repeatedly allocate/free large tensors (demucs + ASR).
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
+# On Windows, explicitly register torch/torchaudio DLL directories before
+# any torch import. os.add_dll_directory() is more reliable than PATH
+# manipulation, since conda base env DLLs can still leak through.
+if sys.platform == "win32":
+    _venv = Path(__file__).resolve().parents[2] / ".venv" / "Lib" / "site-packages"
+    for _d in ("torch", "torchaudio"):
+        _lib = _venv / _d / "lib"
+        if _lib.is_dir():
+            os.add_dll_directory(str(_lib))
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -108,8 +122,8 @@ sys.stderr = _Tee(sys.stderr, _log_buffer)
 # Model handler imports
 # ---------------------------------------------------------------------------
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "packages" / "cli" / "src" / "ml" / "demucs"))
-sys.path.insert(0, str(REPO_ROOT / "packages" / "cli" / "src" / "ml" / "whisper"))
+sys.path.insert(0, str(REPO_ROOT / "packages" / "core" / "ml" / "demucs"))
+sys.path.insert(0, str(REPO_ROOT / "packages" / "core" / "ml" / "whisper"))
 
 # mDNS service discovery
 from servers_py.mdns_server import register_service, unregister_service  # noqa: E402

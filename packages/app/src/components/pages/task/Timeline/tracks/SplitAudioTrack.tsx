@@ -1,4 +1,3 @@
-import { createSignal } from "solid-js";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -6,22 +5,16 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@repo/ui-solid/base/context-menu";
-import { openModal, closeModal } from "@repo/ui-solid/custom/modal/renderer";
+import { openModal } from "@repo/ui-solid/custom/modal/renderer";
 import { AudioPlayer } from "#/components/ui/audio-player";
 import { mediaUrl } from "#/lib/utils/path.ts";
 import type { Track, TrackSegment } from "../consts";
 import { client } from "#/integrations/fnrpc/client.ts";
 import type { SplitAudioTiming } from "@repo/core/stages/06_split_audio/types";
+import { TrackEditModal } from "./comp/TrackEditModal";
+import { deleteAt, insertAt, type BaseTrackProps } from "./shared";
 
-interface Props {
-  track: Track;
-  totalPx: number;
-  pxPerMs: number;
-  onSeek: (ms: number) => void;
-  color: string;
-  taskDir: string;
-  filePath: string;
-}
+type Props = BaseTrackProps;
 
 function serializeSegments(segments: TrackSegment[]): string {
   const segs: SplitAudioTiming[] = segments.map((s) => {
@@ -40,63 +33,31 @@ function serializeSegments(segments: TrackSegment[]): string {
   return JSON.stringify({ translation: segs }, null, 2);
 }
 
-const DEFAULT_DURATION_MS = 500;
-
-function insertAt(segments: TrackSegment[], index: number, after: boolean): TrackSegment[] {
-  const copy = [...segments];
-  const current = copy[index];
-  if (!current) return copy;
-
-  const newSeg: TrackSegment = {
-    index: -1,
-    text: "",
-    startMs: after ? current.endMs : Math.max(0, current.startMs - DEFAULT_DURATION_MS),
-    endMs: after ? current.endMs + DEFAULT_DURATION_MS : current.startMs,
-    raw: {
-      seg_idx: 0,
-      src: "",
-      dst: "",
-      src_lang: "auto",
-      dst_lang: "vi",
-      start: 0,
-      end: 0,
-      speaker: "1",
-    },
-  };
-
-  if (after) {
-    const next = copy[index + 1];
-    if (next) {
-      const gap = next.startMs - current.endMs;
-      newSeg.endMs = current.endMs + Math.min(gap / 2, DEFAULT_DURATION_MS);
-    }
-    copy.splice(index + 1, 0, newSeg);
-  } else {
-    const prev = copy[index - 1];
-    if (prev) {
-      const gap = current.startMs - prev.endMs;
-      newSeg.startMs = current.startMs - Math.min(gap / 2, DEFAULT_DURATION_MS);
-    }
-    copy.splice(index, 0, newSeg);
-  }
-
-  return copy.map((s, i) => ({ ...s, index: i }));
-}
-
-function deleteAt(segments: TrackSegment[], index: number): TrackSegment[] {
-  return segments.filter((_, i) => i !== index).map((s, i) => ({ ...s, index: i }));
-}
+const SPLIT_AUDIO_DEFAULT_RAW = {
+  seg_idx: 0,
+  src: "",
+  dst: "",
+  src_lang: "auto",
+  dst_lang: "vi",
+  start: 0,
+  end: 0,
+  speaker: "1",
+};
 
 export function SplitAudioTrack(props: Props) {
   const { track, pxPerMs, onSeek, color, taskDir } = props;
 
   const handleInsertBefore = async (segIndex: number) => {
-    const newSegments = insertAt(track.segments, segIndex, false);
+    const newSegments = insertAt(track.segments, segIndex, false, {
+      defaultRaw: SPLIT_AUDIO_DEFAULT_RAW,
+    });
     await client.write_app_file_text.call([props.filePath, serializeSegments(newSegments)]);
   };
 
   const handleInsertAfter = async (segIndex: number) => {
-    const newSegments = insertAt(track.segments, segIndex, true);
+    const newSegments = insertAt(track.segments, segIndex, true, {
+      defaultRaw: SPLIT_AUDIO_DEFAULT_RAW,
+    });
     await client.write_app_file_text.call([props.filePath, serializeSegments(newSegments)]);
   };
 
@@ -106,74 +67,30 @@ export function SplitAudioTrack(props: Props) {
     const raw = seg.raw as SplitAudioTiming | undefined;
 
     openModal(
-      () => {
-        const [text, setText] = createSignal(seg.text);
-        const [startMs, setStartMs] = createSignal(seg.startMs);
-        const [endMs, setEndMs] = createSignal(seg.endMs);
-
-        const onSave = async () => {
-          const newSegments = track.segments.map((s, i) =>
-            i === segIndex ? { ...s, text: text(), startMs: startMs(), endMs: endMs() } : s,
-          );
-          await client.write_app_file_text.call([props.filePath, serializeSegments(newSegments)]);
-          closeModal();
-        };
-
-        return (
-          <div class="flex flex-col gap-3 p-2 text-sm">
-            <label class="flex flex-col gap-1">
-              <span class="font-medium">译文</span>
-              <textarea
-                class="w-full min-h-20 rounded border p-2 text-sm"
-                value={text()}
-                onInput={(e) => setText(e.currentTarget.value)}
-              />
-            </label>
-            <div class="flex gap-4">
-              <label class="flex flex-col gap-1 flex-1">
-                <span class="font-medium">开始 (ms)</span>
-                <input
-                  class="rounded border px-2 py-1 text-sm"
-                  type="number"
-                  value={startMs()}
-                  onInput={(e) => setStartMs(Number(e.currentTarget.value))}
-                />
-              </label>
-              <label class="flex flex-col gap-1 flex-1">
-                <span class="font-medium">结束 (ms)</span>
-                <input
-                  class="rounded border px-2 py-1 text-sm"
-                  type="number"
-                  value={endMs()}
-                  onInput={(e) => setEndMs(Number(e.currentTarget.value))}
-                />
-              </label>
-            </div>
-            {raw && (
+      () => (
+        <TrackEditModal
+          textLabel="译文"
+          initialText={seg.text}
+          initialStartMs={seg.startMs}
+          initialEndMs={seg.endMs}
+          extraFields={() =>
+            raw && (
               <div class="flex gap-4 text-xs text-muted-foreground">
                 <span>原文: {raw.src}</span>
                 <span>
                   语言: {raw.src_lang}→{raw.dst_lang}
                 </span>
               </div>
-            )}
-            <div class="flex justify-end gap-2 mt-1">
-              <button
-                class="px-3 py-1.5 rounded border text-sm cursor-pointer"
-                onClick={closeModal}
-              >
-                取消
-              </button>
-              <button
-                class="px-3 py-1.5 rounded bg-primary text-primary-foreground text-sm cursor-pointer"
-                onClick={onSave}
-              >
-                保存
-              </button>
-            </div>
-          </div>
-        );
-      },
+            )
+          }
+          onSave={async ({ text, startMs, endMs }) => {
+            const newSegments = track.segments.map((s, i) =>
+              i === segIndex ? { ...s, text, startMs, endMs } : s,
+            );
+            await client.write_app_file_text.call([props.filePath, serializeSegments(newSegments)]);
+          }}
+        />
+      ),
       { title: "编辑切分片段" },
     );
   };

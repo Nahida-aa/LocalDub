@@ -1,15 +1,15 @@
 {
   "name": "@repo/device",
   "private": true,
-  "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
   "bin": {
     "device-info": "./cli.ts"
   },
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "scripts": {
     "device-info": "bun run cli.ts",
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "onnxruntime-node": "^1.26.0"
