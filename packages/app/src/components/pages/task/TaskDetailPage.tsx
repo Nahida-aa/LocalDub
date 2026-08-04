@@ -245,6 +245,7 @@ export function TaskDetailPage(props: Props) {
         label: "split_audio/timings.json",
         segments: split_audio_timings_data,
         color: "#3b82f6",
+        filePath: `${taskDir}/split_audio/timings.json`,
       });
     const split_audio_data = split_audio();
     if (split_audio_data.length)

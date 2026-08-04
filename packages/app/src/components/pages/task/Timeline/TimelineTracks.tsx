@@ -31,6 +31,7 @@ const trackComponents: Record<string, Component<TrackComponentProps>> = {
   asr: AsrTrack,
   asr_ocr_fix: AsrOcrFixTrack,
   split_audio: SplitAudioTrack,
+  split_audio_timings: SplitAudioTrack,
   translation: TranslationTrack,
   tts: TtsTrack,
 };
