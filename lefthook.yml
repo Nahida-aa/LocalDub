@@ -24,7 +24,7 @@ pre-commit:
       glob: "**/*.rs"
       exclude:
         - "submodule/**"
-      run: cargo fmt --all
+      run: cargo fmt -- {staged_files}
       stage_fixed: true
 
     - name: oxfmt

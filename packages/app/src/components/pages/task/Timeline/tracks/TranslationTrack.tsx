@@ -80,22 +80,31 @@ export function TranslationTrack(props: Props) {
       () => (
         <TrackEditModal
           textLabel="译文"
+          srcLabel="原文"
+          initialSrc={raw?.src}
           initialText={seg.text}
           initialStartMs={seg.startMs}
           initialEndMs={seg.endMs}
           extraFields={() =>
             raw && (
               <div class="flex gap-4 text-xs text-muted-foreground">
-                <span>原文: {raw.src}</span>
                 <span>
                   语言: {raw.src_lang}→{raw.dst_lang}
                 </span>
               </div>
             )
           }
-          onSave={({ text, startMs, endMs }) => {
+          onSave={({ text, src, startMs, endMs }) => {
             const newSegments = track().segments.map((s, i) =>
-              i === segIndex ? { ...s, text, startMs, endMs } : s,
+              i === segIndex
+                ? {
+                    ...s,
+                    text,
+                    startMs,
+                    endMs,
+                    raw: { ...(s.raw as object), ...(src !== undefined ? { src } : {}) },
+                  }
+                : s,
             );
             mutation.mutate([props.filePath, serializeSegments(newSegments)]);
           }}
