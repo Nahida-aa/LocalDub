@@ -12,3 +12,6 @@ notify = { workspace = true }
 tracing.workspace = true
 serde = { version = "1", features = ["derive"] }
 specta = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"

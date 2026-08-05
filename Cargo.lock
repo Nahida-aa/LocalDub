@@ -3522,6 +3522,7 @@ dependencies = [
  "notify",
  "serde",
  "specta",
+ "tempfile",
  "tokio",
  "tracing",
 ]
