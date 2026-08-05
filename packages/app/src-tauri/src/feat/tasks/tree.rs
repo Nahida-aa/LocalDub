@@ -1,6 +1,6 @@
 use config_rs::root::base_dir;
-use futures::{stream, Stream};
-use std::path::Path;
+use futures::{Stream, StreamExt, stream};
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 
 /// Subscribe to real-time changes in a task (episode-level) directory tree.
@@ -12,6 +12,12 @@ use std::pin::Pin;
 /// for every leaf that changes anywhere under `task_dir` (e.g. `.log` updates,
 /// generated `.srt`/video). The event carries the path and the kind of change, but
 /// **never the file contents**; the consumer decides when to read.
+///
+/// Paths in events are **relative to `base_dir()`** (e.g. `workfolder/<group>/<task>/asr/asr.json`),
+/// not absolute OS paths. The frontend issues queries with the same relative paths
+/// (it has no knowledge of the OS `base_dir()`), so this keeps both sides using one
+/// path vocabulary and lets the consumer `startsWith(task_dir)` / match exact query
+/// paths without guessing where `base_dir()` sits on disk.
 /// Core stream-building logic, free of the `#[fnrpc::rpc_subscribe]` macro so it
 /// can be unit-tested directly. Resolves `task_dir` (relative to `base_dir()`, or
 /// an absolute path) and returns a watch stream, or an empty stream on failure.
@@ -22,8 +28,30 @@ fn build_tree_stream(task_dir: String) -> Pin<Box<dyn Stream<Item = fs::PathEven
         Path::new(&task_dir).to_path_buf()
     };
 
+    // The prefix to strip from each event path so the consumer sees paths relative
+    // to `base_dir()`. For a relative `task_dir` this is `base_dir()`; for an
+    // absolute `task_dir` it is the task dir's own parent (so the emitted path is
+    // still relative to a stable root rather than an absolute OS path).
+    let strip_root: PathBuf = if Path::new(&task_dir).is_relative() {
+        base_dir()
+    } else {
+        p.parent()
+            .map(|x| x.to_path_buf())
+            .unwrap_or_else(|| p.clone())
+    };
+
     match fs::watch_stream(p) {
-        Ok(s) => Box::pin(s),
+        Ok(s) => {
+            // Re-map each event's path to be relative to `strip_root`, so the
+            // frontend receives the same vocabulary (`workfolder/...`) it queries with.
+            let mapped = s.map(move |mut ev| {
+                if let Ok(rel) = ev.path.strip_prefix(&strip_root) {
+                    ev.path = rel.to_path_buf();
+                }
+                ev
+            });
+            Box::pin(mapped)
+        }
         Err(e) => {
             tracing::error!("failed to watch task tree {task_dir}: {e}");
             Box::pin(stream::empty())
