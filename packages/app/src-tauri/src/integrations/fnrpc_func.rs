@@ -10,7 +10,9 @@ use crate::{
         },
         other::device_info,
         servers::{check_torch, find_server, start_torch, start_voxcpm, stop_torch, stop_voxcpm},
-        tasks::{get_group_list, get_task_ctx, resume_task, log::watch_task_log, tree::watch_task_tree},
+        tasks::{
+            get_group_list, get_task_ctx, log::watch_task_log, resume_task, tree::watch_task_tree,
+        },
     },
 };
 use std::sync::atomic::{AtomicU64, Ordering};

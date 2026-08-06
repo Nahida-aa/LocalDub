@@ -9,8 +9,8 @@
 use std::time::Instant;
 
 use crate::char_list::load_char_list;
-use crate::det::{db_postprocess, DetBox};
-use crate::image::{order_points_clockwise, rotate_180, warp_perspective_crop, Image, Point};
+use crate::det::{DetBox, db_postprocess};
+use crate::image::{Image, Point, order_points_clockwise, rotate_180, warp_perspective_crop};
 use crate::infer::load_sessions;
 use crate::preprocess::{preprocess_cls, preprocess_det, preprocess_rec};
 use crate::rec::ctc_decode;
@@ -57,7 +57,13 @@ pub fn run_ocr(
     let mut sessions = load_sessions(models_dir)?;
     let model_load_ms = t0.elapsed().as_secs_f32() * 1000.0;
 
-    let result = run_ocr_core(image_path, &char_list, &mut sessions, text_score, subtitle_only)?;
+    let result = run_ocr_core(
+        image_path,
+        &char_list,
+        &mut sessions,
+        text_score,
+        subtitle_only,
+    )?;
 
     Ok(OcrOutput {
         text: result.text,
@@ -130,11 +136,21 @@ fn run_ocr_core(
 
     // --- POST ---
     let t0 = Instant::now();
-    let mut boxes: Vec<DetBox> =
-        db_postprocess(&heatmap, hm_w, hm_h, det_prep.orig_w, det_prep.orig_h, text_score);
+    let mut boxes: Vec<DetBox> = db_postprocess(
+        &heatmap,
+        hm_w,
+        hm_h,
+        det_prep.orig_w,
+        det_prep.orig_h,
+        text_score,
+    );
     if det_prep.y_offset > 0 {
         let off = det_prep.y_offset as f32;
-        for b in &mut boxes { for p in &mut b.polygon { p.y += off; } }
+        for b in &mut boxes {
+            for p in &mut b.polygon {
+                p.y += off;
+            }
+        }
     }
     let post_ms = t0.elapsed().as_secs_f32() * 1000.0;
 
@@ -144,7 +160,9 @@ fn run_ocr_core(
     for b in &boxes {
         if subtitle_only {
             let cy = b.polygon.iter().map(|p| p.y).sum::<f32>() / 4.0;
-            if cy < 620.0 || cy > 700.0 { continue; }
+            if cy < 620.0 || cy > 700.0 {
+                continue;
+            }
         }
 
         let ordered = order_points_clockwise(&b.polygon);
@@ -155,7 +173,9 @@ fn run_ocr_core(
         }
 
         let crop = warp_perspective_crop(&img, &clipped);
-        if crop.w < 4 || crop.h < 4 { continue; }
+        if crop.w < 4 || crop.h < 4 {
+            continue;
+        }
 
         let cls_tensor = preprocess_cls(&crop);
         let cls_out = sessions.run_cls(&cls_tensor)?;
@@ -167,14 +187,22 @@ fn run_ocr_core(
 
         let shape = infer_rec_shape(&rec_out, rec_prep.width);
         let (text, conf) = ctc_decode(&rec_out, &shape, &char_list);
-        if text.is_empty() { continue; }
-        if conf < text_score { continue; }
+        if text.is_empty() {
+            continue;
+        }
+        if conf < text_score {
+            continue;
+        }
 
         let mut box_out = [[0.0f32; 2]; 4];
         for (i, p) in ordered.iter().enumerate() {
             box_out[i] = [p.x.round(), p.y.round()];
         }
-        segs.push(Segment { text, confidence: conf, box_: box_out });
+        segs.push(Segment {
+            text,
+            confidence: conf,
+            box_: box_out,
+        });
     }
     let rec_ms = t0.elapsed().as_secs_f32() * 1000.0;
 

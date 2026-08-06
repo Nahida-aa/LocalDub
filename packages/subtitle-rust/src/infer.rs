@@ -34,26 +34,37 @@ pub fn load_sessions(models_dir: &str) -> Result<OcrSessions> {
     let det = load_model(&dir, "ch_PP-OCRv3_det_infer.onnx")?;
     let cls = load_model(&dir, "ch_ppocr_mobile_v2.0_cls_infer.onnx")?;
     let rec = load_model(&dir, "ch_PP-OCRv3_rec_infer.onnx")?;
-    Ok(OcrSessions { models_dir: dir, det, cls, rec })
+    Ok(OcrSessions {
+        models_dir: dir,
+        det,
+        cls,
+        rec,
+    })
 }
 
 fn run(session: &mut Session, tensor: &[f32], dims: &[usize]) -> Result<Vec<f32>> {
     let shape: Vec<usize> = dims.to_vec();
 
-    let input = Value::from_array((shape, tensor.to_vec()))
-        .map_err(|e| format!("value wrap: {}", e))?;
+    let input =
+        Value::from_array((shape, tensor.to_vec())).map_err(|e| format!("value wrap: {}", e))?;
 
-    let name: String = session.inputs().get(0)
+    let name: String = session
+        .inputs()
+        .get(0)
         .map(|i| i.name().to_string())
         .unwrap_or_else(|| "input".to_string());
     let name_borrow: &str = &name;
 
-    let outputs = session.run(vec![(name_borrow, input)])
+    let outputs = session
+        .run(vec![(name_borrow, input)])
         .map_err(|e| format!("session run: {}", e))?;
 
-    let (_name, output) = outputs.iter().next()
+    let (_name, output) = outputs
+        .iter()
+        .next()
         .ok_or_else(|| "session returned no outputs".to_string())?;
-    let (_shape, data) = output.try_extract_tensor::<f32>()
+    let (_shape, data) = output
+        .try_extract_tensor::<f32>()
         .map_err(|e| format!("extract output: {}", e))?;
 
     Ok(data.to_vec())

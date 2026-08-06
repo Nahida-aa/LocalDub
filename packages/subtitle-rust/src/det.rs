@@ -44,22 +44,24 @@ pub fn db_postprocess(
 
     let mut bitmap_data = vec![0u8; hm_w * hm_h];
     for i in 0..hm_w * hm_h {
-        if prob[i] > DET_THRESH { bitmap_data[i] = 255; }
+        if prob[i] > DET_THRESH {
+            bitmap_data[i] = 255;
+        }
     }
 
     let bitmap_mat = unsafe {
         Mat::new_rows_cols_with_data_unsafe_def(
-            hm_h as i32, hm_w as i32,
+            hm_h as i32,
+            hm_w as i32,
             opencv::core::CV_8U,
             bitmap_data.as_mut_ptr() as *mut c_void,
-        ).expect("cv::Mat")
+        )
+        .expect("cv::Mat")
     };
 
     let mut dilated = Mat::default();
-    let kernel = imgproc::get_structuring_element_def(
-        imgproc::MORPH_RECT,
-        Size::new(2, 2),
-    ).expect("cv::kernel");
+    let kernel = imgproc::get_structuring_element_def(imgproc::MORPH_RECT, Size::new(2, 2))
+        .expect("cv::kernel");
     imgproc::dilate_def(&bitmap_mat, &mut dilated, &kernel).expect("cv::dilate");
 
     let mut contours: Vector<Vector<CvPoint>> = Vector::new();
@@ -68,15 +70,19 @@ pub fn db_postprocess(
         &mut contours,
         imgproc::RETR_LIST,
         imgproc::CHAIN_APPROX_SIMPLE,
-    ).expect("cv::findContours");
+    )
+    .expect("cv::findContours");
 
     let mut out: Vec<DetBox> = Vec::new();
     let n_contours = contours.len();
     for ci in 0..n_contours {
         let pts_vec = contours.get(ci).expect("contour");
-        if pts_vec.len() < 3 { continue; }
+        if pts_vec.len() < 3 {
+            continue;
+        }
 
-        let pts_2f_vec: Vector<Point2f> = pts_vec.iter()
+        let pts_2f_vec: Vector<Point2f> = pts_vec
+            .iter()
             .map(|p| Point2f::new(p.x as f32, p.y as f32))
             .collect();
 
@@ -84,7 +90,9 @@ pub fn db_postprocess(
         let width = rect.size.width;
         let height = rect.size.height;
         let short = width.min(height);
-        if short < 3.0 { continue; }
+        if short < 3.0 {
+            continue;
+        }
 
         let score = {
             let (cx, cy) = (rect.center.x, rect.center.y);
@@ -94,10 +102,26 @@ pub fn db_postprocess(
             let hh = height * 0.5;
 
             let pts_corners = cv_box_points_f32(&rect);
-            let xmin = pts_corners.iter().map(|p| p.0).fold(f32::INFINITY, f32::min).floor() as i32;
-            let xmax = pts_corners.iter().map(|p| p.0).fold(f32::NEG_INFINITY, f32::max).ceil() as i32;
-            let ymin = pts_corners.iter().map(|p| p.1).fold(f32::INFINITY, f32::min).floor() as i32;
-            let ymax = pts_corners.iter().map(|p| p.1).fold(f32::NEG_INFINITY, f32::max).ceil() as i32;
+            let xmin = pts_corners
+                .iter()
+                .map(|p| p.0)
+                .fold(f32::INFINITY, f32::min)
+                .floor() as i32;
+            let xmax = pts_corners
+                .iter()
+                .map(|p| p.0)
+                .fold(f32::NEG_INFINITY, f32::max)
+                .ceil() as i32;
+            let ymin = pts_corners
+                .iter()
+                .map(|p| p.1)
+                .fold(f32::INFINITY, f32::min)
+                .floor() as i32;
+            let ymax = pts_corners
+                .iter()
+                .map(|p| p.1)
+                .fold(f32::NEG_INFINITY, f32::max)
+                .ceil() as i32;
 
             let mut sum = 0.0f64;
             let mut count: i64 = 0;
@@ -107,16 +131,24 @@ pub fn db_postprocess(
                     let dy = (y as f32) - cy;
                     let lx = dx * cos_a + dy * sin_a;
                     let ly = -dx * sin_a + dy * cos_a;
-                    if lx < -hw || lx > hw || ly < -hh || ly > hh { continue; }
+                    if lx < -hw || lx > hw || ly < -hh || ly > hh {
+                        continue;
+                    }
                     let xi = x.clamp(0, hm_w as i32 - 1) as usize;
                     let yi = y.clamp(0, hm_h as i32 - 1) as usize;
                     sum += prob[yi * hm_w + xi] as f64;
                     count += 1;
                 }
             }
-            if count == 0 { 0.0 } else { (sum / count as f64) as f32 }
+            if count == 0 {
+                0.0
+            } else {
+                (sum / count as f64) as f32
+            }
         };
-        if score < box_thresh { continue; }
+        if score < box_thresh {
+            continue;
+        }
 
         let dist = (width * height * UNCLIP_RATIO) / (2.0 * (width + height));
         let dist = dist.max(3.0);
@@ -140,9 +172,16 @@ pub fn db_postprocess(
                 y: (ry * sy).clamp(0.0, (orig_h - 1) as f32),
             };
         }
-        out.push(DetBox { polygon: pts, score });
+        out.push(DetBox {
+            polygon: pts,
+            score,
+        });
     }
-    out.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    out.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     out.truncate(MAX_CANDIDATES);
     out
 }
@@ -154,9 +193,18 @@ fn cv_box_points_f32(rect: &opencv::core::RotatedRect) -> Vec<(f32, f32)> {
     let hh = rect.size.height * 0.5;
     let (cx, cy) = (rect.center.x, rect.center.y);
     vec![
-        (cx + (-hw) * cos_a - (-hh) * sin_a, cy + (-hw) * sin_a + (-hh) * cos_a),
-        (cx + hw * cos_a - (-hh) * sin_a, cy + hw * sin_a + (-hh) * cos_a),
+        (
+            cx + (-hw) * cos_a - (-hh) * sin_a,
+            cy + (-hw) * sin_a + (-hh) * cos_a,
+        ),
+        (
+            cx + hw * cos_a - (-hh) * sin_a,
+            cy + hw * sin_a + (-hh) * cos_a,
+        ),
         (cx + hw * cos_a - hh * sin_a, cy + hw * sin_a + hh * cos_a),
-        (cx + (-hw) * cos_a - hh * sin_a, cy + (-hw) * sin_a + hh * cos_a),
+        (
+            cx + (-hw) * cos_a - hh * sin_a,
+            cy + (-hw) * sin_a + hh * cos_a,
+        ),
     ]
 }

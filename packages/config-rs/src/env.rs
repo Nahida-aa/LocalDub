@@ -1,6 +1,6 @@
+use crate::root::{config_dir, resolve_path};
 use std::path::PathBuf;
 use std::sync::OnceLock;
-use crate::root::{resolve_path, config_dir};
 
 static DOTENV_LOADED: OnceLock<()> = OnceLock::new();
 
@@ -19,7 +19,9 @@ fn var(key: &str) -> Option<String> {
 }
 
 fn var_or(key: &str, fallback: &str) -> String {
-    var(key).filter(|v| !v.is_empty()).unwrap_or_else(|| fallback.to_string())
+    var(key)
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| fallback.to_string())
 }
 
 pub fn workfolder() -> PathBuf {
