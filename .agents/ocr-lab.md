@@ -24,14 +24,12 @@ workspace，托管在 ocrlab，通过 **crates.io git 源 + rev** 引入，cargo
 - **实测耗时注意**：sf-ocr 在 170s 参考视频全片跑一次约 **4m44s**（全帧 im_ff 检测 +
   92 次 OCR），比 cpp 2fps 全帧 OCR（~184s）慢得多——「全帧找关键帧」的 CPU 解析成本高，
   集成进基准时需实测它相对纯 2fps OCR 的真实性价比，不能默认更快。
-- `packages/subtitle-rust`（旧 OCR 管道）与其 pin 的 `opencv 0.98.2` 已**无法在现 rustc 下编译**
-  （`MatShape`/`MatStep` 生命周期错误）——属预期：它依赖旧 OCR 依赖，接进来后退役，
-  其 `--engine rust` 基准将被 sf 路径替代。
-- Cargo.lock 中 opencv 并存 0.98.2（subtitle-rust）与 0.100.1（ocr-lab），是分裂的临时状态；
-  退役 `subtitle-rust` 后 0.98 一并消失。
+- **已退役**（2026-08，commit `1c9e744`）：`packages/subtitle-rust` 与
+  `packages/benchmark/ocr/oar-rs`（旧 OAR 引擎）均已移除；其基准引擎（`--engine rust` /
+  `--engine oar`、`RUST_BIN`/`OAR_BIN`、types.ts 与 input.schema.json 的 `ort-rust` 枚举）
+  一并清除。两者功能/依赖均由 ocr-lab 路径统一覆盖。
+- Cargo.lock 分裂的 opencv 已清：只保留 ocr-lab 的 `0.100.1`。
 
 ## 下一步（集成阶段，未做）
 
-- 退役 `packages/subtitle-rust` 及其 `--engine rust`/`RUST_BIN` 基准引用
 - 将 sf 关键帧策略接进 `packages/benchmark/ocr/compute/benchmark-ocr-video.ts`
-- 完成后上面「现状」段的临时分裂状态即可清除
