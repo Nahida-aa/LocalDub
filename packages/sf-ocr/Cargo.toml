@@ -1,0 +1,15 @@
+[package]
+name = "sf-ocr"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+# ocr-lab 关键帧策略：subtitle-finder 提关键帧 → subtitle-ocr 识别。
+subtitle-finder = { workspace = true }
+subtitle-ocr = { workspace = true }
+rapidocr-ort = { workspace = true }
+
+[[bin]]
+name = "sf-ocr"
+path = "src/main.rs"

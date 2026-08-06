@@ -2,7 +2,7 @@
 members = [
     "packages/benchmark/ocr/oar-rs", "packages/bridge", "packages/config-rs", "packages/core-rs", "packages/device-rs",
     "packages/separate/demucs_burn", "packages/subtitle-rust", "packages/time", "packages/voxcpm-burn", "packages/app/src-tauri",
-    "packages/fs"
+    "packages/fs", "packages/sf-ocr"
 ]
 resolver = "3"
 
@@ -19,6 +19,11 @@ fnrpc-tauri = { version = "0.4.2" }
 notify = { version = "6", features = ["macos_fsevent"] }
 async-channel = "2"
 tracing = "0.1"
+# OCR 核心（从本仓库拆出的 ocr-lab）。git 源由 cargo 自动拉取/解析其内部
+# workspace 依赖与 [patch]，LocalDub 侧零镜像；版本以 ocr-lab 为准。
+subtitle-finder = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "202310f" }
+subtitle-ocr = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "202310f" }
+rapidocr-ort = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "202310f" }
 
 [profile.release]
 lto = "fat"

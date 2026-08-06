@@ -27,6 +27,7 @@ Before editing files for a substantial task:
 - `packages/cli/src/ml/` — 模型实现（whisper、demucs 等）
 - `packages/cli/src/ml/ocr/ocr.ts` — OCR 二进制调用（ort-cpp），使用 `pythonBin()`（config.ts）而非内联 VIRTUAL_ENV
 - `packages/subtitle-ocr/` — 字幕专用 OCR 包（ort-cpp、subtitle-node.ts、subtitle-py.py）
+- `packages/sf-ocr/` — 关键帧 OCR 策略入口（消费 ocr-lab：subtitle-finder 提关键帧 → subtitle-ocr 识别）
 - `packages/benchmark/` — 性能测试与参数对比
 - `packages/benchmark/ocr/compute/` — OCR 基准测试脚本
 - `packages/benchmark/ocr/compute/postprocess_det.py` — 引用了 `packages/subtitle-ocr/ppocr_keys.json`
