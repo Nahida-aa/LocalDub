@@ -4,7 +4,7 @@ OCR 核心（`subtitle-finder` / `subtitle-ocr` / `rapidocr-ort` / `geometry`）
 workspace，托管在 ocrlab，通过 **crates.io git 源 + rev** 引入，cargo 自动拉取/解析：
 
 - 仓库：`https://github.com/Nahida-aa/ocr-lab.git`（本地开发复制在 `/home/aa/repos/ai_ls/ocr-lab`）
-- 声明位置：LocalDub 根 `Cargo.toml` `[workspace.dependencies]`，pin `rev = "202310f"`
+- 声明位置：LocalDub 根 `Cargo.toml` `[workspace.dependencies]`，pin `rev = "7b12630"`
 - 消费方：`packages/sf-ocr`（关键帧策略：subtitle-finder 提关键帧 → subtitle-ocr 识别）
 - 升级：改 ocr-lab 代码 → 在 ocr-lab push → 更新此根 Cargo.toml 的 `rev`；不跑 git submodule
 
@@ -18,6 +18,12 @@ workspace，托管在 ocrlab，通过 **crates.io git 源 + rev** 引入，cargo
 ## 现状与继承问题（2026-08）
 
 - `packages/sf-ocr` 用 ocr-lab 的 `opencv 0.100.1` 等能编译通过（`cargo check -p sf-ocr` ✓）。
+- **长视频关键帧检测修复**（ocr-lab `7b12630`）：修复检测阶段 `fn_start` 涨过 FORWARD
+  窗口未 `advance_to`、`get_frame` 越界导致提前 break 的 bug。实测 170s/5100 帧参考视频
+  由原来只检出前 5 段（<7.2s）→ **现在 92 个关键帧**、覆盖全片。
+- **实测耗时注意**：sf-ocr 在 170s 参考视频全片跑一次约 **4m44s**（全帧 im_ff 检测 +
+  92 次 OCR），比 cpp 2fps 全帧 OCR（~184s）慢得多——「全帧找关键帧」的 CPU 解析成本高，
+  集成进基准时需实测它相对纯 2fps OCR 的真实性价比，不能默认更快。
 - `packages/subtitle-rust`（旧 OCR 管道）与其 pin 的 `opencv 0.98.2` 已**无法在现 rustc 下编译**
   （`MatShape`/`MatStep` 生命周期错误）——属预期：它依赖旧 OCR 依赖，接进来后退役，
   其 `--engine rust` 基准将被 sf 路径替代。

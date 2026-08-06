@@ -21,9 +21,9 @@ async-channel = "2"
 tracing = "0.1"
 # OCR 核心（从本仓库拆出的 ocr-lab）。git 源由 cargo 自动拉取/解析其内部
 # workspace 依赖与 [patch]，LocalDub 侧零镜像；版本以 ocr-lab 为准。
-subtitle-finder = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "202310f" }
-subtitle-ocr = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "202310f" }
-rapidocr-ort = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "202310f" }
+subtitle-finder = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "7b12630" }
+subtitle-ocr = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "7b12630" }
+rapidocr-ort = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "7b12630" }
 
 [profile.release]
 lto = "fat"
