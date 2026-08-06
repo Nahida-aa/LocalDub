@@ -7,9 +7,10 @@ import {
   ocrFrameWithSessions,
   releaseSessions,
 } from "../../../subtitle-ocr/subtitle-node.ts";
-import { FrameResult, Segment, mergeFrames } from "@repo/core/stages/ocr/ocrMerge";
+import { mergeFrames } from "@repo/core/stages/ocr/ocrMerge";
 import { REPO_ROOT } from "@repo/config/root";
 import { findRapidOcrModelsDir } from "@repo/subtitle-ocr/utils";
+import { FrameResult } from "@repo/core/ml/subtitle_ocr/types";
 
 const VIDEOS_PATH = join(REPO_ROOT, "packages", "benchmark", "ref");
 const VIDEO_PATH = join(VIDEOS_PATH, "video_source.mp4");
@@ -30,15 +31,6 @@ const CPP_BIN = resolve(
   "subtitle_ocr_ort_cpp",
 );
 const CPP_LD_PATH = resolve(REPO_ROOT, "packages", "subtitle-ocr", "ort-cpp", "build");
-const CPP_OPENCV_BIN = resolve(
-  REPO_ROOT,
-  "packages",
-  "subtitle-ocr",
-  "ort-cpp",
-  "build",
-  "subtitle_ocr_ort_cpp",
-);
-const CPP_OPENCV_LD_PATH = resolve(REPO_ROOT, "packages", "subtitle-ocr", "ort-cpp", "build");
 const RUST_BIN = resolve(
   REPO_ROOT,
   "packages",
@@ -65,6 +57,7 @@ const RESULTS_BASE = resolve(__dirname, "..", "results");
 const TMP = resolve(REPO_ROOT, "packages", "tmp", "ocr-bench");
 let globalLabelSuffix: string | null = null;
 let globalOarModelSize: string | null = null;
+let noNms = false;
 
 interface OCRLine {
   text: string;
@@ -498,20 +491,59 @@ async function runOCRBenchmarkNode(
   return result;
 }
 
+// cpp: 逐帧 spawn（useDir=false，每帧起一个子进程）；useDir=true 走 --dir 单次批量。
 function runOCRBenchmarkCpp(
   label: string,
   fps: number,
   textScore?: number,
   subtitleOnly?: boolean,
+  useDir?: boolean,
 ) {
   return runBenchmarkCommon(
     label,
     fps,
     "ort-cpp",
     { textScore, subtitleOnly },
-    ({ frameFiles, step, srcFps }) =>
-      frameFiles.map((f, i) => {
-        const r = ocrFrameCpp(join(framesDir(label), f), textScore, subtitleOnly);
+    ({ frameFiles, step, srcFps, frameDir }) => {
+      if (useDir) {
+        const args: string[] = ["--dir", frameDir];
+        if (textScore != null) args.push(String(textScore));
+        if (subtitleOnly) args.push("--subtitle-only");
+        if (noNms) args.push("--no-nms");
+        const r = spawnSync(CPP_BIN, args, {
+          timeout: 600_000,
+          encoding: "utf-8",
+          env: { ...process.env, LD_LIBRARY_PATH: CPP_LD_PATH, OCR_MODELS_DIR, OCR_KEYS_PATH },
+        });
+        if (r.status !== 0) {
+          throw new Error(`cpp OCR (--dir) error: ${r.stderr?.slice(-300) || `exit ${r.status}`}`);
+        }
+        const batchResults: any[] = JSON.parse(r.stdout);
+        return frameFiles.map((_, i) => {
+          const data = batchResults[i] || { segments: [], text: "" };
+          const segs = data.segments || [];
+          const best = segs.length > 0 ? selectBest(segs) : { text: "", confidence: 0 };
+          return {
+            text: best.text || "",
+            timestamp: Math.round(((i * step) / srcFps) * 1000),
+            confidence: best.confidence || 0,
+            totalMs:
+              (data.detInferenceMs || 0) + (data.postprocessMs || 0) + (data.recInferenceMs || 0),
+            detMs: data.detInferenceMs,
+            postMs: data.postprocessMs,
+            recMs: data.recInferenceMs,
+          };
+        });
+      }
+      return frameFiles.map((f, i) => {
+        const r = ocrFrameCpp(
+          join(frameDir, f),
+          textScore,
+          subtitleOnly,
+          undefined,
+          undefined,
+          noNms,
+        );
         return {
           text: r.text,
           timestamp: Math.round(((i * step) / srcFps) * 1000),
@@ -520,50 +552,6 @@ function runOCRBenchmarkCpp(
           detMs: r.detMs,
           postMs: r.postMs,
           recMs: r.recMs,
-        };
-      }),
-  );
-}
-
-function runOCRBenchmarkCppOpencv(
-  label: string,
-  fps: number,
-  textScore?: number,
-  subtitleOnly?: boolean,
-  noNms?: boolean,
-) {
-  return runBenchmarkCommon(
-    label,
-    fps,
-    "ort-cpp",
-    { textScore, subtitleOnly },
-    ({ frameFiles, step, srcFps, frameDir }) => {
-      const args: string[] = ["--dir", frameDir];
-      if (textScore != null) args.push(String(textScore));
-      if (subtitleOnly) args.push("--subtitle-only");
-      if (noNms) args.push("--no-nms");
-      const r = spawnSync(CPP_OPENCV_BIN, args, {
-        timeout: 600_000,
-        encoding: "utf-8",
-        env: { ...process.env, LD_LIBRARY_PATH: CPP_OPENCV_LD_PATH, OCR_MODELS_DIR, OCR_KEYS_PATH },
-      });
-      if (r.status !== 0) {
-        throw new Error(`cpp-opencv OCR error: ${r.stderr?.slice(-300) || `exit ${r.status}`}`);
-      }
-      const batchResults: any[] = JSON.parse(r.stdout);
-      return frameFiles.map((_, i) => {
-        const data = batchResults[i] || { segments: [], text: "" };
-        const segs = data.segments || [];
-        const best = segs.length > 0 ? selectBest(segs) : { text: "", confidence: 0 };
-        return {
-          text: best.text || "",
-          timestamp: Math.round(((i * step) / srcFps) * 1000),
-          confidence: best.confidence || 0,
-          totalMs:
-            (data.detInferenceMs || 0) + (data.postprocessMs || 0) + (data.recInferenceMs || 0),
-          detMs: data.detInferenceMs,
-          postMs: data.postprocessMs,
-          recMs: data.recInferenceMs,
         };
       });
     },
@@ -678,12 +666,14 @@ if (require.main === module) {
   const labelOverride = process.argv.includes("--label-override")
     ? process.argv[process.argv.indexOf("--label-override") + 1]
     : null;
-  const noNms = process.argv.includes("--no-nms");
+  noNms = process.argv.includes("--no-nms");
+  // --dir: 单次批量处理整目录（快）；默认逐帧 spawn。与引擎名解耦。
+  const useDir = process.argv.includes("--dir");
   globalOarModelSize = process.argv.includes("--oar-model-size")
     ? process.argv[process.argv.indexOf("--oar-model-size") + 1]
     : null;
   console.log(
-    `Engine: ${engine}  Only: ${onlyLabel ?? "all"}  Runs: ${runs}${globalLabelSuffix ? `  LabelSuffix: ${globalLabelSuffix}` : ""}${labelOverride ? `  LabelOverride: ${labelOverride}` : ""}${noNms ? `  NMS=OFF` : ""}${globalOarModelSize ? `  ModelSize: ${globalOarModelSize}` : ""}`,
+    `Engine: ${engine}  Only: ${onlyLabel ?? "all"}  Runs: ${runs}${globalLabelSuffix ? `  LabelSuffix: ${globalLabelSuffix}` : ""}${labelOverride ? `  LabelOverride: ${labelOverride}` : ""}${noNms ? `  NMS=OFF` : ""}${useDir ? `  MODE=dir` : `  MODE=spawn`}${globalOarModelSize ? `  ModelSize: ${globalOarModelSize}` : ""}`,
   );
 
   async function main() {
@@ -704,8 +694,8 @@ if (require.main === module) {
       (label: string, fps: number, textScore?: number, subtitleOnly?: boolean) => any
     > = {
       node: runOCRBenchmarkNode,
-      "cpp-opencv": (label, fps, ts, so) => runOCRBenchmarkCppOpencv(label, fps, ts, so, noNms),
-      cpp: runOCRBenchmarkCpp,
+      cpp: (label, fps, ts, so) => runOCRBenchmarkCpp(label, fps, ts, so, useDir),
+      "cpp-opencv": (label, fps, ts, so) => runOCRBenchmarkCpp(label, fps, ts, so, useDir),
       rust: runOCRBenchmarkRust,
       oar: runOCRBenchmarkOar,
       python: runOCRBenchmarkPython,

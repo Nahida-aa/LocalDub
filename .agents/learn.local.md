@@ -7,3 +7,7 @@
 
 - /home/aa/repos/learn_ls/opencode
 - /home/aa/repos/learn_ls/zed
+
+## query
+
+- /home/aa/repos/env_ls/fnrpc
