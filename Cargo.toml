@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    "packages/benchmark/ocr/oar-rs", "packages/bridge", "packages/config-rs", "packages/core-rs", "packages/device-rs",
-    "packages/separate/demucs_burn", "packages/subtitle-rust", "packages/time", "packages/voxcpm-burn", "packages/app/src-tauri",
+    "packages/bridge", "packages/config-rs", "packages/core-rs", "packages/device-rs",
+    "packages/separate/demucs_burn", "packages/time", "packages/voxcpm-burn", "packages/app/src-tauri",
     "packages/fs", "packages/sf-ocr"
 ]
 resolver = "3"

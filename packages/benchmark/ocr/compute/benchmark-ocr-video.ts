@@ -31,16 +31,6 @@ const CPP_BIN = resolve(
   "subtitle_ocr_ort_cpp",
 );
 const CPP_LD_PATH = resolve(REPO_ROOT, "packages", "subtitle-ocr", "ort-cpp", "build");
-const RUST_BIN = resolve(
-  REPO_ROOT,
-  "packages",
-  "subtitle-rust",
-  "target",
-  "release",
-  "ocr_pipeline_rs",
-);
-const RUST_INFER_PY = resolve(REPO_ROOT, "packages", "subtitle-rust", "infer_onnx.py");
-const OAR_BIN = resolve(REPO_ROOT, "target", "release", "oar_ocr");
 const OCR_MODELS_DIR = findRapidOcrModelsDir();
 const OCR_KEYS_PATH = resolve(REPO_ROOT, "packages", "subtitle-ocr", "ppocr_keys.json");
 const PYTHON_BIN = join(REPO_ROOT, ".venv", "bin", "python");
@@ -56,7 +46,6 @@ const GROUND_TRUTH = resolve(
 const RESULTS_BASE = resolve(__dirname, "..", "results");
 const TMP = resolve(REPO_ROOT, "packages", "tmp", "ocr-bench");
 let globalLabelSuffix: string | null = null;
-let globalOarModelSize: string | null = null;
 let noNms = false;
 
 interface OCRLine {
@@ -558,97 +547,6 @@ function runOCRBenchmarkCpp(
   );
 }
 
-function runOCRBenchmarkRust(
-  label: string,
-  fps: number,
-  textScore?: number,
-  subtitleOnly?: boolean,
-) {
-  if (!existsSync(RUST_BIN))
-    throw new Error(
-      `Rust binary not found: ${RUST_BIN}. Run 'cd packages/subtitle-rust && cargo build --release'.`,
-    );
-  return runBenchmarkCommon(
-    label,
-    fps,
-    "subtitle-rust",
-    { textScore, subtitleOnly },
-    ({ frameFiles, step, srcFps, frameDir }) => {
-      const args: string[] = ["--dir", frameDir];
-      if (textScore != null) args.push(String(textScore));
-      if (subtitleOnly) args.push("--subtitle-only");
-      const r = spawnSync(RUST_BIN, args, {
-        timeout: 600_000,
-        encoding: "utf-8",
-        env: { ...process.env, OCR_MODELS_DIR, OCR_KEYS_PATH, OCR_INFER_PY: RUST_INFER_PY },
-      });
-      if (r.status !== 0) {
-        throw new Error(`Rust OCR error: ${r.stderr?.slice(-300) || `exit ${r.status}`}`);
-      }
-      const batchResults: any[] = JSON.parse(r.stdout);
-      return frameFiles.map((_, i) => {
-        const data = batchResults[i] || { segments: [], text: "" };
-        const segs = data.segments || [];
-        const best = segs.length > 0 ? selectBest(segs) : { text: "", confidence: 0 };
-        return {
-          text: best.text || "",
-          timestamp: Math.round(((i * step) / srcFps) * 1000),
-          confidence: best.confidence || 0,
-          totalMs:
-            (data.det_inference_ms || 0) +
-            (data.postprocess_ms || 0) +
-            (data.rec_inference_ms || 0),
-          detMs: data.det_inference_ms,
-          postMs: data.postprocess_ms,
-          recMs: data.rec_inference_ms,
-        };
-      });
-    },
-  );
-}
-
-const OAR_MODELS_DIR = resolve(REPO_ROOT, "data", "models", "rapidocr");
-function runOCRBenchmarkOar(
-  label: string,
-  fps: number,
-  textScore?: number,
-  subtitleOnly?: boolean,
-) {
-  if (!existsSync(OAR_BIN))
-    throw new Error(`oar-ocr binary not found: ${OAR_BIN}. Run 'cargo build --release -p oar-rs'.`);
-  return runBenchmarkCommon(
-    label,
-    fps,
-    "oar-ocr",
-    { textScore, subtitleOnly },
-    ({ frameFiles, step, srcFps, frameDir }) => {
-      const args: string[] = ["--dir", frameDir];
-      if (textScore != null) args.push(String(textScore));
-      if (globalOarModelSize) args.push("--model-size", globalOarModelSize);
-      const r = spawnSync(OAR_BIN, args, {
-        timeout: 600_000,
-        encoding: "utf-8",
-        env: { ...process.env, OCR_MODELS_DIR: OAR_MODELS_DIR },
-      });
-      if (r.status !== 0) {
-        throw new Error(`oar-ocr error: ${r.stderr?.slice(-300) || `exit ${r.status}`}`);
-      }
-      const batchResults: any[] = JSON.parse(r.stdout);
-      return frameFiles.map((_, i) => {
-        const data = batchResults[i] || { segments: [], text: "" };
-        const segs = data.segments || [];
-        const best = segs.length > 0 ? selectBest(segs) : { text: "", confidence: 0 };
-        return {
-          text: best.text || "",
-          timestamp: Math.round(((i * step) / srcFps) * 1000),
-          confidence: best.confidence || 0,
-          totalMs: data.total_ms || 0,
-        };
-      });
-    },
-  );
-}
-
 // ---
 if (require.main === module) {
   const engine = process.argv.includes("--engine")
@@ -669,11 +567,8 @@ if (require.main === module) {
   noNms = process.argv.includes("--no-nms");
   // --dir: 单次批量处理整目录（快）；默认逐帧 spawn。与引擎名解耦。
   const useDir = process.argv.includes("--dir");
-  globalOarModelSize = process.argv.includes("--oar-model-size")
-    ? process.argv[process.argv.indexOf("--oar-model-size") + 1]
-    : null;
   console.log(
-    `Engine: ${engine}  Only: ${onlyLabel ?? "all"}  Runs: ${runs}${globalLabelSuffix ? `  LabelSuffix: ${globalLabelSuffix}` : ""}${labelOverride ? `  LabelOverride: ${labelOverride}` : ""}${noNms ? `  NMS=OFF` : ""}${useDir ? `  MODE=dir` : `  MODE=spawn`}${globalOarModelSize ? `  ModelSize: ${globalOarModelSize}` : ""}`,
+    `Engine: ${engine}  Only: ${onlyLabel ?? "all"}  Runs: ${runs}${globalLabelSuffix ? `  LabelSuffix: ${globalLabelSuffix}` : ""}${labelOverride ? `  LabelOverride: ${labelOverride}` : ""}${noNms ? `  NMS=OFF` : ""}${useDir ? `  MODE=dir` : `  MODE=spawn`}`,
   );
 
   async function main() {
@@ -696,8 +591,6 @@ if (require.main === module) {
       node: runOCRBenchmarkNode,
       cpp: (label, fps, ts, so) => runOCRBenchmarkCpp(label, fps, ts, so, useDir),
       "cpp-opencv": (label, fps, ts, so) => runOCRBenchmarkCpp(label, fps, ts, so, useDir),
-      rust: runOCRBenchmarkRust,
-      oar: runOCRBenchmarkOar,
       python: runOCRBenchmarkPython,
     };
     const runner = runnerFor[engine] || runOCRBenchmarkPython;
