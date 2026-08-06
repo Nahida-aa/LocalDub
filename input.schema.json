@@ -1,0 +1,140 @@
+{
+  "$defs": {
+    "Asr": {
+      "additionalProperties": false,
+      "description": " asr: 语音转写",
+      "properties": {
+        "mix_mode": {
+          "$ref": "#/$defs/MixMode",
+          "description": " ASR 音频源 (默认 sidechain)"
+        },
+        "reduce_bgm": {
+          "description": " 背景音降低量(dB), raw-sum 叠加前衰减",
+          "type": "number"
+        },
+        "runtime": {
+          "$ref": "#/$defs/Runtime",
+          "description": " 推理运行时, 默认 pytorch"
+        },
+        "sidechain_compress": {
+          "$ref": "#/$defs/SidechainCompress",
+          "description": " mixMode=sidechain 时压缩器参数"
+        },
+        "words_output": {
+          "description": " ASR 结果是否包含词级时间戳 (默认关闭, 调试时开启)",
+          "type": "boolean"
+        }
+      },
+      "title": "Asr",
+      "type": "object"
+    },
+    "CliInput": {
+      "additionalProperties": false,
+      "description": " CLI 顶层输入",
+      "properties": {
+        "command": {
+          "$ref": "#/$defs/Command",
+          "description": " 执行命令 (默认 env)"
+        },
+        "stages": {
+          "$ref": "#/$defs/Stages"
+        },
+        "task": {
+          "description": " 任务参数 (必需, 无默认; 演示 required 与可选字段的区别)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task"
+      ],
+      "title": "CliInput",
+      "type": "object"
+    },
+    "Command": {
+      "oneOf": [
+        {
+          "const": "task"
+        },
+        {
+          "const": "env"
+        },
+        {
+          "const": "servers"
+        }
+      ],
+      "title": "Command"
+    },
+    "MergeAudio": {
+      "additionalProperties": false,
+      "description": " merge_audio 参数",
+      "properties": {
+        "max_speed": {
+          "description": " 最大变速比, 1.0=不变速",
+          "type": "number"
+        }
+      },
+      "title": "MergeAudio",
+      "type": "object"
+    },
+    "MixMode": {
+      "description": " ASR 音频源: vocals=纯分离人声, raw-sum=直接叠加, sidechain=侧链压缩背景音",
+      "oneOf": [
+        {
+          "const": "vocals"
+        },
+        {
+          "const": "raw-sum"
+        },
+        {
+          "const": "sidechain"
+        }
+      ],
+      "title": "MixMode"
+    },
+    "Runtime": {
+      "oneOf": [
+        {
+          "const": "ggml"
+        },
+        {
+          "const": "fasterwhisper"
+        },
+        {
+          "const": "pytorch"
+        }
+      ],
+      "title": "Runtime"
+    },
+    "SidechainCompress": {
+      "additionalProperties": false,
+      "description": " 侧链压缩器参数",
+      "properties": {
+        "ratio": {
+          "description": " 压缩比, 默认 20",
+          "type": "number"
+        },
+        "threshold": {
+          "description": " 压缩器阈值, 默认 0.1",
+          "type": "number"
+        }
+      },
+      "title": "SidechainCompress",
+      "type": "object"
+    },
+    "Stages": {
+      "additionalProperties": false,
+      "description": " 各处理阶段的入参",
+      "properties": {
+        "asr": {
+          "$ref": "#/$defs/Asr"
+        },
+        "merge_audio": {
+          "$ref": "#/$defs/MergeAudio"
+        }
+      },
+      "title": "Stages",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

@@ -189,7 +189,8 @@ impl Default for CliInput {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let types = Types::default().register::<CliInput>();
-    let schema = JsonSchema::default().export_value(&types, Format).unwrap();
-    println!("{}", serde_json::to_string_pretty(&schema).unwrap());
+    let out = config_rs::root::repo_root().join("input.schema.json");
+    JsonSchema::default().export_to(&out, &types, Format)?;
+    println!("Generated: {}", out.display());
     Ok(())
 }
