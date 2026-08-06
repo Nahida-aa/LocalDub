@@ -1803,6 +1803,8 @@ dependencies = [
  "serde",
  "serde_json",
  "specta",
+ "specta-jsonschema",
+ "specta-serde",
  "specta-typescript",
  "time 0.1.0",
 ]
@@ -8433,6 +8435,17 @@ dependencies = [
  "rustc_version",
  "serde_json",
  "specta-macros",
+]
+
+[[package]]
+name = "specta-jsonschema"
+version = "0.0.4"
+source = "git+https://github.com/specta-rs/specta.git?rev=3c535739ea7bd8737ecdbff6c3aef9b7330da706#3c535739ea7bd8737ecdbff6c3aef9b7330da706"
+dependencies = [
+ "serde",
+ "serde_json",
+ "specta",
+ "thiserror 2.0.19",
 ]
 
 [[package]]

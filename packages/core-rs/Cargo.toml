@@ -11,4 +11,6 @@ chrono = { version = "0.4", features = ["serde"] }
 config-rs = { path = "../config-rs" }
 mdns-sd = "0.13"
 specta-typescript.workspace = true
+specta-serde.workspace = true
+specta-jsonschema.workspace = true
 time = { path = "../time" }

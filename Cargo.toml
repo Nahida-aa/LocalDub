@@ -13,6 +13,7 @@ specta = { version = "=2.0.0-rc.26", features = ["derive", "serde_json"] }
 specta-typescript = { version = "0.0.13", features = ["serde"] }
 specta-serde = { version = "0.0.13" }
 specta-util = { version = "0.0.13" }
+specta-jsonschema = { git = "https://github.com/specta-rs/specta.git", rev = "3c535739ea7bd8737ecdbff6c3aef9b7330da706" }
 fnrpc = { version = "0.4.2", features = ["ts-bindings", "tracing"] }
 fnrpc-axum = { version = "0.4.2" }
 fnrpc-tauri = { version = "0.4.2" }
