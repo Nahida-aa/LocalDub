@@ -18,6 +18,7 @@ Before editing files for a substantial task:
 - 测试/实验/探索一律不用 `/tmp`，写到 `packages/tmp/`。
 - 类型检查: `bun typecheck`, `cargo check`
 - 可以使用 `gh` 来操作 github
+- git push 默认有人类进行操作
 
 ## Key directories
 
