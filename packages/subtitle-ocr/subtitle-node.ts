@@ -346,7 +346,7 @@ export async function ocrFrameWithSessions(
     const xxs = absBox.map((p: number[]) => p[0]);
     segments.push({
       text,
-      confidence,
+      text_confidence: confidence,
       box: absBox,
       x_range: [Math.min(...xxs), Math.max(...xxs)],
       y_range: [Math.min(...xys), Math.max(...xys)],

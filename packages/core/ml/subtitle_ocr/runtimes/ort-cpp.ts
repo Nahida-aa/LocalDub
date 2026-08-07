@@ -134,7 +134,7 @@ function parseBatchOutput(stdout: string): Map<string, OcrBoxResult[]> {
     for (const seg of item.segments || []) {
       lines.push({
         text: seg.text,
-        confidence: seg.confidence,
+        text_confidence: seg.confidence,
         box: seg.box || [],
         x_range: [0, 0],
         y_range: [0, 0],
@@ -144,7 +144,7 @@ function parseBatchOutput(stdout: string): Map<string, OcrBoxResult[]> {
     if (lines.length === 0 && item.text) {
       lines.push({
         text: item.text,
-        confidence: 1,
+        text_confidence: 1,
         box: [],
         x_range: [0, 0],
         y_range: [0, 0],

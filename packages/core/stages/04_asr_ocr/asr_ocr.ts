@@ -9,7 +9,7 @@ import { TaskCtx, setStage } from "@repo/core/context/context.ts";
 import { startLog } from "../utils/log.ts";
 import { Segment, SegmentWithAdjusted } from "@repo/core/ml/subtitle_ocr/types";
 import { probeVideoDuration } from "../../utils/ffmpeg.ts";
-import { FrameResult } from "@repo/subtitle-ocr/types";
+import { FrameResult, OcrFramesResult } from "@repo/subtitle-ocr/types";
 
 export async function stageAsrOcr(ctx: TaskCtx) {
   const taskDir = ctx.task.task_dir;
@@ -63,17 +63,16 @@ export async function stageAsrOcr(ctx: TaskCtx) {
   ensureDir(asrOcrDir, ctx);
 
   // Write ocr_frames.json — raw frame data for debugging/reproducibility
-  writeJson(
-    join(asrOcrDir, "ocr_frames.json"),
-    {
-      _frames_raw: frameResults,
-      audio_info: { duration: probeVideoDuration(video_source_path(ctx)) },
-      _source: "asr_ocr",
-      _engine: runtime,
-      _device: device,
+  const ocrFramesFile: OcrFramesResult = {
+    frames: frameResults,
+    meta: {
+      video_duration_ms: probeVideoDuration(video_source_path(ctx)),
+      preprocess: "asr",
+      engine: runtime,
+      device: device,
     },
-    ctx,
-  );
+  };
+  writeJson(join(asrOcrDir, "ocr_frames.json"), ocrFramesFile, ctx);
 
   // Cleanup frames (optional)
   if (cleanupFrames) {

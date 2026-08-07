@@ -73,13 +73,13 @@ export function aggregate_boxes(boxes: OcrBoxResult[]): FrameResult {
     const [xRange, yRange, center] = polygon_metrics(boxes[0].box);
     return {
       text: boxes[0].text,
-      confidence: boxes[0].confidence,
+      confidence: boxes[0].text_confidence,
       x_range: xRange,
       y_range: yRange,
       boxes: [
         {
           text: boxes[0].text,
-          confidence: boxes[0].confidence,
+          text_confidence: boxes[0].text_confidence,
           box: boxes[0].box,
           x_range: xRange,
           y_range: yRange,
@@ -99,7 +99,7 @@ export function aggregate_boxes(boxes: OcrBoxResult[]): FrameResult {
       if (yRanges[a].max >= yRanges[b].min && yRanges[b].max >= yRanges[a].min) sameLine = true;
     }
   }
-  const avgConf = boxes.reduce((s, l) => s + l.confidence, 0) / boxes.length;
+  const avgConf = boxes.reduce((s, l) => s + l.text_confidence, 0) / boxes.length;
   const lineMetrics = boxes.map((l) => polygon_metrics(l.box));
   const [combinedXRange, combinedYRange] = points_range(boxes.flatMap((l) => l.box));
   return {
@@ -109,7 +109,7 @@ export function aggregate_boxes(boxes: OcrBoxResult[]): FrameResult {
     y_range: combinedYRange,
     boxes: boxes.map((l, i) => ({
       text: l.text,
-      confidence: l.confidence,
+      text_confidence: l.text_confidence,
       box: l.box,
       x_range: lineMetrics[i][0],
       y_range: lineMetrics[i][1],
@@ -177,7 +177,7 @@ export const build_ocr_frames_line_adjust = (
           height: 0,
           height_ratio: 0,
           is_outlier: false,
-          adjustedConfidence: l.confidence,
+          adjustedConfidence: l.text_confidence,
         };
       const top = l.y_range[0];
       const bottom = l.y_range[1];
@@ -195,7 +195,7 @@ export const build_ocr_frames_line_adjust = (
         Math.max(0, (bandDrift - 1.0) * 0.5) + // band 偏离 >1 行高才罚
           Math.abs(1 - heightRatio) * 0.3,
       );
-      const adjustedConfidence = Math.round(l.confidence * (1 - noisePenalty) * 100) / 100;
+      const adjustedConfidence = Math.round(l.text_confidence * (1 - noisePenalty) * 100) / 100;
       const isOutlier = adjustedConfidence < lineAdjustedThreshold;
       return {
         ...l,
@@ -223,7 +223,7 @@ export const get_ocr_frames_line_filtered = (
     const rebuilt = aggregate_boxes(
       cleanLines.map((l) => ({
         text: l.text,
-        confidence: l.confidence,
+        text_confidence: l.text_confidence,
         box: l.box,
         x_range: l.x_range,
         y_range: l.y_range,

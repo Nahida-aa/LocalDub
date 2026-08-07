@@ -40,7 +40,7 @@ export function ocrFrame(
   for (const seg of parsed.segments || []) {
     lines.push({
       text: seg.text,
-      confidence: seg.confidence,
+      text_confidence: seg.confidence,
       box: seg.box || [],
       x_range: [0, 0],
       y_range: [0, 0],
@@ -50,7 +50,7 @@ export function ocrFrame(
   if (lines.length === 0 && parsed.text) {
     lines.push({
       text: parsed.text,
-      confidence: 1,
+      text_confidence: 1,
       box: [],
       x_range: [0, 0],
       y_range: [0, 0],

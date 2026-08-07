@@ -27,7 +27,7 @@ import { chat_completions } from "@repo/core/ml/llm/openai";
 import { parseLines } from "@repo/core/ml/llm/srt_shared";
 import { LlmArgs, LlmFixArgs } from "@repo/core/ml/llm/input";
 import { AsrResult } from "../asr/types.ts";
-import { FrameResult } from "@repo/subtitle-ocr/types";
+import { FrameResult, OcrFramesResult } from "@repo/subtitle-ocr/types";
 
 export async function stageAsrOcrFix(ctx: TaskCtx) {
   const taskDir = ctx.task.task_dir;
@@ -52,7 +52,7 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
 
   const asrRawLen = (await readJson<AsrResult>(asrFile, ctx)).result.segments.length;
   const asrSplitData = await readJson(asrSplitFile, ctx);
-  const ocrFramesData = await readJson(ocrFramesFile, ctx);
+  const ocrFramesData = await readJson<OcrFramesResult>(ocrFramesFile, ctx);
 
   const asrSegs: Segment[] = (asrSplitData.result?.segments ?? []).map((s: any) => ({
     text: s.text,
@@ -60,7 +60,7 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
     end: s.end,
   }));
 
-  const rawFrames: FrameResult[] = ocrFramesData._frames_raw ?? [];
+  const rawFrames: FrameResult[] = ocrFramesData.frames ?? [];
 
   const asrOcrFixCfg = ctx.input?.stages?.asr_ocr_fix;
   const textScore = asrOcrFixCfg?.textScore ?? 0.45;
@@ -130,8 +130,8 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
     emitLog(taskDir, `[asr_ocr_fix] Extracted ${extracted}/${newTs.length} resampled frames`);
 
     if (extracted > 0) {
-      const runtime = (ocrFramesData._engine ?? "ort-cpp") as OCRRuntime;
-      const device = (ocrFramesData._device ?? "cpu") as any;
+      const runtime = (ocrFramesData.meta?.engine ?? "ort-cpp") as OCRRuntime;
+      const device = (ocrFramesData.meta?.device ?? "cpu") as any;
       const engine = await newOcrEngine(runtime, device);
 
       const frameFiles = readdirSync(resampleDir)
@@ -160,7 +160,7 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
 
         writeJson(
           join(asrOcrFixDir, "ocr_frames.json"),
-          { ...ocrFramesData, _frames_raw: rawFrames },
+          { frames: rawFrames, meta: ocrFramesData.meta },
           ctx,
         );
       }
