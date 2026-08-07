@@ -10,7 +10,7 @@ import {
 import { mergeFrames } from "@repo/core/stages/ocr/ocrMerge";
 import { REPO_ROOT } from "@repo/config/root";
 import { findRapidOcrModelsDir } from "@repo/subtitle-ocr/utils";
-import { FrameResult } from "@repo/core/ml/subtitle_ocr/types";
+import { FrameResult } from "@repo/subtitle-ocr/types";
 
 const VIDEOS_PATH = join(REPO_ROOT, "packages", "benchmark", "ref");
 const VIDEO_PATH = join(VIDEOS_PATH, "video_source.mp4");
@@ -48,13 +48,13 @@ const TMP = resolve(REPO_ROOT, "packages", "tmp", "ocr-bench");
 let globalLabelSuffix: string | null = null;
 let noNms = false;
 
-interface OCRLine {
+interface OcrBoxResult {
   text: string;
   confidence: number;
 }
 
 interface OCRResult {
-  lines: OCRLine[];
+  lines: OcrBoxResult[];
   inferenceMs: number;
 }
 

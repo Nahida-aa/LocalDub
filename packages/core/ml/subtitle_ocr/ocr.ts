@@ -1,7 +1,6 @@
 import { existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { ocrFrameOpenCvCpp, ocrFramesOpenCvCpp } from "./runtimes/ort-cpp";
-import { ocrFramePy } from "./runtimes/ort-py";
 import {
   ocrFrameWithSessions,
   createSessions,
@@ -9,7 +8,7 @@ import {
   type OCRSessions,
 } from "@repo/subtitle-ocr/subtitle-node";
 import { REPO_ROOT } from "@repo/config/root";
-import { OCRLine } from "@repo/subtitle-ocr/types";
+import { OcrBoxResult } from "@repo/subtitle-ocr/types";
 export type { OCRSessions } from "@repo/subtitle-ocr/subtitle-node";
 export type OCRDevice = "cpu" | "cuda" | "directml" | "coreml" | "rocm" | "mps";
 
@@ -48,16 +47,16 @@ export const newOcrEngine = async (runtime: OCRRuntime = "ort-cpp", device: OCRD
     async ocrFrame(
       framePath: string,
       opts?: { textScore?: number; subtitleOnly?: boolean },
-    ): Promise<OCRLine[]> {
+    ): Promise<OcrBoxResult[]> {
       switch (runtime) {
         case "ort-cpp":
           return ocrFrameOpenCvCpp(framePath, { ...opts, device });
-        case "ort-node":
-          if (!nodeSessions) throw new Error("Node sessions not initialized");
-          const nodeResult = await ocrFrameWithSessions(framePath, nodeSessions, opts);
-          return nodeResult.segments;
-        case "ort-py":
-          return ocrFramePy(framePath, { ...opts, device });
+        // case "ort-node":
+        //   if (!nodeSessions) throw new Error("Node sessions not initialized");
+        //   const nodeResult = await ocrFrameWithSessions(framePath, nodeSessions, opts);
+        //   return nodeResult.segments;
+        // case "ort-py":
+        //   return ocrFramePy(framePath, { ...opts, device });
         default:
           throw new Error(`Unknown OCR runtime: ${runtime}`);
       }
@@ -66,12 +65,12 @@ export const newOcrEngine = async (runtime: OCRRuntime = "ort-cpp", device: OCRD
       frameDir: string,
       frameFiles: string[],
       opts?: { textScore?: number; subtitleOnly?: boolean },
-    ): Promise<OCRLine[][]> {
+    ): Promise<OcrBoxResult[][]> {
       if (runtime === "ort-cpp") {
         const resultMap = await ocrFramesOpenCvCpp(frameDir, { ...opts, device });
         return frameFiles.map((f) => resultMap.get(f) || []);
       }
-      const results: OCRLine[][] = [];
+      const results: OcrBoxResult[][] = [];
       for (let i = 0; i < frameFiles.length; i++) {
         results.push(await this.ocrFrame(join(frameDir, frameFiles[i]), opts));
       }
@@ -95,7 +94,7 @@ export async function ocrFrame(
   framePath: string,
   runtime: OCRRuntime = "ort-cpp",
   opts?: { textScore?: number; subtitleOnly?: boolean; device?: OCRDevice },
-): Promise<OCRLine[]> {
+): Promise<OcrBoxResult[]> {
   const engine = await newOcrEngine(runtime, opts?.device ?? "cpu");
   try {
     return await engine.ocrFrame(framePath, opts);
