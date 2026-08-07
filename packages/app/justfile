@@ -1,5 +1,5 @@
-dev-desktop:
+dev_desktop:
     bun run tauri dev
 
-dev-desktop-debug:
+dev_desktop_debug:
     RUST_LOG=fs=debug bun run tauri dev
