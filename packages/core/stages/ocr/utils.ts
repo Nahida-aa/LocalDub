@@ -1,49 +1,95 @@
-import { OCRLine } from "@repo/subtitle-ocr/types";
+import { FrameResult, OcrBoxResult } from "@repo/subtitle-ocr/types";
 import { OcrAfterAdjustArgs } from "@repo/core/input/types";
-import { FrameResult, Segment, SegmentWithAdjusted } from "@repo/core/ml/subtitle_ocr/types";
+import { Segment, SegmentWithAdjusted } from "@repo/core/ml/subtitle_ocr/types";
 import { LineAdjustedArgs } from "@repo/core/ml/subtitle_ocr/input";
 
-function polygonToBbox(box: number[][]): {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-} {
-  if (!box || box.length < 2) return { left: 0, top: 0, right: 0, bottom: 0 };
-  const xs = box.map((p) => p[0]);
-  const ys = box.map((p) => p[1]);
-  return {
-    left: Math.min(...xs),
-    top: Math.min(...ys),
-    right: Math.max(...xs),
-    bottom: Math.max(...ys),
-  };
+type PolygonMetrics = [[number, number], [number, number], [number, number]];
+
+function polygon_metrics(box: number[][]): PolygonMetrics {
+  if (!box || box.length < 2)
+    return [
+      [0, 0],
+      [0, 0],
+      [0, 0],
+    ];
+  const n = box.length;
+  const [minXy, maxXy, sum] = box.reduce(
+    ([min, max, s], [x, y]) => [
+      [Math.min(min[0], x), Math.min(min[1], y)],
+      [Math.max(max[0], x), Math.max(max[1], y)],
+      [s[0] + x, s[1] + y],
+    ],
+    [
+      [Infinity, Infinity],
+      [-Infinity, -Infinity],
+      [0, 0],
+    ] as [number[], number[], number[]],
+  );
+  return [
+    [minXy[0], maxXy[0]],
+    [minXy[1], maxXy[1]],
+    [sum[0] / n, sum[1] / n],
+  ];
 }
 
-export function joinOcrLines(lines: OCRLine[]): {
-  text: string;
-  confidence: number;
-  bbox: { left: number; top: number; right: number; bottom: number };
-  lines: {
-    text: string;
-    confidence: number;
-    box: number[][];
-    bbox: { left: number; top: number; right: number; bottom: number };
-  }[];
-} {
-  if (lines.length === 0) {
-    return { text: "", confidence: 0, bbox: { left: 0, top: 0, right: 0, bottom: 0 }, lines: [] };
-  }
-  if (lines.length === 1) {
-    const b = polygonToBbox(lines[0].box);
+// 一次 fold 算出所有点的 x/y 最小最大（对应 Rust 的 points_range）
+function points_range(pts: number[][]): [[number, number], [number, number]] {
+  if (!pts || pts.length === 0)
+    return [
+      [0, 0],
+      [0, 0],
+    ];
+  const [minXy, maxXy] = pts.reduce(
+    ([min, max], [x, y]) => [
+      [Math.min(min[0], x), Math.min(min[1], y)],
+      [Math.max(max[0], x), Math.max(max[1], y)],
+    ],
+    [
+      [Infinity, Infinity],
+      [-Infinity, -Infinity],
+    ] as [number[], number[]],
+  );
+  return [
+    [minXy[0], maxXy[0]],
+    [minXy[1], maxXy[1]],
+  ];
+}
+
+/*
+ * 先给时间置0
+ */
+export function aggregate_boxes(boxes: OcrBoxResult[]): FrameResult {
+  if (boxes.length === 0) {
     return {
-      text: lines[0].text,
-      confidence: lines[0].confidence,
-      bbox: b,
-      lines: [{ text: lines[0].text, confidence: lines[0].confidence, box: lines[0].box, bbox: b }],
+      text: "",
+      confidence: 0,
+      x_range: [0, 0],
+      y_range: [0, 0],
+      boxes: [],
+      timestamp: 0,
     };
   }
-  const yRanges = lines.map((l) => {
+  if (boxes.length === 1) {
+    const [xRange, yRange, center] = polygon_metrics(boxes[0].box);
+    return {
+      text: boxes[0].text,
+      confidence: boxes[0].confidence,
+      x_range: xRange,
+      y_range: yRange,
+      boxes: [
+        {
+          text: boxes[0].text,
+          confidence: boxes[0].confidence,
+          box: boxes[0].box,
+          x_range: xRange,
+          y_range: yRange,
+          center,
+        },
+      ],
+      timestamp: 0,
+    };
+  }
+  const yRanges = boxes.map((l) => {
     const ys = l.box.map((p) => p[1]);
     return { min: Math.min(...ys), max: Math.max(...ys) };
   });
@@ -53,24 +99,23 @@ export function joinOcrLines(lines: OCRLine[]): {
       if (yRanges[a].max >= yRanges[b].min && yRanges[b].max >= yRanges[a].min) sameLine = true;
     }
   }
-  const avgConf = lines.reduce((s, l) => s + l.confidence, 0) / lines.length;
-  const lineBboxes = lines.map((l) => polygonToBbox(l.box));
-  const combinedBbox = {
-    left: Math.min(...lineBboxes.map((b) => b.left)),
-    top: Math.min(...lineBboxes.map((b) => b.top)),
-    right: Math.max(...lineBboxes.map((b) => b.right)),
-    bottom: Math.max(...lineBboxes.map((b) => b.bottom)),
-  };
+  const avgConf = boxes.reduce((s, l) => s + l.confidence, 0) / boxes.length;
+  const lineMetrics = boxes.map((l) => polygon_metrics(l.box));
+  const [combinedXRange, combinedYRange] = points_range(boxes.flatMap((l) => l.box));
   return {
-    text: lines.map((l) => l.text).join(sameLine ? " " : "\n"),
+    text: boxes.map((l) => l.text).join(sameLine ? " " : "\n"),
     confidence: avgConf,
-    bbox: combinedBbox,
-    lines: lines.map((l, i) => ({
+    x_range: combinedXRange,
+    y_range: combinedYRange,
+    boxes: boxes.map((l, i) => ({
       text: l.text,
       confidence: l.confidence,
       box: l.box,
-      bbox: lineBboxes[i],
+      x_range: lineMetrics[i][0],
+      y_range: lineMetrics[i][1],
+      center: lineMetrics[i][2],
     })),
+    timestamp: 0,
   };
 }
 
@@ -80,18 +125,18 @@ export function computeBoxYStats(frames: FrameResult[]): {
   avgHeight: number;
   medianHeight: number;
 } {
-  const lineBoxes = frames.flatMap((f) => f.lines ?? []).filter((l) => l.text.trim());
+  const lineBoxes = frames.flatMap((f) => f.boxes ?? []).filter((l) => l.text.trim());
   if (lineBoxes.length === 0) return { avg: [0, 0], mode: [0, 0], avgHeight: 0, medianHeight: 0 };
 
-  const boxYs = lineBoxes.map((l) => [l.bbox.top, l.bbox.bottom] as [number, number]);
+  const boxYs = lineBoxes.map((l) => l.y_range as [number, number]);
 
   const avgTop = Math.round(boxYs.reduce((s, [t]) => s + t, 0) / boxYs.length);
   const avgBtm = Math.round(boxYs.reduce((s, [, b]) => s + b, 0) / boxYs.length);
   const avgHeight = Math.round(
-    lineBoxes.reduce((s, l) => s + (l.bbox.bottom - l.bbox.top), 0) / lineBoxes.length,
+    lineBoxes.reduce((s, l) => s + (l.y_range[1] - l.y_range[0]), 0) / lineBoxes.length,
   );
 
-  const heights = lineBoxes.map((l) => l.bbox.bottom - l.bbox.top).sort((a, b) => a - b);
+  const heights = lineBoxes.map((l) => l.y_range[1] - l.y_range[0]).sort((a, b) => a - b);
   const mid = Math.floor(heights.length / 2);
   const medianHeight =
     heights.length % 2 === 0 ? Math.round((heights[mid - 1] + heights[mid]) / 2) : heights[mid];
@@ -121,7 +166,7 @@ export const build_ocr_frames_line_adjust = (
 ) =>
   ocrFrames.map((f) => ({
     ...f,
-    lines: f.lines?.map((l) => {
+    boxes: f.boxes?.map((l) => {
       if (!l.text.trim())
         return {
           ...l,
@@ -134,8 +179,8 @@ export const build_ocr_frames_line_adjust = (
           is_outlier: false,
           adjustedConfidence: l.confidence,
         };
-      const top = l.bbox.top;
-      const bottom = l.bbox.bottom;
+      const top = l.y_range[0];
+      const bottom = l.y_range[1];
       const height = bottom - top;
       // 这一行上边界，相对典型上边界，偏离了多少个行高
       const topOR =
@@ -171,15 +216,18 @@ export const get_ocr_frames_line_filtered = (
   ocrFramesLineAdjustFrames: OcrFramesLineAdjustFrame[],
 ) =>
   ocrFramesLineAdjustFrames.flatMap((f) => {
-    if (!f.lines) return [f as FrameResult];
-    const cleanLines = f.lines.filter((l) => !l.is_outlier);
+    if (!f.boxes) return [f as FrameResult];
+    const cleanLines = f.boxes.filter((l) => !l.is_outlier);
     if (cleanLines.length === 0) return [];
-    if (cleanLines.length === f.lines.length) return [f as FrameResult];
-    const rebuilt = joinOcrLines(
+    if (cleanLines.length === f.boxes.length) return [f as FrameResult];
+    const rebuilt = aggregate_boxes(
       cleanLines.map((l) => ({
         text: l.text,
         confidence: l.confidence,
         box: l.box,
+        x_range: l.x_range,
+        y_range: l.y_range,
+        center: l.center,
       })),
     );
     return [
@@ -187,8 +235,9 @@ export const get_ocr_frames_line_filtered = (
         ...f,
         text: rebuilt.text,
         confidence: rebuilt.confidence,
-        bbox: rebuilt.bbox,
-        lines: rebuilt.lines,
+        x_range: rebuilt.x_range,
+        y_range: rebuilt.y_range,
+        boxes: rebuilt.boxes,
       } as FrameResult,
     ];
   });
@@ -211,7 +260,7 @@ export function computeSegmentAdjustments(
 
   // build sorted non-empty frame timestamps for isolation search
   const nonEmptyTs = frameResults
-    .filter((f) => f.text && f.bbox)
+    .filter((f) => f.text && f.x_range && f.y_range)
     .map((f) => f.timestamp)
     .sort((a, b) => a - b);
 
