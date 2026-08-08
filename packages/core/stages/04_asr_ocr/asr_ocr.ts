@@ -27,14 +27,8 @@ export async function stageAsrOcr(ctx: TaskCtx) {
   const asrOcrCfg = ctx.input?.stages?.asr_ocr;
   const textScore = asrOcrCfg?.textScore ?? 0.45;
   const subtitleOnly = asrOcrCfg?.subtitleOnly ?? true;
-  const runtime = (asrOcrCfg?.runtime ?? "ort-cpp") as OCRRuntime;
-  const device = (asrOcrCfg?.device ?? "cpu") as
-    | "cpu"
-    | "cuda"
-    | "directml"
-    | "coreml"
-    | "rocm"
-    | "mps";
+  const runtime = asrOcrCfg?.runtime ?? "ort-cpp";
+  const device = asrOcrCfg?.device ?? "cpu";
   const cleanupFrames = asrOcrCfg?.cleanupFrames ?? false;
 
   // OCR each frame
@@ -47,7 +41,7 @@ export async function stageAsrOcr(ctx: TaskCtx) {
   const frameResults: FrameResult[] = [];
 
   for (let i = 0; i < frameFiles.length; i++) {
-    const tsMatch = frameFiles[i].match(/frame_(\d+)\.jpg/);
+    const tsMatch = frameFiles[i].match(/(\d+)\.jpg/);
     const timestampMs = tsMatch ? parseInt(tsMatch[1]) : 0;
     const lines = linesArr[i];
     const r = aggregate_boxes(lines);
@@ -66,8 +60,6 @@ export async function stageAsrOcr(ctx: TaskCtx) {
   const ocrFramesFile: OcrFramesResult = {
     frames: frameResults,
     meta: {
-      video_duration_ms: probeVideoDuration(video_source_path(ctx)),
-      preprocess: "asr",
       engine: runtime,
       device: device,
     },

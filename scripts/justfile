@@ -1,0 +1,22 @@
+set shell := ["bash", "-c"]
+
+# 列出所有可用命令
+default:
+    @just --list
+
+# 预览转换结果（纯打印，不写文件）
+#   just convert-dry <input>
+#   just convert-dry workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/asr_ocr/ocr_frames.json
+convert-dry input:
+    bun convert-ocr-frames.mjs "{{input}}" --dry-run
+
+# 就地转换（覆盖原文件）: 逐帧 OCR 历史格式 -> OcrFramesResult { frames, meta }
+#   just convert <input>
+#   just convert workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/asr_ocr/ocr_frames.json
+convert input:
+    bun convert-ocr-frames.mjs "{{input}}"
+
+# 转换并写到指定输出路径
+#   just convert-to <input> <output>
+convert-to input="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/asr_ocr/ocr_frames.json" output="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/asr_ocr/asr_ocr_frames.json":
+    bun convert-ocr-frames.mjs "{{input}}" "{{output}}"

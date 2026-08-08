@@ -166,7 +166,7 @@ export const build_ocr_frames_line_adjust = (
 ) =>
   ocrFrames.map((f) => ({
     ...f,
-    boxes: f.boxes?.map((l) => {
+    boxes: f.boxes.map((l) => {
       if (!l.text.trim())
         return {
           ...l,
@@ -216,7 +216,6 @@ export const get_ocr_frames_line_filtered = (
   ocrFramesLineAdjustFrames: OcrFramesLineAdjustFrame[],
 ) =>
   ocrFramesLineAdjustFrames.flatMap((f) => {
-    if (!f.boxes) return [f as FrameResult];
     const cleanLines = f.boxes.filter((l) => !l.is_outlier);
     if (cleanLines.length === 0) return [];
     if (cleanLines.length === f.boxes.length) return [f as FrameResult];
