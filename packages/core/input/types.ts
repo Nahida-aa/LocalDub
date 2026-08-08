@@ -195,7 +195,11 @@ const OcrCliInputSchema = z
       )
       .optional(),
     fps: z.number().default(2).describe("帧率 (fps), 越高时间戳越准但越慢; 默认 2").optional(),
-    textScore: z.number().default(0.45).describe("OCR 识别置信度阈值, 默认 0.45").optional(),
+    text_score_threshold: z
+      .number()
+      .default(0.45)
+      .describe("OCR 识别置信度阈值, 默认 0.45")
+      .optional(),
     subtitleOnly: z
       .boolean()
       .default(true)
@@ -213,7 +217,7 @@ const OcrCliInputSchema = z
     runtime: "ort-cpp",
     device: "cpu",
     fps: 2,
-    textScore: 0.45,
+    text_score_threshold: 0.45,
     subtitleOnly: true,
     cleanupFrames: false,
     isoThresholdMs: 1500,
@@ -235,7 +239,11 @@ const AsrOcrCliInputSchema = z
       )
       .optional(),
     fps: z.number().default(2).describe("帧率 (fps), 越高时间戳越准但越慢; 默认 2").optional(),
-    textScore: z.number().default(0.45).describe("OCR 识别置信度阈值, 默认 0.45").optional(),
+    text_score_threshold: z
+      .number()
+      .default(0.45)
+      .describe("OCR 识别置信度阈值, 默认 0.45")
+      .optional(),
     subtitleOnly: z
       .boolean()
       .default(true)
@@ -251,7 +259,7 @@ const AsrOcrCliInputSchema = z
     runtime: "ort-cpp",
     device: "cpu",
     fps: 2,
-    textScore: 0.45,
+    text_score_threshold: 0.45,
     subtitleOnly: true,
     cleanupFrames: false,
   });
@@ -360,7 +368,7 @@ const StagesSchema = z
     asr_ocr: AsrOcrCliInputSchema,
     asr_ocr_fix: z
       .looseObject({
-        textScore: z
+        text_score_threshold: z
           .number()
           .default(0.5)
           .optional()
@@ -372,7 +380,7 @@ const StagesSchema = z
       })
       .default({
         llmFix: false,
-        textScore: 0.5,
+        text_score_threshold: 0.5,
         isoThresholdMs: 1500,
         adjustYWeight: 0.8,
         adjustIsoWeight: 0.2,

@@ -25,7 +25,7 @@ export async function stageAsrOcr(ctx: TaskCtx) {
   }
 
   const asrOcrCfg = ctx.input?.stages?.asr_ocr;
-  const textScore = asrOcrCfg?.textScore ?? 0.45;
+  const textScore = asrOcrCfg?.text_score_threshold ?? 0.45;
   const subtitleOnly = asrOcrCfg?.subtitleOnly ?? true;
   const runtime = asrOcrCfg?.runtime ?? "ort-cpp";
   const device = asrOcrCfg?.device ?? "cpu";

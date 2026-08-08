@@ -33,7 +33,7 @@ export async function stageOcr(ctx: TaskCtx) {
 
   const ocrCfg = ctx.input?.stages?.ocr;
   const fps = ocrCfg?.fps ?? 2;
-  const textScore = ocrCfg?.textScore ?? 0.45;
+  const textScore = ocrCfg?.text_score_threshold ?? 0.45;
   const subtitleOnly = ocrCfg?.subtitleOnly ?? true;
   const runtime = (ocrCfg?.runtime ?? "ort-cpp") as OCRRuntime;
   const device = (ocrCfg?.device ?? "cpu") as

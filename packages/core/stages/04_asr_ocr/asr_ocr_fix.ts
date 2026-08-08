@@ -72,7 +72,7 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
   const rawFrames: FrameResult[] = ocrFramesData.frames ?? [];
 
   const asrOcrFixArg = ctx.input?.stages?.asr_ocr_fix;
-  const textScore = asrOcrFixArg?.textScore ?? 0.45;
+  const textScore = asrOcrFixArg?.text_score_threshold ?? 0.45;
 
   // === 阶段 1: 重采样补充帧 ===
   // 问题: end2fps 抽帧在某些高置信度字幕附近可能留大空隙（相邻同文本帧间距 > RESAMPLE_RANGE_MS），

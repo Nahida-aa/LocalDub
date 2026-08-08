@@ -326,7 +326,7 @@
             },
             "mixMode": {
               "default": "sidechain",
-              "description": "ASR 音频源: vocals=纯分离人声, \n\t\t\t\traw-sum=人声+降低背景音直接叠加, \n\t\t\t\tsidechain=人声+侧链压缩背景音",
+              "description": "ASR 音频源: vocals=纯分离人声,\n\t\t\t\traw-sum=人声+降低背景音直接叠加,\n\t\t\t\tsidechain=人声+侧链压缩背景音",
               "type": "string",
               "enum": ["vocals", "raw-sum", "sidechain"]
             },
@@ -469,7 +469,7 @@
             "runtime": "ort-cpp",
             "device": "cpu",
             "fps": 2,
-            "textScore": 0.45,
+            "text_score_threshold": 0.45,
             "subtitleOnly": true,
             "cleanupFrames": false,
             "isoThresholdMs": 1500,
@@ -496,7 +496,7 @@
               "description": "帧率 (fps), 越高时间戳越准但越慢; 默认 2",
               "type": "number"
             },
-            "textScore": {
+            "text_score_threshold": {
               "default": 0.45,
               "description": "OCR 识别置信度阈值, 默认 0.45",
               "type": "number"
@@ -553,7 +553,7 @@
             "runtime": "ort-cpp",
             "device": "cpu",
             "fps": 2,
-            "textScore": 0.45,
+            "text_score_threshold": 0.45,
             "subtitleOnly": true,
             "cleanupFrames": false
           },
@@ -576,7 +576,7 @@
               "description": "帧率 (fps), 越高时间戳越准但越慢; 默认 2",
               "type": "number"
             },
-            "textScore": {
+            "text_score_threshold": {
               "default": 0.45,
               "description": "OCR 识别置信度阈值, 默认 0.45",
               "type": "number"
@@ -597,7 +597,7 @@
         "asr_ocr_fix": {
           "default": {
             "llmFix": false,
-            "textScore": 0.5,
+            "text_score_threshold": 0.5,
             "isoThresholdMs": 1500,
             "adjustYWeight": 0.8,
             "adjustIsoWeight": 0.2,
@@ -605,7 +605,7 @@
           },
           "type": "object",
           "properties": {
-            "textScore": {
+            "text_score_threshold": {
               "description": "OCR 文本置信度阈值（0-1），低于此阈值的帧在合并前会被丢弃",
               "default": 0.5,
               "type": "number"
@@ -632,7 +632,12 @@
             },
             "lineAdjustedThreshold": {
               "default": 0.5,
-              "description": "行调整的置信度阈值: confidence < 此值则进行行调整; 默认 0.5",
+              "description": "行级 outlier 判定: adjustedConfidence < 此值则标记为 outlier; 默认 0.5",
+              "type": "number"
+            },
+            "boxAdjustedThreshold": {
+              "default": 0.5,
+              "description": "box调整的置信度阈值: confidence < 此值则进行box调整; 默认 0.5",
               "type": "number"
             },
             "mergeSubstring": {
