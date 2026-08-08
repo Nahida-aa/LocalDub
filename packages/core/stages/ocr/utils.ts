@@ -192,28 +192,38 @@ export function computeBoxYStats(frames: FrameResult[]): YStats {
   return { avg: [avgTop, avgBtm], mode, median, avgHeight, medianHeight, modeHeight };
 }
 
+type OcrFramesAdjustBox = OcrBoxResult & {
+  top_offset_ratio: number;
+  bot_offset_ratio: number;
+  height: number;
+  height_ratio: number;
+  is_outlier: boolean;
+  adjusted_text_confidence: number;
+};
+type OcrFramesBoxAdjustFrame = Omit<FrameResult, "boxes"> & {
+  boxes: OcrFramesAdjustBox[];
+};
+
 export const build_ocr_frames_box_adjust = (
   ocrFrames: FrameResult[],
   yStats: YStats,
   { boxAdjustedThreshold = 0.5 }: BoxAdjustedArgs,
-) =>
+): OcrFramesBoxAdjustFrame[] =>
   ocrFrames.map((f) => ({
     ...f,
-    boxes: f.boxes.map((l) => {
-      if (!l.text.trim())
+    boxes: f.boxes.map((box_r) => {
+      if (!box_r.text.trim())
         return {
-          ...l,
-          top: 0,
-          bottom: 0,
+          ...box_r,
           top_offset_ratio: 0,
           bot_offset_ratio: 0,
           height: 0,
           height_ratio: 0,
           is_outlier: false,
-          adjustedConfidence: l.text_confidence,
+          adjusted_text_confidence: box_r.text_confidence,
         };
-      const top = l.y_range[0];
-      const bottom = l.y_range[1];
+      const top = box_r.y_range[0];
+      const bottom = box_r.y_range[1];
       const height = bottom - top;
       // 这一行上边界，相对典型上边界，偏离了多少个行高
       const topOR =
@@ -228,25 +238,22 @@ export const build_ocr_frames_box_adjust = (
         Math.max(0, (bandDrift - 1.0) * 0.5) + // band 偏离 >1 行高才罚
           Math.abs(1 - heightRatio) * 0.3,
       );
-      const adjustedConfidence = Math.round(l.text_confidence * (1 - noisePenalty) * 100) / 100;
+      const adjustedConfidence = Math.round(box_r.text_confidence * (1 - noisePenalty) * 100) / 100;
       const isOutlier = adjustedConfidence < boxAdjustedThreshold;
       return {
-        ...l,
-        top,
-        bottom,
+        ...box_r,
         top_offset_ratio: Math.round(topOR * 100) / 100,
         bot_offset_ratio: Math.round(botOR * 100) / 100,
         height: Math.round(height * 10) / 10,
         height_ratio: heightRatio,
         is_outlier: isOutlier,
-        adjustedConfidence,
+        adjusted_text_confidence: adjustedConfidence,
       };
     }),
   }));
-type OcrFramesLineAdjustFrame = ReturnType<typeof build_ocr_frames_box_adjust>[number];
 
 export const get_ocr_frames_line_filtered = (
-  ocrFramesLineAdjustFrames: OcrFramesLineAdjustFrame[],
+  ocrFramesLineAdjustFrames: OcrFramesBoxAdjustFrame[],
 ) =>
   ocrFramesLineAdjustFrames.flatMap((f) => {
     const cleanLines = f.boxes.filter((l) => !l.is_outlier);
