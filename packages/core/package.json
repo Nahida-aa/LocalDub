@@ -12,6 +12,7 @@
     "@repo/config": "workspace:*",
     "@repo/shared": "workspace:*",
     "@repo/subtitle-ocr": "workspace:*",
+    "@repo/util": "workspace:*",
     "@repo/voxlab": "workspace:*",
     "@tanstack/pacer": "^0.21.1",
     "bonjour-service": "^1.4.3",
