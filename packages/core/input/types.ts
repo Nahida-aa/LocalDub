@@ -2,7 +2,7 @@ import { TtsStageInputSchema } from "@repo/core/input/tts";
 import { ServersArgsSchema } from "@repo/core/servers/input";
 import { EnvArgsSchema } from "@repo/core/cmd/env/input";
 import { z } from "zod";
-import { LineAdjustedArgsSchema, MergeFramesArgsSchema } from "@repo/core/ml/subtitle_ocr/input";
+import { BoxAdjustedArgsSchema, MergeFramesArgsSchema } from "@repo/core/ml/subtitle_ocr/input";
 import { LlmFixArgsSchema } from "@repo/core/ml/llm/input";
 import { langList, taskArgsSchema } from "@repo/core/cmd/tasks/input";
 import { CookieArgsSchema } from "@repo/core/cmd/cookie/input";
@@ -62,8 +62,8 @@ const ASRCliInputSchema = z
     mixMode: z
       .enum(["vocals", "raw-sum", "sidechain"])
       .default("sidechain")
-      .describe(`ASR 音频源: vocals=纯分离人声, 
-				raw-sum=人声+降低背景音直接叠加, 
+      .describe(`ASR 音频源: vocals=纯分离人声,
+				raw-sum=人声+降低背景音直接叠加,
 				sidechain=人声+侧链压缩背景音`)
       .optional(),
     reduceBgm: z
@@ -366,7 +366,7 @@ const StagesSchema = z
           .optional()
           .describe("OCR 文本置信度阈值（0-1），低于此阈值的帧在合并前会被丢弃"),
         ...ocrAfterAdjustArgsSchema.shape,
-        ...LineAdjustedArgsSchema.shape,
+        ...BoxAdjustedArgsSchema.shape,
         ...MergeFramesArgsSchema.shape,
         ...LlmFixArgsSchema.shape,
       })

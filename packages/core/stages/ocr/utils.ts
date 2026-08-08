@@ -1,7 +1,7 @@
 import { FrameResult, OcrBoxResult } from "@repo/subtitle-ocr/types";
 import { OcrAfterAdjustArgs } from "@repo/core/input/types";
 import { Segment, SegmentWithAdjusted } from "@repo/core/ml/subtitle_ocr/types";
-import { LineAdjustedArgs } from "@repo/core/ml/subtitle_ocr/input";
+import { BoxAdjustedArgs } from "@repo/core/ml/subtitle_ocr/input";
 
 type PolygonMetrics = [[number, number], [number, number], [number, number]];
 
@@ -119,27 +119,61 @@ export function aggregate_boxes(boxes: OcrBoxResult[]): FrameResult {
   };
 }
 
-export function computeBoxYStats(frames: FrameResult[]): {
+export type YStats = {
   avg: [number, number];
   mode: [number, number];
+  median: [number, number];
   avgHeight: number;
   medianHeight: number;
-} {
-  const lineBoxes = frames.flatMap((f) => f.boxes ?? []).filter((l) => l.text.trim());
-  if (lineBoxes.length === 0) return { avg: [0, 0], mode: [0, 0], avgHeight: 0, medianHeight: 0 };
+  modeHeight: number;
+};
 
-  const boxYs = lineBoxes.map((l) => l.y_range as [number, number]);
+export function computeBoxYStats(frames: FrameResult[]): YStats {
+  const boxes = frames.flatMap((f) => f.boxes ?? []).filter((l) => l.text.trim());
+  if (boxes.length === 0)
+    return {
+      avg: [0, 0],
+      mode: [0, 0],
+      median: [0, 0],
+      avgHeight: 0,
+      medianHeight: 0,
+      modeHeight: 0,
+    };
+
+  const boxYs = boxes.map((l) => l.y_range as [number, number]);
 
   const avgTop = Math.round(boxYs.reduce((s, [t]) => s + t, 0) / boxYs.length);
   const avgBtm = Math.round(boxYs.reduce((s, [, b]) => s + b, 0) / boxYs.length);
   const avgHeight = Math.round(
-    lineBoxes.reduce((s, l) => s + (l.y_range[1] - l.y_range[0]), 0) / lineBoxes.length,
+    boxes.reduce((s, l) => s + (l.y_range[1] - l.y_range[0]), 0) / boxes.length,
   );
 
-  const heights = lineBoxes.map((l) => l.y_range[1] - l.y_range[0]).sort((a, b) => a - b);
+  const heights = boxes.map((l) => l.y_range[1] - l.y_range[0]).sort((a, b) => a - b);
   const mid = Math.floor(heights.length / 2);
   const medianHeight =
     heights.length % 2 === 0 ? Math.round((heights[mid - 1] + heights[mid]) / 2) : heights[mid];
+
+  // 位置中位数: 所有 top 排序取中位数、所有 bottom 排序取中位数
+  const tops = boxYs.map(([t]) => t).sort((a, b) => a - b);
+  const btms = boxYs.map(([, b]) => b).sort((a, b) => a - b);
+  const medianOf = (arr: number[]) => {
+    const m = Math.floor(arr.length / 2);
+    return arr.length % 2 === 0 ? Math.round((arr[m - 1] + arr[m]) / 2) : arr[m];
+  };
+  const median: [number, number] = [medianOf(tops), medianOf(btms)];
+
+  // 高度众数: 出现最频繁的行高
+  const heightCounts = new Map<number, number>();
+  let modeHeightCount = 0;
+  let modeHeight = heights[0];
+  for (const h of heights) {
+    const c = (heightCounts.get(h) ?? 0) + 1;
+    heightCounts.set(h, c);
+    if (c > modeHeightCount) {
+      modeHeightCount = c;
+      modeHeight = h;
+    }
+  }
 
   const counts = new Map<string, { count: number; pair: [number, number] }>();
   let maxCount = 0;
@@ -155,14 +189,13 @@ export function computeBoxYStats(frames: FrameResult[]): {
     }
   }
 
-  return { avg: [avgTop, avgBtm], mode, avgHeight, medianHeight };
+  return { avg: [avgTop, avgBtm], mode, median, avgHeight, medianHeight, modeHeight };
 }
-export type YStats = ReturnType<typeof computeBoxYStats>;
 
-export const build_ocr_frames_line_adjust = (
+export const build_ocr_frames_box_adjust = (
   ocrFrames: FrameResult[],
   yStats: YStats,
-  { lineAdjustedThreshold = 0.5 }: LineAdjustedArgs,
+  { boxAdjustedThreshold = 0.5 }: BoxAdjustedArgs,
 ) =>
   ocrFrames.map((f) => ({
     ...f,
@@ -196,7 +229,7 @@ export const build_ocr_frames_line_adjust = (
           Math.abs(1 - heightRatio) * 0.3,
       );
       const adjustedConfidence = Math.round(l.text_confidence * (1 - noisePenalty) * 100) / 100;
-      const isOutlier = adjustedConfidence < lineAdjustedThreshold;
+      const isOutlier = adjustedConfidence < boxAdjustedThreshold;
       return {
         ...l,
         top,
@@ -210,7 +243,7 @@ export const build_ocr_frames_line_adjust = (
       };
     }),
   }));
-type OcrFramesLineAdjustFrame = ReturnType<typeof build_ocr_frames_line_adjust>[number];
+type OcrFramesLineAdjustFrame = ReturnType<typeof build_ocr_frames_box_adjust>[number];
 
 export const get_ocr_frames_line_filtered = (
   ocrFramesLineAdjustFrames: OcrFramesLineAdjustFrame[],

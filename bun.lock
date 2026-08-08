@@ -152,6 +152,8 @@
       "dependencies": {
         "@napi-rs/image": "^1.12.0",
         "@repo/config": "workspace:*",
+        "@repo/shared": "workspace:*",
+        "@repo/util": "workspace:*",
         "onnxruntime-node": "^1.26.0",
         "opencv-wasm": "4.3.0-10",
         "pngjs": "^7.0.0",
@@ -181,6 +183,9 @@
         "vite": "^8.0.14",
         "vite-plugin-solid": "^2.11.12",
       },
+    },
+    "packages/util": {
+      "name": "@repo/util",
     },
     "packages/voxcpm_torch_server": {
       "name": "@repo/voxcpm-torch-server",
@@ -517,6 +522,8 @@
     "@repo/subtitle-ocr": ["@repo/subtitle-ocr@workspace:packages/subtitle-ocr"],
 
     "@repo/ui-solid": ["@repo/ui-solid@workspace:packages/ui-solid"],
+
+    "@repo/util": ["@repo/util@workspace:packages/util"],
 
     "@repo/voxcpm-torch-server": ["@repo/voxcpm-torch-server@workspace:packages/voxcpm_torch_server"],
 

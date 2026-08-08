@@ -105,7 +105,7 @@ export async function stageOcr(ctx: TaskCtx) {
       const lines = linesArr[i];
       frameResults.push({ ...aggregate_boxes(lines), timestamp: timestampMs });
     } catch {
-      frameResults.push({ text: "", timestamp: timestampMs, confidence: 0 });
+      frameResults.push({ text: "", timestamp: timestampMs, confidence: 0, boxes: [] });
     }
 
     if ((i + 1) % 50 === 0 || i === frameFiles.length - 1) {

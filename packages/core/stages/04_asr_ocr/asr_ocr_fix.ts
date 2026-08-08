@@ -12,7 +12,7 @@ import { fixOverlap, mergeFrames, toOcrFiltered } from "@repo/core/stages/ocr/oc
 import {
   computeBoxYStats,
   computeSegmentAdjustments,
-  build_ocr_frames_line_adjust,
+  build_ocr_frames_box_adjust,
   get_ocr_frames_line_filtered,
   aggregate_boxes,
   YStats,
@@ -20,7 +20,7 @@ import {
 import { newOcrEngine, type OCRRuntime } from "../../ml/subtitle_ocr/ocr.ts";
 import { TaskCtx, setStage } from "@repo/core/context/context.ts";
 import { Segment } from "@repo/core/ml/subtitle_ocr/types";
-import { LineAdjustedArgs } from "@repo/core/ml/subtitle_ocr/input";
+import { BoxAdjustedArgs } from "@repo/core/ml/subtitle_ocr/input";
 import { t } from "@repo/shared/i18n/server";
 import { buildOcrFixSystemPrompt, ocrSegmentsToPrompt } from "@repo/core/ml/llm/ocr_llm_fix";
 import { chat_completions } from "@repo/core/ml/llm/openai";
@@ -28,6 +28,10 @@ import { parseLines } from "@repo/core/ml/llm/srt_shared";
 import { LlmArgs, LlmFixArgs } from "@repo/core/ml/llm/input";
 import { AsrResult } from "../asr/types.ts";
 import { FrameResult, OcrFramesResult } from "@repo/subtitle-ocr/types";
+import { hasNearbySameText } from "@repo/subtitle-ocr/ocr_fix/resample";
+
+import { extract_frames } from "@repo/subtitle-ocr/ffmpeg_util";
+import { to } from "@repo/shared/lib/utils/try";
 
 export async function stageAsrOcrFix(ctx: TaskCtx) {
   const taskDir = ctx.task.task_dir;
@@ -39,7 +43,10 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
 
   const asrOcrFixDir = resolve(taskDir, "asr_ocr_fix");
 
-  // Read inputs
+  // === 读取上游产物 ===
+  // asr.json          : ASR 原始分段（whisper 等）
+  // asr_split.json    : asr_ocr_pre 按标点/词切分后的 ASR 段（驱动抽帧时间戳）
+  // ocr_frames.json   : asr_ocr 阶段产出的逐帧 OCR 原始结果（OcrFramesResult 格式）
   const asrFile = join(taskDir, "asr", "asr.json");
   const asrSplitFile = join(taskDir, "asr_ocr_pre", "asr_split.json");
   const ocrFramesFile = join(taskDir, "asr_ocr", "ocr_frames.json");
@@ -54,41 +61,44 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
   const asrSplitData = await readJson(asrSplitFile, ctx);
   const ocrFramesData = await readJson<OcrFramesResult>(ocrFramesFile, ctx);
 
+  // ASR 切分后的段（只取 text/start/end，用于后续时间边界对齐）
   const asrSegs: Segment[] = (asrSplitData.result?.segments ?? []).map((s: any) => ({
     text: s.text,
     start: s.start,
     end: s.end,
   }));
 
+  // 逐帧 OCR 原始结果；后续的重采样/过滤都作用在 rawFrames 上
   const rawFrames: FrameResult[] = ocrFramesData.frames ?? [];
 
-  const asrOcrFixCfg = ctx.input?.stages?.asr_ocr_fix;
-  const textScore = asrOcrFixCfg?.textScore ?? 0.45;
+  const asrOcrFixArg = ctx.input?.stages?.asr_ocr_fix;
+  const textScore = asrOcrFixArg?.textScore ?? 0.45;
 
-  // --- Re-sample: supplement frames around high-confidence single-frame gaps ---
-  const RESAMPLE_CONF_THRESH = 0.6;
-  const RESAMPLE_STEP_MS = 100;
-  const RESAMPLE_RANGE_MS = 500;
+  // === 阶段 1: 重采样补充帧 ===
+  // 问题: end2fps 抽帧在某些高置信度字幕附近可能留大空隙（相邻同文本帧间距 > RESAMPLE_RANGE_MS），
+  //       导致后续字幕合并时间边界不准。这里在空隙区间按 RESAMPLE_STEP_MS 步长补抽帧并 OCR，
+  //       把更多帧并入 rawFrames，提升时间覆盖密度。
+  // 注意: 仅当某帧"高置信度 + 附近无相同文本帧"才视为孤立点，才触发补抽。
+  const RESAMPLE_CONF_THRESH = 0.6; // 仅对高置信度帧补抽，低置信噪声帧不补
+  const RESAMPLE_STEP_MS = 100; // 补抽步长
+  const RESAMPLE_RANGE_MS = 500; // 在孤立帧 ±500ms 内补抽
 
   const isolatedInfos: string[] = [];
   const candidateTs = new Set<number>();
-  for (let i = 0; i < rawFrames.length; i++) {
-    const f = rawFrames[i];
+  for (const [i, f] of rawFrames.entries()) {
     if (!f.text || f.confidence < RESAMPLE_CONF_THRESH) continue;
-    const hasNearbySameText = rawFrames.some(
-      (other, j) =>
-        j !== i &&
-        other.text === f.text &&
-        Math.abs(other.timestamp - f.timestamp) <= RESAMPLE_RANGE_MS,
-    );
-    if (hasNearbySameText) continue;
+    // 若附近已有相同文本的帧，说明不是孤立点，无需补抽
+    const is_hasNearbySameText = hasNearbySameText(rawFrames, i, f, RESAMPLE_RANGE_MS);
+    if (is_hasNearbySameText) continue;
     const prevTs = i > 0 ? rawFrames[i - 1].timestamp : -Infinity;
     const nextTs = i < rawFrames.length - 1 ? rawFrames[i + 1].timestamp : Infinity;
     const gapBefore = f.timestamp - prevTs;
     const gapAfter = nextTs - f.timestamp;
+    // 记录孤立点信息用于日志（gapBefore/gapAfter 是该帧与 rawFrames 中相邻帧的时间空隙，仅展示用，不参与孤立判定）
     isolatedInfos.push(
-      `  ts=${f.timestamp}ms  text="${f.text.slice(0, 30)}"  conf=${f.confidence}  gapBefore=${gapBefore}ms  gapAfter=${gapAfter}ms`,
+      `  tms=${f.timestamp}ms  text="${f.text.slice(0, 30)}"  conf=${f.confidence}  gapBefore=${gapBefore}ms  gapAfter=${gapAfter}ms`,
     );
+    // 在孤立帧两侧 ±RESAMPLE_RANGE_MS 内，按步长收集候选时间戳
     for (
       let t = f.timestamp - RESAMPLE_RANGE_MS;
       t <= f.timestamp + RESAMPLE_RANGE_MS;
@@ -104,6 +114,7 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
     );
   }
 
+  // 去掉已存在的时间戳，避免重复抽帧
   const existingTs = new Set(rawFrames.map((f) => f.timestamp));
   const newTs = [...candidateTs].filter((t) => !existingTs.has(t)).sort((a, b) => a - b);
 
@@ -117,19 +128,11 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
     const resampleDir = join(asrOcrFixDir, "resampled_frames");
     ensureDir(resampleDir, ctx);
 
-    let extracted = 0;
-    for (const ts of newTs) {
-      const fp = join(resampleDir, `frame_${ts.toString().padStart(7, "0")}.jpg`);
-      const r = spawnSync(
-        "ffmpeg",
-        ["-y", "-ss", String(ts / 1000), "-i", videoPath, "-frames:v", "1", "-qscale:v", "2", fp],
-        { timeout: 15_000 },
-      );
-      if (r.status === 0) extracted++;
-    }
-    emitLog(taskDir, `[asr_ocr_fix] Extracted ${extracted}/${newTs.length} resampled frames`);
+    // 用 ffmpeg 按时间戳抽帧到 resampled_frames/
+    const extracted = extract_frames(newTs, videoPath, resampleDir, taskDir);
 
     if (extracted > 0) {
+      // 复用原始 OCR 引擎/设备（从 meta 读取）对补抽帧做 OCR
       const runtime = (ocrFramesData.meta?.engine ?? "ort-cpp") as OCRRuntime;
       const device = (ocrFramesData.meta?.device ?? "cpu") as any;
       const engine = await newOcrEngine(runtime, device);
@@ -158,6 +161,8 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
           `[asr_ocr_fix] Added ${newFrames.length} OCR frames (${before} → ${rawFrames.length})`,
         );
 
+        // 写回 asr_ocr_fix/ocr_frames.json（注意: 不是 asr_ocr/ocr_frames.json，
+        // 原始逐帧结果保持不动；这里是有重采样补帧的版本）
         writeJson(
           join(asrOcrFixDir, "ocr_frames.json"),
           { frames: rawFrames, meta: ocrFramesData.meta },
@@ -167,29 +172,31 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
     }
   }
 
-  const lineAdjustedThreshold = asrOcrFixCfg?.lineAdjustedThreshold ?? 0.5;
+  const boxAdjustedThreshold = asrOcrFixArg?.boxAdjustedThreshold ?? 0.5;
 
-  // Compute per-line Y statistics from raw frames
+  // === 阶段 2: 逐行 Y 统计 + 离群标注 + 过滤 ===
+  // 从（含重采样帧的）rawFrames 算整体 Y 统计（典型行位置/高度，含 avg/mode/median/各种 height）
   const yStats = computeBoxYStats(rawFrames);
 
-  // 1. ocr_frames_line_adjust.json: annotate each line with outlier info
-  const annotatedFrames = build_ocr_frames_line_adjust(rawFrames, yStats, {
-    lineAdjustedThreshold,
+  // 2.1 ocr_frames_line_adjust.json: 给每个 box 标注离群信息（is_outlier / adjustedConfidence / 上下偏移比）
+  //     基于整帧的 yStats 判断某行是否偏离典型字幕行位置/高度
+  const annotatedFrames = build_ocr_frames_box_adjust(rawFrames, yStats, {
+    boxAdjustedThreshold,
   });
 
   writeJson(
     join(asrOcrFixDir, "ocr_frames_line_adjust.json"),
     {
-      _engine: "asr_ocr_fix",
       _line_stats: yStats,
       _frame_count: rawFrames.length,
-      _config: { lineAdjustedThreshold },
+      _config: { boxAdjustedThreshold },
       frames: annotatedFrames,
     },
     ctx,
   );
 
-  // 2. Filter noise lines at frame level, then merge into segments
+  // 2.2 ocr_frames_line_filtered.json: 过滤被标 is_outlier 的 box（box 级），整帧清空则丢帧（帧级）；
+  //     部分 box 离群则按剩余干净 box 重建该帧
   const cleanFrames: FrameResult[] = get_ocr_frames_line_filtered(annotatedFrames);
   const cleanYStats = computeBoxYStats(cleanFrames);
 
@@ -204,6 +211,7 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
     ctx,
   );
 
+  // === 阶段 3: 合并 OCR 逐帧为字幕段 ===
   const { segments: ocrSegs, text: ocrText } = mergeFrames(cleanFrames, {
     mergeSubstring: args?.mergeSubstring,
   });
@@ -211,13 +219,14 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
   if (!asrSegs.length) throw new Error("No ASR segments found");
   if (!ocrSegs.length) throw new Error("No OCR segments found (empty asr_ocr.json)");
 
+  // === 阶段 4: OCR 段时间边界调整（对齐到帧 Y 统计 + 孤立惩罚）===
   const { height: videoHeight } = probeVideoResolution(video_source_path(ctx));
-  const isoThresholdMs = asrOcrFixCfg?.isoThresholdMs ?? 1500;
-  const adjustYWeight = asrOcrFixCfg?.adjustYWeight ?? 0.8;
-  const adjustIsoWeight = asrOcrFixCfg?.adjustIsoWeight ?? 0.2;
-  const adjustYFactor = asrOcrFixCfg?.adjustYFactor ?? 0.08;
+  const isoThresholdMs = asrOcrFixArg?.isoThresholdMs ?? 1500;
+  const adjustYWeight = asrOcrFixArg?.adjustYWeight ?? 0.8;
+  const adjustIsoWeight = asrOcrFixArg?.adjustIsoWeight ?? 0.2;
+  const adjustYFactor = asrOcrFixArg?.adjustYFactor ?? 0.08;
   const adjustedSegs = computeSegmentAdjustments(ocrSegs, cleanFrames, cleanYStats, videoHeight, {
-    ...asrOcrFixCfg,
+    ...asrOcrFixArg,
   });
 
   writeJson(
@@ -239,6 +248,7 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
     ctx,
   );
 
+  // === 阶段 5: 按 textScore 过滤低置信段 ===
   // ocr_filtered.json：以 adjustedSegs 为输入，按 adjustedConfidence 过滤（Y 偏移 + 孤立惩罚）
   const { segments: ocrSegsMerged, dropped } = toOcrFiltered(adjustedSegs, textScore);
 
@@ -258,6 +268,7 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
     ctx,
   );
 
+  // === 阶段 6: 时间边界对齐到 ASR ===
   // asr_ocr_merged.json：复用 ocr_filtered.json 的 segments，时间边界对齐到 ASR
   // 对每个 OCR segment，找到时间上最重叠的 ASR segment，用 ASR 的 start/end 作为新边界
   const asrOcrSegs: Segment[] = ocrSegsMerged.map((seg) => {
@@ -307,6 +318,7 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
     ctx,
   );
 
+  // === 阶段 7: 融合重叠段 + 最终去重 ===
   // Write asr_ocr_fused.json — fixOverlap fused result
   const maxAdvanceMs = ctx.input?.stages?.merge_audio?.maxAdvanceMs ?? 500;
   const fix = fixOverlap(asrOcrSegs, cleanFrames, ocrSegsMerged, maxAdvanceMs).filter(
@@ -352,7 +364,8 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
     ctx,
   );
 
-  // asr_ocr_fused_llm_fix.json
+  // === 阶段 8 (可选): LLM 文本纠错 ===
+  // asr_ocr_fused_llm_fix.json：仅当 args.llmFix 开启时运行
   const ocrLlmFix = async (segments: Segment[], args: LlmArgs) => {
     const sourceLangLabel = t(ctx.input.task.sourceLang ?? "zh");
     const llmModel = args.llmModel;
