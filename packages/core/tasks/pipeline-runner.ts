@@ -22,6 +22,7 @@ import {
 import {
   emitLog,
   setLogContext,
+  setCurrentStage,
   getStageStatuses,
   nowISO,
   // updateStageDB,
@@ -71,6 +72,7 @@ export async function runPipeline(ctx: TaskCtx) {
       last_message: `Starting ${stage}...`,
     });
     setTask(taskDir, { status: "running", current_stage: stage, started_at: nowISO() });
+    setCurrentStage(stage);
     try {
       await handler(taskDir);
       if (targetStage && stage === targetStage) {
@@ -215,6 +217,7 @@ export async function resumePipeline(ctx: TaskCtx) {
       last_message: `Starting ${stage}...`,
     });
     setTask(taskDir, { status: "running", current_stage: stage, started_at: nowISO() });
+    setCurrentStage(stage);
     try {
       await handler(taskDir);
       if (resumeTargetStage && stage === resumeTargetStage) {
@@ -273,6 +276,7 @@ export async function rerunSingleStage(ctx: TaskCtx) {
     last_message: `Rerunning ${stage}...`,
   });
   setTask(taskDir, { status: "running", current_stage: stage, started_at: nowISO() });
+  setCurrentStage(stage);
   try {
     await handler(taskDir);
   } catch (err: any) {

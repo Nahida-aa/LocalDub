@@ -15,7 +15,7 @@ import {
 } from "@repo/core/context/context.ts";
 import { SubtitleSource, TargetLang } from "@repo/core/cmd/tasks/input";
 import { getLastSegment, readJson } from "../../utils/fileOps";
-import { setLogContext, getLogContext } from "@repo/util/log";
+import { setLogContext, setCurrentStage, getLogContext } from "@repo/util/log";
 import { TranslateFile } from "../05_translate/type";
 import { SplitAudioFile, SplitAudioTimingFile } from "../06_split_audio/types";
 import { TaskStage } from "../../context/types";
@@ -297,17 +297,20 @@ export function emitLog(taskDir: string | undefined, line: string) {
   // 优先使用调用方显式传入的 taskDir；若未传（新零参数用法），则从 ALS 日志上下文获取。
   // ALS 由 pipeline-runner 在任务启动时 setLogContext 注入，覆盖整个 stage 串行执行链。
   const dir = taskDir ?? getLogContext()?.taskDir;
-  console.log(line);
+  // 当前阶段（如已通过 setCurrentStage 设置）作为日志前缀，便于按阶段检索。
+  const stage = getLogContext()?.currentStage;
+  const prefix = stage ? `[${stage}] ` : "";
+  console.log(prefix + line);
   if (!dir) return;
   const tid = getLastSegment(dir);
   if (!tid) return;
   const ts = nowISO();
   const logPath = join(dir, `${tid}.log`);
-  appendFileSync(logPath, `[${ts}] ${line}\n`);
+  appendFileSync(logPath, `[${ts}] ${prefix}${line}\n`);
 }
 
 /** 任务启动时调用一次：注入日志上下文（后续 emitLog 可免传 taskDir）。 */
-export { setLogContext };
+export { setLogContext, setCurrentStage };
 
 export function ffmpeg(args: string[], timeout = 120_000) {
   const r = spawnSync(env.FFMPEG_PATH, ["-y", ...args], {
