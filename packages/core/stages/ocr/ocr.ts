@@ -1,8 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { newOcrEngine, type OCRRuntime } from "../../ml/subtitle_ocr/ocr.ts";
-import { ensureDir, writeJson } from "@repo/core/utils/fileOps";
+import { newOcrEngine } from "../../ml/subtitle_ocr/ocr.ts";
+import { ensureDir, writeJson } from "@repo/util/file_op";
 import {
   emitLog,
   ffmpeg,
@@ -11,12 +11,14 @@ import {
   video_source_path,
 } from "@repo/core/stages/utils/utils.ts";
 
-import { mergeFrames } from "@repo/core/stages/ocr/ocrMerge";
-import { aggregate_boxes, computeBoxYStats, computeSegmentAdjustments } from "./utils.ts";
+import { mergeFrames } from "@repo/subtitle-ocr/ocr_fix/merge_frames";
+import { computeSegmentAdjustments } from "./utils.ts";
 import { TaskCtx, setStage } from "@repo/core/context/context.ts";
 import { srtTime } from "@repo/core/utils/utils";
 import { probeVideoDuration } from "../../utils/ffmpeg.ts";
-import { FrameResult } from "@repo/subtitle-ocr/types";
+import { FrameResult, OCRRuntime } from "@repo/subtitle-ocr/types";
+import { aggregate_boxes } from "@repo/subtitle-ocr/ocr_util";
+import { computeBoxYStats } from "@repo/subtitle-ocr/ocr_fix/stats";
 
 export async function stageOcr(ctx: TaskCtx) {
   const taskId = ctx.task.id;
@@ -47,7 +49,7 @@ export async function stageOcr(ctx: TaskCtx) {
 
   // 1. Extract frames
   const frameDir = join(taskDir, "ocr", "frames");
-  ensureDir(frameDir, ctx);
+  ensureDir(frameDir);
   emitLog(taskDir, `[OCR] Extracting frames at ${fps}fps...`);
 
   const frProbe = spawnSync(
@@ -101,12 +103,8 @@ export async function stageOcr(ctx: TaskCtx) {
   const frameResults: FrameResult[] = [];
   for (let i = 0; i < frameFiles.length; i++) {
     const timestampMs = Math.round(((i * step) / srcFps) * 1000);
-    try {
-      const lines = linesArr[i];
-      frameResults.push({ ...aggregate_boxes(lines), timestamp: timestampMs });
-    } catch {
-      frameResults.push({ text: "", timestamp: timestampMs, confidence: 0, boxes: [] });
-    }
+    const lines = linesArr[i];
+    frameResults.push({ ...aggregate_boxes(lines), timestamp: timestampMs });
 
     if ((i + 1) % 50 === 0 || i === frameFiles.length - 1) {
       emitLog(taskDir, `[OCR] ${i + 1}/${frameFiles.length} frames`);
@@ -115,14 +113,17 @@ export async function stageOcr(ctx: TaskCtx) {
   await engine.release();
 
   // 3. Merge into segments
-  const { segments, text } = mergeFrames(frameResults, { mergeSubstring: ocrCfg?.mergeSubstring });
+  const { segments, text } = mergeFrames(frameResults, {
+    mergeSubstring: ocrCfg?.mergeSubstring,
+    dedup_edit_distance: ocrCfg?.dedup_edit_distance,
+  });
   emitLog(taskDir, `[OCR] ${frameFiles.length} frames → ${segments.length} segments`);
 
   const { height: videoHeight } = probeVideoResolution(videoPath);
 
   // 6. Write ocr.json (same format as asr_fix)
   const ocrDir = join(taskDir, "ocr");
-  ensureDir(ocrDir, ctx);
+  ensureDir(ocrDir);
   const yStats = computeBoxYStats(frameResults);
   const adjustedSegments = computeSegmentAdjustments(segments, frameResults, yStats, videoHeight, {
     adjustIsoWeight: ocrCfg?.adjustIsoWeight,
@@ -132,32 +133,26 @@ export async function stageOcr(ctx: TaskCtx) {
   });
   const segmentsOut = adjustedSegments.map((s) => ({
     text: s.text,
-    start: s.start,
-    end: s.end,
-    start_fmt: srtTime(s.start),
-    end_fmt: srtTime(s.end),
-    confidence: s.confidence,
-    ...(s.box_y ? { box_y: s.box_y } : {}),
+    start: s.start_ms,
+    end: s.end_ms,
+    confidence: s.text_confidence,
+    ...(s.y_range ? { y_range: s.y_range } : {}),
     ...(s.frameCount !== undefined ? { frameCount: s.frameCount } : {}),
     ...(s.adjustedConfidence !== undefined ? { adjustedConfidence: s.adjustedConfidence } : {}),
     ...(s.yPenalty !== undefined ? { yPenalty: s.yPenalty } : {}),
     ...(s.isoPenalty !== undefined ? { isoPenalty: s.isoPenalty } : {}),
   }));
-  writeJson(
-    join(ocrDir, "ocr.json"),
-    {
-      audio_info: { duration: probeVideoDuration(videoPath) },
-      result: { text, segments: segmentsOut },
-      _engine: runtime,
-      _device: device,
-      _fps: fps,
-      _textScore: textScore,
-      _y_stats: yStats,
-      _source: "ocr",
-      _frames_raw: frameResults,
-    },
-    ctx,
-  );
+  writeJson(join(ocrDir, "ocr.json"), {
+    audio_info: { duration: probeVideoDuration(videoPath) },
+    result: { text, segments: segmentsOut },
+    _engine: runtime,
+    _device: device,
+    _fps: fps,
+    _textScore: textScore,
+    _y_stats: yStats,
+    _source: "ocr",
+    _frames_raw: frameResults,
+  });
 
   emitLog(taskDir, `[OCR] Written ${segments.length} segs to ocr.json`);
 

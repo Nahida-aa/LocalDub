@@ -1,13 +1,14 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { ensureDir, writeJson, readJson } from "@repo/core/utils/fileOps";
+import { readJson } from "@repo/core/utils/fileOps";
+import { writeJson, ensureDir } from "@repo/util/file_op";
 import { emitLog, nowISO, video_source_path } from "@repo/core/stages/utils/utils.ts";
-import type { Segment } from "@repo/core/ml/subtitle_ocr/types";
 import { TaskCtx, setStage, setTask } from "@repo/core/context/context.ts";
 import { srtTime } from "@repo/core/utils/utils";
 import { extract_frame, extract_frames } from "@repo/subtitle-ocr/ffmpeg_util";
 import { to } from "@repo/shared/lib/utils/try";
+import { SubtitlingSegment } from "@repo/subtitling/types";
 
 // Split long ASR segments by punctuation using word-level timestamps
 const SPLIT_PAT = /[，,。！？.!?]/;
@@ -40,11 +41,11 @@ function splitAsrByWords(
     end: number;
     words?: { word: string; start: number; end: number; probability: number }[];
   }[],
-): Segment[] {
+): SubtitlingSegment[] {
   return segs.flatMap((seg) => {
     const ws = seg.words;
     if (!ws || ws.length < 2) {
-      return [{ text: seg.text, start: seg.start, end: seg.end }];
+      return [{ text: seg.text, start_ms: seg.start, end_ms: seg.end }];
     }
     const spaceSplits = findSpaceSplits(seg.text, ws);
     const punctSplits = (() => {
@@ -59,7 +60,7 @@ function splitAsrByWords(
       .sort((a, b) => a - b)
       .filter((v, i, a) => a.indexOf(v) === i);
     if (splitIdx.length <= 1 && !hasSpaceSplit) {
-      return [{ text: seg.text, start: seg.start, end: seg.end }];
+      return [{ text: seg.text, start_ms: seg.start, end_ms: seg.end }];
     }
     // Filter split points: keep if remaining segment (after the split) >= MIN_SUB_DUR
     const useIdx: number[] = [];
@@ -72,9 +73,9 @@ function splitAsrByWords(
     }
     useIdx.push(splitIdx[splitIdx.length - 1]);
     if (useIdx.length <= 1 && !hasSpaceSplit) {
-      return [{ text: seg.text, start: seg.start, end: seg.end }];
+      return [{ text: seg.text, start_ms: seg.start, end_ms: seg.end }];
     }
-    const subSegs: Segment[] = [];
+    const subSegs: SubtitlingSegment[] = [];
     let prevIdx = 0;
     for (let i = 0; i < useIdx.length; i++) {
       const endIdx = useIdx[i];
@@ -83,8 +84,8 @@ function splitAsrByWords(
           .slice(prevIdx, endIdx + 1)
           .map((w) => w.word)
           .join(""),
-        start: ws[prevIdx].start,
-        end: ws[endIdx].end,
+        start_ms: ws[prevIdx].start,
+        end_ms: ws[endIdx].end,
       });
       prevIdx = endIdx + 1;
     }
@@ -94,8 +95,8 @@ function splitAsrByWords(
           .slice(prevIdx)
           .map((w) => w.word)
           .join(""),
-        start: ws[prevIdx].start,
-        end: totalEnd,
+        start_ms: ws[prevIdx].start,
+        end_ms: totalEnd,
       });
     }
     return subSegs;
@@ -142,28 +143,18 @@ export async function stageAsrOcrPre(ctx: TaskCtx) {
   const asrSegs = splitAsrByWords(asrSegsRaw);
 
   const preDir = join(taskDir, "asr_ocr_pre");
-  ensureDir(preDir, ctx);
+  ensureDir(preDir);
 
   // Write asr_split.json
-  writeJson(
-    join(preDir, "asr_split.json"),
-    {
-      _source: "asr_split",
-      _original_segments: asrSegsRaw.length,
-      _split_segments: asrSegs.length,
-      result: {
-        text: asrSegs.map((s) => s.text).join(" "),
-        segments: asrSegs.map((s) => ({
-          text: s.text,
-          start: s.start,
-          end: s.end,
-          start_fmt: srtTime(s.start),
-          end_fmt: srtTime(s.end),
-        })),
-      },
+  writeJson(join(preDir, "asr_split.json"), {
+    _source: "asr_split",
+    _original_segments: asrSegsRaw.length,
+    _split_segments: asrSegs.length,
+    result: {
+      text: asrSegs.map((s) => s.text).join(" "),
+      segments: asrSegs,
     },
-    ctx,
-  );
+  });
 
   emitLog(taskDir, `[asr_ocr_pre] ${asrSegsRaw.length} ASR segs → ${asrSegs.length} split segs`);
 
@@ -177,8 +168,8 @@ export async function stageAsrOcrPre(ctx: TaskCtx) {
   for (let i = 0; i < asrSegs.length; i++) {
     const seg = asrSegs[i];
     if (i === 0) {
-      let fwd = Math.round(seg.start);
-      let bwd = Math.round(seg.end);
+      let fwd = Math.round(seg.start_ms);
+      let bwd = Math.round(seg.end_ms);
       while (fwd <= bwd) {
         allTimestamps.add(fwd);
         if (fwd !== bwd) allTimestamps.add(bwd);
@@ -186,7 +177,7 @@ export async function stageAsrOcrPre(ctx: TaskCtx) {
         bwd -= 100;
       }
     } else {
-      for (let t = Math.round(seg.end); t >= seg.start; t -= 500) {
+      for (let t = Math.round(seg.end_ms); t >= seg.start_ms; t -= 500) {
         allTimestamps.add(Math.round(t));
       }
     }
@@ -200,9 +191,9 @@ export async function stageAsrOcrPre(ctx: TaskCtx) {
 
   // Step 3: Extract frames
   const frameDir = join(taskDir, "asr_ocr_pre", "frames");
-  ensureDir(frameDir, ctx);
+  ensureDir(frameDir);
 
-  const extractCount = extract_frames(sortedTs, videoPath, frameDir, taskDir);
+  const extractCount = extract_frames(sortedTs, videoPath, frameDir);
 
   if (!extractCount) {
     throw new Error("No frames extracted");

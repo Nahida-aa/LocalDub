@@ -9,7 +9,7 @@ import {
   ocrCppBinPath,
   checkOcrCppBin,
   ensureOcrCppBin,
-} from "../../../cmd/env/items/ocr_cpp_bin";
+} from "@repo/env/items/ocr_cpp_bin";
 
 const BUILD_DIR = resolve(REPO_ROOT, "packages", "subtitle-ocr", "ort-cpp", "build");
 const OCR_KEYS_PATH = resolve(REPO_ROOT, "packages", "subtitle-ocr", "ppocr_keys.json");

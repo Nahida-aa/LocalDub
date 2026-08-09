@@ -1,0 +1,12 @@
+{
+  "name": "@repo/llm",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./*.ts",
+    "./*.ts": "./*.ts"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  }
+}

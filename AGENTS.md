@@ -15,12 +15,11 @@ Before editing files for a substantial task:
 # LocalDub
 
 - 需要有批判性思维(可以质疑)
-- 调试日志使用 tracing, 调试之后可以不用清除日志
 - 修改代码后, 如果认为适合提交, 就自行提交
-- 测试/实验/探索一律不用 `/tmp`，写到 `packages/tmp/`。
-- 类型检查: `bun typecheck`, `cargo check`
-- 可以使用 `gh` 来操作 github
-- git push 默认由人类进行操作
+- 测试/实验/探索一律不用 `/tmp`，写到 `tmp/` 或 `packages/tmp/`
+- 类型检查: `bun tsc`, `cargo check`
+- 可以使用 `gh` 来操作 github, git push 默认由人类进行操作
+- 调试日志使用 tracing, 调试之后可以不用清除日志
 
 ## Key directories
 

@@ -1,15 +1,15 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { newOcrEngine, type OCRRuntime } from "../../ml/subtitle_ocr/ocr.ts";
-import { ensureDir, writeJson, readJson } from "@repo/core/utils/fileOps";
+import { newOcrEngine } from "../../ml/subtitle_ocr/ocr.ts";
+import { ensureDir, writeJson } from "@repo/util/file_op";
 import { emitLog, nowISO, video_source_path } from "@repo/core/stages/utils/utils.ts";
-import { aggregate_boxes, computeBoxYStats } from "../ocr/utils.ts";
+import { computeBoxYStats } from "@repo/subtitle-ocr/ocr_fix/stats";
 import { TaskCtx, setStage } from "@repo/core/context/context.ts";
 import { startLog } from "../utils/log.ts";
-import { Segment, SegmentWithAdjusted } from "@repo/core/ml/subtitle_ocr/types";
 import { probeVideoDuration } from "../../utils/ffmpeg.ts";
 import { FrameResult, OcrFramesResult } from "@repo/subtitle-ocr/types";
+import { aggregate_boxes } from "@repo/subtitle-ocr/ocr_util";
 
 export async function stageAsrOcr(ctx: TaskCtx) {
   const taskDir = ctx.task.task_dir;
@@ -54,7 +54,7 @@ export async function stageAsrOcr(ctx: TaskCtx) {
   await engine.release();
 
   const asrOcrDir = resolve(taskDir, "asr_ocr");
-  ensureDir(asrOcrDir, ctx);
+  ensureDir(asrOcrDir);
 
   // Write ocr_frames.json — raw frame data for debugging/reproducibility
   const ocrFramesFile: OcrFramesResult = {
@@ -64,7 +64,7 @@ export async function stageAsrOcr(ctx: TaskCtx) {
       device: device,
     },
   };
-  writeJson(join(asrOcrDir, "ocr_frames.json"), ocrFramesFile, ctx);
+  writeJson(join(asrOcrDir, "ocr_frames.json"), ocrFramesFile);
 
   // Cleanup frames (optional)
   if (cleanupFrames) {

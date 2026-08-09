@@ -9,10 +9,10 @@ import {
 import { openModal, closeModal } from "@repo/ui-solid/custom/modal/renderer";
 import type { Track, TrackSegment } from "../consts";
 import { client } from "#/integrations/fnrpc/client.ts";
-import type { AsrOcrBaseSegment, AsrOcrFile } from "@repo/core/ml/subtitle_ocr/types";
 import { useMutation, useQuery } from "@tanstack/solid-query";
 import { useViewingTab } from "../../TaskControlPanel/taskControlPanelStore";
 import { STAGE_TRACKS } from "./const";
+import { AsrOcrBaseSegment, AsrOcrFile } from "@repo/subtitle-ocr/types";
 
 interface Props {
   track: Track;

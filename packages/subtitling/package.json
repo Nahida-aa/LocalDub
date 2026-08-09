@@ -1,0 +1,9 @@
+{
+  "name": "@repo/subtitling",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./*.ts",
+    "./*.ts": "./*.ts"
+  }
+}

@@ -1,11 +1,4 @@
-export interface FrameResult {
-  text: string;
-  timestamp: number;
-  confidence: number;
-  x_range?: [number, number];
-  y_range?: [number, number];
-  boxes: OcrBoxResult[];
-}
+import { SubtitlingSegment } from "@repo/subtitling/types";
 
 export interface OcrBoxResult {
   text: string;
@@ -15,6 +8,16 @@ export interface OcrBoxResult {
   y_range: [number, number];
   center: [number, number];
 }
+export interface FrameResult {
+  text: string;
+  timestamp: number;
+  text_confidence: number;
+  x_range: [number, number];
+  y_range: [number, number];
+  boxes: OcrBoxResult[];
+}
+
+export type OCRRuntime = "ort-rust" | "ort-cpp" | "ort-node" | "ort-py";
 
 export type OcrDevice = "cpu" | "cuda" | "directml" | "coreml" | "rocm" | "mps";
 
@@ -28,4 +31,36 @@ export interface OcrFramesMeta {
 export interface OcrFramesResult {
   frames: FrameResult[];
   meta: OcrFramesMeta;
+}
+
+export type SegmentFrame = {
+  text: string;
+  timestamp: number;
+  text_confidence: number;
+};
+export interface OcrSegment extends SubtitlingSegment {
+  y_range?: [number, number];
+  text_confidence?: number;
+  frameCount?: number;
+  frames?: SegmentFrame[];
+}
+
+export interface OcrSegmentWithAdjusted extends OcrSegment {
+  adjustedConfidence?: number;
+  yPenalty?: number;
+  isoPenalty?: number;
+}
+
+export interface AsrOcrBaseSegment {
+  text: string;
+  start: number;
+  end: number;
+  box_y: [number, number];
+  confidence: number;
+}
+
+export interface AsrOcrFile {
+  result: {
+    segments: AsrOcrBaseSegment[];
+  };
 }

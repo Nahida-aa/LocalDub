@@ -1,2 +1,5 @@
 run:
     bun run-task.ts
+
+gen-input-schema:
+    bun run scripts/gen-input-schema.ts

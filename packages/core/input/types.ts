@@ -2,10 +2,17 @@ import { TtsStageInputSchema } from "@repo/core/input/tts";
 import { ServersArgsSchema } from "@repo/core/servers/input";
 import { EnvArgsSchema } from "@repo/core/cmd/env/input";
 import { z } from "zod";
-import { BoxAdjustedArgsSchema, MergeFramesArgsSchema } from "@repo/core/ml/subtitle_ocr/input";
-import { LlmFixArgsSchema } from "@repo/core/ml/llm/input";
+
+import { LlmFixArgsSchema } from "@repo/llm/llm_fix_args";
 import { langList, taskArgsSchema } from "@repo/core/cmd/tasks/input";
 import { CookieArgsSchema } from "@repo/core/cmd/cookie/input";
+import {
+  ocrAfterAdjustArgsSchema,
+  MergeFramesArgsSchema,
+  BoxAdjustedArgsSchema,
+  AsrOcrFixArgsSchema,
+  OcrFixArgsSchema,
+} from "@repo/subtitle-ocr/args";
 
 const deviceList = ["cpu", "cuda", "mps", "webgpu"] as const;
 export type Device = (typeof deviceList)[number];
@@ -148,7 +155,7 @@ const ASRCliInputSchema = z
 
 export type ASRConfig = z.output<typeof ASRCliInputSchema>;
 
-const ocrRuntimeList = ["ort-cpp", "ort-node", "ort-py"] as const;
+const ocrRuntimeList = ["ort-rust", "ort-cpp", "ort-node", "ort-py"] as const;
 const ocrRuntimeSchema = z
   .enum(ocrRuntimeList)
   .default("ort-cpp")
@@ -156,34 +163,7 @@ const ocrRuntimeSchema = z
     "OCR 推理运行时: ort-cpp (C++ + OpenCV 预处理), ort-node (onnxruntime-node), ort-py (Python rapidocr)",
   )
   .optional();
-export const ocrAfterAdjustArgsSchema = z.object({
-  isoThresholdMs: z
-    .number()
-    .default(1500)
-    .describe("单帧孤立惩罚的参考时间 (ms)，在此时长内无同文帧则视为完全孤立; 默认 1500")
-    .optional(),
-  adjustYWeight: z
-    .number()
-    .default(0.8)
-    .describe("Y 偏移在调整置信度中的权重 (0~1); 默认 0.8")
-    .optional(),
-  adjustIsoWeight: z
-    .number()
-    .default(0.2)
-    .describe("孤立程度在调整置信度中的权重 (0~1); 默认 0.2")
-    .optional(),
-  adjustYFactor: z
-    .number()
-    .default(0.08)
-    .describe("Y 偏移惩罚归一化系数: 偏移量 / (videoHeight × adjustYFactor); 越小越严格; 默认 0.08")
-    .optional(),
-  lineAdjustedThreshold: z
-    .number()
-    .default(0.5)
-    .describe("行级 outlier 判定: adjustedConfidence < 此值则标记为 outlier; 默认 0.5")
-    .optional(),
-});
-export type OcrAfterAdjustArgs = z.output<typeof ocrAfterAdjustArgsSchema>;
+
 const OcrCliInputSchema = z
   .looseObject({
     runtime: ocrRuntimeSchema,
@@ -213,19 +193,7 @@ const OcrCliInputSchema = z
     ...ocrAfterAdjustArgsSchema.shape,
     ...MergeFramesArgsSchema.shape,
   })
-  .default({
-    runtime: "ort-cpp",
-    device: "cpu",
-    fps: 2,
-    text_score_threshold: 0.45,
-    subtitleOnly: true,
-    cleanupFrames: false,
-    isoThresholdMs: 1500,
-    adjustYWeight: 0.8,
-    adjustIsoWeight: 0.2,
-    adjustYFactor: 0.08,
-  })
-  .optional();
+  .default({} as any);
 export type OcrConfig = z.output<typeof OcrCliInputSchema>;
 
 const AsrOcrCliInputSchema = z
@@ -366,32 +334,8 @@ const StagesSchema = z
 
     ocr: OcrCliInputSchema,
     asr_ocr: AsrOcrCliInputSchema,
-    asr_ocr_fix: z
-      .looseObject({
-        text_score_threshold: z
-          .number()
-          .default(0.5)
-          .optional()
-          .describe("OCR 文本置信度阈值（0-1），低于此阈值的帧在合并前会被丢弃"),
-        ...ocrAfterAdjustArgsSchema.shape,
-        ...BoxAdjustedArgsSchema.shape,
-        ...MergeFramesArgsSchema.shape,
-        ...LlmFixArgsSchema.shape,
-      })
-      .default({
-        llmFix: false,
-        text_score_threshold: 0.5,
-        isoThresholdMs: 1500,
-        adjustYWeight: 0.8,
-        adjustIsoWeight: 0.2,
-        adjustYFactor: 0.08,
-      } as any)
-      .optional(),
-    ocr_fix: z
-      .looseObject({
-        ...LlmFixArgsSchema.shape,
-      })
-      .default({} as any),
+    asr_ocr_fix: AsrOcrFixArgsSchema.default({} as any),
+    ocr_fix: OcrFixArgsSchema.default({} as any),
     translate: TranslateCliInputSchema,
     split_audio: SplitAudioCliInputSchema,
     tts: TtsStageInputSchema,

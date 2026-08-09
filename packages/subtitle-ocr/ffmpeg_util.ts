@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import { to } from "@repo/shared/lib/utils/try";
-import { write_log } from "@repo/util/log";
+import { log, write_log } from "@repo/util/log";
 
 export const extract_frame = (ms: number, videoPath: string, framePath: string) => {
   const r = spawnSync(
@@ -29,12 +29,7 @@ export const extract_frame = (ms: number, videoPath: string, framePath: string) 
   return r;
 };
 
-export const extract_frames = (
-  sorted_ms: number[],
-  videoPath: string,
-  frameDir: string,
-  taskDir: string,
-) => {
+export const extract_frames = (sorted_ms: number[], videoPath: string, frameDir: string) => {
   let extractCount = 0;
   for (const [i, ms] of sorted_ms.entries()) {
     const framePath = join(frameDir, `${ms.toString().padStart(7, "0")}.jpg`);
@@ -43,9 +38,9 @@ export const extract_frames = (
     extractCount++;
 
     if ((i + 1) % 50 === 0 || i === sorted_ms.length - 1) {
-      write_log(taskDir, `Extracted ${i + 1}/${sorted_ms.length} frames`);
+      log(`Extracted ${i + 1}/${sorted_ms.length} frames`);
     }
   }
-  write_log(taskDir, `Extracted ${extractCount}/${sorted_ms.length}  frames`);
+  log(`Extracted ${extractCount}/${sorted_ms.length}  frames`);
   return extractCount;
 };

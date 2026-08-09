@@ -1,46 +1,10 @@
-import { existsSync } from "node:fs";
+import { OCRRuntime, OcrBoxResult, OcrDevice } from "./types";
 import { resolve, join } from "node:path";
-import { ocrFrameOpenCvCpp, ocrFramesOpenCvCpp } from "@repo/subtitle-ocr/runtimes/ort-cpp";
-import {
-  ocrFrameWithSessions,
-  createSessions,
-  releaseSessions,
-  type OCRSessions,
-} from "@repo/subtitle-ocr/subtitle-node";
-import { REPO_ROOT } from "@repo/config/root";
-import { OcrBoxResult, OCRRuntime } from "@repo/subtitle-ocr/types";
-export type { OCRSessions } from "@repo/subtitle-ocr/subtitle-node";
-export type OCRDevice = "cpu" | "cuda" | "directml" | "coreml" | "rocm" | "mps";
-
-const BUILD_DIR = resolve(REPO_ROOT, "packages", "subtitle-ocr", "ort-cpp", "build");
-
-export function ocrBinaryPath(): string {
-  const name = "subtitle_ocr_ort_cpp" + (process.platform === "win32" ? ".exe" : "");
-  const candidates = [resolve(BUILD_DIR, "Release", name), resolve(BUILD_DIR, name)];
-  return candidates.find((c) => existsSync(c)) || candidates[0];
-}
-
-export function ocrOrtDir(): string {
-  if (process.platform === "win32") {
-    return resolve(
-      REPO_ROOT,
-      "packages",
-      "tmp",
-      "onnxruntime-win-x64-1.26.0",
-      "onnxruntime-win-x64-1.26.0",
-    );
-  }
-  return "/tmp/onnxruntime-linux-x64-1.24.4";
-}
-
+import { ocrFrameOpenCvCpp, ocrFramesOpenCvCpp } from "./runtimes/ort-cpp";
 /**
  * OCR engine that manages sessions for ort-node and dispatches per-frame calls.
  */
-export const newOcrEngine = async (runtime: OCRRuntime = "ort-cpp", device: OCRDevice = "cpu") => {
-  let nodeSessions: OCRSessions | undefined;
-  if (runtime === "ort-node") {
-    nodeSessions = await createSessions(device);
-  }
+export const newOcrEngine = async (runtime: OCRRuntime = "ort-cpp", device: OcrDevice = "cpu") => {
   return {
     async ocrFrame(
       framePath: string,
@@ -75,12 +39,7 @@ export const newOcrEngine = async (runtime: OCRRuntime = "ort-cpp", device: OCRD
       return results;
     },
 
-    async release(): Promise<void> {
-      if (runtime === "ort-node" && nodeSessions) {
-        await releaseSessions(nodeSessions);
-        nodeSessions = undefined;
-      }
-    },
+    async release(): Promise<void> {},
   };
 };
 
@@ -91,7 +50,7 @@ export const newOcrEngine = async (runtime: OCRRuntime = "ort-cpp", device: OCRD
 export async function ocrFrame(
   framePath: string,
   runtime: OCRRuntime = "ort-cpp",
-  opts?: { textScore?: number; subtitleOnly?: boolean; device?: OCRDevice },
+  opts?: { textScore?: number; subtitleOnly?: boolean; device?: OcrDevice },
 ): Promise<OcrBoxResult[]> {
   const engine = await newOcrEngine(runtime, opts?.device ?? "cpu");
   try {

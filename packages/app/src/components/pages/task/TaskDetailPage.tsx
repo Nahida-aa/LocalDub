@@ -24,7 +24,6 @@ import {
   SplitAudioTiming,
   SplitAudioTimingFile,
 } from "@repo/core/stages/06_split_audio/types";
-import { AsrOcrFile } from "@repo/core/ml/subtitle_ocr/types";
 import type { TtsFile } from "@repo/core/stages/07_tts/types";
 import { TimingsFile } from "@repo/core/stages/merge_audio/types";
 import {
@@ -35,6 +34,7 @@ import {
 import { STAGE_TRACKS } from "./Timeline/tracks/const";
 import { useTaskTreeEvents, useFileExists } from "./useTaskTreeEvents";
 import { bumpMediaVersion } from "#/components/app/FileContent/store/ContentPanel";
+import { AsrOcrFile } from "@repo/subtitle-ocr/types";
 
 interface Props {
   groupId: string;

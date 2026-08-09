@@ -10,8 +10,11 @@
   },
   "dependencies": {
     "@repo/config": "workspace:*",
+    "@repo/env": "workspace:*",
+    "@repo/llm": "workspace:*",
     "@repo/shared": "workspace:*",
     "@repo/subtitle-ocr": "workspace:*",
+    "@repo/subtitling": "workspace:*",
     "@repo/util": "workspace:*",
     "@repo/voxlab": "workspace:*",
     "@tanstack/pacer": "^0.21.1",

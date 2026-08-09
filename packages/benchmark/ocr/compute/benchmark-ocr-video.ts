@@ -7,7 +7,7 @@ import {
   ocrFrameWithSessions,
   releaseSessions,
 } from "../../../subtitle-ocr/subtitle-node.ts";
-import { mergeFrames } from "@repo/core/stages/ocr/ocrMerge";
+import { mergeFrames } from "@repo/subtitle-ocr/ocr_fix/merge_frames";
 import { REPO_ROOT } from "@repo/config/root";
 import { findRapidOcrModelsDir } from "@repo/subtitle-ocr/utils";
 import { FrameResult } from "@repo/subtitle-ocr/types";

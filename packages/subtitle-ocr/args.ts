@@ -1,0 +1,67 @@
+import { z } from "zod";
+import { LlmFixArgsSchema } from "@repo/llm/llm_fix_args";
+
+export const ocrAfterAdjustArgsSchema = z.object({
+  isoThresholdMs: z
+    .number()
+    .default(1500)
+    .describe("单帧孤立惩罚的参考时间 (ms)，在此时长内无同文帧则视为完全孤立; 默认 1500")
+    .optional(),
+  adjustYWeight: z
+    .number()
+    .default(0.8)
+    .describe("Y 偏移在调整置信度中的权重 (0~1); 默认 0.8")
+    .optional(),
+  adjustIsoWeight: z
+    .number()
+    .default(0.2)
+    .describe("孤立程度在调整置信度中的权重 (0~1); 默认 0.2")
+    .optional(),
+  adjustYFactor: z
+    .number()
+    .default(0.08)
+    .describe("Y 偏移惩罚归一化系数: 偏移量 / (videoHeight × adjustYFactor); 越小越严格; 默认 0.08")
+    .optional(),
+  lineAdjustedThreshold: z
+    .number()
+    .default(0.5)
+    .describe("行级 outlier 判定: adjustedConfidence < 此值则标记为 outlier; 默认 0.5")
+    .optional(),
+});
+export type OcrAfterAdjustArgs = z.output<typeof ocrAfterAdjustArgsSchema>;
+
+export const MergeFramesArgsSchema = z.object({
+  mergeSubstring: z.boolean().default(false),
+  dedup_edit_distance: z
+    .number()
+    .default(1)
+    .describe("dedupOverlap 的编辑距离阈值: edit_distance ≤ 此值则合并; 默认 1"),
+});
+export type MergeFramesArgs = z.output<typeof MergeFramesArgsSchema>;
+
+export const BoxAdjustedArgsSchema = z.object({
+  boxAdjustedThreshold: z
+    .number()
+    .default(0.5)
+    .describe("box调整的置信度阈值: confidence < 此值则进行box调整; 默认 0.5"),
+});
+export type BoxAdjustedArgs = z.output<typeof BoxAdjustedArgsSchema>;
+
+export const OcrFixArgsSchema = z.looseObject({
+  ...LlmFixArgsSchema.shape,
+});
+
+export const AsrOcrFixArgsSchema = z.looseObject({
+  text_score_threshold: z
+    .number()
+    .default(0.5)
+    .optional()
+    .describe("OCR 文本置信度阈值（0-1），低于此阈值的帧在合并前会被丢弃"),
+  is_resample: z.boolean().default(false),
+  ...ocrAfterAdjustArgsSchema.shape,
+  ...BoxAdjustedArgsSchema.shape,
+  ...MergeFramesArgsSchema.shape,
+  ...LlmFixArgsSchema.shape,
+});
+
+export type AsrOcrFixArgs = z.output<typeof AsrOcrFixArgsSchema>;

@@ -29,6 +29,7 @@
         "@inlang/paraglide-js": "^2.20.2",
         "@repo/core": "workspace:*",
         "@repo/shared": "workspace:*",
+        "@repo/subtitle-ocr": "workspace:*",
         "@repo/ui-solid": "workspace:*",
         "@tailwindcss/vite": "^4.3.1",
         "@tanstack/devtools-vite": "^0.8.1",
@@ -107,8 +108,11 @@
       "name": "@repo/core",
       "dependencies": {
         "@repo/config": "workspace:*",
+        "@repo/env": "workspace:*",
+        "@repo/llm": "workspace:*",
         "@repo/shared": "workspace:*",
         "@repo/subtitle-ocr": "workspace:*",
+        "@repo/subtitling": "workspace:*",
         "@repo/util": "workspace:*",
         "@repo/voxlab": "workspace:*",
         "@tanstack/pacer": "^0.21.1",
@@ -132,6 +136,18 @@
         "@types/bun": "^1.3.14",
       },
     },
+    "packages/env": {
+      "name": "@repo/env",
+      "dependencies": {
+        "@repo/config": "workspace:*",
+      },
+    },
+    "packages/llm": {
+      "name": "@repo/llm",
+      "dependencies": {
+        "zod": "^4.4.3",
+      },
+    },
     "packages/shared": {
       "name": "@repo/shared",
       "dependencies": {
@@ -153,12 +169,19 @@
       "dependencies": {
         "@napi-rs/image": "^1.12.0",
         "@repo/config": "workspace:*",
+        "@repo/env": "workspace:*",
+        "@repo/llm": "workspace:*",
         "@repo/shared": "workspace:*",
+        "@repo/subtitling": "workspace:*",
         "@repo/util": "workspace:*",
         "onnxruntime-node": "^1.26.0",
         "opencv-wasm": "4.3.0-10",
         "pngjs": "^7.0.0",
+        "zod": "^4.4.3",
       },
+    },
+    "packages/subtitling": {
+      "name": "@repo/subtitling",
     },
     "packages/ui-solid": {
       "name": "@repo/ui-solid",
@@ -518,9 +541,15 @@
 
     "@repo/device": ["@repo/device@workspace:packages/device"],
 
+    "@repo/env": ["@repo/env@workspace:packages/env"],
+
+    "@repo/llm": ["@repo/llm@workspace:packages/llm"],
+
     "@repo/shared": ["@repo/shared@workspace:packages/shared"],
 
     "@repo/subtitle-ocr": ["@repo/subtitle-ocr@workspace:packages/subtitle-ocr"],
+
+    "@repo/subtitling": ["@repo/subtitling@workspace:packages/subtitling"],
 
     "@repo/ui-solid": ["@repo/ui-solid@workspace:packages/ui-solid"],
 

@@ -595,20 +595,17 @@
           "additionalProperties": {}
         },
         "asr_ocr_fix": {
-          "default": {
-            "llmFix": false,
-            "text_score_threshold": 0.5,
-            "isoThresholdMs": 1500,
-            "adjustYWeight": 0.8,
-            "adjustIsoWeight": 0.2,
-            "adjustYFactor": 0.08
-          },
+          "default": {},
           "type": "object",
           "properties": {
             "text_score_threshold": {
               "description": "OCR 文本置信度阈值（0-1），低于此阈值的帧在合并前会被丢弃",
               "default": 0.5,
               "type": "number"
+            },
+            "is_resample": {
+              "default": false,
+              "type": "boolean"
             },
             "isoThresholdMs": {
               "default": 1500,

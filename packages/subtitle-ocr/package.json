@@ -14,10 +14,14 @@
   "dependencies": {
     "@napi-rs/image": "^1.12.0",
     "@repo/config": "workspace:*",
+    "@repo/env": "workspace:*",
+    "@repo/llm": "workspace:*",
     "@repo/shared": "workspace:*",
+    "@repo/subtitling": "workspace:*",
     "@repo/util": "workspace:*",
     "onnxruntime-node": "^1.26.0",
     "opencv-wasm": "4.3.0-10",
-    "pngjs": "^7.0.0"
+    "pngjs": "^7.0.0",
+    "zod": "^4.4.3"
   }
 }

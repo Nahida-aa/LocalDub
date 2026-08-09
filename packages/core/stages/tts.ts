@@ -1,12 +1,6 @@
 import { spawnSync } from "node:child_process";
-import {
-  readJson,
-  writeJson,
-  writeFile,
-  ensureDir,
-  writeFileSync,
-  rmSync,
-} from "@repo/core/utils/fileOps";
+import { readJson, writeFile, writeFileSync, rmSync } from "@repo/core/utils/fileOps";
+import { writeJson, ensureDir } from "@repo/util/file_op";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { writeWav } from "@repo/voxlab";
@@ -62,9 +56,9 @@ export async function stageTts(ctx: TaskCtx) {
   const ttsWavDir = join(taskDir, "tts", "wavs");
   const doubledDir = join(taskDir, "tts", "ref_doubled");
 
-  ensureDir(ttsWavDir, ctx);
+  ensureDir(ttsWavDir);
   if (ttsCfg.refAudioX2) {
-    ensureDir(doubledDir, ctx);
+    ensureDir(doubledDir);
   }
 
   const { translation } = await read_split_audio_timings(ctx);
@@ -271,8 +265,8 @@ export async function stageTts(ctx: TaskCtx) {
   );
   emitLog(taskDir, `[VoxCPM] Generated in ${genSec.toFixed(1)}s | RTF ${rtf.toFixed(3)}`);
 
-  ensureDir(join(taskDir, "tts"), ctx);
-  writeJson(tts_filepath(taskDir), { segments: ttsSegments }, ctx);
+  ensureDir(join(taskDir, "tts"));
+  writeJson(tts_filepath(taskDir), { segments: ttsSegments });
   await setStage(taskDir, "tts", {
     status: "success",
     completed_at: nowISO(),
