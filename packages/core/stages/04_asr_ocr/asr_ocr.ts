@@ -10,6 +10,7 @@ import { startLog } from "../utils/log.ts";
 import { probeVideoDuration } from "../../utils/ffmpeg.ts";
 import { FrameResult, OcrFramesResult } from "@repo/subtitle-ocr/types";
 import { aggregate_boxes } from "@repo/subtitle-ocr/ocr_util";
+import { log } from "@repo/util/log";
 
 export async function stageAsrOcr(ctx: TaskCtx) {
   const taskDir = ctx.task.task_dir;
@@ -48,7 +49,7 @@ export async function stageAsrOcr(ctx: TaskCtx) {
     frameResults.push({ ...r, timestamp: timestampMs });
 
     if ((i + 1) % 50 === 0 || i === frameFiles.length - 1) {
-      emitLog(taskDir, `[asr_ocr] ${i + 1}/${frameFiles.length} frames`);
+      log(` ${i + 1}/${frameFiles.length} frames`);
     }
   }
   await engine.release();

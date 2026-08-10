@@ -7,7 +7,7 @@ import { LlmFixArgsSchema } from "@repo/llm/llm_fix_args";
 import { langList, taskArgsSchema } from "@repo/core/cmd/tasks/input";
 import { CookieArgsSchema } from "@repo/core/cmd/cookie/input";
 import {
-  ocrAfterAdjustArgsSchema,
+  OcrSegmentAdjustArgsSchema,
   MergeFramesArgsSchema,
   BoxAdjustedArgsSchema,
   AsrOcrFixArgsSchema,
@@ -190,7 +190,7 @@ const OcrCliInputSchema = z
       .default(false)
       .describe("步骤完成后是否删除抽出的帧图片; 默认 false (保留)")
       .optional(),
-    ...ocrAfterAdjustArgsSchema.shape,
+    ...OcrSegmentAdjustArgsSchema.shape,
     ...MergeFramesArgsSchema.shape,
   })
   .default({} as any);

@@ -168,7 +168,7 @@ export async function stageSplitAudio(ctx: TaskCtx) {
   const sourceAudio = hasVocals ? vocalsFilePath! : sourceFilePath;
 
   // Read authoritative timings from srt.json (seconds)
-  const srtData = await readJson(srtFilePath, ctx);
+  const srtData = await readJson(srtFilePath);
   const segmentsSrc: { text: string; start: number; end: number }[] = srtData.result?.segments;
   if (!segmentsSrc?.length) throw new Error(`${srtFilePath} has no segments`);
 

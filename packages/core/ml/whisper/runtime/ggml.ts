@@ -196,7 +196,7 @@ export async function asrWhisperCpp(
     throw new Error(`whisper-cli did not produce ${whisperJson}`);
   }
 
-  const raw = await readJson(whisperJson, ctx);
+  const raw = await readJson(whisperJson);
   // Move the generated whisper JSON into the session asr directory for centralized storage
   const destWhisperJson = join(audioDir, basename(whisperJson));
   try {

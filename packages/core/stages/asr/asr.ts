@@ -121,7 +121,7 @@ export async function stageAsr(ctx: TaskCtx) {
   if (!existsSync(asrFile)) {
     throw new Error(`ASR file not found: ${asrFile}`);
   }
-  const data = await readJson<AsrResult>(asrFile, ctx);
+  const data = await readJson<AsrResult>(asrFile);
   setCtx(taskDir, {
     asr_language: data.detected_language,
   });

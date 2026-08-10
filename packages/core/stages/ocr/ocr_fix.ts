@@ -23,7 +23,7 @@ export async function stageOcrFix(ctx: TaskCtx) {
     throw new Error(`OCR file not found: ${ocrFile}; run OCR stage first`);
   }
 
-  const data = await readJson(ocrFile, ctx);
+  const data = await readJson(ocrFile);
   let segments: any[] = (data.result?.segments || [])
     .map((s: any) => ({ text: (s.text || "").trim(), start: s.start, end: s.end }))
     .filter((s: any) => s.text);

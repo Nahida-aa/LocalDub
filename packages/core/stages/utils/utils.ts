@@ -205,7 +205,7 @@ export function readTranslationResult(ctx: TaskCtx) {
   }
   const filePath = translationFilePath(ctx.task.task_dir, ctx.target_language);
   if (!existsSync(filePath)) throw new Error(`translation file not found: ${filePath}`);
-  return readJson<TranslateFile>(filePath, ctx);
+  return readJson<TranslateFile>(filePath);
 }
 
 export interface SrtJson {
@@ -247,11 +247,11 @@ export function split_audio_timings_path(taskDir: string): string {
 }
 export function read_split_audio(ctx: TaskCtx) {
   const filepath = split_audio_path(ctx.task.task_dir);
-  return readJson<SplitAudioFile>(filepath, ctx);
+  return readJson<SplitAudioFile>(filepath);
 }
 export function read_split_audio_timings(ctx: TaskCtx) {
   const filepath = split_audio_timings_path(ctx.task.task_dir);
-  return readJson<SplitAudioTimingFile>(filepath, ctx);
+  return readJson<SplitAudioTimingFile>(filepath);
 }
 
 /**
@@ -263,7 +263,7 @@ export function timings_filepath(taskDir: string): string {
 export function read_timings(ctx: TaskCtx) {
   const filepath = timings_filepath(ctx.task.task_dir);
   if (!existsSync(filepath)) throw new Error(`timings file not found: ${filepath}`);
-  return readJson<TimingsFile>(filepath, ctx);
+  return readJson<TimingsFile>(filepath);
 }
 
 export function tts_filepath(taskDir: string): string {

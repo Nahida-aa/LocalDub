@@ -40,15 +40,15 @@ export type SegmentFrame = {
 };
 export interface OcrSegment extends SubtitlingSegment {
   y_range?: [number, number];
-  text_confidence?: number;
-  frameCount?: number;
+  text_confidence: number;
+  frame_count?: number;
   frames?: SegmentFrame[];
 }
 
-export interface OcrSegmentWithAdjusted extends OcrSegment {
-  adjustedConfidence?: number;
-  yPenalty?: number;
-  isoPenalty?: number;
+export interface OcrSegmentWithAdjust extends OcrSegment {
+  adjusted_text_confidence?: number;
+  y_penalty?: number;
+  iso_penalty?: number;
 }
 
 export interface AsrOcrBaseSegment {

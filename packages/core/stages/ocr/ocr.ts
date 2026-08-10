@@ -12,13 +12,13 @@ import {
 } from "@repo/core/stages/utils/utils.ts";
 
 import { mergeFrames } from "@repo/subtitle-ocr/ocr_fix/merge_frames";
-import { computeSegmentAdjustments } from "./utils.ts";
 import { TaskCtx, setStage } from "@repo/core/context/context.ts";
 import { srtTime } from "@repo/core/utils/utils";
 import { probeVideoDuration } from "../../utils/ffmpeg.ts";
 import { FrameResult, OCRRuntime } from "@repo/subtitle-ocr/types";
 import { aggregate_boxes } from "@repo/subtitle-ocr/ocr_util";
 import { computeBoxYStats } from "@repo/subtitle-ocr/ocr_fix/stats";
+import { ocr_segment_adjust } from "@repo/subtitle-ocr/ocr_fix/segment_adjust";
 
 export async function stageOcr(ctx: TaskCtx) {
   const taskId = ctx.task.id;
@@ -114,8 +114,8 @@ export async function stageOcr(ctx: TaskCtx) {
 
   // 3. Merge into segments
   const { segments, text } = mergeFrames(frameResults, {
-    mergeSubstring: ocrCfg?.mergeSubstring,
-    dedup_edit_distance: ocrCfg?.dedup_edit_distance,
+    is_merge_substring: ocrCfg.is_merge_substring,
+    dedup_edit_distance: ocrCfg.dedup_edit_distance,
   });
   emitLog(taskDir, `[OCR] ${frameFiles.length} frames → ${segments.length} segments`);
 
@@ -125,7 +125,7 @@ export async function stageOcr(ctx: TaskCtx) {
   const ocrDir = join(taskDir, "ocr");
   ensureDir(ocrDir);
   const yStats = computeBoxYStats(frameResults);
-  const adjustedSegments = computeSegmentAdjustments(segments, frameResults, yStats, videoHeight, {
+  const adjustedSegments = ocr_segment_adjust(segments, frameResults, yStats, videoHeight, {
     adjustIsoWeight: ocrCfg?.adjustIsoWeight,
     adjustYWeight: ocrCfg?.adjustYWeight,
     adjustYFactor: ocrCfg?.adjustYFactor,
@@ -137,10 +137,12 @@ export async function stageOcr(ctx: TaskCtx) {
     end: s.end_ms,
     confidence: s.text_confidence,
     ...(s.y_range ? { y_range: s.y_range } : {}),
-    ...(s.frameCount !== undefined ? { frameCount: s.frameCount } : {}),
-    ...(s.adjustedConfidence !== undefined ? { adjustedConfidence: s.adjustedConfidence } : {}),
-    ...(s.yPenalty !== undefined ? { yPenalty: s.yPenalty } : {}),
-    ...(s.isoPenalty !== undefined ? { isoPenalty: s.isoPenalty } : {}),
+    ...(s.frame_count !== undefined ? { frame_count: s.frame_count } : {}),
+    ...(s.adjusted_text_confidence !== undefined
+      ? { adjusted_text_confidence: s.adjusted_text_confidence }
+      : {}),
+    ...(s.y_penalty !== undefined ? { y_penalty: s.y_penalty } : {}),
+    ...(s.iso_penalty !== undefined ? { isoPenalty: s.iso_penalty } : {}),
   }));
   writeJson(join(ocrDir, "ocr.json"), {
     audio_info: { duration: probeVideoDuration(videoPath) },

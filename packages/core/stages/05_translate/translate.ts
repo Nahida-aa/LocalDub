@@ -30,7 +30,7 @@ export async function stageTranslate(ctx: TaskCtx) {
   const dstLangName = LANG_NAMES[dstLangCode] || dstLangCode;
 
   const srtFile = subtitleFilePath(ctx);
-  const data = await readJson<SrtJson>(srtFile, ctx);
+  const data = await readJson<SrtJson>(srtFile);
   const segments = data.result.segments;
   const texts = segments.map((u: any) => (u.text || "").trim());
   const fullText = (data.result.text || "").trim() || texts.join(" ");
@@ -39,7 +39,7 @@ export async function stageTranslate(ctx: TaskCtx) {
   const hasMeta = existsSync(ytdlpPath);
   let meta: any = {};
   if (hasMeta) {
-    meta = readJson(ytdlpPath, ctx);
+    meta = readJson(ytdlpPath);
   }
 
   const transArgs = readInputArgs().stages?.translate;

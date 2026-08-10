@@ -23,11 +23,8 @@ export function fileLog(op: FileOp, path: string, extra?: string) {
   log(`[File] ${op} ${path}${extra ? " " + extra : ""}`);
 }
 
-export function readJson<T = any>(path: string, ctx: TaskCtx) {
-  if (ctx) {
-    fileLog("read", path);
-  }
-
+export function readJson<T = any>(path: string) {
+  fileLog("read", path);
   return Bun.file(path).json() as Promise<T>;
 }
 

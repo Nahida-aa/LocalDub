@@ -1,4 +1,4 @@
-// 字幕 sub-title subtitling
+// 字幕  subtitling
 export interface SubtitlingSegment {
   text: string;
   start_ms: number;

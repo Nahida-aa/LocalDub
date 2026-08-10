@@ -11,7 +11,7 @@ type OcrBoxResultWithAdjust = OcrBoxResult & {
   is_outlier: boolean;
   adjusted_text_confidence: number;
 };
-type FrameResultBoxWithAdjust = Omit<FrameResult, "boxes"> & {
+export type FrameResultBoxWithAdjust = Omit<FrameResult, "boxes"> & {
   boxes: OcrBoxResultWithAdjust[];
 };
 
@@ -25,7 +25,7 @@ type OcrFramesBoxAdjustResultMeta = {
   args: BoxAdjustedArgs;
 };
 
-export const build_ocr_frames_box_adjust = (
+export const ocr_frames_adjust_box = (
   frames: FrameResult[],
   yStats: YStats,
   args: BoxAdjustedArgs,
@@ -78,43 +78,6 @@ export const build_ocr_frames_box_adjust = (
       y_stats: yStats,
       frame_count: annotatedFrames.length,
       args,
-    },
-  };
-};
-
-type OcrFramesBoxFilteredResult = {
-  frames: FrameResult[];
-  meta: OcrFramesBoxFilteredResultMeta;
-};
-type OcrFramesBoxFilteredResultMeta = {
-  y_stats: YStats;
-  frame_count: number;
-};
-
-export const get_ocr_frames_box_filtered = (
-  ocrFramesBoxAdjustFrames: FrameResultBoxWithAdjust[],
-): OcrFramesBoxFilteredResult => {
-  const filteredFrames = ocrFramesBoxAdjustFrames.flatMap((f) => {
-    const cleanBoxes = f.boxes.filter((a_box) => !a_box.is_outlier);
-    if (cleanBoxes.length === 0) return [];
-    if (cleanBoxes.length === f.boxes.length) return [f as FrameResult];
-    const rebuilt = aggregate_boxes(cleanBoxes);
-    return [
-      {
-        ...f,
-        text: rebuilt.text,
-        confidence: rebuilt.text_confidence,
-        x_range: rebuilt.x_range,
-        y_range: rebuilt.y_range,
-        boxes: rebuilt.boxes,
-      },
-    ];
-  });
-  return {
-    frames: filteredFrames,
-    meta: {
-      y_stats: computeBoxYStats(filteredFrames),
-      frame_count: filteredFrames.length,
     },
   };
 };

@@ -63,7 +63,7 @@ export async function stageAsrFix(ctx: TaskCtx) {
     throw new Error(`ASR file not found: ${asrFile}; run ASR stage first`);
   }
 
-  const data = await readJson(asrFile, ctx);
+  const data = await readJson(asrFile);
   let segments: any[] = (data.result?.segments || [])
     .map((s: any) => ({ text: (s.text || "").trim(), start: s.start, end: s.end }))
     .filter(

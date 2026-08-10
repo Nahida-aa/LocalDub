@@ -2,24 +2,20 @@ import {
   FrameResult,
   OcrBoxResult,
   OcrSegment,
-  OcrSegmentWithAdjusted,
+  OcrSegmentWithAdjust,
 } from "@repo/subtitle-ocr/types";
 import { AsrOcrFixArgs, BoxAdjustedArgs, MergeFramesArgs } from "@repo/subtitle-ocr/args";
-import { OcrAfterAdjustArgs } from "@repo/subtitle-ocr/args";
+import { OcrSegmentAdjustArgs } from "@repo/subtitle-ocr/args";
 import { aggregate_boxes } from "@repo/subtitle-ocr/ocr_util";
+import { YStats } from "@repo/subtitle-ocr/ocr_fix/stats";
 
-export function computeSegmentAdjustments(
+export function ocr_segment_adjust(
   segments: OcrSegment[],
   frameResults: FrameResult[],
-  yStats: { avg: [number, number]; mode: [number, number] },
+  yStats: YStats,
   videoHeight: number,
-  {
-    isoThresholdMs = 1500,
-    adjustYWeight = 0.8,
-    adjustIsoWeight = 0.2,
-    adjustYFactor = 0.08,
-  }: OcrAfterAdjustArgs,
-): OcrSegmentWithAdjusted[] {
+  { isoThresholdMs, adjustYWeight, adjustIsoWeight, adjustYFactor }: OcrSegmentAdjustArgs,
+): OcrSegmentWithAdjust[] {
   if (segments.length === 0 || (!yStats.avg[0] && yStats.avg[1] === 0)) return segments;
 
   const avgCentroid = (yStats.avg[0] + yStats.avg[1]) / 2;
@@ -31,7 +27,7 @@ export function computeSegmentAdjustments(
     .sort((a, b) => a - b);
 
   return segments.map((seg) => {
-    if (seg.frameCount === undefined || seg.text_confidence === undefined) return seg;
+    if (seg.frame_count === undefined || seg.text_confidence === undefined) return seg;
 
     // Y penalty: centroid offset relative to video height
     let yPenalty = 0;
@@ -43,7 +39,7 @@ export function computeSegmentAdjustments(
 
     // Isolation penalty: only for single-frame segments
     let isoPenalty = 0;
-    if (seg.frameCount === 1) {
+    if (seg.frame_count === 1) {
       const mid = (seg.start_ms + seg.end_ms) / 2;
       const nonEmptyBefore = [...nonEmptyTs].reverse().find((t) => t < mid);
       const nonEmptyAfter = nonEmptyTs.find((t) => t > mid);
@@ -58,9 +54,9 @@ export function computeSegmentAdjustments(
 
     return {
       ...seg,
-      adjustedConfidence: Math.round(adjustedConfidence * 100) / 100,
-      yPenalty: Math.round(yPenalty * 100) / 100,
-      isoPenalty: Math.round(isoPenalty * 100) / 100,
+      adjusted_text_confidence: Math.round(adjustedConfidence * 100) / 100,
+      y_penalty: Math.round(yPenalty * 100) / 100,
+      iso_penalty: Math.round(isoPenalty * 100) / 100,
     };
   });
 }

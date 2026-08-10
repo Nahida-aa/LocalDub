@@ -106,7 +106,7 @@ export async function stageTts(ctx: TaskCtx) {
   if (onlyIndices?.length) {
     const existingPath = tts_filepath(taskDir);
     if (existsSync(existingPath)) {
-      const existing = await readJson<TtsFile>(existingPath, ctx);
+      const existing = await readJson<TtsFile>(existingPath);
       existingSegments = new Map(existing.segments.map((s) => [s.seg_idx, s]));
     }
   }

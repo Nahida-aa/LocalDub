@@ -9,6 +9,8 @@ import { srtTime } from "@repo/core/utils/utils";
 import { extract_frame, extract_frames } from "@repo/subtitle-ocr/ffmpeg_util";
 import { to } from "@repo/shared/lib/utils/try";
 import { SubtitlingSegment } from "@repo/subtitling/types";
+import { AsrResult } from "../asr/types";
+import { log } from "@repo/util/log";
 
 // Split long ASR segments by punctuation using word-level timestamps
 const SPLIT_PAT = /[，,。！？.!?]/;
@@ -123,13 +125,13 @@ export async function stageAsrOcrPre(ctx: TaskCtx) {
     throw new Error(`asr.json not found: ${asrFile}`);
   }
 
-  const asrData = await readJson(asrFile, ctx);
+  const asrData = await readJson<AsrResult>(asrFile);
   const asrSegsRaw: {
     text: string;
     start: number;
     end: number;
     words?: { word: string; start: number; end: number; probability: number }[];
-  }[] = (asrData.result?.segments ?? []).map((s: any) => ({
+  }[] = (asrData.result?.segments ?? []).map((s) => ({
     text: s.text,
     start: Math.round(s.start),
     end: Math.round(s.end),
@@ -139,7 +141,7 @@ export async function stageAsrOcrPre(ctx: TaskCtx) {
   if (!asrSegsRaw.length) throw new Error("No ASR segments found");
 
   // Step 1: Split ASR segments by punctuation
-  console.log(`[asr_ocr_pre] ${asrSegsRaw.length} Split ASR segments by punctuation`);
+  log(`${asrSegsRaw.length} Split ASR segments by punctuation`);
   const asrSegs = splitAsrByWords(asrSegsRaw);
 
   const preDir = join(taskDir, "asr_ocr_pre");
@@ -147,16 +149,15 @@ export async function stageAsrOcrPre(ctx: TaskCtx) {
 
   // Write asr_split.json
   writeJson(join(preDir, "asr_split.json"), {
-    _source: "asr_split",
-    _original_segments: asrSegsRaw.length,
-    _split_segments: asrSegs.length,
+    original_segments_count: asrSegsRaw.length,
+    segments_count: asrSegs.length,
     result: {
       text: asrSegs.map((s) => s.text).join(" "),
       segments: asrSegs,
     },
   });
 
-  emitLog(taskDir, `[asr_ocr_pre] ${asrSegsRaw.length} ASR segs → ${asrSegs.length} split segs`);
+  log(`${asrSegsRaw.length} ASR segs → ${asrSegs.length} split segs`);
 
   // Step 2: Generate frame timestamps (end2fps strategy)
   await setStage(taskDir, "asr_ocr_pre", {

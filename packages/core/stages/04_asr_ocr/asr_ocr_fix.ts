@@ -8,13 +8,10 @@ import {
   probeVideoResolution,
   video_source_path,
 } from "@repo/core/stages/utils/utils.ts";
-import { fixOverlap, mergeFrames, toOcrFiltered } from "@repo/subtitle-ocr/ocr_fix/merge_frames";
+import { fixOverlap, mergeFrames } from "@repo/subtitle-ocr/ocr_fix/merge_frames";
 import { computeBoxYStats, YStats } from "@repo/subtitle-ocr/ocr_fix/stats";
-import { computeSegmentAdjustments } from "../ocr/utils.ts";
-import {
-  build_ocr_frames_box_adjust,
-  get_ocr_frames_box_filtered,
-} from "@repo/subtitle-ocr/ocr_fix/box_adjusted";
+import { ocr_segment_adjust } from "@repo/subtitle-ocr/ocr_fix/segment_adjust";
+import { ocr_frames_adjust_box } from "@repo/subtitle-ocr/ocr_fix/box_adjust";
 import { TaskCtx, setStage } from "@repo/core/context/context.ts";
 import { t } from "@repo/shared/i18n/server";
 import { buildOcrFixSystemPrompt, ocrSegmentsToPrompt } from "@repo/core/ml/llm/ocr_llm_fix";
@@ -34,6 +31,11 @@ import {
 import { extract_frames } from "@repo/subtitle-ocr/ffmpeg_util";
 import { to } from "@repo/shared/lib/utils/try";
 import { log } from "@repo/util/log";
+import {
+  ocrSegmentFilter,
+  ocrSegmentFilterWithMeta,
+} from "@repo/subtitle-ocr/ocr_fix/segment_filter";
+import { ocr_frames_filter_box } from "@repo/subtitle-ocr/ocr_fix/box_filter";
 
 export async function stageAsrOcrFix(ctx: TaskCtx) {
   const taskDir = ctx.task.task_dir;
@@ -59,9 +61,9 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
 
   ensureDir(asrOcrFixDir);
 
-  const asrRawLen = (await readJson<AsrResult>(asrFile, ctx)).result.segments.length;
-  const asrSplitData = await readJson(asrSplitFile, ctx);
-  const ocrFramesData = await readJson<OcrFramesResult>(ocrFramesFile, ctx);
+  const asrRawLen = (await readJson<AsrResult>(asrFile)).result.segments.length;
+  const asrSplitData = await readJson(asrSplitFile);
+  const ocrFramesData = await readJson<OcrFramesResult>(ocrFramesFile);
 
   // ASR 切分后的段（只取 text/start/end，用于后续时间边界对齐）
   const asrSegs: OcrSegment[] = (asrSplitData.result?.segments ?? []).map((s: any) => ({
@@ -71,7 +73,6 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
   }));
 
   const asrOcrFixArg = ctx.input.stages.asr_ocr_fix;
-  const textScore = asrOcrFixArg?.text_score_threshold ?? 0.45;
 
   const videoPath = video_source_path(ctx);
 
@@ -85,19 +86,19 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
 
   // 2.1 ocr_frames_line_adjust.json: 给每个 box 标注离群信息（is_outlier / adjustedConfidence / 上下偏移比）
   //     基于整帧的 yStats 判断某行是否偏离典型字幕行位置/高度
-  const annotatedFrames = build_ocr_frames_box_adjust(frames, yStats, asrOcrFixArg);
+  const annotatedFrames = ocr_frames_adjust_box(frames, yStats, asrOcrFixArg);
 
   writeJson(join(asrOcrFixDir, "ocr_frames_box_adjust.json"), annotatedFrames);
 
   // 2.2 ocr_frames_line_filtered.json: 过滤被标 is_outlier 的 box（box 级），整帧清空则丢帧（帧级）；
   //     部分 box 离群则按剩余干净 box 重建该帧
-  const cleanFramesResult = get_ocr_frames_box_filtered(annotatedFrames.frames);
+  const cleanFramesResult = ocr_frames_filter_box(annotatedFrames.frames);
 
   writeJson(join(asrOcrFixDir, "ocr_frames_box_filtered.json"), cleanFramesResult);
 
   // === 阶段 3: 合并 OCR 逐帧为字幕段 ===
   const { segments: ocrSegs, text: ocrText } = mergeFrames(cleanFramesResult.frames, {
-    mergeSubstring: args.mergeSubstring,
+    is_merge_substring: args.is_merge_substring,
     dedup_edit_distance: args.dedup_edit_distance,
   });
   writeJson(join(asrOcrFixDir, "ocr_merged.json"), {
@@ -112,11 +113,7 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
 
   // === 阶段 4: OCR 段时间边界调整（对齐到帧 Y 统计 + 孤立惩罚）===
   const { height: videoHeight } = probeVideoResolution(video_source_path(ctx));
-  const isoThresholdMs = asrOcrFixArg?.isoThresholdMs ?? 1500;
-  const adjustYWeight = asrOcrFixArg?.adjustYWeight ?? 0.8;
-  const adjustIsoWeight = asrOcrFixArg?.adjustIsoWeight ?? 0.2;
-  const adjustYFactor = asrOcrFixArg?.adjustYFactor ?? 0.08;
-  const adjustedSegs = computeSegmentAdjustments(
+  const adjustedSegs = ocr_segment_adjust(
     ocrSegs,
     cleanFramesResult.frames,
     cleanFramesResult.meta.y_stats,
@@ -127,40 +124,25 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
   );
 
   writeJson(join(asrOcrFixDir, "ocr_merged_adjust.json"), {
-    _engine: "asr_ocr",
-    _fusion_params: {
-      strategy: "end2fps",
-      isoThresholdMs,
-      adjustYWeight,
-      adjustIsoWeight,
-      adjustYFactor,
-    },
     result: {
       text: adjustedSegs.map((s) => s.text).join(" "),
       segments: adjustedSegs,
     },
   });
 
-  // === 阶段 5: 按 textScore 过滤低置信段 ===
+  // === 阶段 5: 按 text_confidence_threshold 过滤低置信段 ===
   // ocr_filtered.json：以 adjustedSegs 为输入，按 adjustedConfidence 过滤（Y 偏移 + 孤立惩罚）
-  const { segments: ocrSegsMerged, dropped } = toOcrFiltered(adjustedSegs, textScore);
+  const filteredResult = ocrSegmentFilterWithMeta(
+    adjustedSegs,
+    asrOcrFixArg.text_confidence_threshold,
+  );
 
-  writeJson(join(asrOcrFixDir, "ocr_filtered.json"), {
-    audio_info: {
-      duration: ocrSegsMerged.length > 0 ? ocrSegsMerged[ocrSegsMerged.length - 1].end_ms : 0,
-    },
-    _boundary: "ocr",
-    _fusion_params: { strategy: "end2fps", ocrCalls: ocrSegsMerged.length, textScore, dropped },
-    result: {
-      text: ocrSegsMerged.map((s) => s.text).join(" "),
-      segments: ocrSegsMerged,
-    },
-  });
+  writeJson(join(asrOcrFixDir, "ocr_filtered.json"), filteredResult);
 
   // === 阶段 6: 时间边界对齐到 ASR ===
   // asr_ocr_merged.json：复用 ocr_filtered.json 的 segments，时间边界对齐到 ASR
   // 对每个 OCR segment，找到时间上最重叠的 ASR segment，用 ASR 的 start/end 作为新边界
-  const asrOcrSegs: OcrSegment[] = ocrSegsMerged.map((seg) => {
+  const asrOcrSegs: OcrSegment[] = filteredResult.result.segments.map((seg) => {
     let bestAsr: OcrSegment | undefined = undefined;
     let bestOverlap = 0;
     for (const asr of asrSegs) {
@@ -182,9 +164,9 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
       text: seg.text,
       start_ms: bestAsr ? bestAsr.start_ms : seg.start_ms,
       end_ms: bestAsr ? bestAsr.end_ms : seg.end_ms,
-      confidence: seg.text_confidence,
+      text_confidence: seg.text_confidence,
       y_range: seg.y_range,
-    };
+    } as OcrSegment;
   });
 
   const asrOcrText = asrOcrSegs.map((s) => s.text).join(" ");
@@ -194,11 +176,9 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
     _engine: "asr_ocr",
     _fusion_params: {
       strategy: "end2fps",
-      ocrCalls: ocrSegsMerged.length,
+      ocrCalls: asrOcrSegs.length,
       asrSegs: asrRawLen,
       asrSplits: asrSegs.length,
-      textScore,
-      dropped,
     },
     result: {
       text: asrOcrText,
@@ -209,9 +189,12 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
   // === 阶段 7: 融合重叠段 + 最终去重 ===
   // Write asr_ocr_fused.json — fixOverlap fused result
   const maxAdvanceMs = ctx.input?.stages?.merge_audio?.maxAdvanceMs ?? 500;
-  const fix = fixOverlap(asrOcrSegs, cleanFramesResult.frames, ocrSegsMerged, maxAdvanceMs).filter(
-    (s) => s.end_ms > s.start_ms,
-  );
+  const fix = fixOverlap(
+    asrOcrSegs,
+    cleanFramesResult.frames,
+    filteredResult.result.segments,
+    maxAdvanceMs,
+  ).filter((s) => s.end_ms > s.start_ms);
 
   // 最终去重：相邻且文本相同的段合并为一段，防止 OCR 噪声把一句台词切成多段
   // （例如"娘带着我们门爬了七座山才到"中间插入"门"字的 OCR 噪声）
@@ -237,12 +220,10 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
     _fusion_params: {
       strategy: "end2fps",
       maxAdvanceMs,
-      ocrCalls: ocrSegsMerged.length,
+      ocrCalls: filteredResult.meta.segment_count,
       asrSegs: asrRawLen,
       asrSplits: asrSegs.length,
       fixSegs: merged.length,
-      textScore,
-      dropped,
     },
     result: {
       text: fixText,
@@ -290,7 +271,7 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
 
   emitLog(
     taskDir,
-    `[asr_ocr_fix] ${ocrSegs.length} OCR segs (dropped ${dropped} below textScore=${textScore}) → ${asrRawLen} ASR → ${asrSegs.length} split → ${asrOcrSegs.length} merged, ${fix.length} fused`,
+    `[asr_ocr_fix] ${ocrSegs.length} OCR segs (dropped ${filteredResult.meta.dropped} below text_confidence_threshold=${asrOcrFixArg.text_confidence_threshold}) → ${asrRawLen} ASR → ${asrSegs.length} split → ${asrOcrSegs.length} merged, ${fix.length} fused`,
   );
 
   await setStage(taskDir, "asr_ocr_fix", {

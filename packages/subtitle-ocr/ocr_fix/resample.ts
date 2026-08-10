@@ -103,7 +103,7 @@ export const resample_candidate_to_ocr_frames = async (
         .sort();
       const engine = await newOcrEngine(runtime, device);
       const ocrResults = await engine.ocrFrames(resampleDir, frameFiles, {
-        textScore: asrOcrFixArgs.text_score_threshold,
+        textScore: asrOcrFixArgs.text_confidence_threshold,
       });
       await engine.release();
 

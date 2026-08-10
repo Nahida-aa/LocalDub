@@ -98,13 +98,13 @@ export async function stageMergeVideo(ctx: TaskCtx) {
     const translateEnabled = ctx.input?.stages?.translate?.enabled ?? true;
     let data: { translation: any[] };
     if (vadAlign) {
-      data = await readJson(split_audio_path(taskDir), ctx);
+      data = await readJson(split_audio_path(taskDir));
     } else if (translateEnabled) {
       const { targetLanguage: dstLangCode } = readTaskLanguages(ctx);
       const trFile = translationFilePath(taskDir, dstLangCode);
-      data = await readJson(trFile, ctx);
+      data = await readJson(trFile);
     } else {
-      const srt = await readJson(srtPath ? srtPath : subtitleFilePath(ctx), ctx);
+      const srt = await readJson(srtPath ? srtPath : subtitleFilePath(ctx));
       const segments = srt.result?.segments ?? [];
       data = {
         translation: segments.map((seg: any) => ({

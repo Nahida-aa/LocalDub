@@ -1,4 +1,9 @@
-import { FrameResult, OcrSegment, SegmentFrame } from "@repo/subtitle-ocr/types";
+import {
+  FrameResult,
+  OcrSegment,
+  OcrSegmentWithAdjust,
+  SegmentFrame,
+} from "@repo/subtitle-ocr/types";
 import { MergeFramesArgs } from "@repo/subtitle-ocr/args";
 import { srtTime } from "@repo/util/time";
 
@@ -9,9 +14,9 @@ import { srtTime } from "@repo/util/time";
  * ```
  * 陆 → 陆执巡: 插入 "执" + 插入 "巡" = 2 次操作
  * ```ts
- * edit_distance("陆", "这其中是不是有什么误会") = 9
+ * edit_distance("陆", "这其中是不是有什么误会") = 11
  * ```
- * 每个字都要替换 = 9 次操作
+ * 每个字都要替换 = 11 次操作
  */
 export function edit_distance(a: string, b: string): number {
   const m = a.length,
@@ -33,24 +38,22 @@ function overlap(a?: [number, number], b?: [number, number]): boolean {
   return a[0] < b[1] && b[0] < a[1];
 }
 
+const normalize = (s: string) => s.replace(/\s+/g, "");
+
+function avgConfidence(confidences: number[]): number {
+  return confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0;
+}
+
 function isSubstringOf(a: string, b: string): boolean {
   if (!a || !b || a.length === b.length) return false;
   return a.length < b.length ? b.includes(a) : a.includes(b);
 }
 
-function avgConfidence(confidences: number[]): number | undefined {
-  return confidences.length > 0
-    ? confidences.reduce((a, b) => a + b, 0) / confidences.length
-    : undefined;
-}
-
-function mergeConfidence(a?: number, b?: number): number | undefined {
-  if (a === undefined) return b;
-  if (b === undefined) return a;
+function mergeConfidence(a?: number, b?: number): number {
+  if (a === undefined) return b ?? 0;
+  if (b === undefined) return a ?? 0;
   return (a + b) / 2;
 }
-
-const normalize = (s: string) => s.replace(/\s+/g, "");
 
 /**
  * second pass: merge adjacent segments where text is a substring of the other
@@ -68,7 +71,7 @@ function mergeSubstringSegments(segments: OcrSegment[]): OcrSegment[] {
         end_ms: cur.end_ms,
         y_range: cur.y_range,
         text_confidence: mergeConfidence(prev.text_confidence, cur.text_confidence),
-        frameCount: (prev.frameCount ?? 1) + (cur.frameCount ?? 1),
+        frame_count: (prev.frame_count ?? 1) + (cur.frame_count ?? 1),
       };
       segments.splice(i, 1);
     } else if (isSubstringOf(cur.text, prev.text)) {
@@ -78,7 +81,7 @@ function mergeSubstringSegments(segments: OcrSegment[]): OcrSegment[] {
         end_ms: cur.end_ms,
         y_range: prev.y_range,
         text_confidence: mergeConfidence(prev.text_confidence, cur.text_confidence),
-        frameCount: (prev.frameCount ?? 1) + (cur.frameCount ?? 1),
+        frame_count: (prev.frame_count ?? 1) + (cur.frame_count ?? 1),
       };
       segments.splice(i, 1);
     }
@@ -86,13 +89,7 @@ function mergeSubstringSegments(segments: OcrSegment[]): OcrSegment[] {
   return segments;
 }
 
-export function mergeFrames(
-  frames: FrameResult[],
-  args: MergeFramesArgs,
-): {
-  text: string;
-  segments: OcrSegment[];
-} {
+function base_merge_frames(frames: FrameResult[], args: MergeFramesArgs) {
   const segments: OcrSegment[] = [];
   let currentText = "";
   let currentStart = 0;
@@ -130,7 +127,7 @@ export function mergeFrames(
         end_ms: gapStart,
         y_range: currentBoxY,
         text_confidence: avgConfidence(currentConfidences),
-        frameCount: currentConfidences.length,
+        frame_count: currentConfidences.length,
         frames: currentFrames,
       });
       currentText = "";
@@ -150,7 +147,7 @@ export function mergeFrames(
           end_ms: currentEnd,
           y_range: currentBoxY,
           text_confidence: avgConfidence(currentConfidences),
-          frameCount: currentConfidences.length,
+          frame_count: currentConfidences.length,
           frames: currentFrames,
         });
       }
@@ -182,20 +179,19 @@ export function mergeFrames(
       end_ms: lastTs,
       y_range: currentBoxY,
       text_confidence: avgConfidence(currentConfidences),
-      frameCount: currentConfidences.length,
+      frame_count: currentConfidences.length,
       frames: currentFrames,
     });
   }
+  return segments;
+}
 
-  // ─── Pass 1: substring merge ───
-  if (args.mergeSubstring) {
-    mergeSubstringSegments(segments);
-  }
-
-  // ─── Pass 2: A-B-C triplet 噪声消除 ───
-  // third pass: A-B-C triplet where A.text == C.text and B is a short hallucination
-  // (handles patterns like "嗯发财了" → "菌" → "嗯发财了", or same-text segments
-  // split by a one-word noise like "娘带着我们门爬了七座山才到")
+// Pass 2: 消除夹在两段相同真实字幕之间的短噪声段 (A-B-C → A+C)
+//  A-B-C triplet 噪声消除
+// third pass: A-B-C triplet where A.text == C.text and B is a short hallucination
+// (handles patterns like "嗯发财了" → "菌" → "嗯发财了", or same-text segments
+// split by a one-word noise like "娘带着我们门爬了七座山才到")
+function removeTripletNoise(segments: OcrSegment[]) {
   for (let i = 0; i < segments.length - 2; i++) {
     const a = segments[i];
     const b = segments[i + 1];
@@ -224,7 +220,7 @@ export function mergeFrames(
           end_ms: c.end_ms,
           y_range: a.y_range,
           text_confidence: avgConfidence(mergedConf),
-          frameCount: (a.frameCount ?? 1) + (b.frameCount ?? 1) + (c.frameCount ?? 1),
+          frame_count: (a.frame_count ?? 1) + (b.frame_count ?? 1) + (c.frame_count ?? 1),
           frames: [...(a.frames ?? []), ...(b.frames ?? []), ...(c.frames ?? [])],
         };
         segments.splice(i + 1, 2);
@@ -232,6 +228,50 @@ export function mergeFrames(
       }
     }
   }
+  return segments;
+}
+
+// ─── Pass 4: 同 text 相邻合并 ───
+// fifth pass: merge adjacent segments with the same normalized text
+// (handles A → noise → A cut by a frame gap where the triplet didn't fire
+// because noise was a single long segment, e.g. same subtitle resumed after
+// a punctuation/breath pause split the ASR slice)
+function mergeAdjacentSameText(segments: OcrSegment[]) {
+  for (let i = segments.length - 1; i > 0; i--) {
+    const prev = segments[i - 1];
+    const cur = segments[i];
+    if (normalize(prev.text) !== normalize(cur.text)) continue;
+    const gap = cur.start_ms - prev.end_ms;
+    if (gap < 0 || gap > 2000) continue; // 不重叠 + 间隔不超过 2s 才合并
+    prev.end_ms = cur.end_ms;
+    const mergedConf = [prev.text_confidence, cur.text_confidence].filter(
+      (v): v is number => v !== undefined,
+    );
+    prev.text_confidence = avgConfidence(mergedConf);
+    prev.frame_count = (prev.frame_count ?? 1) + (cur.frame_count ?? 1);
+    segments.splice(i, 1);
+    prev.frames = [...(prev.frames ?? []), ...(cur.frames ?? [])];
+  }
+}
+
+type MergeFramesResult = {
+  text: string;
+  segments: OcrSegment[];
+};
+
+export function mergeFrames(frames: FrameResult[], args: MergeFramesArgs): MergeFramesResult {
+  const segments = base_merge_frames(frames, args);
+
+  // ─── Pass 1: substring merge ───
+  if (args.is_merge_substring) {
+    mergeSubstringSegments(segments);
+  }
+
+  // ─── Pass 2: A-B-C triplet 噪声消除 ───
+  // third pass: A-B-C triplet where A.text == C.text and B is a short hallucination
+  // (handles patterns like "嗯发财了" → "菌" → "嗯发财了", or same-text segments
+  // split by a one-word noise like "娘带着我们门爬了七座山才到")
+  removeTripletNoise(segments);
 
   // ─── Pass 3: overlapping dedup ───
   // fourth pass: remove overlapping segments with similar text
@@ -244,21 +284,7 @@ export function mergeFrames(
   // (handles A → noise → A cut by a frame gap where the triplet didn't fire
   // because noise was a single long segment, e.g. same subtitle resumed after
   // a punctuation/breath pause split the ASR slice)
-  for (let i = segments.length - 1; i > 0; i--) {
-    const prev = segments[i - 1];
-    const cur = segments[i];
-    if (normalize(prev.text) !== normalize(cur.text)) continue;
-    const gap = cur.start_ms - prev.end_ms;
-    if (gap < 0 || gap > 2000) continue; // 不重叠 + 间隔不超过 2s 才合并
-    prev.end_ms = cur.end_ms;
-    const mergedConf = [prev.text_confidence, cur.text_confidence].filter(
-      (v): v is number => v !== undefined,
-    );
-    prev.text_confidence = avgConfidence(mergedConf);
-    prev.frameCount = (prev.frameCount ?? 1) + (cur.frameCount ?? 1);
-    segments.splice(i, 1);
-    prev.frames = [...(prev.frames ?? []), ...(cur.frames ?? [])];
-  }
+  mergeAdjacentSameText(segments);
 
   return {
     text: segments.map((s) => s.text).join(" "),
@@ -266,7 +292,7 @@ export function mergeFrames(
   };
 }
 
-export function dedupOverlap(segments: OcrSegment[], dedupLevenshtein = 1): OcrSegment[] {
+export function dedupOverlap(segments: OcrSegment[], dedup_edit_distance = 1): OcrSegment[] {
   const TOUCH_GAP_MS = 500;
   for (let i = 0; i < segments.length; i++) {
     for (let j = i + 1; j < segments.length; j++) {
@@ -276,14 +302,14 @@ export function dedupOverlap(segments: OcrSegment[], dedupLevenshtein = 1): OcrS
       const gap = Math.max(a.start_ms, b.start_ms) - Math.min(a.end_ms, b.end_ms);
       const overlap = a.start_ms < b.end_ms && b.start_ms < a.end_ms;
       const touching = gap <= TOUCH_GAP_MS;
-      if ((overlap || touching) && edit_distance(a.text, b.text) <= dedupLevenshtein) {
+      if ((overlap || touching) && edit_distance(a.text, b.text) <= dedup_edit_distance) {
         segments[i] = {
           text: a.text.length >= b.text.length ? a.text : b.text,
           start_ms: Math.min(a.start_ms, b.start_ms),
           end_ms: Math.max(a.end_ms, b.end_ms),
           y_range: a.y_range,
           text_confidence: mergeConfidence(a.text_confidence, b.text_confidence),
-          frameCount: (a.frameCount ?? 1) + (b.frameCount ?? 1),
+          frame_count: (a.frame_count ?? 1) + (b.frame_count ?? 1),
           frames: [...(a.frames ?? []), ...(b.frames ?? [])],
         };
         segments.splice(j, 1);
@@ -337,32 +363,4 @@ export function fixOverlap(
   }
 
   return fix;
-}
-
-/**
- * 从 ocr.json 的 segments 出发，按 segment confidence 过滤，生成 ocr_filtered.json 的结果。
- * 如果 segment 已带有 adjustedConfidence（Y 偏移 + 孤立惩罚后的置信度），则优先用它过滤。
- *
- * @param segments 来自 ocr.json.result.segments（mergeFrames 结果），或 computeSegmentAdjustments 的输出
- * @param textScore confidence 阈值，低于此值的 segment 会被丢弃。0 表示不过滤。
- * @returns 过滤后的 segments，以及被丢弃的数量
- */
-export function toOcrFiltered(
-  segments: OcrSegment[],
-  textScore: number,
-): { segments: OcrSegment[]; dropped: number } {
-  if (!textScore || textScore <= 0) {
-    return { segments: segments.map((s) => ({ ...s })), dropped: 0 };
-  }
-  const filtered = segments.filter((s) => {
-    const score =
-      (s as any).adjustedConfidence !== undefined
-        ? (s as any).adjustedConfidence
-        : s.text_confidence;
-    return score === undefined || score >= textScore;
-  });
-  return {
-    segments: filtered,
-    dropped: segments.length - filtered.length,
-  };
 }
