@@ -362,11 +362,7 @@ export function TaskDetailPage(props: Props) {
           <p>Loading...</p>
         </Show>
         <Show when={taskCtxQ.isSuccess}>
-          <TaskControlPanel
-            ctx={taskCtxQ.data!}
-            // resumeFromStage={resumeFromStage()}
-            // onResumeFrom={setResumeFromStage}
-          />
+          <TaskControlPanel ctx={taskCtxQ.data!} />
         </Show>
         <div class="flex-1 min-w-0 flex flex-col">
           <ContentPanel

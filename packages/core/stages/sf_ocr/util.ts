@@ -7,7 +7,6 @@ import { OcrFixArgs } from "@repo/subtitle-ocr/args";
 import { OcrSegmentFilterResult } from "@repo/subtitle-ocr/ocr_fix/segment_filter";
 import { readJson } from "../../utils/fileOps";
 import { OcrFramesResult } from "@repo/subtitle-ocr/types";
-import { SfOcrArgs } from "../../input/types";
 
 export const ensureOcrBin = async () => {
   const ocrBin = join(REPO_ROOT, "target", "release", "subtitle-ocr");
@@ -23,7 +22,14 @@ export const ensureOcrBin = async () => {
   return ocrBin;
 };
 
-export const cellOcr = async (preDir: string, outFile: string, ocrArgs: SfOcrArgs) => {
+export const cellOcr = async (
+  preDir: string,
+  outFile: string,
+  ocrArgs: {
+    text_confidence_threshold: number;
+    subtitleOnly: boolean;
+  },
+) => {
   const ocrBin = await ensureOcrBin();
   const args = [
     "--dir",

@@ -19,9 +19,9 @@ export async function stageSfOcr(ctx: TaskCtx) {
     progress: 0,
   });
 
-  const preDir = resolve(taskDir, "sf_ocr_pre", "frames");
-  if (!existsSync(preDir)) {
-    throw new Error(`Keyframe dir not found: ${preDir} — run sf_ocr_pre first`);
+  const frameDir = resolve(taskDir, "sf_ocr_pre", "frames");
+  if (!existsSync(frameDir)) {
+    throw new Error(`Keyframe dir not found: ${frameDir} — run sf_ocr_pre first`);
   }
 
   const ocrArgs = ctx.input.stages.sf_ocr;
@@ -29,9 +29,9 @@ export async function stageSfOcr(ctx: TaskCtx) {
   const sfOcrDir = resolve(taskDir, "sf_ocr");
   const outFile = join(sfOcrDir, "frames.json");
 
-  const data = await cellOcr(preDir, outFile, ocrArgs);
+  const data = await cellOcr(frameDir, outFile, ocrArgs);
   if (ocrArgs?.cleanupFrames) {
-    rmSync(preDir, { recursive: true, force: true });
+    rmSync(frameDir, { recursive: true, force: true });
     log(`Keyframes cleaned up`);
   }
 
