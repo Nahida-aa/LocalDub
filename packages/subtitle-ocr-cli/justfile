@@ -51,13 +51,13 @@ run-dir dir="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集
 # dir 为必填（无默认值），其余有默认值。
 # 用法：
 #   just run --dir <frames> --out <out.json> \
-#        [--model v3] [--model-dir data/models/rapidocr] [--text-score 0.5] \
+#        [--model v3] [--model-dir data/models/rapidocr] [--text-confidence-threshold 0.5] \
 #        [--subtitle-only] [--full-frame] [--no-nms] [--warp-crop] [--threads 4]
 [arg("dir", long="dir", help="帧图片目录（文件名须为 ms / ms_ms 时间格式）")]
 [arg("out", long="out", help="输出 OcrFramesResult JSON 文件路径")]
 [arg("model", long="model", help="模型套件：v3 / v6-tiny / v6-medium")]
 [arg("model_dir", long="model-dir", help="模型目录（默认仓库根 data/models/rapidocr）")]
-[arg("text_score", long="text-score", help="识别置信度下限（默认 0.5）")]
+[arg("text_confidence_threshold", long="text-confidence-threshold", help="识别置信度下限（默认 0.5）")]
 [arg("subtitle_only", long="subtitle-only", value="--subtitle-only", help="仅保留画面底部比例区间的字幕框")]
 [arg("full_frame", long="full-frame", value="--full-frame", help="关闭 bottom_only，对整帧做 OCR")]
 [arg("no_nms", long="no-nms", value="--no-nms", help="关闭重叠框 NMS 去重")]
@@ -68,7 +68,7 @@ run \
     out="" \
     model="v3" \
     model_dir="data/models/rapidocr" \
-    text_score="0.5" \
+    text_confidence_threshold="0.5" \
     subtitle_only="" \
     full_frame="" \
     no_nms="" \
@@ -77,7 +77,7 @@ run \
     cargo run -p subtitle-ocr-cli --bin subtitle-ocr --release -- \
         --model {{model}} --model-dir {{model_dir}} \
         --dir {{dir}} --out {{out}} \
-        --text-score {{text_score}} \
+        --text-confidence-threshold {{text_confidence_threshold}} \
         {{subtitle_only}} {{full_frame}} {{no_nms}} {{warp_crop}} \
         {{ if (threads != "") { "--threads " + threads } else { "" } }}
 

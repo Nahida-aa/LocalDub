@@ -43,7 +43,7 @@ export async function stageAsrOcr(ctx: TaskCtx) {
     frameDir,
     "--out",
     outFile,
-    "--text-score",
+    "--text-confidence-threshold",
     String(textScore),
     ...(subtitleOnly ? ["--subtitle-only"] : []),
   ];
