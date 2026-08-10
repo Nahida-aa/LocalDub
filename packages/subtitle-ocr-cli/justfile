@@ -1,4 +1,6 @@
 # subtitle-ocr-cli：复刻 ocr-lab subtitle-ocr 的 6 个 CLI 二进制（git 源依赖）。
+set unstable
+set lists
 # 用法（在 packages/subtitle-ocr-cli/ 下）：
 #   just                       # 默认 = 显示任务列表
 #   just build                 # release 编译全部二进制
@@ -36,17 +38,52 @@ test:
 
 # ---- 单图识别（位置传图，输出 JSON 数组到 stdout） ----
 # 用法：just run <image>
-run image="tmp/both_fullscreen_frame1.png":
+run-one image="tmp/both_fullscreen_frame1.png":
     cargo run -p subtitle-ocr-cli --bin subtitle-ocr --release -- {{image}}
 
 # ---- 批量识别（--dir，文件名须为 ms / ms_ms 时间格式） ----
 # 用法：just run-dir <dir>
-run_dir dir="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/asr_ocr_pre/frames" out="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/asr_ocr/asr_ocr_frames.json":
+run-dir dir="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/asr_ocr_pre/frames" out="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/asr_ocr/asr_ocr_frames.json":
     cargo run -p subtitle-ocr-cli --bin subtitle-ocr --release -- --model-dir data/models/rapidocr --dir {{dir}} --out {{out}}
+
+# ---- 全参数批量识别（--dir + 所有可选 flag） ----
+# 参数全部为 long option（跳过中间参数无需占位；布尔 flag 直接传 --xxx 即开启）；
+# dir 为必填（无默认值），其余有默认值。
+# 用法：
+#   just run --dir <frames> --out <out.json> \
+#        [--model v3] [--model-dir data/models/rapidocr] [--text-score 0.5] \
+#        [--subtitle-only] [--full-frame] [--no-nms] [--warp-crop] [--threads 4]
+[arg("dir", long="dir", help="帧图片目录（文件名须为 ms / ms_ms 时间格式）")]
+[arg("out", long="out", help="输出 OcrFramesResult JSON 文件路径")]
+[arg("model", long="model", help="模型套件：v3 / v6-tiny / v6-medium")]
+[arg("model_dir", long="model-dir", help="模型目录（默认仓库根 data/models/rapidocr）")]
+[arg("text_score", long="text-score", help="识别置信度下限（默认 0.5）")]
+[arg("subtitle_only", long="subtitle-only", value="--subtitle-only", help="仅保留画面底部比例区间的字幕框")]
+[arg("full_frame", long="full-frame", value="--full-frame", help="关闭 bottom_only，对整帧做 OCR")]
+[arg("no_nms", long="no-nms", value="--no-nms", help="关闭重叠框 NMS 去重")]
+[arg("warp_crop", long="warp-crop", value="--warp-crop", help="用透视矫正裁剪替代轴对齐包围盒")]
+[arg("threads", long="threads", help="推理线程数")]
+run \
+    dir="" \
+    out="" \
+    model="v3" \
+    model_dir="data/models/rapidocr" \
+    text_score="0.5" \
+    subtitle_only="" \
+    full_frame="" \
+    no_nms="" \
+    warp_crop="" \
+    threads="":
+    cargo run -p subtitle-ocr-cli --bin subtitle-ocr --release -- \
+        --model {{model}} --model-dir {{model_dir}} \
+        --dir {{dir}} --out {{out}} \
+        --text-score {{text_score}} \
+        {{subtitle_only}} {{full_frame}} {{no_nms}} {{warp_crop}} \
+        {{ if (threads != "") { "--threads " + threads } else { "" } }}
 
 # ---- 单图识别并写出 OcrFramesResult 到调用方指定文件 ----
 # 用法：just run-out <image> <out>
-run_out image="tmp/both_fullscreen_frame1.png" out="tmp/ocr_frames.json":
+run-out image="tmp/both_fullscreen_frame1.png" out="tmp/ocr_frames.json":
     cargo run -p subtitle-ocr-cli --bin subtitle-ocr --release -- {{image}} --out {{out}}
 
 # ---- 多帧合并：把逐帧 JSON（asr_ocr_frames.json 等）合并成带时间轴的字幕段 ----
