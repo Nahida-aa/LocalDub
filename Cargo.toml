@@ -2,7 +2,7 @@
 members = [
     "packages/bridge", "packages/config-rs", "packages/core-rs", "packages/device-rs",
     "packages/separate/demucs_burn", "packages/time", "packages/voxcpm-burn", "packages/app/src-tauri",
-    "packages/fs", "packages/sf-cli", "packages/subtitling-ocr-cli"]
+    "packages/fs", "packages/sf-cli", "packages/subtitle-ocr-cli"]
 resolver = "3"
 
 [workspace.package]
@@ -14,6 +14,7 @@ publish = false
 [workspace.dependencies]
 async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 specta = { version = "=2.0.0-rc.26", features = ["derive", "serde_json"] }
 specta-typescript = { version = "0.0.13", features = ["serde"] }
 specta-serde = { version = "0.0.13" }
@@ -25,12 +26,16 @@ fnrpc-tauri = { version = "0.4.2" }
 notify = { version = "6", features = ["macos_fsevent"] }
 async-channel = "2"
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+# 进度条（UX 层反馈，独立于 tracing 诊断日志）。
+indicatif = "0.17"
 # OCR 核心（从本仓库拆出的 ocr-lab）。git 源由 cargo 自动拉取/解析其内部
 # workspace 依赖与 [patch]，LocalDub 侧零镜像；版本以 ocr-lab 为准。
-subtitle-finder = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "8addc9fe4dd8c2af23b6b87f781bc54183250ab6" }
-subtitle-ocr = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "8addc9fe4dd8c2af23b6b87f781bc54183250ab6" }
-rapidocr-ort = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "8addc9fe4dd8c2af23b6b87f781bc54183250ab6" }
+subtitle-finder = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "6fe862f587336e7397e0cfaa473cb45eae666ed5" }
+subtitle-ocr = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "6fe862f587336e7397e0cfaa473cb45eae666ed5" }
+rapidocr-ort = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "6fe862f587336e7397e0cfaa473cb45eae666ed5" }
 
 [profile.release]
 lto = "fat"

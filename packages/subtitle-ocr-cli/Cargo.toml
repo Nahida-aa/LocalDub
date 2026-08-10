@@ -1,0 +1,44 @@
+[package]
+name = "subtitle-ocr-cli"
+version.workspace = true
+edition.workspace = true
+
+# 复刻 ocr-lab subtitle-ocr 包的 6 个 CLI 二进制：主 OCR 命令行 + 5 个后处理步骤。
+# 依赖以 git 源引入 subtitle-ocr（含 util 导出），本包只做二进制壳与 CLI 参数解析。
+[[bin]]
+name = "subtitle-ocr"
+path = "src/main.rs"
+
+[[bin]]
+name = "merge-frames"
+path = "src/bin/merge_frames_cli.rs"
+
+[[bin]]
+name = "ocr-frames-adjust-box"
+path = "src/bin/ocr_frames_adjust_box_cli.rs"
+
+[[bin]]
+name = "ocr-frames-filter-box"
+path = "src/bin/ocr_frames_filter_box_cli.rs"
+
+[[bin]]
+name = "ocr-segment-adjust"
+path = "src/bin/ocr_segment_adjust_cli.rs"
+
+[[bin]]
+name = "ocr-segment-filter"
+path = "src/bin/ocr_segment_filter_cli.rs"
+
+[dependencies]
+# ocr-lab 字幕 OCR 库（git 源，含合并/调整/过滤后处理与批量 frame 列表）。
+subtitle-ocr = { workspace = true }
+# OCR 引擎模型套件枚举（ModelProfile 用于 --model 参数解析）。
+rapidocr-ort = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+# 进度条（UX 层反馈，独立于 tracing 诊断日志）。
+indicatif = { workspace = true }
