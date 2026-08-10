@@ -125,8 +125,8 @@ adjust-segment in="tmp/segment_adjust_in.json" out="tmp/segment_adjusted.json":
 
 # ---- 字幕段置信度过滤：按阈值丢弃低置信段 ----
 # 用法：just filter-segment <adjusted.json> [out] [threshold]
-# 输入为 adjust-segment 步骤的输出（含 adjusted_text_confidence）；
+# 输入为 adjust-segment 步骤的输出（含 adjusted_confidence）；
 # 输出 OcrSegmentFilterResult { meta, result } 到 stdout（--out 额外落盘）；
 # 加 --bare 则输出纯 OcrSegmentWithAdjust[] 数组。
-filter-segment in="tmp/segment_adjusted.json" out="tmp/segment_filtered.json" threshold="0.6":
+filter-segment in="tmp/segment_adjusted.json" out="tmp/segment_filtered.json" threshold="0.5":
     cargo run -p subtitle-ocr-cli --bin ocr-segment-filter --release -- {{in}} --text-confidence-threshold {{threshold}} --out {{out}}
