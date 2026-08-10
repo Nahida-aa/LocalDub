@@ -175,7 +175,7 @@ const OcrCliInputSchema = z
       )
       .optional(),
     fps: z.number().default(2).describe("帧率 (fps), 越高时间戳越准但越慢; 默认 2").optional(),
-    text_score_threshold: z
+    text_confidence_threshold: z
       .number()
       .default(0.45)
       .describe("OCR 识别置信度阈值, 默认 0.45")
