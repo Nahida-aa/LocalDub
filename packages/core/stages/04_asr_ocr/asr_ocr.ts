@@ -1,4 +1,4 @@
-import { $ } from "bun";
+import { $, spawn } from "bun";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { ensureDir } from "@repo/util/file_op";
@@ -7,6 +7,7 @@ import { TaskCtx, setStage } from "@repo/core/context/context.ts";
 import { startLog } from "../utils/log.ts";
 import { OcrFramesResult } from "@repo/subtitle-ocr/types";
 import { REPO_ROOT } from "@repo/config/root";
+import { log } from "@repo/util/log";
 
 export async function stageAsrOcr(ctx: TaskCtx) {
   const taskDir = ctx.task.task_dir;
@@ -22,21 +23,21 @@ export async function stageAsrOcr(ctx: TaskCtx) {
   }
 
   const asrOcrArgs = ctx.input.stages.asr_ocr;
-  const textScore = asrOcrArgs.text_confidence_threshold;
-  const subtitleOnly = asrOcrArgs.subtitleOnly;
-  const cleanupFrames = asrOcrArgs.cleanupFrames;
 
   const ocrBin = join(REPO_ROOT, "target", "release", "subtitle-ocr");
   if (!existsSync(ocrBin)) {
-    throw new Error(
-      `subtitle-ocr binary not found at ${ocrBin}\n` +
-        `Build with: cd ${join(REPO_ROOT, "packages/subtitle-ocr-cli")} && cargo build --release --bin subtitle-ocr`,
-    );
+    log(`[asr_ocr] subtitle-ocr 未构建，自动编译...`);
+    const build = await $`cargo build --release -p subtitle-ocr-cli --bin subtitle-ocr`
+      .cwd(REPO_ROOT)
+      .nothrow();
+    if (build.exitCode !== 0) {
+      throw new Error(`subtitle-ocr 编译失败 (exit ${build.exitCode}):\n${build.stderr}`);
+    }
   }
 
   const asrOcrDir = resolve(taskDir, "asr_ocr");
   ensureDir(asrOcrDir);
-  const outFile = join(asrOcrDir, "asr_ocr_frames.json");
+  const outFile = join(asrOcrDir, "frames.json");
 
   const args = [
     "--dir",
@@ -44,25 +45,30 @@ export async function stageAsrOcr(ctx: TaskCtx) {
     "--out",
     outFile,
     "--text-confidence-threshold",
-    String(textScore),
-    ...(subtitleOnly ? ["--subtitle-only"] : []),
+    String(asrOcrArgs.text_confidence_threshold),
+    ...(asrOcrArgs.subtitleOnly ? ["--subtitle-only"] : []),
   ];
 
-  emitLog(taskDir, `[asr_ocr] binary=${ocrBin} ${args.join(" ")}`);
-  const proc = await $`${ocrBin} ${args}`.nothrow();
-  if (proc.exitCode !== 0) {
-    throw new Error(`subtitle-ocr failed with exit code ${proc.exitCode}: ${proc.stderr}`);
+  log(`binary=${ocrBin} ${args.join(" ")}`);
+  const proc = spawn([ocrBin, ...args], {
+    cwd: REPO_ROOT,
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  const exitCode = await proc.exited;
+  if (exitCode !== 0) {
+    throw new Error(`subtitle-ocr failed with exit code ${exitCode}`);
   }
 
   const result = JSON.parse(readFileSync(outFile, "utf-8")) as OcrFramesResult;
-  emitLog(taskDir, `[asr_ocr] ${result.frames.length} frames OCR'd -> ${outFile}`);
+  log(`${result.frames.length} frames OCR'd -> ${outFile}`);
 
   // Cleanup frames (optional)
-  if (cleanupFrames) {
+  if (asrOcrArgs.cleanupFrames) {
     rmSync(frameDir, { recursive: true, force: true });
-    emitLog(taskDir, `[asr_ocr] Frames cleaned up`);
+    log(`Frames cleaned up`);
   } else {
-    emitLog(taskDir, `[asr_ocr] Frames kept at ${frameDir}`);
+    log(`Frames kept at ${frameDir}`);
   }
 
   setStage(taskDir, "asr_ocr", {
