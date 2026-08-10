@@ -27,7 +27,8 @@ export function ocrSegmentFilter(
   });
   return filtered;
 }
-type OcrSegmentFilterResult = {
+
+export type OcrSegmentFilterResult = {
   meta: {
     segment_count: number;
     text_confidence_threshold: number;
@@ -38,6 +39,7 @@ type OcrSegmentFilterResult = {
     segments: (OcrSegment | OcrSegmentWithAdjust)[];
   };
 };
+
 export function ocrSegmentFilterWithMeta(
   segments: (OcrSegment | OcrSegmentWithAdjust)[],
   text_confidence_threshold: number,

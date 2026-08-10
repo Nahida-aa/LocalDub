@@ -29,7 +29,7 @@ struct Cli {
     #[arg(long, value_enum, default_value_t = rapidocr_ort::ModelProfile::V3)]
     model: rapidocr_ort::ModelProfile,
 
-    /// 模型目录（默认仓库根 data/models/rapidocr）
+    /// 模型目录（本项目默认仓库根 data/models/rapidocr）
     #[arg(long, default_value = "data/models/rapidocr")]
     model_dir: String,
 
@@ -158,7 +158,7 @@ fn main() -> Result<()> {
         frame_outs.extend(subtitle_ocr::ocr_entry(&mut ocr, e)?);
         pb.inc(1);
     }
-    pb.finish_with_message("OCR 完成");
+    pb.finish();
 
     // --out：额外落地 OcrFramesResult（文件名由调用方指定，如 asr_ocr_frames.json）
     if let Some(out) = &cli.out {

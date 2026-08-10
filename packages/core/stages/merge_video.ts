@@ -21,6 +21,7 @@ import {
 } from "@repo/core/stages/utils/utils";
 import { startLog } from "./utils/log.ts";
 import { writeSrt } from "@repo/core/utils/srt";
+import { SrtJson } from "@repo/subtitle/types";
 
 function filterSubPath(subPath: string): string {
   if (process.platform !== "win32") return subPath;
@@ -104,14 +105,14 @@ export async function stageMergeVideo(ctx: TaskCtx) {
       const trFile = translationFilePath(taskDir, dstLangCode);
       data = await readJson(trFile);
     } else {
-      const srt = await readJson(srtPath ? srtPath : subtitleFilePath(ctx));
+      const srt = await readJson<SrtJson>(srtPath ? srtPath : subtitleFilePath(ctx));
       const segments = srt.result?.segments ?? [];
       data = {
-        translation: segments.map((seg: any) => ({
+        translation: segments.map((seg) => ({
           src: seg.text,
           dst: seg.text,
-          start_time: Math.round(seg.start),
-          end_time: Math.round(seg.end),
+          start_time: Math.round(seg.start_ms),
+          end_time: Math.round(seg.end_ms),
           speaker: "1",
         })),
       };

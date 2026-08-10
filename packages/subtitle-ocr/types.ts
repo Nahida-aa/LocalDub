@@ -1,4 +1,4 @@
-import { SubtitlingSegment } from "@repo/subtitling/types";
+import { SubtitleSegment } from "@repo/subtitle/types";
 
 export interface OcrBoxResult {
   text: string;
@@ -38,9 +38,9 @@ export type SegmentFrame = {
   timestamp: number;
   text_confidence: number;
 };
-export interface OcrSegment extends SubtitlingSegment {
+export interface OcrSegment extends SubtitleSegment {
   y_range?: [number, number];
-  text_confidence: number;
+  text_confidence?: number;
   frame_count?: number;
   frames?: SegmentFrame[];
 }

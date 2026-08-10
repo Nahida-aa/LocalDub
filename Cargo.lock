@@ -3933,7 +3933,7 @@ dependencies = [
 [[package]]
 name = "geometry"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/ocr-lab.git?rev=6fe862f587336e7397e0cfaa473cb45eae666ed5#6fe862f587336e7397e0cfaa473cb45eae666ed5"
+source = "git+https://github.com/Nahida-aa/ocr-lab.git?rev=03b6512ff59165cf16ff5d8a0d879df6b184c7fe#03b6512ff59165cf16ff5d8a0d879df6b184c7fe"
 dependencies = [
  "glam",
  "wide",
@@ -7303,7 +7303,7 @@ checksum = "ca45419789ae5a7899559e9512e58ca889e41f04f1f2445e9f4b290ceccd1d08"
 [[package]]
 name = "rapidocr-ort"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/ocr-lab.git?rev=6fe862f587336e7397e0cfaa473cb45eae666ed5#6fe862f587336e7397e0cfaa473cb45eae666ed5"
+source = "git+https://github.com/Nahida-aa/ocr-lab.git?rev=03b6512ff59165cf16ff5d8a0d879df6b184c7fe#03b6512ff59165cf16ff5d8a0d879df6b184c7fe"
 dependencies = [
  "anyhow",
  "clap",
@@ -8245,9 +8245,13 @@ name = "sf-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "rapidocr-ort",
+ "clap",
+ "image",
+ "indicatif",
+ "ndarray 0.17.2",
  "subtitle-finder",
- "subtitle-ocr",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -8676,13 +8680,14 @@ dependencies = [
 [[package]]
 name = "subtitle-finder"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/ocr-lab.git?rev=6fe862f587336e7397e0cfaa473cb45eae666ed5#6fe862f587336e7397e0cfaa473cb45eae666ed5"
+source = "git+https://github.com/Nahida-aa/ocr-lab.git?rev=03b6512ff59165cf16ff5d8a0d879df6b184c7fe#03b6512ff59165cf16ff5d8a0d879df6b184c7fe"
 dependencies = [
  "anyhow",
  "clap",
  "ffmpeg-next",
  "geometry",
  "image",
+ "indicatif",
  "ndarray 0.17.2",
  "opencv",
  "serde",
@@ -8694,10 +8699,11 @@ dependencies = [
 [[package]]
 name = "subtitle-ocr"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/ocr-lab.git?rev=6fe862f587336e7397e0cfaa473cb45eae666ed5#6fe862f587336e7397e0cfaa473cb45eae666ed5"
+source = "git+https://github.com/Nahida-aa/ocr-lab.git?rev=03b6512ff59165cf16ff5d8a0d879df6b184c7fe#03b6512ff59165cf16ff5d8a0d879df6b184c7fe"
 dependencies = [
  "anyhow",
  "clap",
+ "ffmpeg-next",
  "glam",
  "image",
  "indicatif",
@@ -8715,6 +8721,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "ffmpeg-next",
  "indicatif",
  "rapidocr-ort",
  "serde",

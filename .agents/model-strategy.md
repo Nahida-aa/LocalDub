@@ -9,8 +9,8 @@
 | VoxCPM (TTS) | TypeScript (ONNX) | CPU / webgpu | ❌ 废弃，Bun 多版本冲突 + `sharp` 依赖 + OOM |
 | CosyVoice3 (TTS) | Python (ONNX) | CPU | 无 CUDA EP，编译 ORT+MIGraphX 中（MIOpen conv solver hang）|
 | Whisper (ASR) | whisper.cpp | Vulkan (RADV) | ✅ **首选**，RTF ~0.09，编译 `-DGGML_VULKAN=ON` |
-| Whisper (ASR) | Python (faster-whisper / CTranslate2) | CPU | ✅ 可用，CTranslate2 GPU 路径因缺 libcuda.so 不可用 |
-| Whisper (ASR) | Python (PyTorch) | CPU | ✅ Works，GPU 端 segfault |
+| Whisper (ASR) | Python (faster-whisper / CTranslate2) | CPU | ⚠️ 暂停止支持 |
+| Whisper (ASR) | Python (PyTorch) | CPU | ⚠️ 暂停止支持 |
 | Whisper (ASR) | Python (faster-whisper) | GPU | ❌ CTranslate2 CUDA 依赖 libcuda.so+libcudart.so，ROCm 系统无 |
 | Whisper (ASR) | whisper.cpp HIPBLAS | GPU | ❌ MES 0x83 `REMOVE_QUEUE` hang，长音频必触发，已废弃 |
 | Translation | Python (OpenAI) | N/A | Remote API |

@@ -16,7 +16,7 @@ import {
   mixedVocalsPath,
   gatedVocalsPath,
 } from "@repo/core/stages/utils/utils";
-import { AsrOptions, AsrResult } from "./types.ts";
+import { AsrOptions } from "./types.ts";
 import { parseAsrOutput } from "./utils.ts";
 import { TaskCtx, setCtx, setStage } from "@repo/core/context/context.ts";
 import { pythonBin } from "@repo/config/path/bin";
@@ -25,6 +25,8 @@ import { REPO_ROOT } from "@repo/config/root";
 import { whisperCppModelPath } from "@repo/config/path/models";
 import { asrWhisperCpp } from "../../ml/whisper/runtime/ggml.ts";
 import { asrFasterWhisper } from "../../ml/whisper/runtime/faster_whisper_py.ts";
+import { AsrResult } from "@repo/subtitle-asr/types";
+import { log } from "@repo/util/log";
 
 export async function stageAsr(ctx: TaskCtx) {
   const taskId = ctx.task.id;
@@ -123,21 +125,18 @@ export async function stageAsr(ctx: TaskCtx) {
   }
   const data = await readJson<AsrResult>(asrFile);
   setCtx(taskDir, {
-    asr_language: data.detected_language,
+    asr_language: data.meta.detected_language,
   });
   // 统一过滤超出音频时长的幻觉段（所有路径 shared）
-  const durationMs = data.audio_info?.duration ?? 0;
+  const durationMs = data.meta.audio_duration ?? 0;
   if (durationMs > 0 && data.result?.segments?.length) {
     const before = data.result.segments.length;
     data.result.segments = data.result.segments.filter(
-      (u: Record<string, any>) => u.start < durationMs && u.end > 0,
+      (u) => u.start_ms < durationMs && u.end_ms > 0,
     );
     if (data.result.segments.length < before) {
       const removed = before - data.result.segments.length;
-      emitLog(
-        taskDir,
-        `[ASR] Removed ${removed} hallucinated segment(s) (start >= ${durationMs}ms or end <= 0ms)`,
-      );
+      log(`Removed ${removed} hallucinated segment(s) (start >= ${durationMs}ms or end <= 0ms)`);
       writeJson(asrFile, data);
     }
   }
@@ -145,14 +144,13 @@ export async function stageAsr(ctx: TaskCtx) {
   // 能量检测：最后一个 segment 如果 RMS 过低则判为幻觉
   const last = data.result?.segments?.[data.result.segments.length - 1];
   if (last && existsSync(audioPath)) {
-    const rms = await segmentRms(audioPath, last.start, last.end);
+    const rms = await segmentRms(audioPath, last.start_ms, last.end_ms);
     console.log(`[ASR] Last segment RMS: ${rms}`);
     if (rms > 0 && rms < 0.005) {
       const removed = data.result.segments.pop();
       if (removed) {
-        emitLog(
-          taskDir,
-          `[ASR] Removed low-energy hallucinated segment "${removed.text.slice(0, 30)}" (RMS=${rms.toFixed(5)})`,
+        log(
+          `Removed low-energy hallucinated segment "${removed.text.slice(0, 30)}" (RMS=${rms.toFixed(5)})`,
         );
         writeJson(asrFile, data);
       }

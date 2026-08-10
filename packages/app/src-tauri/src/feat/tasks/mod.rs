@@ -49,7 +49,7 @@ pub async fn resume_task(task_dir: String, from_stage: String) -> Result<(), Str
     ctx["input"]["task"]["action"] = serde_json::Value::String("resume".into());
     ctx["input"]["task"]["resumeFrom"] = serde_json::Value::String(from_stage);
     ctx["input"]["stages"]["asr_ocr"]["runtime"] = serde_json::Value::String("ort-py".into());
-    ctx["input"]["stages"]["ocr"]["runtime"] = serde_json::Value::String("ort-py".into());
+    ctx["input"]["stages"]["sf_ocr"]["runtime"] = serde_json::Value::String("ort-py".into());
     ctx["input"]["stages"]["tts"]["runtime"] = serde_json::Value::String("cloud".into());
 
     let input_path = base_dir().join("packages").join("cli").join("input.json");

@@ -35,6 +35,15 @@ export const BoxAdjustedArgsSchema = z.object({
 export type BoxAdjustedArgs = z.output<typeof BoxAdjustedArgsSchema>;
 
 export const OcrFixArgsSchema = z.looseObject({
+  text_confidence_threshold: z
+    .number()
+    .default(0.5)
+    .describe(
+      "字幕段置信度阈值（0-1）：ocr-post filter-segment 用 adjusted_text_confidence 过滤，低于此值丢弃；默认 0.5",
+    ),
+  ...OcrSegmentAdjustArgsSchema.shape,
+  ...BoxAdjustedArgsSchema.shape,
+  ...MergeFramesArgsSchema.shape,
   ...LlmFixArgsSchema.shape,
 });
 

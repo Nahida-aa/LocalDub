@@ -20,6 +20,9 @@ import { pythonBin } from "@repo/config/path/bin";
 import { REPO_ROOT } from "@repo/config/root";
 import { whisperCppModelPath } from "@repo/config/path/models";
 import { srtTime } from "@repo/core/utils/utils";
+import { log } from "@repo/util/log";
+import { WhisperJson } from "@repo/subtitle-asr/whisper_types";
+import { AsrResult, AsrSegment } from "@repo/subtitle-asr/types";
 
 const VAD_CANDIDATES: Record<string, string[]> = {
   "silero-v5": ["silero-v5.1.2", "silero-vad-v5"],
@@ -67,7 +70,7 @@ export async function asrWhisperCpp(
   const whisperCli = whisperCppBinaryPath();
   const model = whisperCppModelPath();
 
-  emitLog(taskDir, `[asr] runtime=ggml binary=${whisperCli}`);
+  log(`runtime=ggml binary=${whisperCli}`);
 
   if (!ensureWhisperCpp(taskDir)) {
     throw new Error("whisper.cpp setup failed; see logs above for manual steps");
@@ -97,19 +100,19 @@ export async function asrWhisperCpp(
 
   const t0 = performance.now();
   const whisperArgs = ["-m", model, tmpAudio, "-l", language, "-t", "4", "-ojf"];
-  const asrCfg = ctx.input?.stages?.asr;
-  if (asrCfg?.vad) {
+  const asrArgs = ctx.input?.stages?.asr;
+  if (asrArgs?.vad) {
     whisperArgs.push("--vad");
-    if (asrCfg.vadModel) whisperArgs.push("-vm", resolveVadModel(asrCfg.vadModel));
+    if (asrArgs.vadModel) whisperArgs.push("-vm", resolveVadModel(asrArgs.vadModel));
   }
   ["vadThreshold", "noSpeechThold", "temperature"].forEach((k) => {
-    const v = (asrCfg as any)?.[k];
+    const v = (asrArgs as any)?.[k];
     if (v !== undefined && v !== null) {
       whisperArgs.push(`--${k.replace(/([A-Z])/g, "-$1").toLowerCase()}`, String(v));
     }
   });
-  if (asrCfg?.maxLen && asrCfg.maxLen > 0) whisperArgs.push("--max-len", String(asrCfg.maxLen));
-  if (asrCfg?.splitOnWord) whisperArgs.push("--split-on-word");
+  if (asrArgs?.maxLen && asrArgs.maxLen > 0) whisperArgs.push("--max-len", String(asrArgs.maxLen));
+  if (asrArgs?.splitOnWord) whisperArgs.push("--split-on-word");
   const libPathKey = (() => {
     if (process.platform !== "win32") return "LD_LIBRARY_PATH";
     const existing = Object.keys(process.env).find((k) => k.toLowerCase() === "path");
@@ -134,15 +137,14 @@ export async function asrWhisperCpp(
     : candidateReleaseDirs[0];
 
   // Log chosen binary & availability for diagnostics
-  emitLog(
-    taskDir,
-    `[ASR] whisper binary chosen=${whisperCli} exists=${existsSync(whisperCli)} binDir=${binDir} releaseDir=${chosenReleaseDir} releaseExists=${existsSync(chosenReleaseDir)}`,
+  log(
+    `whisper binary chosen=${whisperCli} exists=${existsSync(whisperCli)} binDir=${binDir} releaseDir=${chosenReleaseDir} releaseExists=${existsSync(chosenReleaseDir)}`,
   );
   try {
     const binFiles = existsSync(binDir) ? readdirSync(binDir).join(",") : "";
-    emitLog(taskDir, `[ASR] binDir files=${binFiles}`);
+    log(`binDir files=${binFiles}`);
     if (existsSync(chosenReleaseDir)) {
-      emitLog(taskDir, `[ASR] releaseDir files=${readdirSync(chosenReleaseDir).join(",")}`);
+      log(`releaseDir files=${readdirSync(chosenReleaseDir).join(",")}`);
     }
   } catch (e) {
     // ignore listing errors
@@ -175,11 +177,10 @@ export async function asrWhisperCpp(
 
   // Diagnostic logging on failure
   if (result.status !== 0 && result.status !== null) {
-    emitLog(
-      taskDir,
-      `[ASR] whisper-cli exit=${result.status} stdout=${result.stdout?.toString().slice(-2000) ?? ""} stderr=${result.stderr?.toString().slice(-2000) ?? ""}`,
+    log(
+      `whisper-cli exit=${result.status} stdout=${result.stdout?.toString().slice(-2000) ?? ""} stderr=${result.stderr?.toString().slice(-2000) ?? ""}`,
     );
-    emitLog(taskDir, `[ASR] PATH used=${(process.env[libPathKey] || "").slice(-2000)}`);
+    log(`PATH used=${(process.env[libPathKey] || "").slice(-2000)}`);
   }
 
   const elapsedSec = (performance.now() - t0) / 1000;
@@ -196,34 +197,32 @@ export async function asrWhisperCpp(
     throw new Error(`whisper-cli did not produce ${whisperJson}`);
   }
 
-  const raw = await readJson(whisperJson);
+  const raw = await readJson<WhisperJson>(whisperJson);
   // Move the generated whisper JSON into the session asr directory for centralized storage
   const destWhisperJson = join(audioDir, basename(whisperJson));
   try {
     if (whisperJson !== destWhisperJson && existsSync(whisperJson)) {
       renameSync(whisperJson, destWhisperJson);
-      emitLog(taskDir, `[ASR] Moved ${whisperJson} -> ${destWhisperJson}`);
+      log(`Moved ${whisperJson} -> ${destWhisperJson}`);
       // update whisperJson path to the new location for downstream use
       whisperJson = destWhisperJson;
     }
   } catch (e) {
-    emitLog(taskDir, `[ASR] Failed to move whisper json: ${(e as any)?.message ?? e}`);
+    log(`Failed to move whisper json: ${(e as any)?.message ?? e}`);
   }
   const detected_language = raw.result.language ?? "auto";
   setCtx(taskDir, { asr_language: detected_language });
-  const transcription: any[] = raw.transcription || [];
+  const transcription = raw.transcription || [];
 
   const emitWords = ctx.input?.stages?.asr?.wordsOutput ?? true;
 
-  const segments = transcription.map((s: any) => {
+  const segments = transcription.map((s) => {
     const startMs = s.offsets?.from ?? 0;
     const endMs = s.offsets?.to ?? 0;
-    const seg: Record<string, any> = {
+    const seg: AsrSegment = {
       text: (s.text || "").trim(),
-      start: startMs,
-      end: endMs,
-      start_fmt: srtTime(startMs),
-      end_fmt: srtTime(endMs),
+      start_ms: startMs,
+      end_ms: endMs,
     };
     if (emitWords) {
       const rawWords = (s.tokens || [])
@@ -266,27 +265,29 @@ export async function asrWhisperCpp(
   const asrDir = resolve(taskDir, "asr");
   ensureDir(asrDir);
 
-  const lastEndMs = segments.length ? segments[segments.length - 1].end : 0;
-  const asrOutput = {
-    audio_info: { duration: lastEndMs },
+  const lastEndMs = segments.length ? segments[segments.length - 1].end_ms : 0;
+  const asrOutput: AsrResult = {
     result: { text, segments },
-    _engine: "whisper.cpp",
-    _model: model,
-    _params: Object.fromEntries(Object.entries(asrCfg ?? {}).filter(([, v]) => v !== undefined)),
-    _input_audio: audioPath,
-    _device: "vulkan",
-    _rtf: elapsedSec > 0 && lastEndMs > 0 ? (elapsedSec / (lastEndMs / 1000)).toFixed(3) : "0",
-    detected_language,
+    meta: {
+      audio_duration: lastEndMs,
+      device: "vulkan",
+      detected_language: detected_language,
+      engine: "whisper.cpp",
+      model: model,
+      args: asrArgs,
+      input_audio: audioPath,
+      rtf: elapsedSec > 0 && lastEndMs > 0 ? elapsedSec / (lastEndMs / 1000) : 0,
+    },
   };
   writeJson(join(asrDir, "asr.json"), asrOutput);
 
   // Preserve whisper input and json in asr directory for debugging and auditing
-  emitLog(taskDir, `[ASR] Preserving ${tmpAudio} and ${whisperJson} in asr directory`);
+  log(`Preserving ${tmpAudio} and ${whisperJson} in asr directory`);
 
-  emitLog(taskDir, `[ASR] Transcribed in ${elapsedSec.toFixed(1)}s`);
+  log(`Transcribed in ${elapsedSec.toFixed(1)}s`);
   if (segments.length > 0) {
-    const audioDurationMs = segments[segments.length - 1].end;
-    emitLog(taskDir, `[ASR] Audio duration ${(audioDurationMs / 1000).toFixed(1)}s`);
-    emitLog(taskDir, `[ASR] RTF ${(elapsedSec / (audioDurationMs / 1000)).toFixed(3)}`);
+    const audioDurationMs = segments[segments.length - 1].end_ms;
+    log(`Audio duration ${(audioDurationMs / 1000).toFixed(1)}s`);
+    log(`RTF ${(elapsedSec / (audioDurationMs / 1000)).toFixed(3)}`);
   }
 }

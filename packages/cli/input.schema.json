@@ -84,8 +84,9 @@
             "separate_after",
             "asr",
             "asr_fix",
-            "ocr",
-            "ocr_fix",
+            "sf_ocr_pre",
+            "sf_ocr",
+            "sf_ocr_fix",
             "asr_ocr_pre",
             "asr_ocr",
             "asr_ocr_fix",
@@ -107,8 +108,9 @@
             "separate_after",
             "asr",
             "asr_fix",
-            "ocr",
-            "ocr_fix",
+            "sf_ocr_pre",
+            "sf_ocr",
+            "sf_ocr_fix",
             "asr_ocr_pre",
             "asr_ocr",
             "asr_ocr_fix",
@@ -126,10 +128,10 @@
           "enum": ["dub", "subtitle"]
         },
         "subtitleSource": {
-          "description": "字幕源: asr (whisper, 默认), ocr (RapidOCR 硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)",
+          "description": "字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)",
           "default": "asr",
           "type": "string",
-          "enum": ["asr", "ocr", "asr_ocr"]
+          "enum": ["asr", "sf_ocr", "asr_ocr"]
         },
         "targetStage": {
           "description": "目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤",
@@ -139,8 +141,9 @@
             "separate_after",
             "asr",
             "asr_fix",
-            "ocr",
-            "ocr_fix",
+            "sf_ocr_pre",
+            "sf_ocr",
+            "sf_ocr_fix",
             "asr_ocr_pre",
             "asr_ocr",
             "asr_ocr_fix",
@@ -464,26 +467,15 @@
           },
           "additionalProperties": {}
         },
-        "ocr": {
-          "default": {
-            "runtime": "ort-cpp",
-            "device": "cpu",
-            "fps": 2,
-            "text_score_threshold": 0.45,
-            "subtitleOnly": true,
-            "cleanupFrames": false,
-            "isoThresholdMs": 1500,
-            "adjustYWeight": 0.8,
-            "adjustIsoWeight": 0.2,
-            "adjustYFactor": 0.08
-          },
+        "sf_ocr": {
+          "default": {},
           "type": "object",
           "properties": {
             "runtime": {
-              "default": "ort-cpp",
-              "description": "OCR 推理运行时: ort-cpp (C++ + OpenCV 预处理), ort-node (onnxruntime-node), ort-py (Python rapidocr)",
+              "default": "ort-rust",
+              "description": "OCR 推理运行时: ort-rust (opencv)",
               "type": "string",
-              "enum": ["ort-cpp", "ort-node", "ort-py"]
+              "enum": ["ort-rust"]
             },
             "device": {
               "default": "cpu",
@@ -491,12 +483,7 @@
               "type": "string",
               "enum": ["cpu", "cuda", "directml", "coreml", "rocm", "mps"]
             },
-            "fps": {
-              "default": 2,
-              "description": "帧率 (fps), 越高时间戳越准但越慢; 默认 2",
-              "type": "number"
-            },
-            "text_score_threshold": {
+            "text_confidence_threshold": {
               "default": 0.45,
               "description": "OCR 识别置信度阈值, 默认 0.45",
               "type": "number"
@@ -531,39 +518,92 @@
               "description": "Y 偏移惩罚归一化系数: 偏移量 / (videoHeight × adjustYFactor); 越小越严格; 默认 0.08",
               "type": "number"
             },
-            "lineAdjustedThreshold": {
-              "default": 0.5,
-              "description": "行级 outlier 判定: adjustedConfidence < 此值则标记为 outlier; 默认 0.5",
-              "type": "number"
-            },
-            "mergeSubstring": {
+            "is_merge_substring": {
               "default": false,
               "type": "boolean"
             },
-            "dedupLevenshtein": {
+            "dedup_edit_distance": {
               "default": 1,
-              "description": "dedupOverlap 的编辑距离阈值: levenshtein ≤ 此值则合并; 默认 1",
+              "description": "dedupOverlap 的编辑距离阈值: edit_distance ≤ 此值则合并; 默认 1",
               "type": "number"
             }
           },
           "additionalProperties": {}
         },
-        "asr_ocr": {
-          "default": {
-            "runtime": "ort-cpp",
-            "device": "cpu",
-            "fps": 2,
-            "text_score_threshold": 0.45,
-            "subtitleOnly": true,
-            "cleanupFrames": false
+        "sf_ocr_fix": {
+          "default": {},
+          "type": "object",
+          "properties": {
+            "text_confidence_threshold": {
+              "default": 0.5,
+              "description": "字幕段置信度阈值（0-1）：ocr-post filter-segment 用 adjusted_text_confidence 过滤，低于此值丢弃；默认 0.5",
+              "type": "number"
+            },
+            "isoThresholdMs": {
+              "default": 1500,
+              "description": "单帧孤立惩罚的参考时间 (ms)，在此时长内无同文帧则视为完全孤立; 默认 1500",
+              "type": "number"
+            },
+            "adjustYWeight": {
+              "default": 0.8,
+              "description": "Y 偏移在调整置信度中的权重 (0~1); 默认 0.8",
+              "type": "number"
+            },
+            "adjustIsoWeight": {
+              "default": 0.2,
+              "description": "孤立程度在调整置信度中的权重 (0~1); 默认 0.2",
+              "type": "number"
+            },
+            "adjustYFactor": {
+              "default": 0.08,
+              "description": "Y 偏移惩罚归一化系数: 偏移量 / (videoHeight × adjustYFactor); 越小越严格; 默认 0.08",
+              "type": "number"
+            },
+            "boxAdjustedThreshold": {
+              "default": 0.5,
+              "description": "box调整的置信度阈值: confidence < 此值则进行box调整; 默认 0.5",
+              "type": "number"
+            },
+            "is_merge_substring": {
+              "default": false,
+              "type": "boolean"
+            },
+            "dedup_edit_distance": {
+              "default": 1,
+              "description": "dedupOverlap 的编辑距离阈值: edit_distance ≤ 此值则合并; 默认 1",
+              "type": "number"
+            },
+            "llmModel": {
+              "default": "gemma4:31b-cloud",
+              "description": "LLM 模型名",
+              "type": "string"
+            },
+            "llmApiBase": {
+              "default": "http://localhost:11434/v1",
+              "description": "LLM API 地址",
+              "type": "string"
+            },
+            "domainHint": {
+              "description": "领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\"",
+              "type": "string"
+            },
+            "llmFix": {
+              "default": false,
+              "description": "是否启用 LLM 修正",
+              "type": "boolean"
+            }
           },
+          "additionalProperties": {}
+        },
+        "asr_ocr": {
+          "default": {},
           "type": "object",
           "properties": {
             "runtime": {
-              "default": "ort-cpp",
-              "description": "OCR 推理运行时: ort-cpp (C++ + OpenCV 预处理), ort-node (onnxruntime-node), ort-py (Python rapidocr)",
+              "default": "ort-rust",
+              "description": "OCR 推理运行时: ort-rust (opencv)",
               "type": "string",
-              "enum": ["ort-cpp", "ort-node", "ort-py"]
+              "enum": ["ort-rust"]
             },
             "device": {
               "default": "cpu",
@@ -571,12 +611,7 @@
               "type": "string",
               "enum": ["cpu", "cuda", "directml", "coreml", "rocm", "mps"]
             },
-            "fps": {
-              "default": 2,
-              "description": "帧率 (fps), 越高时间戳越准但越慢; 默认 2",
-              "type": "number"
-            },
-            "text_score_threshold": {
+            "text_confidence_threshold": {
               "default": 0.45,
               "description": "OCR 识别置信度阈值, 默认 0.45",
               "type": "number"
@@ -598,9 +633,9 @@
           "default": {},
           "type": "object",
           "properties": {
-            "text_score_threshold": {
-              "description": "OCR 文本置信度阈值（0-1），低于此阈值的帧在合并前会被丢弃",
+            "text_confidence_threshold": {
               "default": 0.5,
+              "description": "OCR 文本置信度阈值（0-1），低于此阈值的帧在合并前会被丢弃",
               "type": "number"
             },
             "is_resample": {
@@ -627,51 +662,20 @@
               "description": "Y 偏移惩罚归一化系数: 偏移量 / (videoHeight × adjustYFactor); 越小越严格; 默认 0.08",
               "type": "number"
             },
-            "lineAdjustedThreshold": {
-              "default": 0.5,
-              "description": "行级 outlier 判定: adjustedConfidence < 此值则标记为 outlier; 默认 0.5",
-              "type": "number"
-            },
             "boxAdjustedThreshold": {
               "default": 0.5,
               "description": "box调整的置信度阈值: confidence < 此值则进行box调整; 默认 0.5",
               "type": "number"
             },
-            "mergeSubstring": {
+            "is_merge_substring": {
               "default": false,
               "type": "boolean"
             },
-            "dedupLevenshtein": {
+            "dedup_edit_distance": {
               "default": 1,
-              "description": "dedupOverlap 的编辑距离阈值: levenshtein ≤ 此值则合并; 默认 1",
+              "description": "dedupOverlap 的编辑距离阈值: edit_distance ≤ 此值则合并; 默认 1",
               "type": "number"
             },
-            "llmModel": {
-              "default": "gemma4:31b-cloud",
-              "description": "LLM 模型名",
-              "type": "string"
-            },
-            "llmApiBase": {
-              "default": "http://localhost:11434/v1",
-              "description": "LLM API 地址",
-              "type": "string"
-            },
-            "domainHint": {
-              "description": "领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\"",
-              "type": "string"
-            },
-            "llmFix": {
-              "default": false,
-              "description": "是否启用 LLM 修正",
-              "type": "boolean"
-            }
-          },
-          "additionalProperties": {}
-        },
-        "ocr_fix": {
-          "default": {},
-          "type": "object",
-          "properties": {
             "llmModel": {
               "default": "gemma4:31b-cloud",
               "description": "LLM 模型名",

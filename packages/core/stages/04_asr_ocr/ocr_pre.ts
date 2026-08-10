@@ -8,14 +8,25 @@ import { TaskCtx, setStage, setTask } from "@repo/core/context/context.ts";
 import { srtTime } from "@repo/core/utils/utils";
 import { extract_frame, extract_frames } from "@repo/subtitle-ocr/ffmpeg_util";
 import { to } from "@repo/shared/lib/utils/try";
-import { SubtitlingSegment } from "@repo/subtitling/types";
-import { AsrResult } from "../asr/types";
+import { SubtitleSegment } from "@repo/subtitle/types";
 import { log } from "@repo/util/log";
+import { AsrResult, AsrSegment } from "@repo/subtitle-asr/types";
 
 // Split long ASR segments by punctuation using word-level timestamps
 const SPLIT_PAT = /[，,。！？.!?]/;
 const MIN_SUB_DUR = 800;
 
+export type AsrSplitResult = {
+  result: {
+    text: string;
+    segments: SubtitleSegment[];
+  };
+  meta: AsrSplitResultMeta;
+};
+type AsrSplitResultMeta = {
+  original_segments_count: number;
+  segments_count: number;
+};
 // Find word indices where seg.text contains spaces (e.g. "陆 陆直循")
 function findSpaceSplits(text: string, words: { word: string }[]): number[] {
   const chars = [...text];
@@ -36,18 +47,11 @@ function findSpaceSplits(text: string, words: { word: string }[]): number[] {
   return splits;
 }
 
-function splitAsrByWords(
-  segs: {
-    text: string;
-    start: number;
-    end: number;
-    words?: { word: string; start: number; end: number; probability: number }[];
-  }[],
-): SubtitlingSegment[] {
+function splitAsrByWords(segs: AsrSegment[]): SubtitleSegment[] {
   return segs.flatMap((seg) => {
     const ws = seg.words;
     if (!ws || ws.length < 2) {
-      return [{ text: seg.text, start_ms: seg.start, end_ms: seg.end }];
+      return [{ text: seg.text, start_ms: seg.start_ms, end_ms: seg.end_ms }];
     }
     const spaceSplits = findSpaceSplits(seg.text, ws);
     const punctSplits = (() => {
@@ -62,7 +66,7 @@ function splitAsrByWords(
       .sort((a, b) => a - b)
       .filter((v, i, a) => a.indexOf(v) === i);
     if (splitIdx.length <= 1 && !hasSpaceSplit) {
-      return [{ text: seg.text, start_ms: seg.start, end_ms: seg.end }];
+      return [{ text: seg.text, start_ms: seg.start_ms, end_ms: seg.end_ms }];
     }
     // Filter split points: keep if remaining segment (after the split) >= MIN_SUB_DUR
     const useIdx: number[] = [];
@@ -75,9 +79,9 @@ function splitAsrByWords(
     }
     useIdx.push(splitIdx[splitIdx.length - 1]);
     if (useIdx.length <= 1 && !hasSpaceSplit) {
-      return [{ text: seg.text, start_ms: seg.start, end_ms: seg.end }];
+      return [{ text: seg.text, start_ms: seg.start_ms, end_ms: seg.end_ms }];
     }
-    const subSegs: SubtitlingSegment[] = [];
+    const subSegs: SubtitleSegment[] = [];
     let prevIdx = 0;
     for (let i = 0; i < useIdx.length; i++) {
       const endIdx = useIdx[i];
@@ -126,17 +130,7 @@ export async function stageAsrOcrPre(ctx: TaskCtx) {
   }
 
   const asrData = await readJson<AsrResult>(asrFile);
-  const asrSegsRaw: {
-    text: string;
-    start: number;
-    end: number;
-    words?: { word: string; start: number; end: number; probability: number }[];
-  }[] = (asrData.result?.segments ?? []).map((s) => ({
-    text: s.text,
-    start: Math.round(s.start),
-    end: Math.round(s.end),
-    words: s.words,
-  }));
+  const asrSegsRaw = asrData.result?.segments;
 
   if (!asrSegsRaw.length) throw new Error("No ASR segments found");
 
@@ -146,16 +140,18 @@ export async function stageAsrOcrPre(ctx: TaskCtx) {
 
   const preDir = join(taskDir, "asr_ocr_pre");
   ensureDir(preDir);
-
-  // Write asr_split.json
-  writeJson(join(preDir, "asr_split.json"), {
-    original_segments_count: asrSegsRaw.length,
-    segments_count: asrSegs.length,
+  const asrSplitResult: AsrSplitResult = {
     result: {
       text: asrSegs.map((s) => s.text).join(" "),
       segments: asrSegs,
     },
-  });
+    meta: {
+      original_segments_count: asrSegsRaw.length,
+      segments_count: asrSegs.length,
+    },
+  };
+  // Write asr_split.json
+  writeJson(join(preDir, "asr_split.json"), asrSplitResult);
 
   log(`${asrSegsRaw.length} ASR segs → ${asrSegs.length} split segs`);
 

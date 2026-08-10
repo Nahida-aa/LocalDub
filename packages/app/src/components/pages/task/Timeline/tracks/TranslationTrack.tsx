@@ -23,8 +23,8 @@ function serializeSegments(segments: TrackSegment[]): string {
       dst: s.text,
       src_lang: raw.src_lang ?? "auto",
       dst_lang: raw.dst_lang ?? "auto",
-      start: s.startMs,
-      end: s.endMs,
+      start_ms: s.startMs,
+      end_ms: s.endMs,
       speaker: raw.speaker ?? "1",
     };
   });

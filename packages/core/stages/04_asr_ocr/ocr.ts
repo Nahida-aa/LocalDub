@@ -36,7 +36,6 @@ export async function stageAsrOcr(ctx: TaskCtx) {
   }
 
   const asrOcrDir = resolve(taskDir, "asr_ocr");
-  ensureDir(asrOcrDir);
   const outFile = join(asrOcrDir, "frames.json");
 
   const args = [

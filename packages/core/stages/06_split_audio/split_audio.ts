@@ -19,6 +19,8 @@ import {
 import { env } from "@repo/config/env";
 import { TaskCtx, setStage } from "@repo/core/context/context.ts";
 import { SplitAudioItem, SplitAudioTiming } from "./types";
+import { resolveLanguage } from "../05_translate/utils";
+import { SrtJson } from "@repo/subtitle/types";
 
 function probeDuration(file: string): number {
   const r = spawnSync(
@@ -154,9 +156,9 @@ export async function stageSplitAudio(ctx: TaskCtx) {
   const taskDir = ctx.task.task_dir;
   const srtFilePath = subtitleFilePath(ctx);
   const sourceFilePath = ctx.input?.stages?.split_audio?.sourceFilePath ?? video_source_path(ctx);
-  const { asrLanguage: srcLangCode, targetLanguage: dstLangCode } = readTaskLanguages(ctx);
+  const { srcLang, targetLang } = resolveLanguage(ctx);
   const splitAudioDir = join(taskDir, "split_audio");
-  const translationFile = translationFilePath(taskDir, dstLangCode);
+  const translationFile = translationFilePath(taskDir, targetLang);
   const splitAudioTimingsFile = split_audio_path(taskDir);
   const timingsFile = split_audio_timings_path(taskDir);
   const vocalsSegmentDir = join(splitAudioDir, "vocals");
@@ -168,8 +170,8 @@ export async function stageSplitAudio(ctx: TaskCtx) {
   const sourceAudio = hasVocals ? vocalsFilePath! : sourceFilePath;
 
   // Read authoritative timings from srt.json (seconds)
-  const srtData = await readJson(srtFilePath);
-  const segmentsSrc: { text: string; start: number; end: number }[] = srtData.result?.segments;
+  const srtData = await readJson<SrtJson>(srtFilePath);
+  const segmentsSrc = srtData.result?.segments;
   if (!segmentsSrc?.length) throw new Error(`${srtFilePath} has no segments`);
 
   // Read translated text from translation.json, or original from srt.json
@@ -185,8 +187,8 @@ export async function stageSplitAudio(ctx: TaskCtx) {
       dst: translation[i].dst,
       src_lang: translation[i].src_lang,
       dst_lang: translation[i].dst_lang,
-      start: translation[i].start,
-      end: translation[i].end,
+      start: translation[i].start_ms,
+      end: translation[i].end_ms,
       speaker: translation[i].speaker ?? "1",
     }));
   } else {
@@ -194,10 +196,10 @@ export async function stageSplitAudio(ctx: TaskCtx) {
       seg_idx: i + 1,
       src: seg.text,
       dst: seg.text,
-      src_lang: srcLangCode,
-      dst_lang: srcLangCode,
-      start: seg.start,
-      end: seg.end,
+      src_lang: srcLang,
+      dst_lang: srcLang,
+      start: seg.start_ms,
+      end: seg.end_ms,
       // start_time: Math.floor(seg.start),
       // end_time: Math.ceil(seg.end),
       speaker: "1",
@@ -209,8 +211,7 @@ export async function stageSplitAudio(ctx: TaskCtx) {
   timings = padSegments(timings);
 
   // Total audio duration
-  let totalMs = srtData.audio_info?.duration ?? 0;
-  if (!totalMs) totalMs = probeDuration(sourceAudio);
+  let totalMs = probeDuration(sourceAudio);
 
   ensureDir(vocalsSegmentDir);
   // Write timings.json (always refresh to pick up updated OCR/OCR-fix timestamps)

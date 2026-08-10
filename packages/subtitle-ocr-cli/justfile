@@ -43,8 +43,16 @@ run-one image="tmp/both_fullscreen_frame1.png":
 
 # ---- 批量识别（--dir，文件名须为 ms / ms_ms 时间格式） ----
 # 用法：just run-dir <dir>
-run-dir dir="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/asr_ocr_pre/frames" out="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/asr_ocr/asr_ocr_frames.json":
+run-dir dir="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/asr_ocr_pre/frames" out="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/asr_ocr/frames.json":
     cargo run -p subtitle-ocr-cli --bin subtitle-ocr --release -- --model-dir data/models/rapidocr --dir {{dir}} --out {{out}}
+
+# ---- 统合后处理管线：一条命令串起 adjust-box → filter-box → merge → adjust-segment → filter-segment ----
+# 用法：just ocr-post [frames] [video] [out] [threshold] [stop_at]
+# 输入 frames（逐帧 OCR JSON，subtitle-ocr --out 产出）与 video（视频路径，读高度）；
+# 各中间产物（frames_box_adjust.json / frames_box_filter.json / frames_merged.json /
+# segment_adjust.json / segment_filter.json）都写到 out 目录。--stop-at 可只跑到某一步。
+ocr-post frames="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/sf_ocr/frames.json" video="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/video_source.mp4" out="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/sf_ocr_fix" threshold="0.5" stop_at="filter-segment":
+    cargo run -p subtitle-ocr-cli --bin ocr-post --release -- --frames {{frames}} --video {{video}} --out {{out}} --threshold {{threshold}} --stop-at {{stop_at}}
 
 # ---- 全参数批量识别（--dir + 所有可选 flag） ----
 # 参数全部为 long option（跳过中间参数无需占位；布尔 flag 直接传 --xxx 即开启）；

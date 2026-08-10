@@ -6,13 +6,13 @@
  * 此文件在此阶段后冻结，split_audio 不修改它，而是创建 timings.json。
  */
 export interface TranslateFile {
-	translation: {
-		src: string;
-		dst: string;
-		src_lang: string;
-		dst_lang: string;
-		start: number;
-		end: number;
-		speaker: string;
-	}[];
+  translation: {
+    src: string;
+    dst: string;
+    src_lang: string;
+    dst_lang: string;
+    start_ms: number;
+    end_ms: number;
+    speaker: string;
+  }[];
 }

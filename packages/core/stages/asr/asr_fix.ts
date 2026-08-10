@@ -10,6 +10,7 @@ import { parseLines } from "@repo/core/ml/llm/srt_shared.ts";
 import { t } from "@repo/shared/i18n/server";
 import { srtTime } from "@repo/core/utils/utils";
 import { ensureDir, writeJson } from "@repo/util/file_op";
+import { AsrResult } from "@repo/subtitle-asr/types";
 
 function padSegments(segments: any[], startPad = 100, endPad = 300): any[] {
   if (!segments.length) return segments;
@@ -63,12 +64,10 @@ export async function stageAsrFix(ctx: TaskCtx) {
     throw new Error(`ASR file not found: ${asrFile}; run ASR stage first`);
   }
 
-  const data = await readJson(asrFile);
-  let segments: any[] = (data.result?.segments || [])
-    .map((s: any) => ({ text: (s.text || "").trim(), start: s.start, end: s.end }))
-    .filter(
-      (s: any) => s.text && (data.audio_info?.duration ? s.start < data.audio_info.duration : true),
-    );
+  const data = await readJson<AsrResult>(asrFile);
+  let segments = (data.result?.segments).filter(
+    (s) => s.text && (data.meta.audio_duration ? s.start_ms < data.meta.audio_duration : true),
+  );
 
   if (!segments.length) throw new Error("ASR result has no segments.");
 
@@ -119,17 +118,15 @@ export async function stageAsrFix(ctx: TaskCtx) {
     emitLog(taskDir, `[ASR Fix] Segment padding disabled`);
   }
 
-  segments = segments.map((s: any) => ({
-    ...s,
-    start_fmt: srtTime(s.start),
-    end_fmt: srtTime(s.end),
-  }));
-  const resultText = segments.map((s: any) => s.text).join(" ");
+  segments = segments;
+  const resultText = segments.map((s) => s.text).join(" ");
   ensureDir(asrFixDir);
   writeJson(srtFile, {
-    audio_info: data.audio_info || {},
     result: { text: resultText, segments },
-    _llm_fixed: llmFix,
+    meta: {
+      audio_duration: data.meta.audio_duration,
+      llm_fixed: llmFix,
+    },
   });
 
   emitLog(taskDir, `[ASR Fix] Written ${segments.length} segs to asr_fix.json`);

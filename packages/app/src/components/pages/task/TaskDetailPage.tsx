@@ -17,7 +17,6 @@ import {
   useFps,
 } from "#/components/app/FileContent/store/videoViewer";
 import { TranslateFile } from "@repo/core/stages/05_translate/type";
-import { AsrResult } from "@repo/core/stages/asr/types";
 import { to } from "@repo/shared/lib/utils/try";
 import {
   SplitAudioFile,
@@ -35,6 +34,7 @@ import { STAGE_TRACKS } from "./Timeline/tracks/const";
 import { useTaskTreeEvents, useFileExists } from "./useTaskTreeEvents";
 import { bumpMediaVersion } from "#/components/app/FileContent/store/ContentPanel";
 import { AsrOcrFile } from "@repo/subtitle-ocr/types";
+import { AsrResult } from "@repo/subtitle-asr/types";
 
 interface Props {
   groupId: string;
@@ -126,11 +126,11 @@ export function TaskDetailPage(props: Props) {
     try {
       const data: AsrResult = JSON.parse(asrQuery.data);
       return (data.result?.segments || [])
-        .map((s: any, i: number) => ({
+        .map((s, i: number) => ({
           index: i,
           text: (s.text || "").trim(),
-          startMs: s.start,
-          endMs: s.end,
+          startMs: s.start_ms,
+          endMs: s.end_ms,
         }))
         .filter((s: { text: string }) => s.text);
     } catch {
@@ -150,8 +150,8 @@ export function TaskDetailPage(props: Props) {
       return (data.translation || []).map((item, i: number) => ({
         index: i,
         text: item.dst || "",
-        startMs: item.start,
-        endMs: item.end,
+        startMs: item.start_ms,
+        endMs: item.end_ms,
       }));
     } catch {
       return [];

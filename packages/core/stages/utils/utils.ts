@@ -183,17 +183,11 @@ export const LANG_NAMES: Record<string, string> = {
   bn: "Bengali",
 };
 
-export function readTaskLanguages(ctx: TaskCtx): {
-  asrLanguage: string;
-  targetLanguage: TargetLang;
-} {
-  if (ctx) {
-    return {
-      asrLanguage: ctx.asr_language || "en",
-      targetLanguage: ctx.target_language || "zh",
-    };
-  }
-  return { asrLanguage: "en", targetLanguage: "zh" };
+export function readTaskLanguages(ctx: TaskCtx) {
+  return {
+    asrLanguage: ctx.asr_language,
+    targetLanguage: ctx.target_language ?? "zh",
+  };
 }
 
 export function translationFilePath(taskDir: string, lang: string): string {
@@ -208,25 +202,17 @@ export function readTranslationResult(ctx: TaskCtx) {
   return readJson<TranslateFile>(filePath);
 }
 
-export interface SrtJson {
-  result: {
-    text: string;
-    segments: {
-      text: string;
-      start: number;
-      end: number;
-      confidence: number;
-    }[];
-  };
-}
 /**
  * - asr_ocr -> asr_ocr_fused.json
  * - asr_ocr + asr_ocr_fix?.llmFix -> asr_ocr_fused_llm_fix.json
  */
 export function subtitleFilePath(ctx: TaskCtx): string {
   const src = ctx.input?.task?.subtitleSource ?? "asr";
-  if (src === "ocr") {
-    const fixFile = join(ctx.task.task_dir, "ocr_fix", "ocr_fix.json");
+  if (src === "sf_ocr") {
+    const filename = ctx.input.stages.sf_ocr_fix.llmFix
+      ? "segment_filter_llm_fix.json"
+      : "segment_filter.json";
+    const fixFile = join(ctx.task.task_dir, "sf_ocr_fix", filename);
     return fixFile;
   }
   if (src === "asr_ocr") {
@@ -287,7 +273,8 @@ export function finalVideoDir(
   subtitleSource: SubtitleSource,
   noTranslate: boolean,
 ): string {
-  const suffix = subtitleSource === "asr_ocr" ? "_asr_ocr" : subtitleSource === "ocr" ? "_ocr" : "";
+  const suffix =
+    subtitleSource === "asr_ocr" ? "_asr_ocr" : subtitleSource === "sf_ocr" ? "_sf_ocr" : "";
   const ntlSuffix = noTranslate ? "_ntl" : "";
   const mode = pipeline === "subtitle" ? "subtitle" : "dub";
   return `${mode}${suffix}${ntlSuffix}`;

@@ -30,6 +30,7 @@
     "@inlang/paraglide-js": "^2.20.2",
     "@repo/core": "workspace:*",
     "@repo/shared": "workspace:*",
+    "@repo/subtitle-asr": "workspace:*",
     "@repo/subtitle-ocr": "workspace:*",
     "@repo/ui-solid": "workspace:*",
     "@tailwindcss/vite": "^4.3.1",

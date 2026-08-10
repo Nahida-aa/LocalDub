@@ -31,11 +31,15 @@ anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 # 进度条（UX 层反馈，独立于 tracing 诊断日志）。
 indicatif = "0.17"
+image = "0.25"
+ndarray = "0.17"
+# ocr-segment-adjust 用 ffmpeg 读视频像素高度（Y 偏移惩罚归一化分母），版本对齐 ocr-lab。
+ffmpeg-next = "9.0.0"
 # OCR 核心（从本仓库拆出的 ocr-lab）。git 源由 cargo 自动拉取/解析其内部
 # workspace 依赖与 [patch]，LocalDub 侧零镜像；版本以 ocr-lab 为准。
-subtitle-finder = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "6fe862f587336e7397e0cfaa473cb45eae666ed5" }
-subtitle-ocr = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "6fe862f587336e7397e0cfaa473cb45eae666ed5" }
-rapidocr-ort = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "6fe862f587336e7397e0cfaa473cb45eae666ed5" }
+subtitle-finder = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "03b6512ff59165cf16ff5d8a0d879df6b184c7fe" }
+subtitle-ocr = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "03b6512ff59165cf16ff5d8a0d879df6b184c7fe" }
+rapidocr-ort = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "03b6512ff59165cf16ff5d8a0d879df6b184c7fe" }
 
 [profile.release]
 lto = "fat"

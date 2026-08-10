@@ -7,32 +7,31 @@ import {
   emitLog,
   LANG_NAMES,
   nowISO,
-  readTaskLanguages,
-  SrtJson,
   subtitleFilePath,
   translationFilePath,
 } from "@repo/core/stages/utils/utils.ts";
 import { TaskCtx, setCtx, setStage } from "@repo/core/context/context.ts";
-import { buildPreprocessPrompt, buildTranslateSystem, resolveTargetLanguage } from "./utils";
+import { buildPreprocessPrompt, buildTranslateSystem, resolveLanguage } from "./utils";
 import { chat_completions } from "../../ml/llm/openai";
 import { to } from "@repo/shared/lib/utils/try";
 import { TranslateFile } from "./type";
 import { writeJson, ensureDir } from "@repo/util/file_op";
+import { SrtJson } from "@repo/subtitle/types";
+import { log } from "@repo/util/log";
 
 export async function stageTranslate(ctx: TaskCtx) {
   const taskId = ctx.task.id;
   const taskDir = ctx.task.task_dir;
-  const { asrLanguage: srcLangCode } = readTaskLanguages(ctx);
 
-  const dstLangCode = resolveTargetLanguage(ctx);
-  const translationFile = translationFilePath(taskDir, dstLangCode);
-  const srcLangName = LANG_NAMES[srcLangCode] || srcLangCode;
-  const dstLangName = LANG_NAMES[dstLangCode] || dstLangCode;
+  const { srcLang, targetLang } = resolveLanguage(ctx);
+  const translationFile = translationFilePath(taskDir, targetLang);
+  const srcLangName = LANG_NAMES[srcLang] || srcLang;
+  const dstLangName = LANG_NAMES[targetLang] || targetLang;
 
   const srtFile = subtitleFilePath(ctx);
   const data = await readJson<SrtJson>(srtFile);
   const segments = data.result.segments;
-  const texts = segments.map((u: any) => (u.text || "").trim());
+  const texts = segments.map((u) => (u.text || "").trim());
   const fullText = (data.result.text || "").trim() || texts.join(" ");
 
   const ytdlpPath = join(taskDir, "download", "ytdlp_info.json");
@@ -121,8 +120,8 @@ export async function stageTranslate(ctx: TaskCtx) {
       const results = arr.slice(0, batchTexts.length).map((d: any, i: number) => {
         const dst = String(d ?? "").trim();
         const chineseRatio = (dst.match(/[\u4e00-\u9fff]/g) || []).length / (dst.length || 1);
-        if (dstLangCode !== "zh" && chineseRatio > 0.3) {
-          const msg = `[Translate] Item ${i + 1} still Chinese (ratio=${chineseRatio.toFixed(2)}, expected ${dstLangCode})`;
+        if (targetLang !== "zh" && chineseRatio > 0.3) {
+          const msg = `[Translate] Item ${i + 1} still Chinese (ratio=${chineseRatio.toFixed(2)}, expected ${targetLang})`;
           emitLog(taskDir, `[ERROR] ${msg}`);
           throw new Error(msg);
         }
@@ -135,13 +134,13 @@ export async function stageTranslate(ctx: TaskCtx) {
       });
       if (results.length < batchTexts.length) {
         const msg = `[Translate] batch produced ${results.length} translations for ${batchTexts.length} inputs`;
-        emitLog(taskDir, `[ERROR] ${msg}`);
+        log(`[ERROR] ${msg}`);
         throw new Error(msg);
       }
       return results;
     } catch (e: any) {
       if (attempt < 2) return translateBatch(batchTexts, attempt + 1);
-      const msg = `[Translate] batch failed after 3 attempts: ${e.message || e} (expected ${dstLangCode})`;
+      const msg = `[Translate] batch failed after 3 attempts: ${e.message || e} (expected ${targetLang})`;
       emitLog(taskDir, `[ERROR] ${msg}`);
       throw new Error(msg);
     }
@@ -156,13 +155,13 @@ export async function stageTranslate(ctx: TaskCtx) {
     });
   }
 
-  const translation: TranslateFile["translation"] = segments.map((u: any, idx: number) => ({
+  const translation: TranslateFile["translation"] = segments.map((u, idx: number) => ({
     src: texts[idx],
     dst: dsts[idx]?.replace(/——/g, "，") || "",
-    src_lang: srcLangCode,
-    dst_lang: dstLangCode,
-    start: u.start,
-    end: u.end,
+    src_lang: srcLang,
+    dst_lang: targetLang,
+    start_ms: u.start_ms,
+    end_ms: u.end_ms,
     speaker: "1",
   }));
 

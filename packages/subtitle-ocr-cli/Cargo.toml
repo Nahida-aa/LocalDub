@@ -3,7 +3,7 @@ name = "subtitle-ocr-cli"
 version.workspace = true
 edition.workspace = true
 
-# 复刻 ocr-lab subtitle-ocr 包的 6 个 CLI 二进制：主 OCR 命令行 + 5 个后处理步骤。
+# 复刻 ocr-lab subtitle-ocr 包的 7 个 CLI 二进制：主 OCR 命令行 + 5 个后处理步骤 + 统合管线。
 # 依赖以 git 源引入 subtitle-ocr（含 util 导出），本包只做二进制壳与 CLI 参数解析。
 [[bin]]
 name = "subtitle-ocr"
@@ -29,6 +29,10 @@ path = "src/bin/ocr_segment_adjust_cli.rs"
 name = "ocr-segment-filter"
 path = "src/bin/ocr_segment_filter_cli.rs"
 
+[[bin]]
+name = "ocr-post"
+path = "src/bin/ocr_post_cli.rs"
+
 [dependencies]
 # ocr-lab 字幕 OCR 库（git 源，含合并/调整/过滤后处理与批量 frame 列表）。
 subtitle-ocr = { workspace = true }
@@ -42,3 +46,5 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 # 进度条（UX 层反馈，独立于 tracing 诊断日志）。
 indicatif = { workspace = true }
+# ocr-segment-adjust 用 ffmpeg 读视频像素高度（Y 偏移惩罚归一化分母）。
+ffmpeg-next = { workspace = true }
