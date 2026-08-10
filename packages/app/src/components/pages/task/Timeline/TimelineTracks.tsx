@@ -31,6 +31,7 @@ interface TrackComponentProps {
 const trackComponents: Record<string, Component<TrackComponentProps>> = {
   asr: AsrTrack,
   asr_ocr_fix: AsrOcrFixTrack,
+  sf_ocr_fix: AsrOcrFixTrack,
   split_audio: SplitAudioTrack,
   split_audio_timings: SplitAudioTrack,
   translation: TranslationTrack,

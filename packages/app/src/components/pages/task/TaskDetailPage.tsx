@@ -35,6 +35,7 @@ import { useTaskTreeEvents, useFileExists } from "./useTaskTreeEvents";
 import { bumpMediaVersion } from "#/components/app/FileContent/store/ContentPanel";
 import { AsrOcrFile } from "@repo/subtitle-ocr/types";
 import { AsrResult } from "@repo/subtitle-asr/types";
+import { OcrSegmentFilterResult } from "@repo/subtitle-ocr/ocr_fix/segment_filter";
 
 interface Props {
   groupId: string;
@@ -114,6 +115,8 @@ export function TaskDetailPage(props: Props) {
   const splitAudioExists = useFileExists(taskDir, "split_audio/split_audio.json");
   const ttsExists = useFileExists(taskDir, "tts/tts.json");
   const asrOcrFixExists = useFileExists(taskDir, "asr_ocr_fix/asr_ocr_fused_llm_fix.json");
+  const sfOcrFixLlmExists = useFileExists(taskDir, "sf_ocr_fix/segment_filter_llm_fix.json");
+  const sfOcrFixExists = useFileExists(taskDir, "sf_ocr_fix/segment_filter.json");
 
   const asrQuery = useQuery(() =>
     client.read_app_file_text.queryOptions(`${taskDir}/asr/asr.json`, {
@@ -149,7 +152,7 @@ export function TaskDetailPage(props: Props) {
       const data: TranslateFile = JSON.parse(transQuery.data);
       return (data.translation || []).map((item, i: number) => ({
         index: i,
-        text: item.dst || "",
+        text: item.dst,
         startMs: item.start_ms,
         endMs: item.end_ms,
       }));
@@ -242,8 +245,31 @@ export function TaskDetailPage(props: Props) {
     return data.result.segments.map((item, i: number) => ({
       index: i,
       text: item.text,
-      startMs: item.start,
-      endMs: item.end,
+      startMs: item.start_ms,
+      endMs: item.end_ms,
+      raw: item,
+    }));
+  };
+
+  // sf_ocr_fix 轨道：优先 LLM 修正产物，否则回落到段过滤产物
+  const sfOcrFixPath = () =>
+    sfOcrFixLlmExists()
+      ? "sf_ocr_fix/segment_filter_llm_fix.json"
+      : "sf_ocr_fix/segment_filter.json";
+  const sfOcrFixQ = useQuery(() =>
+    client.read_app_file_text.queryOptions(`${taskDir}/${sfOcrFixPath()}`, {
+      enabled: sfOcrFixLlmExists() || sfOcrFixExists(),
+    }),
+  );
+  const sfOcrFixSegments = () => {
+    if (!sfOcrFixQ.data) return [];
+    const [data, err] = to<OcrSegmentFilterResult>(() => JSON.parse(sfOcrFixQ.data));
+    if (err) return [];
+    return (data.result?.segments ?? []).map((item, i: number) => ({
+      index: i,
+      text: item.text,
+      startMs: item.start_ms,
+      endMs: item.end_ms,
       raw: item,
     }));
   };
@@ -305,6 +331,15 @@ export function TaskDetailPage(props: Props) {
         segments: asr_ocr_fix_llm_,
         color: "#a855f7",
         filePath: `${taskDir}/asr_ocr_fix/asr_ocr_fused_llm_fix.json`,
+      });
+    const sfOcrFix = sfOcrFixSegments();
+    if (sfOcrFix.length)
+      result.push({
+        id: "sf_ocr_fix",
+        label: sfOcrFixPath(),
+        segments: sfOcrFix,
+        color: "#8b5cf6",
+        filePath: `${taskDir}/${sfOcrFixPath()}`,
       });
     const asr = asrSegments();
     if (asr.length) result.push({ id: "asr", label: "asr.json", segments: asr, color: "#3b82f6" });

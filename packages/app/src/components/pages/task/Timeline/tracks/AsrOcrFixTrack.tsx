@@ -12,7 +12,7 @@ import { client } from "#/integrations/fnrpc/client.ts";
 import { useMutation, useQuery } from "@tanstack/solid-query";
 import { useViewingTab } from "../../TaskControlPanel/taskControlPanelStore";
 import { STAGE_TRACKS } from "./const";
-import { AsrOcrBaseSegment, AsrOcrFile } from "@repo/subtitle-ocr/types";
+import { OcrSegment } from "@repo/subtitle-ocr/types";
 
 interface Props {
   track: Track;
@@ -24,18 +24,26 @@ interface Props {
   filePath: string;
 }
 
-function serializeSegments(segments: TrackSegment[]): string {
-  const segs: AsrOcrBaseSegment[] = segments.map((s) => {
-    const raw = (s.raw as AsrOcrBaseSegment) || {};
+function serializeSegments(segments: TrackSegment[], trackId: string): string {
+  const segs: OcrSegment[] = segments.map((s) => {
+    const raw = (s.raw as OcrSegment) || {};
     return {
       text: s.text,
-      start: s.startMs,
-      end: s.endMs,
-      box_y: raw.box_y ?? [0, 0],
-      confidence: raw.confidence ?? 1,
+      start_ms: s.startMs,
+      end_ms: s.endMs,
+      y_range: raw.y_range ?? [0, 0],
+      text_confidence: raw.text_confidence ?? 1,
     };
   });
-  const out: AsrOcrFile = { result: { segments: segs } };
+  const merged = segs
+    .map((s) => s.text)
+    .filter(Boolean)
+    .join(" ");
+  // sf_ocr_fix 落盘 segment_filter_llm_fix/segment_filter 形状 (OcrSegmentFilterResult)，其余走 AsrOcrFile
+  const out =
+    trackId === "sf_ocr_fix"
+      ? { result: { text: merged, segments: segs } }
+      : { result: { segments: segs } };
   return JSON.stringify(out, null, 2);
 }
 
@@ -109,18 +117,18 @@ export function AsrOcrFixTrack(props: Props) {
   );
   const handleInsertBefore = (segIndex: number) => {
     const newSegments = insertAt(track().segments, segIndex, false);
-    mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+    mutation.mutate([props.filePath, serializeSegments(newSegments, track().id)]);
   };
 
   const handleInsertAfter = (segIndex: number) => {
     const newSegments = insertAt(track().segments, segIndex, true);
-    mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+    mutation.mutate([props.filePath, serializeSegments(newSegments, track().id)]);
   };
 
   const handleEdit = (segIndex: number) => {
     const seg = track().segments[segIndex];
     if (!seg) return;
-    const raw = seg.raw as AsrOcrBaseSegment | undefined;
+    const raw = seg.raw as OcrSegment | undefined;
 
     openModal(
       () => {
@@ -132,7 +140,7 @@ export function AsrOcrFixTrack(props: Props) {
           const newSegments = track().segments.map((s, i) =>
             i === segIndex ? { ...s, text: text(), startMs: startMs(), endMs: endMs() } : s,
           );
-          mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+          mutation.mutate([props.filePath, serializeSegments(newSegments, track().id)]);
           closeModal();
         };
 
@@ -168,9 +176,9 @@ export function AsrOcrFixTrack(props: Props) {
             </div>
             {raw && (
               <div class="flex gap-4 text-xs text-muted-foreground">
-                <span>置信度: {raw.confidence?.toFixed(3)}</span>
+                <span>置信度: {raw.text_confidence?.toFixed(3)}</span>
                 <span>
-                  box_y: [{raw.box_y?.[0]}, {raw.box_y?.[1]}]
+                  y_range: [{raw.y_range?.[0]}, {raw.y_range?.[1]}]
                 </span>
               </div>
             )}
@@ -197,7 +205,7 @@ export function AsrOcrFixTrack(props: Props) {
 
   const handleDelete = (segIndex: number) => {
     const newSegments = deleteAt(track().segments, segIndex);
-    mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+    mutation.mutate([props.filePath, serializeSegments(newSegments, track().id)]);
   };
   onMount(() => {
     console.log("AsrOcrFixTrack.onMount");

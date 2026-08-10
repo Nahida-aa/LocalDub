@@ -35,11 +35,11 @@ export const BoxAdjustedArgsSchema = z.object({
 export type BoxAdjustedArgs = z.output<typeof BoxAdjustedArgsSchema>;
 
 export const OcrFixArgsSchema = z.looseObject({
-  text_confidence_threshold: z
+  adjusted_confidence_threshold: z
     .number()
-    .default(0.5)
+    .default(0.45)
     .describe(
-      "字幕段置信度阈值（0-1）：ocr-post filter-segment 用 adjusted_text_confidence 过滤，低于此值丢弃；默认 0.5",
+      "字幕段置信度阈值（0-1）：ocr-post filter-segment 用 adjusted_confidence_threshold 过滤，低于此值丢弃；默认 0.5",
     ),
   ...OcrSegmentAdjustArgsSchema.shape,
   ...BoxAdjustedArgsSchema.shape,
@@ -47,16 +47,11 @@ export const OcrFixArgsSchema = z.looseObject({
   ...LlmFixArgsSchema.shape,
 });
 
+export type OcrFixArgs = z.output<typeof OcrFixArgsSchema>;
+
 export const AsrOcrFixArgsSchema = z.looseObject({
-  text_confidence_threshold: z
-    .number()
-    .default(0.5)
-    .describe("OCR 文本置信度阈值（0-1），低于此阈值的帧在合并前会被丢弃"),
+  ...OcrFixArgsSchema.shape,
   is_resample: z.boolean().default(false),
-  ...OcrSegmentAdjustArgsSchema.shape,
-  ...BoxAdjustedArgsSchema.shape,
-  ...MergeFramesArgsSchema.shape,
-  ...LlmFixArgsSchema.shape,
 });
 
 export type AsrOcrFixArgs = z.output<typeof AsrOcrFixArgsSchema>;

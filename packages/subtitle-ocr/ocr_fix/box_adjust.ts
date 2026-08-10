@@ -9,7 +9,7 @@ type OcrBoxResultWithAdjust = OcrBoxResult & {
   height: number;
   height_ratio: number;
   is_outlier: boolean;
-  adjusted_text_confidence: number;
+  adjusted_confidence: number;
 };
 export type FrameResultBoxWithAdjust = Omit<FrameResult, "boxes"> & {
   boxes: OcrBoxResultWithAdjust[];
@@ -41,7 +41,7 @@ export const ocr_frames_adjust_box = (
           height: 0,
           height_ratio: 0,
           is_outlier: false,
-          adjusted_text_confidence: box_r.text_confidence,
+          adjusted_confidence: box_r.text_confidence,
         };
       const top = box_r.y_range[0];
       const bottom = box_r.y_range[1];
@@ -68,7 +68,7 @@ export const ocr_frames_adjust_box = (
         height: Math.round(height * 10) / 10,
         height_ratio: heightRatio,
         is_outlier: isOutlier,
-        adjusted_text_confidence: adjustedConfidence,
+        adjusted_confidence: adjustedConfidence,
       };
     }),
   }));

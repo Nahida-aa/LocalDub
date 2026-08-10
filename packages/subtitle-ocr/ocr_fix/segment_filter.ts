@@ -21,8 +21,7 @@ export function ocrSegmentFilter(
     return segments.map((s) => ({ ...s }));
   }
   const filtered = segments.filter((s) => {
-    const text_confidence =
-      "adjusted_text_confidence" in s ? s.adjusted_text_confidence : s.text_confidence;
+    const text_confidence = (s as OcrSegmentWithAdjust).adjusted_confidence ?? s.text_confidence;
     return text_confidence === undefined || text_confidence >= text_confidence_threshold;
   });
   return filtered;

@@ -46,21 +46,13 @@ export interface OcrSegment extends SubtitleSegment {
 }
 
 export interface OcrSegmentWithAdjust extends OcrSegment {
-  adjusted_text_confidence?: number;
+  adjusted_confidence?: number;
   y_penalty?: number;
   iso_penalty?: number;
 }
 
-export interface AsrOcrBaseSegment {
-  text: string;
-  start: number;
-  end: number;
-  box_y: [number, number];
-  confidence: number;
-}
-
 export interface AsrOcrFile {
   result: {
-    segments: AsrOcrBaseSegment[];
+    segments: OcrSegment[];
   };
 }

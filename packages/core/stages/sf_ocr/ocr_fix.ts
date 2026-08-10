@@ -15,6 +15,7 @@ import type { OcrSegmentWithAdjust } from "@repo/subtitle-ocr/types";
 import { OcrSegmentFilterResult } from "@repo/subtitle-ocr/ocr_fix/segment_filter";
 import { readJson } from "../../utils/fileOps";
 import { ocrLlmFix } from "./llm_fix";
+import { cellOcrPost, ensureOcrPostBin } from "./util";
 
 // sf_ocr_fix：消费 sf_ocr 产出的 frames.json（OcrFramesResult），调用 subtitle-ocr-cli 的
 // ocr-post 统合管线（adjust-box → filter-box → merge → adjust-segment → filter-segment）
@@ -37,43 +38,7 @@ export async function stageSfOcrFix(ctx: TaskCtx) {
   const args = ctx.input?.stages?.sf_ocr_fix;
   const llmFix = args?.llmFix;
 
-  const ocrPostBin = join(REPO_ROOT, "target", "release", "ocr-post");
-  if (!existsSync(ocrPostBin)) {
-    log(`ocr-post 未构建，自动编译...`);
-    const build = await $`cargo build --release -p subtitle-ocr-cli --bin ocr-post`
-      .cwd(REPO_ROOT)
-      .nothrow();
-    if (build.exitCode !== 0) {
-      throw new Error(`ocr-post 编译失败 (exit ${build.exitCode}):\n${build.stderr}`);
-    }
-  }
-
-  const threshold = args?.text_confidence_threshold ?? 0.5;
-  const postArgs = [
-    "--frames",
-    framesFile,
-    "--video",
-    videoFile,
-    "--out",
-    outDir,
-    "--threshold",
-    String(threshold),
-    "--stop-at",
-    "filter-segment",
-  ];
-  log(`ocr-post ${postArgs.join(" ")}`);
-  const proc = spawn([ocrPostBin, ...postArgs], {
-    cwd: REPO_ROOT,
-    stdout: "inherit",
-    stderr: "inherit",
-  });
-  const exitCode = await proc.exited;
-  if (exitCode !== 0) {
-    throw new Error(`ocr-post failed with exit code ${exitCode}`);
-  }
-
-  const filterFile = join(outDir, "segment_filter.json");
-  const filtered = await readJson<OcrSegmentFilterResult>(filterFile);
+  const filtered = await cellOcrPost(framesFile, videoFile, outDir, args);
   const adjustedSegs = filtered.result.segments ?? [];
   log(`ocr-post → ${adjustedSegs.length} segments (filtered)`);
 

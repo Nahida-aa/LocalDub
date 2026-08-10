@@ -26,7 +26,7 @@ use tracing::info;
 )]
 struct Cli {
     /// 模型套件：v3 / v6-tiny / v6-medium
-    #[arg(long, value_enum, default_value_t = rapidocr_ort::ModelProfile::V3)]
+    #[arg(long, value_enum, default_value_t = rapidocr_ort::ModelProfile::V4)]
     model: rapidocr_ort::ModelProfile,
 
     /// 模型目录（本项目默认仓库根 data/models/rapidocr）

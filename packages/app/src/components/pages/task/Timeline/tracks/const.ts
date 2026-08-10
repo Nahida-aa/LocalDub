@@ -13,7 +13,7 @@ export const STAGE_TRACKS: Record<StageName, string[]> = {
   asr_ocr_fix: ["asr_ocr_fix"],
   sf_ocr_pre: [],
   sf_ocr: [],
-  sf_ocr_fix: [],
+  sf_ocr_fix: ["sf_ocr_fix"],
   translate: ["translation", "asr_ocr_fix"],
   split_audio: ["split_audio", "split_audio_timings"],
   tts: ["tts"],

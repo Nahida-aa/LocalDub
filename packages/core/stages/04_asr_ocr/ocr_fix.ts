@@ -30,15 +30,16 @@ import {
 import { extract_frames } from "@repo/subtitle-ocr/ffmpeg_util";
 import { to } from "@repo/shared/lib/utils/try";
 import { log } from "@repo/util/log";
+import { ocrSegmentFilterWithMeta } from "@repo/subtitle-ocr/ocr_fix/segment_filter";
 import {
-  ocrSegmentFilter,
-  ocrSegmentFilterWithMeta,
-} from "@repo/subtitle-ocr/ocr_fix/segment_filter";
-import { ocr_frames_filter_box } from "@repo/subtitle-ocr/ocr_fix/box_filter";
+  ocr_frames_filter_box,
+  OcrFramesBoxFilteredResult,
+} from "@repo/subtitle-ocr/ocr_fix/box_filter";
 import { AsrSplitResult } from "./ocr_pre.ts";
 import { TargetLang } from "../../cmd/tasks/input.ts";
 import { ocrLlmFix } from "../sf_ocr/llm_fix.ts";
 import { AsrResult } from "@repo/subtitle-asr/types";
+import { cellOcrPost } from "../sf_ocr/util.ts";
 
 export async function stageAsrOcrFix(ctx: TaskCtx) {
   const taskDir = ctx.task.task_dir;
@@ -48,21 +49,23 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
     progress: 0,
   });
 
-  const asrOcrFixDir = resolve(taskDir, "asr_ocr_fix");
+  const outDir = resolve(taskDir, "asr_ocr_fix");
 
   // === 读取上游产物 ===
   // asr.json          : ASR 原始分段（whisper 等）
   // asr_split.json    : asr_ocr_pre 按标点/词切分后的 ASR 段（驱动抽帧时间戳）
   // ocr_frames.json   : asr_ocr 阶段产出的逐帧 OCR 原始结果（OcrFramesResult 格式）
   const asrFile = join(taskDir, "asr", "asr.json");
+  const ocrDir = join(taskDir, "asr_ocr");
+
   const asrSplitFile = join(taskDir, "asr_ocr_pre", "asr_split.json");
-  const ocrFramesFile = join(taskDir, "asr_ocr", "frames.json");
+  const ocrFramesFile = join(ocrDir, "frames.json");
 
   if (!existsSync(asrFile)) throw new Error(`asr.json not found: ${asrFile}`);
   if (!existsSync(asrSplitFile)) throw new Error(`asr_split.json not found, run asr_ocr_pre first`);
   if (!existsSync(ocrFramesFile)) throw new Error(`frames.json not found, run asr_ocr first`);
 
-  ensureDir(asrOcrFixDir);
+  ensureDir(outDir);
 
   const asrRawLen = (await readJson<AsrResult>(asrFile)).result.segments.length;
   const asrSplitData = await readJson<AsrSplitResult>(asrSplitFile);
@@ -75,68 +78,18 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
 
   const videoPath = video_source_path(ctx);
 
-  const frames: FrameResult[] = asrOcrFixArg.is_resample
-    ? await resample_to_ocr_frames(ocrFramesData, videoPath, asrOcrFixDir, asrOcrFixArg) // === 阶段 1: 重采样补充帧 ===
+  asrOcrFixArg.is_resample
+    ? await resample_to_ocr_frames(ocrFramesData, videoPath, outDir, asrOcrFixArg) // === 阶段 1: 重采样补充帧 ===
     : ocrFramesData.frames; // 逐帧 OCR 原始结果；后续的重采样/过滤都作用在 rawFrames 上
+  const framesFile = asrOcrFixArg.is_resample ? join(outDir, "frames.json") : ocrFramesFile;
 
-  // === 阶段 2: 逐行 Y 统计 + 离群标注 + 过滤 ===
-  // 从（含重采样帧的）rawFrames 算整体 Y 统计（典型行位置/高度，含 avg/mode/median/各种 height）
-  const yStats = computeBoxYStats(frames);
-
-  // 2.1 ocr_frames_line_adjust.json: 给每个 box 标注离群信息（is_outlier / adjustedConfidence / 上下偏移比）
-  //     基于整帧的 yStats 判断某行是否偏离典型字幕行位置/高度
-  const annotatedFrames = ocr_frames_adjust_box(frames, yStats, asrOcrFixArg);
-
-  writeJson(join(asrOcrFixDir, "frames_box_adjust.json"), annotatedFrames);
-
-  // 2.2 ocr_frames_line_filtered.json: 过滤被标 is_outlier 的 box（box 级），整帧清空则丢帧（帧级）；
-  //     部分 box 离群则按剩余干净 box 重建该帧
-  const cleanFramesResult = ocr_frames_filter_box(annotatedFrames.frames);
-
-  writeJson(join(asrOcrFixDir, "frames_box_filter.json"), cleanFramesResult);
-
-  // === 阶段 3: 合并 OCR 逐帧为字幕段 ===
-  const { segments: ocrSegs, text: ocrText } = mergeFrames(cleanFramesResult.frames, {
-    is_merge_substring: args.is_merge_substring,
-    dedup_edit_distance: args.dedup_edit_distance,
-  });
-  writeJson(join(asrOcrFixDir, "frames_merged.json"), {
-    result: {
-      text: ocrText,
-      segments: ocrSegs,
-    },
-  });
-
-  if (!asrSegs.length) throw new Error("No ASR segments found");
-  if (!ocrSegs.length) throw new Error("No OCR segments found (empty asr_ocr.json)");
-
-  // === 阶段 4: OCR 段时间边界调整（对齐到帧 Y 统计 + 孤立惩罚）===
-  const { height: videoHeight } = probeVideoResolution(video_source_path(ctx));
-  const adjustedSegs = ocr_segment_adjust(
-    ocrSegs,
-    cleanFramesResult.frames,
-    cleanFramesResult.meta.y_stats,
-    videoHeight,
-    {
-      ...asrOcrFixArg,
-    },
-  );
-
-  writeJson(join(asrOcrFixDir, "segment_adjust.json"), {
-    result: {
-      text: adjustedSegs.map((s) => s.text).join(" "),
-      segments: adjustedSegs,
-    },
-  });
-
-  // === 阶段 5: 按 text_confidence_threshold 过滤低置信段 ===
+  const videoFile = video_source_path(ctx);
+  // === 阶段 5: 按 adjusted_confidence_threshold 过滤低置信段 ===
   // ocr_filtered.json：以 adjustedSegs 为输入，按 adjustedConfidence 过滤（Y 偏移 + 孤立惩罚）
-  const filteredResult = ocrSegmentFilterWithMeta(
-    adjustedSegs,
-    asrOcrFixArg.text_confidence_threshold,
+  const filteredResult = await cellOcrPost(framesFile, videoFile, outDir, args);
+  const cleanFramesResult = await readJson<OcrFramesBoxFilteredResult>(
+    join(outDir, "frames_box_filter.json"),
   );
-
-  writeJson(join(asrOcrFixDir, "segment_filter.json"), filteredResult);
 
   // === 阶段 6: 时间边界对齐到 ASR ===
   // asr_ocr_merged.json：复用 ocr_filtered.json 的 segments，时间边界对齐到 ASR
@@ -170,7 +123,7 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
 
   const asrOcrText = asrOcrSegs.map((s) => s.text).join(" ");
 
-  writeJson(join(asrOcrFixDir, "asr_ocr_merged.json"), {
+  writeJson(join(outDir, "asr_ocr_merged.json"), {
     audio_info: { duration: asrOcrSegs.length > 0 ? asrOcrSegs[asrOcrSegs.length - 1].end_ms : 0 },
     _engine: "asr_ocr",
     _fusion_params: {
@@ -214,7 +167,7 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
   }
 
   const fixText = merged.map((s) => s.text).join(" ");
-  writeJson(join(asrOcrFixDir, "asr_ocr_fused.json"), {
+  writeJson(join(outDir, "asr_ocr_fused.json"), {
     _engine: "asr_ocr",
     _fusion_params: {
       strategy: "end2fps",
@@ -234,7 +187,7 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
   // asr_ocr_fused_llm_fix.json：仅当 args.llmFix 开启时运行
   if (args.llmFix) {
     const llmFixedSegments = await ocrLlmFix(merged, ctx.input.task.sourceLang ?? "zh", args);
-    writeJson(join(asrOcrFixDir, "asr_ocr_fused_llm_fix.json"), {
+    writeJson(join(outDir, "asr_ocr_fused_llm_fix.json"), {
       result: {
         text: llmFixedSegments.map((s) => s.text).join(" "),
         segments: llmFixedSegments,
@@ -243,7 +196,7 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
   }
 
   log(
-    `${ocrSegs.length} OCR segs (dropped ${filteredResult.meta.dropped} below text_confidence_threshold=${asrOcrFixArg.text_confidence_threshold}) → ${asrRawLen} ASR → ${asrSegs.length} split → ${asrOcrSegs.length} merged, ${fix.length} fused`,
+    `filter-segment done (dropped below adjusted_confidence_threshold=${asrOcrFixArg.adjusted_confidence_threshold}) → ${asrRawLen} ASR → ${asrSegs.length} split → ${asrOcrSegs.length} merged, ${fix.length} fused`,
   );
 
   await setStage(taskDir, "asr_ocr_fix", {

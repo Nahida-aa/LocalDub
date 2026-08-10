@@ -54,7 +54,7 @@ export function ocr_segment_adjust(
 
     return {
       ...seg,
-      adjusted_text_confidence: Math.round(adjustedConfidence * 100) / 100,
+      adjusted_confidence: Math.round(adjustedConfidence * 100) / 100,
       y_penalty: Math.round(yPenalty * 100) / 100,
       iso_penalty: Math.round(isoPenalty * 100) / 100,
     };

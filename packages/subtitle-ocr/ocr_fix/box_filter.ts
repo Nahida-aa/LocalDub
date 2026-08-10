@@ -4,7 +4,7 @@ import { AsrOcrFixArgs, BoxAdjustedArgs, MergeFramesArgs } from "@repo/subtitle-
 import { aggregate_boxes } from "../ocr_util";
 import { FrameResultBoxWithAdjust } from "./box_adjust";
 
-type OcrFramesBoxFilteredResult = {
+export type OcrFramesBoxFilteredResult = {
   frames: FrameResult[];
   meta: OcrFramesBoxFilteredResultMeta;
 };
