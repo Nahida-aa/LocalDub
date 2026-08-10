@@ -185,10 +185,7 @@ export async function stageAsrOcrPre(ctx: TaskCtx) {
   }
   const sortedTs = [...allTimestamps].sort((a, b) => a - b);
 
-  emitLog(
-    taskDir,
-    `[asr_ocr_pre] ${asrSegs.length} split segs → ${sortedTs.length} frame positions`,
-  );
+  log(`${asrSegs.length} split segs → ${sortedTs.length} frame positions`);
 
   // Step 3: Extract frames
   const frameDir = join(taskDir, "asr_ocr_pre", "frames");
