@@ -62,9 +62,9 @@ export async function stageMergeAudio(ctx: TaskCtx) {
   let lastEndMs = 0;
   let drift = 0;
 
-  const maxSpeed = ctx.input?.stages?.merge_audio?.maxSpeed ?? 1.35;
-  const maxAdvanceMs = ctx.input?.stages?.merge_audio?.maxAdvanceMs ?? 500;
-  const maxDelayMs = ctx.input?.stages?.merge_audio?.maxDelayMs ?? 500;
+  const maxSpeed = ctx.input?.stages?.merge_audio?.maxSpeed;
+  const maxAdvanceMs = ctx.input?.stages?.merge_audio?.maxAdvanceMs;
+  const maxDelayMs = ctx.input?.stages?.merge_audio?.maxDelayMs;
   const newTranslation: Timing[] = [];
   for (const [i, item] of translation.entries()) {
     // const segment = translation[i];
