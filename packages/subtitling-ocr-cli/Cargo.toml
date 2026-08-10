@@ -1,0 +1,6 @@
+[package]
+name = "subtitling-ocr-cli"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

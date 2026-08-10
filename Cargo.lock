@@ -8203,7 +8203,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sf-ocr"
+name = "sf-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -8669,7 +8669,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "subtitling-cli"
+name = "subtitling-ocr-cli"
 version = "0.1.0"
 
 [[package]]

@@ -2,7 +2,7 @@
 members = [
     "packages/bridge", "packages/config-rs", "packages/core-rs", "packages/device-rs",
     "packages/separate/demucs_burn", "packages/time", "packages/voxcpm-burn", "packages/app/src-tauri",
-    "packages/fs", "packages/sf-cli", "packages/subtitling-cli"]
+    "packages/fs", "packages/sf-cli", "packages/subtitling-ocr-cli"]
 resolver = "3"
 
 [workspace.package]
