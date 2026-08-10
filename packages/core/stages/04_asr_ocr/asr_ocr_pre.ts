@@ -166,6 +166,8 @@ export async function stageAsrOcrPre(ctx: TaskCtx) {
   });
 
   const allTimestamps = new Set<number>();
+  const firstSegStepMs = 100; // 首段双向密采步长（片头字幕易闪现，需更密）
+  const regularStepMs = 500; // 其余段抽帧步长（等价于 fps=2）
   for (let i = 0; i < asrSegs.length; i++) {
     const seg = asrSegs[i];
     if (i === 0) {
@@ -174,11 +176,11 @@ export async function stageAsrOcrPre(ctx: TaskCtx) {
       while (fwd <= bwd) {
         allTimestamps.add(fwd);
         if (fwd !== bwd) allTimestamps.add(bwd);
-        fwd += 100;
-        bwd -= 100;
+        fwd += firstSegStepMs;
+        bwd -= firstSegStepMs;
       }
     } else {
-      for (let t = Math.round(seg.end_ms); t >= seg.start_ms; t -= 500) {
+      for (let t = Math.round(seg.end_ms); t >= seg.start_ms; t -= regularStepMs) {
         allTimestamps.add(Math.round(t));
       }
     }
@@ -197,7 +199,7 @@ export async function stageAsrOcrPre(ctx: TaskCtx) {
     throw new Error("No frames extracted");
   }
 
-  emitLog(taskDir, `[asr_ocr_pre] ${extractCount} frames extracted to ${frameDir}`);
+  log(`${extractCount} frames extracted to ${frameDir}`);
 
   await setStage(taskDir, "asr_ocr_pre", {
     status: "success",
