@@ -26,7 +26,7 @@ export async function stageAsrOcr(ctx: TaskCtx) {
   }
 
   const asrOcrCfg = ctx.input?.stages?.asr_ocr;
-  const textScore = asrOcrCfg?.text_score_threshold ?? 0.45;
+  const textScore = asrOcrCfg?.text_confidence_threshold ?? 0.45;
   const subtitleOnly = asrOcrCfg?.subtitleOnly ?? true;
   const runtime = asrOcrCfg?.runtime ?? "ort-cpp";
   const device = asrOcrCfg?.device ?? "cpu";
@@ -39,6 +39,7 @@ export async function stageAsrOcr(ctx: TaskCtx) {
     .filter((f) => f.endsWith(".jpg"))
     .sort();
   const linesArr = await engine.ocrFrames(frameDir, frameFiles, { textScore, subtitleOnly });
+  await engine.release();
   const frameResults: FrameResult[] = [];
 
   for (let i = 0; i < frameFiles.length; i++) {
@@ -52,7 +53,6 @@ export async function stageAsrOcr(ctx: TaskCtx) {
       log(` ${i + 1}/${frameFiles.length} frames`);
     }
   }
-  await engine.release();
 
   const asrOcrDir = resolve(taskDir, "asr_ocr");
   ensureDir(asrOcrDir);

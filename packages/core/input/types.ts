@@ -206,8 +206,8 @@ const AsrOcrCliInputSchema = z
         "OCR 运行设备: cpu, cuda (NVIDIA), directml (Windows), coreml (macOS), rocm (AMD), mps (Apple Silicon)",
       )
       .optional(),
-    fps: z.number().default(2).describe("帧率 (fps), 越高时间戳越准但越慢; 默认 2").optional(),
-    text_score_threshold: z
+
+    text_confidence_threshold: z
       .number()
       .default(0.45)
       .describe("OCR 识别置信度阈值, 默认 0.45")
@@ -226,8 +226,7 @@ const AsrOcrCliInputSchema = z
   .default({
     runtime: "ort-cpp",
     device: "cpu",
-    fps: 2,
-    text_score_threshold: 0.45,
+    text_confidence_threshold: 0.45,
     subtitleOnly: true,
     cleanupFrames: false,
   });
