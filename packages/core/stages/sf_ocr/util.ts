@@ -6,6 +6,8 @@ import { log } from "@repo/util/log";
 import { OcrFixArgs } from "@repo/subtitle-ocr/args";
 import { OcrSegmentFilterResult } from "@repo/subtitle-ocr/ocr_fix/segment_filter";
 import { readJson } from "../../utils/fileOps";
+import { OcrFramesResult } from "@repo/subtitle-ocr/types";
+import { SfOcrArgs } from "../../input/types";
 
 export const ensureOcrBin = async () => {
   const ocrBin = join(REPO_ROOT, "target", "release", "subtitle-ocr");
@@ -18,6 +20,38 @@ export const ensureOcrBin = async () => {
       throw new Error(`subtitle-ocr 编译失败 (exit ${build.exitCode}):\n${build.stderr}`);
     }
   }
+  return ocrBin;
+};
+
+export const cellOcr = async (preDir: string, outFile: string, ocrArgs: SfOcrArgs) => {
+  const ocrBin = await ensureOcrBin();
+  const args = [
+    "--dir",
+    preDir,
+    "--out",
+    outFile,
+    "--text-confidence-threshold",
+    String(ocrArgs.text_confidence_threshold),
+    ...(ocrArgs.subtitleOnly ? ["--subtitle-only"] : []),
+  ];
+  log(`subtitle-ocr ${args.join(" ")}`);
+  const proc = spawn([ocrBin, ...args], {
+    cwd: REPO_ROOT,
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  const exitCode = await proc.exited;
+  if (exitCode !== 0) {
+    throw new Error(`subtitle-ocr failed with exit code ${exitCode}`);
+  }
+
+  const data = JSON.parse(readFileSync(outFile, "utf-8")) as OcrFramesResult;
+  const frameResults = data.frames ?? [];
+  if (!frameResults.length) {
+    throw new Error("sf_ocr: no OCR results from keyframes");
+  }
+  log(`${frameResults.length} frame results -> ${outFile}`);
+  return data;
 };
 
 export const ensureOcrPostBin = async () => {

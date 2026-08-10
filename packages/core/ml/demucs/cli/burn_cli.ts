@@ -7,6 +7,7 @@ import { setStage } from "@repo/core/context/context";
 import { DemucsCliArgs } from "./cli_types";
 import { DEMUCS_MODEL_DIR } from "@repo/config/path/models";
 import { REPO_ROOT } from "@repo/config/root";
+import { log } from "@repo/util/log";
 
 function findLibtorchPath(): string | null {
   const buildDir = join(REPO_ROOT, "target", "release", "build");
@@ -30,7 +31,7 @@ async function ensureDemucsBin(taskDir: string, binName: string): Promise<string
   let task = demucsBuildTasks.get(binName);
   if (!task) {
     task = (async () => {
-      emitLog(taskDir, `[separate] ${binName} 未构建，自动编译...`);
+      log(`${binName} 未构建，自动编译...`);
       const build = await $`cargo build --release -p demucs-burn --bin ${binName}`
         .cwd(crateDir)
         .nothrow();
@@ -80,7 +81,7 @@ export async function separateBurn({
   const sepDir = separateDir(taskDir);
   mkdirSync(sepDir, { recursive: true });
 
-  emitLog(taskDir, `[separate] runtime=${binName} device=${device} binary=${binPath}`);
+  log(`runtime=${binName} device=${device} binary=${binPath}`);
 
   const env: Record<string, string> = { ...process.env } as Record<string, string>;
   if (backend === "tch") {
@@ -128,18 +129,18 @@ export async function separateBurn({
   });
   const elapsedSec = (performance.now() - t0) / 1000;
 
-  emitLog(taskDir, `[Separate] Processed in ${elapsedSec.toFixed(1)}s`);
+  log(`Processed in ${elapsedSec.toFixed(1)}s`);
 
   const stemNames = ["drums", "bass", "other", "vocals"] as const;
   for (const name of stemNames) {
     const p = join(sepDir, `target_${stemNames.indexOf(name)}_${name}.wav`);
     if (!existsSync(p)) {
-      emitLog(taskDir, `[Separate] WARN: ${p} not found`);
+      log(`WARN: ${p} not found`);
     }
   }
 
   const durationS = probeDuration(audioPath);
   if (durationS > 0) {
-    emitLog(taskDir, `[Separate] RTF ${(elapsedSec / durationS).toFixed(3)}`);
+    log(`RTF ${(elapsedSec / durationS).toFixed(3)}`);
   }
 }
