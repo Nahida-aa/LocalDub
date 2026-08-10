@@ -29,8 +29,8 @@ struct Cli {
     #[arg(long, value_enum, default_value_t = rapidocr_ort::ModelProfile::V3)]
     model: rapidocr_ort::ModelProfile,
 
-    /// 模型目录（默认仓库根 models/rapidocr）
-    #[arg(long, default_value = "models/rapidocr")]
+    /// 模型目录（默认仓库根 data/models/rapidocr）
+    #[arg(long, default_value = "data/models/rapidocr")]
     model_dir: String,
 
     /// 输入图片路径（单图模式，不携带时间戳，输出 timestampMs=0；与 --dir 互斥）
