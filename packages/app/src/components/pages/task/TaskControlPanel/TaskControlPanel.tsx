@@ -122,7 +122,9 @@ export const TaskControlPanel = (p: {
                   <span class="font-medium text-foreground">{resumeFrom()}</span>
                 </div>
               </Show>
-              <FileTree relativeDir={tab === "root" ? taskDir : `${taskDir}/${tab}`} />
+              <Show when={viewingTab() === tab}>
+                <FileTree relativeDir={tab === "root" ? taskDir : `${taskDir}/${tab}`} />
+              </Show>
             </TabsContent>
           )}
         </For>
