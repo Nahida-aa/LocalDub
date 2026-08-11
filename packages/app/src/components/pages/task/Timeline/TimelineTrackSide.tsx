@@ -19,9 +19,9 @@ export function TimelineTrackSide(props: Props) {
       <div ref={props.ref} class="flex-1 overflow-y-auto overflow-x-hidden">
         <For each={props.tracks}>
           {(track, i) => {
-            const m = meta()[`${props.taskDir}/${track.id}`];
-            const show = () => !!m?.present;
-            const label = () => m?.label ?? track.label;
+            const m = () => meta()[`${props.taskDir}/${track.id}`];
+            const show = () => !!m()?.present;
+            const label = () => m()?.label ?? track.label;
             return (
               <Show when={show()}>
                 <div
