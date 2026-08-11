@@ -190,7 +190,11 @@ impl Default for CliInput {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let types = Types::default().register::<CliInput>();
     let out = config_rs::root::repo_root().join("input.schema.json");
-    JsonSchema::default().export_to(&out, &types, Format)?;
+    let schema = JsonSchema::default()
+        .title("LocalDub CLI 输入")
+        .export_ref_value(&types, Format, "CliInput")
+        .unwrap();
+    std::fs::write(&out, serde_json::to_string_pretty(&schema).unwrap())?;
     println!("Generated: {}", out.display());
     Ok(())
 }
