@@ -1,3 +1,4 @@
+import { Show } from "solid-js";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -79,42 +80,41 @@ export function TtsTrack(props: Props) {
     }
   };
 
-  const segs = segments();
-  if (!segs.length) return null;
-
   return (
-    <div class="h-16 border-b relative">
-      {segs.map((seg) => {
-        const raw = seg.raw as TtsSegment | undefined;
-        const status = raw?.status ?? "skipped";
-        return (
-          <ContextMenu>
-            <ContextMenuTrigger as="div" class="contents">
-              <div
-                class="absolute top-1 h-12 rounded cursor-pointer truncate text-xs px-2 border flex items-center hover:opacity-80"
-                style={{
-                  left: `${seg.startMs * pxPerMs}px`,
-                  width: `${Math.max((seg.endMs - seg.startMs) * pxPerMs, 4)}px`,
-                  background: statusColor(status),
-                  "border-color": borderColor(status),
-                }}
-                onClick={() => onSeek(seg.startMs)}
-                title={`${seg.text} (${status})`}
-              >
-                {seg.text}
-              </div>
-            </ContextMenuTrigger>
-            <ContextMenuContent>
-              <ContextMenuItem
-                onSelect={() => handlePlay(seg.index)}
-                disabled={status === "error" || status === "empty"}
-              >
-                播放 TTS 音频
-              </ContextMenuItem>
-            </ContextMenuContent>
-          </ContextMenu>
-        );
-      })}
-    </div>
+    <Show when={segments().length > 0}>
+      <div class="h-16 border-b relative">
+        {segments().map((seg) => {
+          const raw = seg.raw as TtsSegment | undefined;
+          const status = raw?.status ?? "skipped";
+          return (
+            <ContextMenu>
+              <ContextMenuTrigger as="div" class="contents">
+                <div
+                  class="absolute top-1 h-12 rounded cursor-pointer truncate text-xs px-2 border flex items-center hover:opacity-80"
+                  style={{
+                    left: `${seg.startMs * pxPerMs}px`,
+                    width: `${Math.max((seg.endMs - seg.startMs) * pxPerMs, 4)}px`,
+                    background: statusColor(status),
+                    "border-color": borderColor(status),
+                  }}
+                  onClick={() => onSeek(seg.startMs)}
+                  title={`${seg.text} (${status})`}
+                >
+                  {seg.text}
+                </div>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuItem
+                  onSelect={() => handlePlay(seg.index)}
+                  disabled={status === "error" || status === "empty"}
+                >
+                  播放 TTS 音频
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
+          );
+        })}
+      </div>
+    </Show>
   );
 }

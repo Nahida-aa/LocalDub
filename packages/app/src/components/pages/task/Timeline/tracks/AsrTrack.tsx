@@ -1,4 +1,4 @@
-import { createSignal } from "solid-js";
+import { createSignal, Show } from "solid-js";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -177,40 +177,39 @@ export function AsrTrack(props: Props) {
     mutation.mutate([filePath(), serializeSegments(newSegments)]);
   };
 
-  const segs = segments();
-  if (!segs.length) return null;
-
   return (
-    <div class="h-16 border-b relative">
-      {segs.map((seg) => (
-        <ContextMenu>
-          <ContextMenuTrigger as="div" class="contents">
-            <div
-              class="absolute top-1 h-12 rounded cursor-pointer truncate text-xs px-2 border flex items-center hover:opacity-80"
-              style={{
-                left: `${seg.startMs * pxPerMs}px`,
-                width: `${Math.max((seg.endMs - seg.startMs) * pxPerMs, 4)}px`,
-                background: `${color}33`,
-                "border-color": `${color}55`,
-              }}
-              onClick={() => onSeek(seg.startMs)}
-              title={seg.text}
-            >
-              {seg.text}
-            </div>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem onSelect={() => handleInsertBefore(seg.index)}>
-              向前插入
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => handleInsertAfter(seg.index)}>
-              向后插入
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => handleEdit(seg.index)}>编辑</ContextMenuItem>
-            <ContextMenuItem onSelect={() => handleDelete(seg.index)}>删除</ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-      ))}
-    </div>
+    <Show when={segments().length > 0}>
+      <div class="h-16 border-b relative">
+        {segments().map((seg) => (
+          <ContextMenu>
+            <ContextMenuTrigger as="div" class="contents">
+              <div
+                class="absolute top-1 h-12 rounded cursor-pointer truncate text-xs px-2 border flex items-center hover:opacity-80"
+                style={{
+                  left: `${seg.startMs * pxPerMs}px`,
+                  width: `${Math.max((seg.endMs - seg.startMs) * pxPerMs, 4)}px`,
+                  background: `${color}33`,
+                  "border-color": `${color}55`,
+                }}
+                onClick={() => onSeek(seg.startMs)}
+                title={seg.text}
+              >
+                {seg.text}
+              </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem onSelect={() => handleInsertBefore(seg.index)}>
+                向前插入
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => handleInsertAfter(seg.index)}>
+                向后插入
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => handleEdit(seg.index)}>编辑</ContextMenuItem>
+              <ContextMenuItem onSelect={() => handleDelete(seg.index)}>删除</ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        ))}
+      </div>
+    </Show>
   );
 }
