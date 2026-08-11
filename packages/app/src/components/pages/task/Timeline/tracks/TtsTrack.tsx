@@ -1,25 +1,41 @@
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@repo/ui-solid/base/context-menu";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@repo/ui-solid/base/context-menu";
 import { openModal } from "@repo/ui-solid/custom/modal/renderer";
 import { AudioPlayer } from "#/components/ui/audio-player";
 import { mediaUrl } from "#/lib/utils/path.ts";
 import type { Track, TrackSegment } from "../consts";
-import type { TtsSegment } from "@repo/core/stages/07_tts/types";
+import type { TtsFile, TtsSegment } from "@repo/core/stages/07_tts/types";
+import { useTrackData } from "./useTrackData";
+import type { BaseTrackProps } from "./shared";
 
-interface Props {
-  track: Track;
-  totalPx: number;
-  pxPerMs: number;
-  onSeek: (ms: number) => void;
-  color: string;
-  taskDir: string;
-  filePath: string;
-}
+type Props = BaseTrackProps;
 
 export function TtsTrack(props: Props) {
-  const { track, pxPerMs, onSeek, color, taskDir } = props;
+  const { taskDir, pxPerMs, onSeek, color } = props;
+  const track = () => props.track;
+  const { segments } = useTrackData({
+    taskDir,
+    trackId: track().id,
+    path: () => `${taskDir}/tts/tts.json`,
+    parse: (text) => {
+      const data: TtsFile = JSON.parse(text);
+      return (data.segments || []).map((item, i: number) => ({
+        index: i,
+        text: item.text,
+        startMs: item.start,
+        endMs: item.end,
+        raw: item,
+      }));
+    },
+    label: () => "tts/tts.json",
+  });
 
   const handlePlay = (segIndex: number) => {
-    const seg = track.segments[segIndex];
+    const seg = segments()[segIndex];
     if (!seg) return;
     const raw = seg.raw as TtsSegment | undefined;
     if (!raw || raw.status === "error" || raw.status === "empty") return;
@@ -27,34 +43,48 @@ export function TtsTrack(props: Props) {
     const url = mediaUrl(`${taskDir}/tts/wavs/${idx}.wav`);
     const label = `#${segIndex + 1} ${seg.text}`;
 
-    openModal(() => (
-      <div class="p-4 flex justify-center">
-        <AudioPlayer src={url} label={label} />
-      </div>
-    ), { title: `播放 TTS #${segIndex + 1}`, size: "sm" });
+    openModal(
+      () => (
+        <div class="p-4 flex justify-center">
+          <AudioPlayer src={url} label={label} />
+        </div>
+      ),
+      { title: `播放 TTS #${segIndex + 1}`, size: "sm" },
+    );
   };
 
   const statusColor = (status: string) => {
     switch (status) {
-      case "success": return `${color}33`;
-      case "error": return "#ef444433";
-      case "empty": return "#6b728033";
-      default: return `${color}22`;
+      case "success":
+        return `${color}33`;
+      case "error":
+        return "#ef444433";
+      case "empty":
+        return "#6b728033";
+      default:
+        return `${color}22`;
     }
   };
 
   const borderColor = (status: string) => {
     switch (status) {
-      case "success": return `${color}55`;
-      case "error": return "#ef444455";
-      case "empty": return "#6b728055";
-      default: return `${color}33`;
+      case "success":
+        return `${color}55`;
+      case "error":
+        return "#ef444455";
+      case "empty":
+        return "#6b728055";
+      default:
+        return `${color}33`;
     }
   };
 
+  const segs = segments();
+  if (!segs.length) return null;
+
   return (
     <div class="h-16 border-b relative">
-      {track.segments.map((seg) => {
+      {segs.map((seg) => {
         const raw = seg.raw as TtsSegment | undefined;
         const status = raw?.status ?? "skipped";
         return (

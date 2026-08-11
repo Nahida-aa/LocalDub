@@ -8,10 +8,11 @@ import {
 import { openModal } from "@repo/ui-solid/custom/modal/renderer";
 import type { Track, TrackSegment } from "../consts";
 import { client } from "#/integrations/fnrpc/client.ts";
-import { useMutation } from "@tanstack/solid-query";
+import { useMutation, useQuery } from "@tanstack/solid-query";
 import type { TranslateFile } from "@repo/core/stages/05_translate/type";
 import { deleteAt, insertAt, type BaseTrackProps } from "./shared";
 import { TrackEditModal } from "./comp/TrackEditModal";
+import { useTrackData } from "./useTrackData";
 
 type Props = BaseTrackProps;
 
@@ -47,6 +48,28 @@ export function TranslationTrack(props: Props) {
   const color = () => props.color;
   const onSeek = props.onSeek;
 
+  const ctxQ = useQuery(() => client.get_task_ctx.queryOptions(props.taskDir));
+  const lang = () => (ctxQ.isSuccess ? ctxQ.data?.target_language : undefined);
+  const path = () => (lang() ? `${props.taskDir}/translate/translation.${lang()}.json` : undefined);
+
+  const { segments } = useTrackData({
+    taskDir: props.taskDir,
+    trackId: track().id,
+    path,
+    parse: (text) => {
+      const data: TranslateFile = JSON.parse(text);
+      return (data.translation || []).map((item, i: number) => ({
+        index: i,
+        text: item.dst,
+        startMs: item.start_ms,
+        endMs: item.end_ms,
+        raw: item,
+      }));
+    },
+    label: () => `translation.${lang()}.json`,
+  });
+  const filePath = () => path() ?? "";
+
   const mutation = useMutation(() =>
     client.write_app_file_text.mutationOptions({
       onSuccess: (_data, variables, _onMutateResult, context) => {
@@ -58,21 +81,21 @@ export function TranslationTrack(props: Props) {
   );
 
   const handleInsertBefore = (segIndex: number) => {
-    const newSegments = insertAt(track().segments, segIndex, false, {
+    const newSegments = insertAt(segments(), segIndex, false, {
       defaultRaw: TRANSLATE_DEFAULT_RAW,
     });
-    mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+    mutation.mutate([filePath(), serializeSegments(newSegments)]);
   };
 
   const handleInsertAfter = (segIndex: number) => {
-    const newSegments = insertAt(track().segments, segIndex, true, {
+    const newSegments = insertAt(segments(), segIndex, true, {
       defaultRaw: TRANSLATE_DEFAULT_RAW,
     });
-    mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+    mutation.mutate([filePath(), serializeSegments(newSegments)]);
   };
 
   const handleEdit = (segIndex: number) => {
-    const seg = track().segments[segIndex];
+    const seg = segments()[segIndex];
     if (!seg) return;
     const raw = seg.raw as TranslateFile["translation"][number] | undefined;
 
@@ -95,7 +118,7 @@ export function TranslationTrack(props: Props) {
             )
           }
           onSave={({ text, src, startMs, endMs }) => {
-            const newSegments = track().segments.map((s, i) =>
+            const newSegments = segments().map((s, i) =>
               i === segIndex
                 ? {
                     ...s,
@@ -106,7 +129,7 @@ export function TranslationTrack(props: Props) {
                   }
                 : s,
             );
-            mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+            mutation.mutate([filePath(), serializeSegments(newSegments)]);
           }}
         />
       ),
@@ -115,13 +138,16 @@ export function TranslationTrack(props: Props) {
   };
 
   const handleDelete = (segIndex: number) => {
-    const newSegments = deleteAt(track().segments, segIndex);
-    mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+    const newSegments = deleteAt(segments(), segIndex);
+    mutation.mutate([filePath(), serializeSegments(newSegments)]);
   };
+
+  const segs = segments();
+  if (!segs.length) return null;
 
   return (
     <div class="h-16 border-b relative">
-      {track().segments.map((seg) => (
+      {segs.map((seg) => (
         <ContextMenu>
           <ContextMenuTrigger as="div" class="contents">
             <div

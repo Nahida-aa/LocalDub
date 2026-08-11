@@ -1,4 +1,4 @@
-import { createSignal, onMount } from "solid-js";
+import { createSignal } from "solid-js";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -9,20 +9,15 @@ import {
 import { openModal, closeModal } from "@repo/ui-solid/custom/modal/renderer";
 import type { Track, TrackSegment } from "../consts";
 import { client } from "#/integrations/fnrpc/client.ts";
-import { useMutation, useQuery } from "@tanstack/solid-query";
+import { useMutation } from "@tanstack/solid-query";
 import { useViewingTab } from "../../TaskControlPanel/taskControlPanelStore";
 import { STAGE_TRACKS } from "./const";
-import { OcrSegment } from "@repo/subtitle-ocr/types";
+import { AsrOcrFile, OcrSegment } from "@repo/subtitle-ocr/types";
+import { OcrSegmentFilterResult } from "@repo/subtitle-ocr/ocr_fix/segment_filter";
+import { useTrackData } from "./useTrackData";
+import type { BaseTrackProps } from "./shared";
 
-interface Props {
-  track: Track;
-  totalPx: number;
-  pxPerMs: number;
-  onSeek: (ms: number) => void;
-  color: string;
-  taskDir: string;
-  filePath: string;
-}
+type Props = BaseTrackProps;
 
 function serializeSegments(segments: TrackSegment[], trackId: string): string {
   const segs: OcrSegment[] = segments.map((s) => {
@@ -88,12 +83,51 @@ function deleteAt(segments: TrackSegment[], index: number): TrackSegment[] {
 }
 
 export function AsrOcrFixTrack(props: Props) {
+  const { taskDir, pxPerMs, onSeek, color } = props;
   const track = () => props.track;
-  const pxPerMs = () => props.pxPerMs;
-  const color = () => props.color;
-  const onSeek = props.onSeek;
+  const isSf = () => track().id === "sf_ocr_fix";
   const viewingTab = useViewingTab();
-  const taskCtxQ = useQuery(() => client.get_task_ctx.queryOptions(props.taskDir));
+
+  const primaryPath = () =>
+    isSf()
+      ? `${taskDir}/sf_ocr_fix/segment_filter_llm_fix.json`
+      : `${taskDir}/asr_ocr_fix/asr_ocr_fused_llm_fix.json`;
+  const fallbackPath = () => `${taskDir}/sf_ocr_fix/segment_filter.json`;
+
+  // sf_ocr_fix：优先 LLM 修正产物，读取失败则回落到段过滤产物
+  const { q, fb, active, segments } = useTrackData({
+    taskDir,
+    trackId: track().id,
+    path: primaryPath,
+    fallbackPath: () => (isSf() ? fallbackPath() : undefined),
+    parse: (text) => {
+      if (isSf()) {
+        const data = JSON.parse(text) as OcrSegmentFilterResult;
+        return (data.result?.segments ?? []).map((item, i: number) => ({
+          index: i,
+          text: item.text,
+          startMs: item.start_ms,
+          endMs: item.end_ms,
+          raw: item,
+        }));
+      }
+      const data = JSON.parse(text) as AsrOcrFile;
+      return data.result.segments.map((item, i: number) => ({
+        index: i,
+        text: item.text,
+        startMs: item.start_ms,
+        endMs: item.end_ms,
+        raw: item,
+      }));
+    },
+    label: () =>
+      isSf()
+        ? q.isSuccess
+          ? "sf_ocr_fix/segment_filter_llm_fix.json"
+          : "sf_ocr_fix/segment_filter.json"
+        : "asr_ocr_fix/asr_ocr_fused_llm_fix.json",
+  });
+  const filePath = () => (active() === fb ? fallbackPath() : primaryPath());
 
   // ---- 联动删除（校对 + 译文同步删同索引）：占位，待服务端 RPC，见 ROADMAP.md ----
   const tabTracks = () => {
@@ -116,17 +150,17 @@ export function AsrOcrFixTrack(props: Props) {
     }),
   );
   const handleInsertBefore = (segIndex: number) => {
-    const newSegments = insertAt(track().segments, segIndex, false);
-    mutation.mutate([props.filePath, serializeSegments(newSegments, track().id)]);
+    const newSegments = insertAt(segments(), segIndex, false);
+    mutation.mutate([filePath(), serializeSegments(newSegments, track().id)]);
   };
 
   const handleInsertAfter = (segIndex: number) => {
-    const newSegments = insertAt(track().segments, segIndex, true);
-    mutation.mutate([props.filePath, serializeSegments(newSegments, track().id)]);
+    const newSegments = insertAt(segments(), segIndex, true);
+    mutation.mutate([filePath(), serializeSegments(newSegments, track().id)]);
   };
 
   const handleEdit = (segIndex: number) => {
-    const seg = track().segments[segIndex];
+    const seg = segments()[segIndex];
     if (!seg) return;
     const raw = seg.raw as OcrSegment | undefined;
 
@@ -137,10 +171,10 @@ export function AsrOcrFixTrack(props: Props) {
         const [endMs, setEndMs] = createSignal(seg.endMs);
 
         const onSave = () => {
-          const newSegments = track().segments.map((s, i) =>
+          const newSegments = segments().map((s, i) =>
             i === segIndex ? { ...s, text: text(), startMs: startMs(), endMs: endMs() } : s,
           );
-          mutation.mutate([props.filePath, serializeSegments(newSegments, track().id)]);
+          mutation.mutate([filePath(), serializeSegments(newSegments, track().id)]);
           closeModal();
         };
 
@@ -204,25 +238,25 @@ export function AsrOcrFixTrack(props: Props) {
   };
 
   const handleDelete = (segIndex: number) => {
-    const newSegments = deleteAt(track().segments, segIndex);
-    mutation.mutate([props.filePath, serializeSegments(newSegments, track().id)]);
+    const newSegments = deleteAt(segments(), segIndex);
+    mutation.mutate([filePath(), serializeSegments(newSegments, track().id)]);
   };
-  onMount(() => {
-    console.log("AsrOcrFixTrack.onMount");
-  });
+
+  const segs = segments();
+  if (!segs.length) return null;
 
   return (
     <div class="h-16 border-b relative" data-vtab={viewingTab()}>
-      {track().segments.map((seg) => (
+      {segs.map((seg) => (
         <ContextMenu>
           <ContextMenuTrigger as="div" class="contents">
             <div
               class="absolute top-1 h-12 rounded cursor-pointer truncate text-xs px-2 border flex items-center hover:opacity-80"
               style={{
-                left: `${seg.startMs * pxPerMs()}px`,
-                width: `${Math.max((seg.endMs - seg.startMs) * pxPerMs(), 4)}px`,
-                background: `${color()}33`,
-                "border-color": `${color()}55`,
+                left: `${seg.startMs * pxPerMs}px`,
+                width: `${Math.max((seg.endMs - seg.startMs) * pxPerMs, 4)}px`,
+                background: `${color}33`,
+                "border-color": `${color}55`,
               }}
               onClick={() => onSeek(seg.startMs)}
               title={seg.text}

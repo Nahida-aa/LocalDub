@@ -289,6 +289,7 @@ export function Timeline(props: Props) {
           ref={(el) => (labelsRef = el)}
           tracks={props.tracks}
           trackColor={trackColor}
+          taskDir={props.taskDir ?? ""}
         />
 
         <div ref={rightRef!} class="flex-1 flex flex-col min-w-0 relative overflow-hidden">

@@ -9,17 +9,11 @@ import { openModal } from "@repo/ui-solid/custom/modal/renderer";
 import type { Track, TrackSegment } from "../consts";
 import { TrackEditModal } from "./comp/TrackEditModal";
 import { client } from "#/integrations/fnrpc/client.ts";
-import type { Timing } from "@repo/core/stages/merge_audio/types";
+import type { Timing, TimingsFile } from "@repo/core/stages/merge_audio/types";
+import { useTrackData } from "./useTrackData";
+import type { BaseTrackProps } from "./shared";
 
-interface Props {
-  track: Track;
-  totalPx: number;
-  pxPerMs: number;
-  onSeek: (ms: number) => void;
-  color: string;
-  taskDir: string;
-  filePath: string;
-}
+type Props = BaseTrackProps;
 
 function serializeSegments(segments: TrackSegment[]): string {
   const segs: Timing[] = segments.map((s) => {
@@ -112,20 +106,38 @@ function deleteAt(segments: TrackSegment[], index: number): TrackSegment[] {
 }
 
 export function MergeAudioTrack(props: Props) {
-  const { track, pxPerMs, onSeek, color } = props;
+  const { taskDir, pxPerMs, onSeek, color } = props;
+  const track = () => props.track;
+  const { segments } = useTrackData({
+    taskDir,
+    trackId: track().id,
+    path: () => `${taskDir}/merge_audio/timings.json`,
+    parse: (text) => {
+      const data: TimingsFile = JSON.parse(text);
+      return (data.translation || []).map((item, i: number) => ({
+        index: i,
+        text: item.dst,
+        startMs: item.actual_start,
+        endMs: item.actual_end,
+        raw: item,
+      }));
+    },
+    label: () => "merge_audio/timings.json",
+  });
+  const filePath = () => `${taskDir}/merge_audio/timings.json`;
 
   const handleInsertBefore = async (segIndex: number) => {
-    const newSegments = insertAt(track.segments, segIndex, false);
-    await client.write_app_file_text.call([props.filePath, serializeSegments(newSegments)]);
+    const newSegments = insertAt(segments(), segIndex, false);
+    await client.write_app_file_text.call([filePath(), serializeSegments(newSegments)]);
   };
 
   const handleInsertAfter = async (segIndex: number) => {
-    const newSegments = insertAt(track.segments, segIndex, true);
-    await client.write_app_file_text.call([props.filePath, serializeSegments(newSegments)]);
+    const newSegments = insertAt(segments(), segIndex, true);
+    await client.write_app_file_text.call([filePath(), serializeSegments(newSegments)]);
   };
 
   const handleEdit = (segIndex: number) => {
-    const seg = track.segments[segIndex];
+    const seg = segments()[segIndex];
     if (!seg) return;
     const raw = seg.raw as Timing | undefined;
 
@@ -148,7 +160,7 @@ export function MergeAudioTrack(props: Props) {
             )
           }
           onSave={({ text, src, startMs, endMs }) => {
-            const newSegments = track.segments.map((s, i) =>
+            const newSegments = segments().map((s, i) =>
               i === segIndex
                 ? {
                     ...s,
@@ -159,10 +171,7 @@ export function MergeAudioTrack(props: Props) {
                   }
                 : s,
             );
-            return client.write_app_file_text.call([
-              props.filePath,
-              serializeSegments(newSegments),
-            ]);
+            return client.write_app_file_text.call([filePath(), serializeSegments(newSegments)]);
           }}
         />
       ),
@@ -171,13 +180,16 @@ export function MergeAudioTrack(props: Props) {
   };
 
   const handleDelete = async (segIndex: number) => {
-    const newSegments = deleteAt(track.segments, segIndex);
-    await client.write_app_file_text.call([props.filePath, serializeSegments(newSegments)]);
+    const newSegments = deleteAt(segments(), segIndex);
+    await client.write_app_file_text.call([filePath(), serializeSegments(newSegments)]);
   };
+
+  const segs = segments();
+  if (!segs.length) return null;
 
   return (
     <div class="h-16 border-b relative">
-      {track.segments.map((seg) => (
+      {segs.map((seg) => (
         <ContextMenu>
           <ContextMenuTrigger as="div" class="contents">
             <div

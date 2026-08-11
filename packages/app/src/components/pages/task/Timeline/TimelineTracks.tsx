@@ -25,7 +25,6 @@ interface TrackComponentProps {
   onSeek: (ms: number) => void;
   color: string;
   taskDir: string;
-  filePath: string;
 }
 
 const trackComponents: Record<string, Component<TrackComponentProps>> = {
@@ -93,7 +92,6 @@ export function TimelineTracks(props: Props) {
                 onSeek={props.onSeek}
                 color={c}
                 taskDir={props.taskDir ?? ""}
-                filePath={track.filePath ?? ""}
               />
             );
           }}

@@ -1,8 +1,7 @@
-import { createMemo, onCleanup } from "solid-js";
+import { onCleanup } from "solid-js";
 import { consumeEventIterator } from "@fnrpc/client";
-import { client, fnrpc } from "#/integrations/fnrpc/client.ts";
-import { useQuery } from "@tanstack/solid-query";
-import type { PathEvent, DirEntry } from "#/integrations/fnrpc/bindings.ts";
+import { fnrpc } from "#/integrations/fnrpc/client.ts";
+import type { PathEvent } from "#/integrations/fnrpc/bindings.ts";
 
 /// 媒体文件扩展名：这些走 axum `/media` ServeDir，不进 TanStack Query，
 /// 刷新靠前端给 `<video src>` 追加 `?v=` 版本号强制重拉（见 mediaVersions store）。
@@ -83,34 +82,3 @@ export function useTaskTreeEvents(taskDir: string, handlers: TaskTreeHandlers) {
 
 const DEBOUNCE_MS = 200;
 const pendingTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-/// 判断某个相对 workfolder 的文件当前是否存在。
-/// 基于 `list_app_directory` 推断（而非 stage status），并随文件树事件刷新存在性。
-/// 注意：这只决定查询 `enabled`（文件未生成时不发请求）；文件**内容**改写后的刷新
-/// 由 useTaskTreeEvents 的 onFile 回调 invalidateQueries 负责，二者不可混为一谈
-/// （详见 .agents/skills/solidjs-reactivity SKILL.md 的 `enabled` 陷阱）。
-///
-/// `relativePath` 接受 getter `() => string`，以便响应依赖变化（例如翻译文件路径里的
-/// `target_language` 在 ctx 加载完成后才确定）。若传静态 string 亦可，内部会兼容。
-export function useFileExists(taskDir: string, relativePath: string | (() => string)) {
-  const getPath = typeof relativePath === "function" ? relativePath : () => relativePath;
-
-  // 用 memo 追踪路径变化，避免 hook 闭包固化首次渲染的值（否则 target_language
-  // 后来确定时，翻译文件的存在性判断仍停留在 `undefined` 路径上）。dirQuery 依赖
-  // memo，路径变化自动重建并重新评估存在性。
-  const resolved = createMemo(getPath);
-  const dirQuery = useQuery(() => {
-    const rp = resolved();
-    const sep = rp.lastIndexOf("/");
-    const dir = sep >= 0 ? `${taskDir}/${rp.slice(0, sep)}` : taskDir;
-    return client.list_app_directory.queryOptions(dir);
-  });
-
-  return () => {
-    const rp = resolved();
-    if (!rp) return false;
-    const sep = rp.lastIndexOf("/");
-    const name = sep >= 0 ? rp.slice(sep + 1) : rp;
-    return (dirQuery.data ?? []).some((e: DirEntry) => e.name === name);
-  };
-}

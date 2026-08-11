@@ -1,19 +1,19 @@
 import { createSignal } from "solid-js";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@repo/ui-solid/base/context-menu";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@repo/ui-solid/base/context-menu";
 import { openModal, closeModal } from "@repo/ui-solid/custom/modal/renderer";
 import type { Track, TrackSegment } from "../consts";
-import { client } from "#/integrations/fnrpc/client.ts";
 import { useMutation } from "@tanstack/solid-query";
+import { client } from "#/integrations/fnrpc/client.ts";
+import { useTrackData } from "./useTrackData";
+import { AsrResult } from "@repo/subtitle-asr/types";
+import type { BaseTrackProps } from "./shared";
 
-interface Props {
-  track: Track;
-  totalPx: number;
-  pxPerMs: number;
-  onSeek: (ms: number) => void;
-  color: string;
-  taskDir: string;
-  filePath: string;
-}
+type Props = BaseTrackProps;
 
 function serializeSegments(segments: TrackSegment[]): string {
   const segs = segments.map((s) => ({
@@ -62,89 +62,127 @@ function deleteAt(segments: TrackSegment[], index: number): TrackSegment[] {
 }
 
 export function AsrTrack(props: Props) {
-  const { track, pxPerMs, onSeek, color } = props;
-  const mutation = useMutation(() => client.write_app_file_text.mutationOptions({
-    onSuccess: (_data, variables, _onMutateResult, context) => {
-      context.client.invalidateQueries({
-        queryKey: client.read_app_file_text.queryKey(variables[0])
-      });
+  const { taskDir, pxPerMs, onSeek, color } = props;
+  const track = () => props.track;
+  const { segments } = useTrackData({
+    taskDir,
+    trackId: track().id,
+    path: () => `${taskDir}/asr/asr.json`,
+    parse: (text) => {
+      const data: AsrResult = JSON.parse(text);
+      return (data.result?.segments || [])
+        .map((s, i: number) => ({
+          index: i,
+          text: (s.text || "").trim(),
+          startMs: s.start_ms,
+          endMs: s.end_ms,
+        }))
+        .filter((s: { text: string }) => s.text);
     },
-  }));
+    label: () => "asr.json",
+  });
+  const filePath = () => `${taskDir}/asr/asr.json`;
+
+  const mutation = useMutation(() =>
+    client.write_app_file_text.mutationOptions({
+      onSuccess: (_data, variables, _onMutateResult, context) => {
+        context.client.invalidateQueries({
+          queryKey: client.read_app_file_text.queryKey(variables[0]),
+        });
+      },
+    }),
+  );
 
   const handleInsertBefore = (segIndex: number) => {
-    const newSegments = insertAt(track.segments, segIndex, false);
-    mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+    const newSegments = insertAt(segments(), segIndex, false);
+    mutation.mutate([filePath(), serializeSegments(newSegments)]);
   };
 
   const handleInsertAfter = (segIndex: number) => {
-    const newSegments = insertAt(track.segments, segIndex, true);
-    mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+    const newSegments = insertAt(segments(), segIndex, true);
+    mutation.mutate([filePath(), serializeSegments(newSegments)]);
   };
 
   const handleEdit = (segIndex: number) => {
-    const seg = track.segments[segIndex];
+    const seg = segments()[segIndex];
     if (!seg) return;
 
-    openModal(() => {
-      const [text, setText] = createSignal(seg.text);
-      const [startMs, setStartMs] = createSignal(seg.startMs);
-      const [endMs, setEndMs] = createSignal(seg.endMs);
+    openModal(
+      () => {
+        const [text, setText] = createSignal(seg.text);
+        const [startMs, setStartMs] = createSignal(seg.startMs);
+        const [endMs, setEndMs] = createSignal(seg.endMs);
 
-      const onSave = () => {
-        const newSegments = track.segments.map((s, i) =>
-          i === segIndex ? { ...s, text: text(), startMs: startMs(), endMs: endMs() } : s,
+        const onSave = () => {
+          const newSegments = segments().map((s, i) =>
+            i === segIndex ? { ...s, text: text(), startMs: startMs(), endMs: endMs() } : s,
+          );
+          mutation.mutate([filePath(), serializeSegments(newSegments)]);
+          closeModal();
+        };
+
+        return (
+          <div class="flex flex-col gap-3 p-2 text-sm">
+            <label class="flex flex-col gap-1">
+              <span class="font-medium">文本</span>
+              <textarea
+                class="w-full min-h-20 rounded border p-2 text-sm"
+                value={text()}
+                onInput={(e) => setText(e.currentTarget.value)}
+              />
+            </label>
+            <div class="flex gap-4">
+              <label class="flex flex-col gap-1 flex-1">
+                <span class="font-medium">开始 (ms)</span>
+                <input
+                  class="rounded border px-2 py-1 text-sm"
+                  type="number"
+                  value={startMs()}
+                  onInput={(e) => setStartMs(Number(e.currentTarget.value))}
+                />
+              </label>
+              <label class="flex flex-col gap-1 flex-1">
+                <span class="font-medium">结束 (ms)</span>
+                <input
+                  class="rounded border px-2 py-1 text-sm"
+                  type="number"
+                  value={endMs()}
+                  onInput={(e) => setEndMs(Number(e.currentTarget.value))}
+                />
+              </label>
+            </div>
+            <div class="flex justify-end gap-2 mt-1">
+              <button
+                class="px-3 py-1.5 rounded border text-sm cursor-pointer"
+                onClick={closeModal}
+              >
+                取消
+              </button>
+              <button
+                class="px-3 py-1.5 rounded bg-primary text-primary-foreground text-sm cursor-pointer"
+                onClick={onSave}
+              >
+                保存
+              </button>
+            </div>
+          </div>
         );
-        mutation.mutate([props.filePath, serializeSegments(newSegments)]);
-        closeModal();
-      };
-
-      return (
-        <div class="flex flex-col gap-3 p-2 text-sm">
-          <label class="flex flex-col gap-1">
-            <span class="font-medium">文本</span>
-            <textarea
-              class="w-full min-h-20 rounded border p-2 text-sm"
-              value={text()}
-              onInput={(e) => setText(e.currentTarget.value)}
-            />
-          </label>
-          <div class="flex gap-4">
-            <label class="flex flex-col gap-1 flex-1">
-              <span class="font-medium">开始 (ms)</span>
-              <input
-                class="rounded border px-2 py-1 text-sm"
-                type="number"
-                value={startMs()}
-                onInput={(e) => setStartMs(Number(e.currentTarget.value))}
-              />
-            </label>
-            <label class="flex flex-col gap-1 flex-1">
-              <span class="font-medium">结束 (ms)</span>
-              <input
-                class="rounded border px-2 py-1 text-sm"
-                type="number"
-                value={endMs()}
-                onInput={(e) => setEndMs(Number(e.currentTarget.value))}
-              />
-            </label>
-          </div>
-          <div class="flex justify-end gap-2 mt-1">
-            <button class="px-3 py-1.5 rounded border text-sm cursor-pointer" onClick={closeModal}>取消</button>
-            <button class="px-3 py-1.5 rounded bg-primary text-primary-foreground text-sm cursor-pointer" onClick={onSave}>保存</button>
-          </div>
-        </div>
-      );
-    }, { title: "编辑 ASR 片段" });
+      },
+      { title: "编辑 ASR 片段" },
+    );
   };
 
   const handleDelete = (segIndex: number) => {
-    const newSegments = deleteAt(track.segments, segIndex);
-    mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+    const newSegments = deleteAt(segments(), segIndex);
+    mutation.mutate([filePath(), serializeSegments(newSegments)]);
   };
+
+  const segs = segments();
+  if (!segs.length) return null;
 
   return (
     <div class="h-16 border-b relative">
-      {track.segments.map((seg) => (
+      {segs.map((seg) => (
         <ContextMenu>
           <ContextMenuTrigger as="div" class="contents">
             <div
@@ -168,12 +206,8 @@ export function AsrTrack(props: Props) {
             <ContextMenuItem onSelect={() => handleInsertAfter(seg.index)}>
               向后插入
             </ContextMenuItem>
-            <ContextMenuItem onSelect={() => handleEdit(seg.index)}>
-              编辑
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => handleDelete(seg.index)}>
-              删除
-            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => handleEdit(seg.index)}>编辑</ContextMenuItem>
+            <ContextMenuItem onSelect={() => handleDelete(seg.index)}>删除</ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
       ))}

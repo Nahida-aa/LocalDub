@@ -12,16 +12,10 @@ import { mediaUrl } from "#/lib/utils/path.ts";
 import type { Track, TrackSegment } from "../consts";
 import { client } from "#/integrations/fnrpc/client.ts";
 import type { SplitAudioTiming } from "@repo/core/stages/06_split_audio/types";
+import { useTrackData } from "./useTrackData";
+import type { BaseTrackProps } from "./shared";
 
-interface Props {
-  track: Track;
-  totalPx: number;
-  pxPerMs: number;
-  onSeek: (ms: number) => void;
-  color: string;
-  taskDir: string;
-  filePath: string;
-}
+type Props = BaseTrackProps;
 
 function serializeSegments(segments: TrackSegment[]): string {
   const segs: SplitAudioTiming[] = segments.map((s) => {
@@ -88,20 +82,43 @@ function deleteAt(segments: TrackSegment[], index: number): TrackSegment[] {
 }
 
 export function SplitAudioTrack(props: Props) {
-  const { track, pxPerMs, onSeek, color, taskDir } = props;
+  const { taskDir, pxPerMs, onSeek, color } = props;
+  const track = () => props.track;
+  const isTimings = () => track().id === "split_audio_timings";
+  const { segments } = useTrackData({
+    taskDir,
+    trackId: track().id,
+    path: () =>
+      isTimings()
+        ? `${taskDir}/split_audio/timings.json`
+        : `${taskDir}/split_audio/split_audio.json`,
+    parse: (text) => {
+      const data = JSON.parse(text) as { translation?: SplitAudioTiming[] };
+      return (data.translation || []).map((item, i: number) => ({
+        index: i,
+        text: item.dst || "",
+        startMs: item.start,
+        endMs: item.end,
+        raw: item,
+      }));
+    },
+    label: () => (isTimings() ? "split_audio/timings.json" : "split_audio/split_audio.json"),
+  });
+  const filePath = () =>
+    isTimings() ? `${taskDir}/split_audio/timings.json` : `${taskDir}/split_audio/split_audio.json`;
 
   const handleInsertBefore = async (segIndex: number) => {
-    const newSegments = insertAt(track.segments, segIndex, false);
-    await client.write_app_file_text.call([props.filePath, serializeSegments(newSegments)]);
+    const newSegments = insertAt(segments(), segIndex, false);
+    await client.write_app_file_text.call([filePath(), serializeSegments(newSegments)]);
   };
 
   const handleInsertAfter = async (segIndex: number) => {
-    const newSegments = insertAt(track.segments, segIndex, true);
-    await client.write_app_file_text.call([props.filePath, serializeSegments(newSegments)]);
+    const newSegments = insertAt(segments(), segIndex, true);
+    await client.write_app_file_text.call([filePath(), serializeSegments(newSegments)]);
   };
 
   const handleEdit = (segIndex: number) => {
-    const seg = track.segments[segIndex];
+    const seg = segments()[segIndex];
     if (!seg) return;
     const raw = seg.raw as SplitAudioTiming | undefined;
 
@@ -124,7 +141,7 @@ export function SplitAudioTrack(props: Props) {
             )
           }
           onSave={({ text, src, startMs, endMs }) => {
-            const newSegments = track.segments.map((s, i) =>
+            const newSegments = segments().map((s, i) =>
               i === segIndex
                 ? {
                     ...s,
@@ -135,10 +152,7 @@ export function SplitAudioTrack(props: Props) {
                   }
                 : s,
             );
-            return client.write_app_file_text.call([
-              props.filePath,
-              serializeSegments(newSegments),
-            ]);
+            return client.write_app_file_text.call([filePath(), serializeSegments(newSegments)]);
           }}
         />
       ),
@@ -147,12 +161,12 @@ export function SplitAudioTrack(props: Props) {
   };
 
   const handleDelete = async (segIndex: number) => {
-    const newSegments = deleteAt(track.segments, segIndex);
-    await client.write_app_file_text.call([props.filePath, serializeSegments(newSegments)]);
+    const newSegments = deleteAt(segments(), segIndex);
+    await client.write_app_file_text.call([filePath(), serializeSegments(newSegments)]);
   };
 
   const handlePlay = (segIndex: number) => {
-    const seg = track.segments[segIndex];
+    const seg = segments()[segIndex];
     if (!seg) return;
     const idx = String(segIndex + 1).padStart(4, "0");
     const url = mediaUrl(`${taskDir}/split_audio/vocals/${idx}.wav`);
@@ -168,9 +182,12 @@ export function SplitAudioTrack(props: Props) {
     );
   };
 
+  const segs = segments();
+  if (!segs.length) return null;
+
   return (
     <div class="h-16 border-b relative">
-      {track.segments.map((seg) => (
+      {segs.map((seg) => (
         <ContextMenu>
           <ContextMenuTrigger as="div" class="contents">
             <div
