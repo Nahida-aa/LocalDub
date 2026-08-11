@@ -25,7 +25,7 @@ use tracing::info;
     about = "字幕 OCR（基于 rapidocr-ort，PP-OCRv3）"
 )]
 struct Cli {
-    /// 模型套件：v3 / v6-tiny / v6-medium
+    /// 模型套件：v3 / v4 / v6-tiny / v6-medium
     #[arg(long, value_enum, default_value_t = rapidocr_ort::ModelProfile::V4)]
     model: rapidocr_ort::ModelProfile,
 

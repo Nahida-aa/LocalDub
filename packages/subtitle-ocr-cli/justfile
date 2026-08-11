@@ -43,8 +43,8 @@ run-one image="tmp/both_fullscreen_frame1.png":
 
 # ---- 批量识别（--dir，文件名须为 ms / ms_ms 时间格式） ----
 # 用法：just run-dir <dir>
-run-dir dir="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/asr_ocr_pre/frames" out="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/asr_ocr/frames.json":
-    cargo run -p subtitle-ocr-cli --bin subtitle-ocr --release -- --model-dir data/models/rapidocr --dir {{dir}} --out {{out}}
+run-dir dir="workfolder/大/09/sf_ocr_pre/frames" out="workfolder/大/09/sf_ocr/frames.json":
+    cargo run -p subtitle-ocr-cli --bin subtitle-ocr --release -- --model-dir data/models/rapidocr --dir {{dir}} --out {{out}} --subtitle-only
 
 # ---- 统合后处理管线：一条命令串起 adjust-box → filter-box → merge → adjust-segment → filter-segment ----
 # 用法：just ocr-post [frames] [video] [out] [threshold] [stop_at]

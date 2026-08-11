@@ -1,2 +1,8 @@
 run video="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/video_source.mp4" out="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/sf_ocr_pre":
     cargo run -p sf-cli --release -- {{video}} {{ if out != "" { "--out " + out } else { "" } }}
+
+build:
+    cargo build -p sf-cli --release
+
+clean:
+    cargo clean -p sf-cli --release
