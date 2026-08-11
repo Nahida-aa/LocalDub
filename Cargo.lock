@@ -8472,7 +8472,7 @@ dependencies = [
 [[package]]
 name = "specta"
 version = "2.0.0-rc.26"
-source = "git+https://github.com/specta-rs/specta.git?rev=3c535739ea7bd8737ecdbff6c3aef9b7330da706#3c535739ea7bd8737ecdbff6c3aef9b7330da706"
+source = "git+https://github.com/specta-rs/specta.git?rev=7bfd7428d675201f2beec8a0f0221599a2b3ea45#7bfd7428d675201f2beec8a0f0221599a2b3ea45"
 dependencies = [
  "rustc_version",
  "serde_json",
@@ -8482,7 +8482,7 @@ dependencies = [
 [[package]]
 name = "specta-jsonschema"
 version = "0.0.4"
-source = "git+https://github.com/specta-rs/specta.git?rev=3c535739ea7bd8737ecdbff6c3aef9b7330da706#3c535739ea7bd8737ecdbff6c3aef9b7330da706"
+source = "git+https://github.com/specta-rs/specta.git?rev=7bfd7428d675201f2beec8a0f0221599a2b3ea45#7bfd7428d675201f2beec8a0f0221599a2b3ea45"
 dependencies = [
  "serde",
  "serde_json",
@@ -8493,7 +8493,7 @@ dependencies = [
 [[package]]
 name = "specta-macros"
 version = "2.0.0-rc.26"
-source = "git+https://github.com/specta-rs/specta.git?rev=3c535739ea7bd8737ecdbff6c3aef9b7330da706#3c535739ea7bd8737ecdbff6c3aef9b7330da706"
+source = "git+https://github.com/specta-rs/specta.git?rev=7bfd7428d675201f2beec8a0f0221599a2b3ea45#7bfd7428d675201f2beec8a0f0221599a2b3ea45"
 dependencies = [
  "Inflector",
  "proc-macro2",
@@ -8504,7 +8504,7 @@ dependencies = [
 [[package]]
 name = "specta-serde"
 version = "0.0.13"
-source = "git+https://github.com/specta-rs/specta.git?rev=3c535739ea7bd8737ecdbff6c3aef9b7330da706#3c535739ea7bd8737ecdbff6c3aef9b7330da706"
+source = "git+https://github.com/specta-rs/specta.git?rev=7bfd7428d675201f2beec8a0f0221599a2b3ea45#7bfd7428d675201f2beec8a0f0221599a2b3ea45"
 dependencies = [
  "specta",
  "specta-macros",
@@ -8513,7 +8513,7 @@ dependencies = [
 [[package]]
 name = "specta-typescript"
 version = "0.0.13"
-source = "git+https://github.com/specta-rs/specta.git?rev=3c535739ea7bd8737ecdbff6c3aef9b7330da706#3c535739ea7bd8737ecdbff6c3aef9b7330da706"
+source = "git+https://github.com/specta-rs/specta.git?rev=7bfd7428d675201f2beec8a0f0221599a2b3ea45#7bfd7428d675201f2beec8a0f0221599a2b3ea45"
 dependencies = [
  "serde",
  "specta",
@@ -8522,7 +8522,7 @@ dependencies = [
 [[package]]
 name = "specta-util"
 version = "0.0.13"
-source = "git+https://github.com/specta-rs/specta.git?rev=3c535739ea7bd8737ecdbff6c3aef9b7330da706#3c535739ea7bd8737ecdbff6c3aef9b7330da706"
+source = "git+https://github.com/specta-rs/specta.git?rev=7bfd7428d675201f2beec8a0f0221599a2b3ea45#7bfd7428d675201f2beec8a0f0221599a2b3ea45"
 dependencies = [
  "specta",
 ]

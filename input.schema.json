@@ -1,6 +1,36 @@
 {
   "$defs": {
     "Asr": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/Asr_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/Asr_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " asr: 语音转写",
+      "title": "Asr"
+    },
+    "Asr_Deserialize": {
       "description": " asr: 语音转写",
       "properties": {
         "mix_mode": {
@@ -16,7 +46,7 @@
           "description": " 推理运行时, 默认 pytorch"
         },
         "sidechain_compress": {
-          "$ref": "#/$defs/SidechainCompress",
+          "$ref": "#/$defs/SidechainCompress_Deserialize",
           "description": " mixMode=sidechain 时压缩器参数"
         },
         "words_output": {
@@ -24,10 +54,74 @@
           "type": "boolean"
         }
       },
-      "title": "Asr",
+      "title": "Asr_Deserialize",
+      "type": "object"
+    },
+    "Asr_Serialize": {
+      "description": " asr: 语音转写",
+      "properties": {
+        "mix_mode": {
+          "$ref": "#/$defs/MixMode",
+          "description": " ASR 音频源 (默认 sidechain)"
+        },
+        "reduce_bgm": {
+          "description": " 背景音降低量(dB), raw-sum 叠加前衰减",
+          "type": "number"
+        },
+        "runtime": {
+          "$ref": "#/$defs/Runtime",
+          "description": " 推理运行时, 默认 pytorch"
+        },
+        "sidechain_compress": {
+          "$ref": "#/$defs/SidechainCompress_Serialize",
+          "description": " mixMode=sidechain 时压缩器参数"
+        },
+        "words_output": {
+          "description": " ASR 结果是否包含词级时间戳 (默认关闭, 调试时开启)",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "runtime",
+        "mix_mode",
+        "reduce_bgm",
+        "words_output",
+        "sidechain_compress"
+      ],
+      "title": "Asr_Serialize",
       "type": "object"
     },
     "CliInput": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/CliInput_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/CliInput_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " CLI 顶层输入",
+      "title": "CliInput"
+    },
+    "CliInput_Deserialize": {
       "description": " CLI 顶层输入",
       "properties": {
         "command": {
@@ -35,7 +129,7 @@
           "description": " 执行命令 (默认 env)"
         },
         "stages": {
-          "$ref": "#/$defs/Stages"
+          "$ref": "#/$defs/Stages_Deserialize"
         },
         "task": {
           "description": " 任务参数 (必需, 无默认; 演示 required 与可选字段的区别)",
@@ -45,11 +139,34 @@
       "required": [
         "task"
       ],
-      "title": "CliInput",
+      "title": "CliInput_Deserialize",
+      "type": "object"
+    },
+    "CliInput_Serialize": {
+      "description": " CLI 顶层输入",
+      "properties": {
+        "command": {
+          "$ref": "#/$defs/Command",
+          "description": " 执行命令 (默认 env)"
+        },
+        "stages": {
+          "$ref": "#/$defs/Stages_Serialize"
+        },
+        "task": {
+          "description": " 任务参数 (必需, 无默认; 演示 required 与可选字段的区别)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task",
+        "command",
+        "stages"
+      ],
+      "title": "CliInput_Serialize",
       "type": "object"
     },
     "Command": {
-      "oneOf": [
+      "anyOf": [
         {
           "const": "task"
         },
@@ -63,6 +180,36 @@
       "title": "Command"
     },
     "MergeAudio": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/MergeAudio_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/MergeAudio_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " merge_audio 参数",
+      "title": "MergeAudio"
+    },
+    "MergeAudio_Deserialize": {
       "description": " merge_audio 参数",
       "properties": {
         "max_speed": {
@@ -70,12 +217,25 @@
           "type": "number"
         }
       },
-      "title": "MergeAudio",
+      "title": "MergeAudio_Deserialize",
+      "type": "object"
+    },
+    "MergeAudio_Serialize": {
+      "description": " merge_audio 参数",
+      "properties": {
+        "max_speed": {
+          "description": " 最大变速比, 1.0=不变速",
+          "type": "number"
+        }
+      },
+      "required": [
+        "max_speed"
+      ],
+      "title": "MergeAudio_Serialize",
       "type": "object"
     },
     "MixMode": {
-      "description": " ASR 音频源: vocals=纯分离人声, raw-sum=直接叠加, sidechain=侧链压缩背景音",
-      "oneOf": [
+      "anyOf": [
         {
           "const": "vocals"
         },
@@ -86,10 +246,11 @@
           "const": "sidechain"
         }
       ],
+      "description": " ASR 音频源: vocals=纯分离人声, raw-sum=直接叠加, sidechain=侧链压缩背景音",
       "title": "MixMode"
     },
     "Runtime": {
-      "oneOf": [
+      "anyOf": [
         {
           "const": "ggml"
         },
@@ -103,6 +264,36 @@
       "title": "Runtime"
     },
     "SidechainCompress": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/SidechainCompress_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/SidechainCompress_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " 侧链压缩器参数",
+      "title": "SidechainCompress"
+    },
+    "SidechainCompress_Deserialize": {
       "description": " 侧链压缩器参数",
       "properties": {
         "ratio": {
@@ -114,24 +305,90 @@
           "type": "number"
         }
       },
-      "title": "SidechainCompress",
+      "title": "SidechainCompress_Deserialize",
+      "type": "object"
+    },
+    "SidechainCompress_Serialize": {
+      "description": " 侧链压缩器参数",
+      "properties": {
+        "ratio": {
+          "description": " 压缩比, 默认 20",
+          "type": "number"
+        },
+        "threshold": {
+          "description": " 压缩器阈值, 默认 0.1",
+          "type": "number"
+        }
+      },
+      "required": [
+        "threshold",
+        "ratio"
+      ],
+      "title": "SidechainCompress_Serialize",
       "type": "object"
     },
     "Stages": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/Stages_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/Stages_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " 各处理阶段的入参",
+      "title": "Stages"
+    },
+    "Stages_Deserialize": {
       "description": " 各处理阶段的入参",
       "properties": {
         "asr": {
-          "$ref": "#/$defs/Asr"
+          "$ref": "#/$defs/Asr_Deserialize"
         },
         "merge_audio": {
-          "$ref": "#/$defs/MergeAudio"
+          "$ref": "#/$defs/MergeAudio_Deserialize"
         }
       },
-      "title": "Stages",
+      "title": "Stages_Deserialize",
+      "type": "object"
+    },
+    "Stages_Serialize": {
+      "description": " 各处理阶段的入参",
+      "properties": {
+        "asr": {
+          "$ref": "#/$defs/Asr_Serialize"
+        },
+        "merge_audio": {
+          "$ref": "#/$defs/MergeAudio_Serialize"
+        }
+      },
+      "required": [
+        "asr",
+        "merge_audio"
+      ],
+      "title": "Stages_Serialize",
       "type": "object"
     }
   },
-  "$ref": "#/$defs/CliInput",
+  "$ref": "#/$defs/CliInput_Deserialize",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "LocalDub CLI 输入"
 }

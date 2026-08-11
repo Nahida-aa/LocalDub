@@ -19,7 +19,7 @@ specta = { version = "=2.0.0-rc.26", features = ["derive", "serde_json"] }
 specta-typescript = { version = "0.0.13", features = ["serde"] }
 specta-serde = { version = "0.0.13" }
 specta-util = { version = "0.0.13" }
-specta-jsonschema = { git = "https://github.com/specta-rs/specta.git", rev = "3c535739ea7bd8737ecdbff6c3aef9b7330da706" }
+specta-jsonschema = { git = "https://github.com/specta-rs/specta.git", rev = "7bfd7428d675201f2beec8a0f0221599a2b3ea45" }
 fnrpc = { version = "0.4.2", features = ["ts-bindings", "tracing"] }
 fnrpc-axum = { version = "0.4.2" }
 fnrpc-tauri = { version = "0.4.2" }
@@ -52,11 +52,11 @@ cubecl-spirv = { path = "submodule/voxcpm-rs/vendor/patched/cubecl-spirv" }
 # commit tauri-specta uses so we stay in sync with upstream behaviour
 # (including serde variant/field renames via `specta-serde::PhasesFormat`).
 # TODO: Remove once the rc.26 Specta crates are published.
-specta = { git = "https://github.com/specta-rs/specta.git", rev = "3c535739ea7bd8737ecdbff6c3aef9b7330da706" }
-specta-macros = { git = "https://github.com/specta-rs/specta.git", rev = "3c535739ea7bd8737ecdbff6c3aef9b7330da706" }
-specta-serde = { git = "https://github.com/specta-rs/specta.git", rev = "3c535739ea7bd8737ecdbff6c3aef9b7330da706" }
-specta-typescript = { git = "https://github.com/specta-rs/specta.git", rev = "3c535739ea7bd8737ecdbff6c3aef9b7330da706" }
-specta-util = { git = "https://github.com/specta-rs/specta.git", rev = "3c535739ea7bd8737ecdbff6c3aef9b7330da706" }
+specta = { git = "https://github.com/specta-rs/specta.git", rev = "7bfd7428d675201f2beec8a0f0221599a2b3ea45" }
+specta-macros = { git = "https://github.com/specta-rs/specta.git", rev = "7bfd7428d675201f2beec8a0f0221599a2b3ea45" }
+specta-serde = { git = "https://github.com/specta-rs/specta.git", rev = "7bfd7428d675201f2beec8a0f0221599a2b3ea45" }
+specta-typescript = { git = "https://github.com/specta-rs/specta.git", rev = "7bfd7428d675201f2beec8a0f0221599a2b3ea45" }
+specta-util = { git = "https://github.com/specta-rs/specta.git", rev = "7bfd7428d675201f2beec8a0f0221599a2b3ea45" }
 fnrpc = { git = "https://github.com/Nahida-aa/fnrpc.git", rev = "b77f290320ec88fc382c6a5130de1cf2f18af2f9" }
 fnrpc-axum = { git = "https://github.com/Nahida-aa/fnrpc.git", rev = "b77f290320ec88fc382c6a5130de1cf2f18af2f9" }
 fnrpc-tauri = { git = "https://github.com/Nahida-aa/fnrpc.git", rev = "b77f290320ec88fc382c6a5130de1cf2f18af2f9" }

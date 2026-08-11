@@ -2,15 +2,35 @@
 //!
 //! 对标 TS 侧 `packages/cli/scripts/gen-input-schema.ts`（zod `toJSONSchema({io:'input'})`）。
 //!
-//! 这里仅演示 input 语义：输入 JSON 允许缺省字段（注释里的 *可缺省* 字段进不了 `required`），
-//! 但读到 Rust 运行时由 `#[serde(default)]` 补齐默认值。specta 没有 `Ranged`/min/max 约束，
+//! input 语义由 `specta_serde::PhasesFormat` 驱动：`#[serde(default)]` 的字段在
+//! Deserialize 面（input）可选、在 Serialize 面（output）必填，对齐 zod 的 io 区分。
+//! 运行时由 `#[serde(default)]` 补齐默认值。specta 无 `Ranged`/min/max 约束，
 //! 数值范围需在解析时自行校验（见下文 TODO）。
 
+use std::borrow::Cow;
+
 use serde::{Deserialize, Serialize};
-use specta::Type;
-use specta::Types;
+use specta::datatype::{DataType, Reference};
+use specta::{Format as _, Type, Types};
 use specta_jsonschema::JsonSchema;
-use specta_serde::Format;
+use specta_serde::{Phase, PhasesFormat, select_phase_datatype};
+
+/// 占位 formatter：types 已由 [`PhasesFormat`] 预映射，导出时不再二次改写。
+struct NoopFormat;
+
+impl specta::Format for NoopFormat {
+    fn map_types(&self, types: &Types) -> Result<Cow<'_, Types>, specta::FormatError> {
+        Ok(Cow::Owned(types.clone()))
+    }
+
+    fn map_type(
+        &self,
+        _types: &Types,
+        dt: &DataType,
+    ) -> Result<Cow<'_, DataType>, specta::FormatError> {
+        Ok(Cow::Owned(dt.clone()))
+    }
+}
 
 // ---- 镜像 packages/core/input/types.ts 的子集（command + stages.asr + merge_audio） ----
 
@@ -63,11 +83,9 @@ impl Default for MixMode {
 struct SidechainCompress {
     /// 压缩器阈值, 默认 0.1
     #[serde(default)]
-    #[specta(optional)]
     threshold: f64,
     /// 压缩比, 默认 20
     #[serde(default)]
-    #[specta(optional)]
     ratio: f64,
 }
 
@@ -85,23 +103,18 @@ impl Default for SidechainCompress {
 struct Asr {
     /// 推理运行时, 默认 pytorch
     #[serde(default)]
-    #[specta(optional)]
     runtime: Runtime,
     /// ASR 音频源 (默认 sidechain)
     #[serde(default)]
-    #[specta(optional)]
     mix_mode: MixMode,
     /// 背景音降低量(dB), raw-sum 叠加前衰减
     #[serde(default = "default_reduce_bgm")]
-    #[specta(optional)]
     reduce_bgm: f64,
     /// ASR 结果是否包含词级时间戳 (默认关闭, 调试时开启)
     #[serde(default)]
-    #[specta(optional)]
     words_output: bool,
     /// mixMode=sidechain 时压缩器参数
     #[serde(default)]
-    #[specta(optional)]
     sidechain_compress: SidechainCompress,
 }
 
@@ -122,7 +135,6 @@ impl Default for Asr {
 struct MergeAudio {
     /// 最大变速比, 1.0=不变速
     #[serde(default = "default_max_speed")]
-    #[specta(optional)]
     max_speed: f64,
 }
 
@@ -147,10 +159,8 @@ impl Default for MergeAudio {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 struct Stages {
     #[serde(default)]
-    #[specta(optional)]
     asr: Asr,
     #[serde(default)]
-    #[specta(optional)]
     merge_audio: MergeAudio,
 }
 
@@ -170,10 +180,8 @@ struct CliInput {
     task: String,
     /// 执行命令 (默认 env)
     #[serde(default)]
-    #[specta(optional)]
     command: Command,
     #[serde(default)]
-    #[specta(optional)]
     stages: Stages,
 }
 
@@ -187,32 +195,27 @@ impl Default for CliInput {
     }
 }
 
-fn strip_additional_properties_false(v: &mut serde_json::Value) {
-    match v {
-        serde_json::Value::Object(map) => {
-            map.remove("additionalProperties");
-            for child in map.values_mut() {
-                strip_additional_properties_false(child);
-            }
-        }
-        serde_json::Value::Array(arr) => {
-            for child in arr {
-                strip_additional_properties_false(child);
-            }
-        }
-        _ => {}
-    }
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let types = Types::default().register::<CliInput>();
+    let mut types = Types::default();
+    let root = CliInput::definition(&mut types);
+    let phased = PhasesFormat
+        .map_types(&types)
+        .map_err(|e| format!("phases: {e}"))?
+        .into_owned();
+    let deser = select_phase_datatype(&root, &phased, Phase::Deserialize);
+    let name = match &deser {
+        DataType::Reference(Reference::Named(r)) => phased
+            .get(r)
+            .map(|ndt| ndt.name.clone())
+            .ok_or_else(|| "deserialize root ref not in phased types".to_string())?,
+        other => return Err(format!("unexpected deserialize root: {other:?}").into()),
+    };
     let out = config_rs::root::repo_root().join("input.schema.json");
-    let mut schema = JsonSchema::default()
+    let schema = JsonSchema::default()
+        .allow_additional_properties(true)
         .title("LocalDub CLI 输入")
-        .export_ref_value(&types, Format, "CliInput")
-        .unwrap();
-    strip_additional_properties_false(&mut schema);
+        .export_ref_value(&phased, NoopFormat, &name)?;
     std::fs::write(&out, serde_json::to_string_pretty(&schema).unwrap())?;
-    println!("Generated: {}", out.display());
+    println!("Generated: {} (root {name})", out.display());
     Ok(())
 }
