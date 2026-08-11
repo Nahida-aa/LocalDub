@@ -91,80 +91,6 @@
       "title": "Asr_Serialize",
       "type": "object"
     },
-    "CliInput": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/CliInput_Serialize"
-            }
-          },
-          "required": [
-            "Serialize"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/CliInput_Deserialize"
-            }
-          },
-          "required": [
-            "Deserialize"
-          ],
-          "type": "object"
-        }
-      ],
-      "description": " CLI 顶层输入",
-      "title": "CliInput"
-    },
-    "CliInput_Deserialize": {
-      "description": " CLI 顶层输入",
-      "properties": {
-        "command": {
-          "$ref": "#/$defs/Command",
-          "description": " 执行命令 (默认 env)"
-        },
-        "stages": {
-          "$ref": "#/$defs/Stages_Deserialize"
-        },
-        "task": {
-          "description": " 任务参数 (必需, 无默认; 演示 required 与可选字段的区别)",
-          "type": "string"
-        }
-      },
-      "required": [
-        "task"
-      ],
-      "title": "CliInput_Deserialize",
-      "type": "object"
-    },
-    "CliInput_Serialize": {
-      "description": " CLI 顶层输入",
-      "properties": {
-        "command": {
-          "$ref": "#/$defs/Command",
-          "description": " 执行命令 (默认 env)"
-        },
-        "stages": {
-          "$ref": "#/$defs/Stages_Serialize"
-        },
-        "task": {
-          "description": " 任务参数 (必需, 无默认; 演示 required 与可选字段的区别)",
-          "type": "string"
-        }
-      },
-      "required": [
-        "task",
-        "command",
-        "stages"
-      ],
-      "title": "CliInput_Serialize",
-      "type": "object"
-    },
     "Command": {
       "anyOf": [
         {
@@ -178,6 +104,91 @@
         }
       ],
       "title": "Command"
+    },
+    "Input": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/Input_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/Input_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " 顶层输入 (不限定 CLI 场景, Tauri RPC / pipeline 均可复用)",
+      "title": "Input"
+    },
+    "Input_Deserialize": {
+      "description": " 顶层输入 (不限定 CLI 场景, Tauri RPC / pipeline 均可复用)",
+      "properties": {
+        "command": {
+          "$ref": "#/$defs/Command",
+          "description": " 执行命令 (默认 env)"
+        },
+        "stages": {
+          "$ref": "#/$defs/Stages_Deserialize"
+        },
+        "task": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaskArgs_Deserialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 任务参数, 仅 command=task 时必须"
+        }
+      },
+      "title": "Input_Deserialize",
+      "type": "object"
+    },
+    "Input_Serialize": {
+      "description": " 顶层输入 (不限定 CLI 场景, Tauri RPC / pipeline 均可复用)",
+      "properties": {
+        "command": {
+          "$ref": "#/$defs/Command",
+          "description": " 执行命令 (默认 env)"
+        },
+        "stages": {
+          "$ref": "#/$defs/Stages_Serialize"
+        },
+        "task": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaskArgs_Serialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 任务参数, 仅 command=task 时必须"
+        }
+      },
+      "required": [
+        "task",
+        "command",
+        "stages"
+      ],
+      "title": "Input_Serialize",
+      "type": "object"
     },
     "MergeAudio": {
       "anyOf": [
@@ -248,6 +259,18 @@
       ],
       "description": " ASR 音频源: vocals=纯分离人声, raw-sum=直接叠加, sidechain=侧链压缩背景音",
       "title": "MixMode"
+    },
+    "Pipeline": {
+      "anyOf": [
+        {
+          "const": "dub"
+        },
+        {
+          "const": "subtitle"
+        }
+      ],
+      "description": " 任务模式: dub=配音, subtitle=仅字幕",
+      "title": "Pipeline"
     },
     "Runtime": {
       "anyOf": [
@@ -327,6 +350,57 @@
       "title": "SidechainCompress_Serialize",
       "type": "object"
     },
+    "StageName": {
+      "anyOf": [
+        {
+          "const": "separate"
+        },
+        {
+          "const": "separate_after"
+        },
+        {
+          "const": "asr"
+        },
+        {
+          "const": "asr_fix"
+        },
+        {
+          "const": "sf_ocr_pre"
+        },
+        {
+          "const": "sf_ocr"
+        },
+        {
+          "const": "sf_ocr_fix"
+        },
+        {
+          "const": "asr_ocr_pre"
+        },
+        {
+          "const": "asr_ocr"
+        },
+        {
+          "const": "asr_ocr_fix"
+        },
+        {
+          "const": "translate"
+        },
+        {
+          "const": "split_audio"
+        },
+        {
+          "const": "tts"
+        },
+        {
+          "const": "merge_audio"
+        },
+        {
+          "const": "merge_video"
+        }
+      ],
+      "description": " pipeline 阶段名 (stagesList)",
+      "title": "StageName"
+    },
     "Stages": {
       "anyOf": [
         {
@@ -386,9 +460,365 @@
       ],
       "title": "Stages_Serialize",
       "type": "object"
+    },
+    "SubtitleSource": {
+      "anyOf": [
+        {
+          "const": "asr"
+        },
+        {
+          "const": "sf_ocr"
+        },
+        {
+          "const": "asr_ocr"
+        }
+      ],
+      "description": " 字幕源",
+      "title": "SubtitleSource"
+    },
+    "TargetLang": {
+      "anyOf": [
+        {
+          "const": "en"
+        },
+        {
+          "const": "zh"
+        },
+        {
+          "const": "vi"
+        },
+        {
+          "const": "ja"
+        },
+        {
+          "const": "ko"
+        },
+        {
+          "const": "fr"
+        },
+        {
+          "const": "de"
+        },
+        {
+          "const": "es"
+        },
+        {
+          "const": "pt"
+        },
+        {
+          "const": "ru"
+        },
+        {
+          "const": "ar"
+        },
+        {
+          "const": "hi"
+        },
+        {
+          "const": "th"
+        },
+        {
+          "const": "id"
+        },
+        {
+          "const": "ms"
+        },
+        {
+          "const": "tl"
+        },
+        {
+          "const": "my"
+        },
+        {
+          "const": "km"
+        },
+        {
+          "const": "lo"
+        },
+        {
+          "const": "mn"
+        },
+        {
+          "const": "ne"
+        },
+        {
+          "const": "ur"
+        },
+        {
+          "const": "bn"
+        }
+      ],
+      "description": " 目标语言 (langList)",
+      "title": "TargetLang"
+    },
+    "TaskAction": {
+      "anyOf": [
+        {
+          "const": "start"
+        },
+        {
+          "const": "resume"
+        },
+        {
+          "const": "rerun_stage"
+        },
+        {
+          "const": "status"
+        },
+        {
+          "const": "get_group_list"
+        },
+        {
+          "const": "get_task_ctx"
+        }
+      ],
+      "description": " 任务操作",
+      "title": "TaskAction"
+    },
+    "TaskArgs": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/TaskArgs_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/TaskArgs_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " 任务参数 (镜像 taskArgsSchema)",
+      "title": "TaskArgs"
+    },
+    "TaskArgs_Deserialize": {
+      "description": " 任务参数 (镜像 taskArgsSchema)",
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaskAction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 任务操作: start=开始, resume=继续, rerun_stage=重新运行某步骤, status=显示状态, get_group_list=列出分组"
+        },
+        "pipeline": {
+          "$ref": "#/$defs/Pipeline",
+          "description": " 任务模式, dub 配音, subtitle 仅字幕"
+        },
+        "resumeFrom": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StageName"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 继续任务专业参数, 可指定 resumeFrom 从某步骤开始, 不指定则从上次中断的步骤开始"
+        },
+        "sourceLang": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TargetLang"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stageName": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StageName"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " rerunStage 专业参数, 指定要重新运行的步骤"
+        },
+        "subtitleSource": {
+          "$ref": "#/$defs/SubtitleSource",
+          "description": " 字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)"
+        },
+        "targetLang": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TargetLang"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "targetStage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StageName"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤"
+        },
+        "taskDir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl"
+        }
+      },
+      "title": "TaskArgs_Deserialize",
+      "type": "object"
+    },
+    "TaskArgs_Serialize": {
+      "description": " 任务参数 (镜像 taskArgsSchema)",
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TaskAction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 任务操作: start=开始, resume=继续, rerun_stage=重新运行某步骤, status=显示状态, get_group_list=列出分组"
+        },
+        "pipeline": {
+          "$ref": "#/$defs/Pipeline",
+          "description": " 任务模式, dub 配音, subtitle 仅字幕"
+        },
+        "resumeFrom": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StageName"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 继续任务专业参数, 可指定 resumeFrom 从某步骤开始, 不指定则从上次中断的步骤开始"
+        },
+        "sourceLang": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TargetLang"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stageName": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StageName"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " rerunStage 专业参数, 指定要重新运行的步骤"
+        },
+        "subtitleSource": {
+          "$ref": "#/$defs/SubtitleSource",
+          "description": " 字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)"
+        },
+        "targetLang": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TargetLang"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "targetStage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StageName"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤"
+        },
+        "taskDir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl"
+        }
+      },
+      "required": [
+        "action",
+        "url",
+        "sourceLang",
+        "targetLang",
+        "resumeFrom",
+        "taskDir",
+        "stageName",
+        "pipeline",
+        "subtitleSource",
+        "targetStage"
+      ],
+      "title": "TaskArgs_Serialize",
+      "type": "object"
     }
   },
-  "$ref": "#/$defs/CliInput_Deserialize",
+  "$ref": "#/$defs/Input_Deserialize",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "LocalDub CLI 输入"
+  "title": "LocalDub 输入"
 }
