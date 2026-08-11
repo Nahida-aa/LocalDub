@@ -20,3 +20,9 @@ convert input:
 #   just convert-to <input> <output>
 convert-to input="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/asr_ocr/ocr_frames.json" output="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/asr_ocr/asr_ocr_frames.json":
     bun convert-ocr-frames.mjs "{{input}}" "{{output}}"
+
+# 统计剧集视频时长并写出 <系列目录>/video-duration.json
+#   just duration <series>
+#   just duration "深宫团宠，猫狗皇子皆是我的心头崽（30集）"
+duration series="深宫团宠，猫狗皇子皆是我的心头崽（30集）":
+    bun video-duration.ts "{{series}}"
