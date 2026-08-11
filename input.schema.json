@@ -1,7 +1,6 @@
 {
   "$defs": {
     "Asr": {
-      "additionalProperties": false,
       "description": " asr: 语音转写",
       "properties": {
         "mix_mode": {
@@ -29,7 +28,6 @@
       "type": "object"
     },
     "CliInput": {
-      "additionalProperties": false,
       "description": " CLI 顶层输入",
       "properties": {
         "command": {
@@ -65,7 +63,6 @@
       "title": "Command"
     },
     "MergeAudio": {
-      "additionalProperties": false,
       "description": " merge_audio 参数",
       "properties": {
         "max_speed": {
@@ -106,7 +103,6 @@
       "title": "Runtime"
     },
     "SidechainCompress": {
-      "additionalProperties": false,
       "description": " 侧链压缩器参数",
       "properties": {
         "ratio": {
@@ -122,7 +118,6 @@
       "type": "object"
     },
     "Stages": {
-      "additionalProperties": false,
       "description": " 各处理阶段的入参",
       "properties": {
         "asr": {

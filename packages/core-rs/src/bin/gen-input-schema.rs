@@ -187,13 +187,31 @@ impl Default for CliInput {
     }
 }
 
+fn strip_additional_properties_false(v: &mut serde_json::Value) {
+    match v {
+        serde_json::Value::Object(map) => {
+            map.remove("additionalProperties");
+            for child in map.values_mut() {
+                strip_additional_properties_false(child);
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            for child in arr {
+                strip_additional_properties_false(child);
+            }
+        }
+        _ => {}
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let types = Types::default().register::<CliInput>();
     let out = config_rs::root::repo_root().join("input.schema.json");
-    let schema = JsonSchema::default()
+    let mut schema = JsonSchema::default()
         .title("LocalDub CLI 输入")
         .export_ref_value(&types, Format, "CliInput")
         .unwrap();
+    strip_additional_properties_false(&mut schema);
     std::fs::write(&out, serde_json::to_string_pretty(&schema).unwrap())?;
     println!("Generated: {}", out.display());
     Ok(())
