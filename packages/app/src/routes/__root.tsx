@@ -90,7 +90,7 @@ function RootDocument({ children }: { children: JSX.Element }) {
       {/*<ThemeProvider>*/}
       <SidebarProvider>
         <AppSidebar />
-        <main class="min-w-0 flex-1 h-screen grid grid-rows-[auto_1fr]">
+        <main class="min-w-0 flex-1 h-screen grid grid-rows-[auto_minmax(0,1fr)]">
           <Header />
           {children}
           <ModalRenderer />

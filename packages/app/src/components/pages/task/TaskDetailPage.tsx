@@ -126,7 +126,7 @@ export function TaskDetailPage(props: Props) {
         <AiReviewPanel />
       </div>
       {/*<Show when={resumeFrom() === 'asr_ocr_pre'}>*/}
-      <div class="flex-1">
+      <div class="flex-1 min-h-0">
         <Timeline
           tracks={tracks()}
           duration={duration()}

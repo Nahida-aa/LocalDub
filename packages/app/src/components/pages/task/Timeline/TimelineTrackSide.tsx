@@ -16,7 +16,7 @@ export function TimelineTrackSide(props: Props) {
       <div class="border-b bg-muted/20 shrink-0">
         <div class="h-5" />
       </div>
-      <div ref={props.ref} class="flex-1 overflow-hidden">
+      <div ref={props.ref} class="flex-1 overflow-y-auto overflow-x-hidden">
         <For each={props.tracks}>
           {(track, i) => {
             const m = meta()[`${props.taskDir}/${track.id}`];
