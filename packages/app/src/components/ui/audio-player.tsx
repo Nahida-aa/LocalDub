@@ -9,8 +9,8 @@ interface Props {
 function fmt(ms: number): string {
   const s = Math.floor(ms / 1000);
   const m = Math.floor(s / 60);
-  const cs = Math.floor((ms % 1000) / 10);
-  return `${m}:${String(s % 60).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
+  const mmm = Math.floor(ms % 1000);
+  return `${m}:${String(s % 60).padStart(2, "0")}.${String(mmm).padStart(3, "0")}`;
 }
 
 export function AudioPlayer(props: Props) {
