@@ -7,12 +7,12 @@ import {
   ffmpeg,
   nowISO,
   probeSampleRate,
-  probeDuration,
   split_audio_path,
   timings_filepath,
   read_split_audio,
   read_split_audio_timings,
 } from "@repo/core/stages/utils/utils.ts";
+import { probeDurationMs } from "@repo/core/utils/ffmpeg";
 import { TaskCtx, setStage, setTask } from "@repo/core/context/context.ts";
 import { SplitAudioTiming } from "../06_split_audio/out";
 import { Timing } from "./types";
@@ -60,7 +60,7 @@ export async function stageMergeAudio(ctx: TaskCtx) {
 
   const segmentInputs: string[] = [];
   let lastEndMs = 0;
-  let drift = 0;
+  let driftMs = 0;
 
   const maxSpeed = ctx.input?.stages?.merge_audio?.maxSpeed;
   const maxAdvanceMs = ctx.input?.stages?.merge_audio?.maxAdvanceMs;
@@ -73,7 +73,7 @@ export async function stageMergeAudio(ctx: TaskCtx) {
     const stretchedFile = join(stretchedDir, `${idx}.wav`);
 
     // Probe original TTS duration
-    const ttsSec = probeDuration(ttsFile);
+    const ttsMs = probeDurationMs(ttsFile);
 
     // Trim trailing silence only (areverse so internal pauses aren't mistaken for tail)
     const trimmedFile = join(stretchedDir, `${idx}_trimmed.wav`);
@@ -85,26 +85,26 @@ export async function stageMergeAudio(ctx: TaskCtx) {
       trimmedFile,
     ]);
 
-    const trimmedSec = probeDuration(trimmedFile);
+    const trimmedMs = probeDurationMs(trimmedFile);
 
     // Determine advance — conservative for segments that already fit
-    const originalSlotBaseSec = (item.end_ms - item.start_ms) / 1000;
+    const originalSlotBaseMs = item.end_ms - item.start_ms;
     let advanceMs = 0;
-    if (trimmedSec <= originalSlotBaseSec) {
-      const surplusNoAdvanceSec = drift + (originalSlotBaseSec - trimmedSec);
-      if (surplusNoAdvanceSec < 0.5) {
+    if (trimmedMs <= originalSlotBaseMs) {
+      const surplusNoAdvanceMs = driftMs + (originalSlotBaseMs - trimmedMs);
+      if (surplusNoAdvanceMs < 500) {
         advanceMs = Math.min(
-          Math.round((0.5 - surplusNoAdvanceSec) * 1000),
+          Math.round(500 - surplusNoAdvanceMs),
           Math.round(maxAdvanceMs * 0.2),
         );
       }
     } else {
-      advanceMs = Math.min(maxAdvanceMs, Math.max(0, Math.round(drift * 1000)));
+      advanceMs = Math.min(maxAdvanceMs, Math.max(0, Math.round(driftMs)));
     }
 
     const realStartMs = Math.max(item.start_ms - advanceMs, lastEndMs, 0);
     advanceMs = Math.max(0, item.start_ms - realStartMs);
-    const effectiveDrift = drift - advanceMs / 1000;
+    const effectiveDriftMs = driftMs - advanceMs;
 
     // Determine delay — borrow time from the next segment's gap
     const nextStartMs = i < segments.length - 1 ? segments[i + 1].start_ms : item.end_ms;
@@ -126,22 +126,22 @@ export async function stageMergeAudio(ctx: TaskCtx) {
       segmentInputs.push(silenceFile);
     }
 
-    const originalSlotSec = (item.end_ms + delayMs - realStartMs) / 1000;
+    const originalSlotMs = item.end_ms + delayMs - realStartMs;
     // floor at 50ms so speed calc never goes negative
-    const slotSec = Math.max(0.05, originalSlotSec + effectiveDrift);
+    const slotMs = Math.max(50, originalSlotMs + effectiveDriftMs);
 
-    let stretchedSec: number;
-    let newDrift: number;
+    let stretchedMs: number;
+    let newDriftMs: number;
     let speed = 1.0;
-    if (trimmedSec <= originalSlotSec) {
-      stretchedSec = trimmedSec;
+    if (trimmedMs <= originalSlotMs) {
+      stretchedMs = trimmedMs;
       ffmpeg(["-i", trimmedFile, "-c", "copy", stretchedFile]);
-    } else if (trimmedSec <= slotSec) {
-      stretchedSec = trimmedSec;
+    } else if (trimmedMs <= slotMs) {
+      stretchedMs = trimmedMs;
       ffmpeg(["-i", trimmedFile, "-c", "copy", stretchedFile]);
     } else {
-      speed = Math.min(maxSpeed, trimmedSec / slotSec);
-      stretchedSec = trimmedSec / speed;
+      speed = Math.min(maxSpeed, trimmedMs / slotMs);
+      stretchedMs = trimmedMs / speed;
       ffmpeg([
         "-i",
         trimmedFile,
@@ -150,22 +150,22 @@ export async function stageMergeAudio(ctx: TaskCtx) {
         stretchedFile,
       ]);
     }
-    newDrift = originalSlotSec - stretchedSec;
-    if (newDrift > maxAdvanceMs / 1000) newDrift = maxAdvanceMs / 1000;
+    newDriftMs = originalSlotMs - stretchedMs;
+    if (newDriftMs > maxAdvanceMs) newDriftMs = maxAdvanceMs;
 
-    drift = newDrift;
+    driftMs = newDriftMs;
     segmentInputs.push(stretchedFile);
 
-    const realEndMs = Math.floor(realStartMs + stretchedSec * 1000);
+    const realEndMs = Math.floor(realStartMs + stretchedMs);
 
     if (realEndMs <= realStartMs) {
       throw new Error(
         `[merge_audio] #${i + 1} (${item.text?.slice(0, 30) || "?"}) 生成了零时长段: ` +
           `tts_file=${ttsFile}, ` +
           `item.start=${item.start_ms}ms, item.end=${item.end_ms}ms (slot=${(item.end_ms - item.start_ms).toFixed(0)}ms), ` +
-          `tts_duration=${(ttsSec * 1000).toFixed(0)}ms, trimmed=${(trimmedSec * 1000).toFixed(0)}ms, ` +
+          `tts_duration=${ttsMs.toFixed(0)}ms, trimmed=${trimmedMs.toFixed(0)}ms, ` +
           `advance=${advanceMs}ms, delay=${delayMs}ms, ` +
-          `stretched=${(stretchedSec * 1000).toFixed(0)}ms, drift=${drift.toFixed(3)}s\n` +
+          `stretched=${stretchedMs.toFixed(0)}ms, drift=${driftMs.toFixed(0)}ms\n` +
           `可能原因: TTS 生成了空音频 (检查 tts/tts.json 该段 status) 或原始时间槽为 0`,
       );
     }
@@ -174,14 +174,14 @@ export async function stageMergeAudio(ctx: TaskCtx) {
     const segment: Timing = {
       ...item,
       original_duration_ms: item.end_ms - item.start_ms,
-      drift_ms: Math.round(drift * 1000),
+      drift_ms: Math.round(driftMs),
       advance_ms: advanceMs,
       delay_ms: delayMs,
       actual_start: Math.floor(realStartMs),
       actual_end: realEndMs,
-      tts_duration_ms: Math.round(ttsSec * 1000),
-      stretched_duration_ms: Math.round(stretchedSec * 1000),
-      stretch_ratio: parseFloat((trimmedSec <= slotSec ? 1.0 : speed).toFixed(4)),
+      tts_duration_ms: Math.round(ttsMs),
+      stretched_duration_ms: Math.round(stretchedMs),
+      stretch_ratio: parseFloat((trimmedMs <= slotMs ? 1.0 : speed).toFixed(4)),
     };
     newTranslation.push(segment);
   }

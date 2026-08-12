@@ -3,7 +3,8 @@ import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { DEMUCS_GGML_FILE } from '@repo/config/path/models';
-import { emitLog, probeDuration, separateDir } from '@repo/core/stages/utils/utils';
+import { emitLog, separateDir } from '@repo/core/stages/utils/utils';
+import { probeDurationMs } from '@repo/core/utils/ffmpeg';
 import { setStage } from '@repo/core/context/context';
 import { DemucsCliArgs } from './cli_types';
 import { ensureGgmlModel, tryBuildGgml } from '../separate-build';
@@ -105,8 +106,8 @@ export async function separateGgml(
 		}
 	}
 
-	const durationS = probeDuration(audioPath);
-	if (durationS > 0) {
-		emitLog(taskDir, `[Separate] RTF ${(elapsedSec / durationS).toFixed(3)}`);
+	const durationMs = probeDurationMs(audioPath);
+	if (durationMs > 0) {
+		emitLog(taskDir, `[Separate] RTF ${(elapsedSec / (durationMs / 1000)).toFixed(3)}`);
 	}
 }

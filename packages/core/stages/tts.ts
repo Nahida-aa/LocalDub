@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { readJson, writeFile, writeFileSync, rmSync } from "@repo/core/utils/fileOps";
 import { writeJson, ensureDir } from "@repo/util/file_op";
 import { existsSync, readdirSync, statSync } from "node:fs";
@@ -10,11 +9,11 @@ import {
   emitLog,
   ffmpeg,
   nowISO,
-  probeDuration,
   read_split_audio_timings,
   readTaskLanguages,
   tts_filepath,
 } from "@repo/core/stages/utils/utils.ts";
+import { probeDurationMs } from "@repo/core/utils/ffmpeg";
 import { TaskCtx, setStage, setTask } from "@repo/core/context/context.ts";
 import { startLog } from "./utils/log.ts";
 import { newVoxCPMEngine } from "@repo/core/ml/voxcpm/voxcpm";
@@ -146,7 +145,7 @@ export async function stageTts(ctx: TaskCtx) {
     const refMtime = refWav && existsSync(refWav) ? statSync(refWav).mtimeMs : 0;
 
     if (ttsCfg.skipExisting && existsSync(outPath) && statSync(outPath).mtimeMs > refMtime) {
-      const durMs = Math.round(probeDuration(outPath) * 1000);
+      const durMs = probeDurationMs(outPath);
       ttsSegments.push({
         seg_idx: i + 1,
         text: item.dst || "",
@@ -198,12 +197,7 @@ export async function stageTts(ctx: TaskCtx) {
     // Double reference audio if shorter than 2500ms
     if (ttsCfg.refAudioX2) {
       const minRefMs = 2500;
-      const durProbe = spawnSync(
-        "ffprobe",
-        ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", refWav],
-        { stdio: ["pipe", "pipe", "pipe"], timeout: 5000 },
-      );
-      const refMs = parseFloat(durProbe.stdout.toString().trim()) * 1000 || 0;
+      const refMs = probeDurationMs(refWav);
       if (refMs > 0 && refMs < minRefMs) {
         const doubled = resolve(doubledDir, `ref_${idx}_x2.wav`);
         if (!existsSync(doubled)) {
@@ -227,7 +221,7 @@ export async function stageTts(ctx: TaskCtx) {
       const samples = await engine.synthesize(text, refWav, item.text);
       genMs += performance.now() - t1;
       writeWav(samples, outPath, 48000);
-      ttsDurationMs = Math.round(probeDuration(outPath) * 1000);
+      ttsDurationMs = probeDurationMs(outPath);
       generated += 1;
       ttsOk = true;
     } catch (e) {

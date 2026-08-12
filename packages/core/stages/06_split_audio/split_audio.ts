@@ -20,7 +20,6 @@ import { readJson } from "@repo/core/utils/fileOps";
 import { writeJson, ensureDir } from "@repo/util/file_op";
 import { existsSync, readdirSync, statSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { spawnSync } from "node:child_process";
 import {
   translationFilePath,
   nowISO,
@@ -33,6 +32,7 @@ import {
   split_audio_timings_path,
 } from "@repo/core/stages/utils/utils.ts";
 import { env } from "@repo/config/env";
+import { probeDurationMs } from "@repo/core/utils/ffmpeg";
 import { TaskCtx, setStage } from "@repo/core/context/context.ts";
 import {
   SplitAudioResult,
@@ -45,16 +45,6 @@ import { SrtJson } from "@repo/subtitle/types";
 import { log } from "@repo/util/log";
 import { applyVadAlign } from "./vad_align";
 import { cutAudioRange } from "./util";
-
-/** 用 ffprobe 取媒体总时长 (毫秒) */
-function probeDuration(file: string): number {
-  const r = spawnSync(
-    "ffprobe",
-    ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file],
-    { stdio: ["pipe", "pipe", "pipe"] },
-  );
-  return Math.floor(parseFloat(r.stdout.toString().trim()) * 1000) || 0;
-}
 
 /**
  * 给各段时间轴加前后 padding (默认前 100ms / 后 300ms), 避免切块时把语音截断。
@@ -169,7 +159,7 @@ export async function stageSplitAudio(ctx: TaskCtx) {
   const splitAudioSegments = padSegments(timings);
 
   // 源音频总时长, 用于上界截断
-  let totalMs = probeDuration(sourceAudio);
+  const totalMs = probeDurationMs(sourceAudio);
 
   ensureDir(vocalsSegmentDir);
   ensureDir(splitAudioDir);

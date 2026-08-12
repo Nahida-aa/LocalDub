@@ -9,7 +9,7 @@ import { DEMUCS_MODEL_DIR } from '@repo/config/path/models';
 import {
 	readInputArgs,
 } from '@repo/core/input/input';
-import { emitLog, nowISO, probeDuration, separateDir, video_source_path } from '@repo/core/stages/utils/utils.ts';
+import { emitLog, nowISO, separateDir, video_source_path } from '@repo/core/stages/utils/utils.ts';
 import { TaskCtx, setStage } from '@repo/core/context/context.ts';
 import { startLog } from './utils/log.ts';
 import { separateBurn } from '../ml/demucs/cli/burn_cli.ts';

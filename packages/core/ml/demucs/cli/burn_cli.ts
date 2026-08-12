@@ -2,7 +2,8 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { $ } from "bun";
-import { emitLog, probeDuration, separateDir } from "@repo/core/stages/utils/utils";
+import { emitLog, separateDir } from "@repo/core/stages/utils/utils";
+import { probeDurationMs } from "@repo/core/utils/ffmpeg";
 import { setStage } from "@repo/core/context/context";
 import { DemucsCliArgs } from "./cli_types";
 import { DEMUCS_MODEL_DIR } from "@repo/config/path/models";
@@ -144,8 +145,8 @@ export async function separateBurn({
     }
   }
 
-  const durationS = probeDuration(audioPath);
-  if (durationS > 0) {
-    log(`RTF ${(elapsedSec / durationS).toFixed(3)}`);
+  const durationMs = probeDurationMs(audioPath);
+  if (durationMs > 0) {
+    log(`RTF ${(elapsedSec / (durationMs / 1000)).toFixed(3)}`);
   }
 }

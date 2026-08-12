@@ -99,15 +99,6 @@ export function probeSampleRate(audioPath: string): number {
   return parseInt(r.stdout.toString().trim()) || 48000;
 }
 
-export function probeDuration(audioPath: string): number {
-  const r = spawnSync(
-    "ffprobe",
-    ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", audioPath],
-    { stdio: ["pipe", "pipe", "pipe"] },
-  );
-  return parseFloat(r.stdout.toString().trim()) || 0;
-}
-
 function ffmpegInstallHint(): string {
   switch (process.platform) {
     case "win32":

@@ -1,15 +1,17 @@
 import { spawnSync } from 'node:child_process';
 
 /**
- * 探索视频持续时间, ms
+ * 探测媒体 (音频/视频) 时长, 返回毫秒。
+ *
+ * 注意: ffprobe `format=duration` 单位固定为秒 (浮点, 精度到微秒),
+ * 无法直接输出毫秒, 这里统一 round(秒 × 1000) 换算。
  */
-export function probeVideoDuration(videoPath: string): number {
-
+export function probeDurationMs(mediaPath: string): number {
   const r = spawnSync('ffprobe', [
     '-v', 'error',
     '-show_entries', 'format=duration',
     '-of', 'csv=p=0',
-    videoPath,
+    mediaPath,
   ], { timeout: 15_000, encoding: 'utf-8' });
   return Math.round(parseFloat(r.stdout?.trim() || '0') * 1000);
 }

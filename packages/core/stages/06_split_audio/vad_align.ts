@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { cutAudioRange } from "./util";
 import { env } from "@repo/config/env";
+import { probeDurationMs } from "@repo/core/utils/ffmpeg";
 import { SplitAudioSegment, SplitAudioTiming } from "./out";
 import { log } from "@repo/util/log";
 
@@ -13,13 +14,8 @@ import { log } from "@repo/util/log";
  * 对比原时长减裁后时长。若原时长异常则返回 0。
  */
 function detectSpeechStartMs(wavPath: string): number {
-  const durProbe = spawnSync(
-    "ffprobe",
-    ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", wavPath],
-    { stdio: ["pipe", "pipe", "pipe"] },
-  );
-  const origDur = parseFloat(durProbe.stdout.toString().trim()) || 0;
-  if (origDur <= 0) return 0;
+  const origMs = probeDurationMs(wavPath);
+  if (origMs <= 0) return 0;
 
   const tmpPath = wavPath.replace(".wav", ".trim.wav");
   const r = spawnSync(
@@ -37,13 +33,7 @@ function detectSpeechStartMs(wavPath: string): number {
 
   let removedMs = 0;
   if (r.status === 0) {
-    const trimProbe = spawnSync(
-      "ffprobe",
-      ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", tmpPath],
-      { stdio: ["pipe", "pipe", "pipe"] },
-    );
-    const trimmedDur = parseFloat(trimProbe.stdout.toString().trim()) || 0;
-    removedMs = Math.round((origDur - trimmedDur) * 1000);
+    removedMs = origMs - probeDurationMs(tmpPath);
   }
   rmSync(tmpPath, { force: true });
   return Math.max(0, removedMs);
@@ -83,13 +73,7 @@ function detectSpeechStartMsSeek(
 
   let removedMs = 0;
   if (r.status === 0) {
-    const trimProbe = spawnSync(
-      "ffprobe",
-      ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", tmpPath],
-      { stdio: ["pipe", "pipe", "pipe"] },
-    );
-    const trimmedDur = parseFloat(trimProbe.stdout.toString().trim()) || 0;
-    removedMs = Math.round((durMs / 1000 - trimmedDur) * 1000);
+    removedMs = durMs - probeDurationMs(tmpPath);
   }
   rmSync(tmpPath, { force: true });
   return Math.max(0, removedMs);
