@@ -97,10 +97,14 @@ pub fn read_ctx(task_dir: &str) -> Result<TaskCtx, String> {
         .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
     let json: serde_json::Value = serde_json::from_str(&raw)
         .map_err(|e| format!("Failed to parse {}: {}", path.display(), e))?;
+    read_ctx_from_value(json)
+}
 
+/// 从 ctx.json 的 JSON Value 解析 TaskCtx (不读写文件, 供测试/透传直接构造)
+pub fn read_ctx_from_value(json: serde_json::Value) -> Result<TaskCtx, String> {
     let task: Task = json
         .get("task")
-        .ok_or_else(|| format!("Missing 'task' in {}", path.display()))
+        .ok_or_else(|| "Missing 'task' in ctx".to_string())
         .and_then(|v| {
             serde_json::from_value(v.clone()).map_err(|e| format!("Failed to parse task: {}", e))
         })?;
