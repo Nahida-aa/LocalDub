@@ -35,7 +35,12 @@ import {
 } from "@repo/core/stages/utils/utils.ts";
 import { env } from "@repo/config/env";
 import { TaskCtx, setStage } from "@repo/core/context/context.ts";
-import { SplitAudioSegment, SplitAudioTiming } from "./out";
+import {
+  SplitAudioResult,
+  SplitAudioSegment,
+  SplitAudioTiming,
+  SplitAudioTimingResult,
+} from "./out";
 import { resolveLanguage } from "../05_translate/utils";
 import { SrtJson } from "@repo/subtitle/types";
 import { log } from "@repo/util/log";
@@ -219,11 +224,11 @@ export async function stageSplitAudio(ctx: TaskCtx) {
   if (!segmentsSrc?.length) throw new Error(`${srtFilePath} has no segments`);
 
   // 拼 timings: 有翻译就取 translate.[dstLang].json 的 dst 文本, 否则退回用原字幕文本
-  const translateEnabled = ctx.input?.stages?.translate?.enabled ?? true;
+  const translateEnabled = ctx.input.stages.translate.enabled;
   let timings: SplitAudioTiming[];
   if (translateEnabled) {
     const transData = await readTranslationResult(ctx);
-    const translation = transData.translation;
+    const translation = transData.segments;
     if (!translation?.length) throw new Error("translation.json has no segments");
     timings = translation.map((seg, i) => ({
       seg_idx: i + 1,
@@ -306,8 +311,16 @@ export async function stageSplitAudio(ctx: TaskCtx) {
       ]);
     }
   }
+  const splitAudioResultMeta = {
+    src_lang: srcLang,
+    target_lang: translateEnabled ? targetLang : srcLang,
+  };
+  const splitAudioResult: SplitAudioResult = {
+    segments: splitAudioSegments,
+    meta: splitAudioResultMeta,
+  };
   // 切块后把 padding 时序写盘 (tts 逐段读它)
-  writeJson(splitAudioPath, { translation: splitAudioSegments });
+  writeJson(splitAudioPath, splitAudioResult);
 
   // ---- VAD alignment (可选): 用静音检测把每段起点前移到真实语音处 ----
   const splitCfg = ctx.input?.stages?.split_audio;
@@ -364,13 +377,22 @@ export async function stageSplitAudio(ctx: TaskCtx) {
     }
 
     if (corrected) {
-      writeJson(splitAudioPath, { translation: splitAudioSegments });
-      writeJson(timingsFile, { translation: intentTimings });
+      const splitAudioResult: SplitAudioResult = {
+        segments: splitAudioSegments,
+        meta: splitAudioResultMeta,
+      };
+      const splitAudioTimingResult: SplitAudioTimingResult = {
+        segments: intentTimings,
+      };
+      writeJson(splitAudioPath, splitAudioResult);
+      writeJson(timingsFile, splitAudioTimingResult);
     }
   }
-
+  const splitAudioTimingResult: SplitAudioTimingResult = {
+    segments: intentTimings,
+  };
   // 意图时序始终写盘 (无 vadAlign 或无修正时也恢复最新意图起点)
-  writeJson(timingsFile, { translation: intentTimings });
+  writeJson(timingsFile, splitAudioTimingResult);
 
   setStage(taskDir, "split_audio", {
     status: "success",

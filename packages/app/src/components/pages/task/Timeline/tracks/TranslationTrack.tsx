@@ -10,7 +10,7 @@ import { openModal } from "@repo/ui-solid/custom/modal/renderer";
 import type { Track, TrackSegment } from "../consts";
 import { client } from "#/integrations/fnrpc/client.ts";
 import { useMutation, useQuery } from "@tanstack/solid-query";
-import type { TranslateFile } from "@repo/core/stages/05_translate/out";
+import type { TranslateResult, TranslateSegment } from "@repo/core/stages/05_translate/out";
 import { deleteAt, insertAt, type BaseTrackProps } from "./shared";
 import { TrackEditModal } from "./comp/TrackEditModal";
 import { useTrackData } from "./useTrackData";
@@ -18,19 +18,19 @@ import { useTrackData } from "./useTrackData";
 type Props = BaseTrackProps;
 
 function serializeSegments(segments: TrackSegment[]): string {
-  const segs: TranslateFile["translation"] = segments.map((s) => {
-    const raw = (s.raw as TranslateFile["translation"][number]) || {};
+  const segs: TranslateSegment[] = segments.map((s) => {
+    const raw = (s.raw as TranslateSegment) || {};
     return {
       text: raw.text ?? "",
       dst: s.text,
-      src_lang: raw.src_lang ?? "auto",
-      dst_lang: raw.dst_lang ?? "auto",
+      src_lang: raw.src_lang,
+      dst_lang: raw.dst_lang,
       start_ms: s.startMs,
       end_ms: s.endMs,
-      speaker: raw.speaker ?? "1",
+      speaker: raw.speaker,
     };
   });
-  return JSON.stringify({ translation: segs }, null, 2);
+  return JSON.stringify({ segments: segs }, null, 2);
 }
 
 const TRANSLATE_DEFAULT_RAW = {
@@ -58,8 +58,8 @@ export function TranslationTrack(props: Props) {
     trackId: track().id,
     path,
     parse: (text) => {
-      const data: TranslateFile = JSON.parse(text);
-      return (data.translation || []).map((item, i: number) => ({
+      const data: TranslateResult = JSON.parse(text);
+      return (data.segments || []).map((item, i: number) => ({
         index: i,
         text: item.dst,
         startMs: item.start_ms,
@@ -98,7 +98,7 @@ export function TranslationTrack(props: Props) {
   const handleEdit = (segIndex: number) => {
     const seg = segments()[segIndex];
     if (!seg) return;
-    const raw = seg.raw as TranslateFile["translation"][number] | undefined;
+    const raw = seg.raw as TranslateSegment | undefined;
 
     openModal(
       () => (
@@ -158,9 +158,7 @@ export function TranslationTrack(props: Props) {
                   "border-color": `${color()}55`,
                 }}
                 onClick={() => onSeek(seg.startMs)}
-                title={
-                  (seg.raw as TranslateFile["translation"][number] | undefined)?.text || seg.text
-                }
+                title={(seg.raw as TranslateSegment | undefined)?.text || seg.text}
               >
                 {seg.text}
               </div>

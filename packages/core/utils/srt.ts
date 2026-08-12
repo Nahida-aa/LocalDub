@@ -2,6 +2,7 @@ import { TaskCtx } from "../context/context";
 import { srtTime } from "./utils";
 import { writeFile } from "./fileOps";
 import { Timing } from "../stages/merge_audio/types";
+import { TranslateSegment } from "../stages/05_translate/out";
 
 /**
  *  按标点切分长句（,, ,, 。, ? 等），但保护配对符号（《》、「」 里的内容不被切开）
@@ -132,17 +133,17 @@ function writeSrtFragments(
 }
 
 export function writeSrt(
-  translation: Timing[],
+  segments: (Timing | TranslateSegment)[],
   ctx: TaskCtx,
   outputPath: string,
   useSource?: boolean,
 ) {
-  console.log(`Writing SRT length: ${translation.length}...`);
+  console.log(`Writing SRT length: ${segments.length}...`);
   const lines: string[] = [];
   let idx = 1;
-  for (const item of translation) {
-    const start = Math.floor(item.actual_start ?? item.start_ms);
-    const end = Math.floor(item.actual_end ?? item.end_ms);
+  for (const item of segments) {
+    const start = Math.floor("actual_start" in item ? item?.actual_start : item.start_ms);
+    const end = Math.floor("actual_end" in item ? item?.actual_end : item.end_ms);
     // if (end <= start) continue;
 
     const text = useSource ? (item.text || "").trim() : (item.dst || item.text || "").trim();

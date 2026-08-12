@@ -4,7 +4,7 @@ import { writeJson, ensureDir } from "@repo/util/file_op";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { writeWav } from "@repo/voxlab";
-import type { TtsFile, TtsSegment } from "./07_tts/types";
+import type { TtsFile, TtsSegment } from "./07_tts/out.ts";
 
 import {
   emitLog,
@@ -61,7 +61,7 @@ export async function stageTts(ctx: TaskCtx) {
     ensureDir(doubledDir);
   }
 
-  const { translation } = await read_split_audio_timings(ctx);
+  const { segments } = await read_split_audio_timings(ctx);
 
   if (!ttsCfg.skipExisting) {
     const anyTts = readdirSync(ttsWavDir).find((f) => f.endsWith(".wav"));
@@ -93,7 +93,7 @@ export async function stageTts(ctx: TaskCtx) {
    * - 即 PCM 裸数据 > 38400 bytes 才认为有实际声音内容
    * 目的：后面如果有 segment 没有对应的 vocals 文件（或 vocals 太短是静音），就用这个 fallbackRef 作为 TTS 的参考音频输入，避免缺参考音导致 TTS 效果差或报错。
    */
-  const i = translation.findIndex((_, i) => {
+  const i = segments.findIndex((_, i) => {
     const refPath = join(vocalsDir, `${String(i + 1).padStart(4, "0")}.wav`);
     return existsSync(refPath) && statSync(refPath).size > 1200 * 16 * 2;
   });
@@ -111,7 +111,7 @@ export async function stageTts(ctx: TaskCtx) {
     }
   }
 
-  for (const [i, item] of translation.entries()) {
+  for (const [i, item] of segments.entries()) {
     const idx = String(i + 1).padStart(4, "0");
     const outPath = resolve(ttsWavDir, `${idx}.wav`);
 
@@ -131,7 +131,7 @@ export async function stageTts(ctx: TaskCtx) {
         });
       }
       skipped += 1;
-      renderProgress(i + 1, translation.length, tqdmStart);
+      renderProgress(i + 1, segments.length, tqdmStart);
       continue;
     }
 
@@ -157,7 +157,7 @@ export async function stageTts(ctx: TaskCtx) {
         status: "skipped",
       });
       skipped += 1;
-      renderProgress(i + 1, translation.length, tqdmStart);
+      renderProgress(i + 1, segments.length, tqdmStart);
       continue;
     }
 
@@ -174,7 +174,7 @@ export async function stageTts(ctx: TaskCtx) {
         status: "empty",
       });
       skipped += 1;
-      renderProgress(i + 1, translation.length, tqdmStart);
+      renderProgress(i + 1, segments.length, tqdmStart);
       continue;
     }
 
@@ -191,7 +191,7 @@ export async function stageTts(ctx: TaskCtx) {
         status: "skipped",
       });
       skipped += 1;
-      renderProgress(i + 1, translation.length, tqdmStart);
+      renderProgress(i + 1, segments.length, tqdmStart);
       continue;
     }
 
@@ -216,9 +216,9 @@ export async function stageTts(ctx: TaskCtx) {
     }
 
     setStage(taskDir, "tts", {
-      last_message: `Generating ${i + 1}/${translation.length}...`,
+      last_message: `Generating ${i + 1}/${segments.length}...`,
     });
-    renderProgress(i + 1, translation.length, tqdmStart);
+    renderProgress(i + 1, segments.length, tqdmStart);
 
     const t1 = performance.now();
     let ttsDurationMs = 0;
@@ -256,7 +256,7 @@ export async function stageTts(ctx: TaskCtx) {
   process.stdout.write("\n");
 
   const genSec = genMs / 1000;
-  const audioSec = translation.reduce((s, t) => s + (t.end_ms - t.start_ms), 0) / 1000;
+  const audioSec = segments.reduce((s, t) => s + (t.end_ms - t.start_ms), 0) / 1000;
   const rtf = audioSec > 0 && genSec > 0 ? genSec / audioSec : 0;
 
   emitLog(

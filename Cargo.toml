@@ -37,9 +37,9 @@ ndarray = "0.17"
 ffmpeg-next = "9.0.0"
 # OCR 核心（从本仓库拆出的 ocr-lab）。git 源由 cargo 自动拉取/解析其内部
 # workspace 依赖与 [patch]，LocalDub 侧零镜像；版本以 ocr-lab 为准。
-subtitle-finder = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "e0472d7a5bd750db4f11beedd456694fe447b694" }
-subtitle-ocr = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "e0472d7a5bd750db4f11beedd456694fe447b694" }
-rapidocr-ort = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "e0472d7a5bd750db4f11beedd456694fe447b694" }
+subtitle-finder = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "4828a8899336732c9bf2a548abb1fd607c84b5e3" }
+subtitle-ocr = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "4828a8899336732c9bf2a548abb1fd607c84b5e3" }
+rapidocr-ort = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "4828a8899336732c9bf2a548abb1fd607c84b5e3" }
 
 [profile.release]
 lto = "fat"

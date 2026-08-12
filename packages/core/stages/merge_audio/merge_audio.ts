@@ -47,8 +47,8 @@ export async function stageMergeAudio(ctx: TaskCtx) {
   const dubbingFile = join(mergeAudioDir, "audio_dubbing.wav");
 
   const data = await read_split_audio_timings(ctx);
-  const translation = data.translation;
-  const ttsFiles = translation.map((_: any, i: number) =>
+  const segments = data.segments;
+  const ttsFiles = segments.map((_: any, i: number) =>
     join(ttsDir, `${String(i + 1).padStart(4, "0")}.wav`),
   );
 
@@ -66,7 +66,7 @@ export async function stageMergeAudio(ctx: TaskCtx) {
   const maxAdvanceMs = ctx.input?.stages?.merge_audio?.maxAdvanceMs;
   const maxDelayMs = ctx.input?.stages?.merge_audio?.maxDelayMs;
   const newTranslation: Timing[] = [];
-  for (const [i, item] of translation.entries()) {
+  for (const [i, item] of segments.entries()) {
     // const segment = translation[i];
     const ttsFile = ttsFiles[i];
     const idx = String(i + 1).padStart(4, "0");
@@ -107,7 +107,7 @@ export async function stageMergeAudio(ctx: TaskCtx) {
     const effectiveDrift = drift - advanceMs / 1000;
 
     // Determine delay — borrow time from the next segment's gap
-    const nextStartMs = i < translation.length - 1 ? translation[i + 1].start_ms : item.end_ms;
+    const nextStartMs = i < segments.length - 1 ? segments[i + 1].start_ms : item.end_ms;
     const gapMs = Math.max(0, nextStartMs - item.end_ms);
     const delayMs = Math.min(gapMs, maxDelayMs);
 

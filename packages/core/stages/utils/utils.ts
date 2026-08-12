@@ -16,8 +16,8 @@ import {
 import { SubtitleSource, TargetLang } from "@repo/core/cmd/tasks/input";
 import { getLastSegment, readJson } from "../../utils/fileOps";
 import { setLogContext, setCurrentStage, getLogContext } from "@repo/util/log";
-import { TranslateFile } from "../05_translate/out";
-import { SplitAudioFile, SplitAudioTimingFile } from "../06_split_audio/out";
+import { TranslateResult } from "../05_translate/out";
+import { SplitAudioResult, SplitAudioTimingResult } from "../06_split_audio/out";
 import { TaskStage } from "../../context/types";
 import { TimingsFile } from "../merge_audio/types";
 
@@ -199,7 +199,7 @@ export function readTranslationResult(ctx: TaskCtx) {
   }
   const filePath = translationFilePath(ctx.task.task_dir, ctx.target_language);
   if (!existsSync(filePath)) throw new Error(`translation file not found: ${filePath}`);
-  return readJson<TranslateFile>(filePath);
+  return readJson<TranslateResult>(filePath);
 }
 
 /**
@@ -233,11 +233,11 @@ export function split_audio_timings_path(taskDir: string): string {
 }
 export function read_split_audio(ctx: TaskCtx) {
   const filepath = split_audio_path(ctx.task.task_dir);
-  return readJson<SplitAudioFile>(filepath);
+  return readJson<SplitAudioResult>(filepath);
 }
 export function read_split_audio_timings(ctx: TaskCtx) {
   const filepath = split_audio_timings_path(ctx.task.task_dir);
-  return readJson<SplitAudioTimingFile>(filepath);
+  return readJson<SplitAudioTimingResult>(filepath);
 }
 
 /**

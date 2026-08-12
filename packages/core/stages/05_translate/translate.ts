@@ -14,7 +14,7 @@ import { TaskCtx, setCtx, setStage } from "@repo/core/context/context.ts";
 import { buildPreprocessPrompt, buildTranslateSystem, resolveLanguage } from "./utils";
 import { chat_completions } from "../../ml/llm/openai";
 import { to } from "@repo/shared/lib/utils/try";
-import { TranslateFile, TranslateSegment } from "./out";
+import { TranslateResult, TranslateSegment } from "./out";
 import { writeJson, ensureDir } from "@repo/util/file_op";
 import { SrtJson } from "@repo/subtitle/types";
 import { log } from "@repo/util/log";
@@ -122,12 +122,12 @@ export async function stageTranslate(ctx: TaskCtx) {
         const chineseRatio = (dst.match(/[\u4e00-\u9fff]/g) || []).length / (dst.length || 1);
         if (targetLang !== "zh" && chineseRatio > 0.3) {
           const msg = `[Translate] Item ${i + 1} still Chinese (ratio=${chineseRatio.toFixed(2)}, expected ${targetLang})`;
-          emitLog(taskDir, `[ERROR] ${msg}`);
+          log(`[ERROR] ${msg}`);
           throw new Error(msg);
         }
         if (!dst) {
           const msg = `[Translate] Item ${i + 1} got empty dst`;
-          emitLog(taskDir, `[ERROR] ${msg}`);
+          log(`[ERROR] ${msg}`);
           throw new Error(msg);
         }
         return dst;
@@ -141,7 +141,7 @@ export async function stageTranslate(ctx: TaskCtx) {
     } catch (e: any) {
       if (attempt < 2) return translateBatch(batchTexts, attempt + 1);
       const msg = `[Translate] batch failed after 3 attempts: ${e.message || e} (expected ${targetLang})`;
-      emitLog(taskDir, `[ERROR] ${msg}`);
+      log(`[ERROR] ${msg}`);
       throw new Error(msg);
     }
   }
@@ -155,7 +155,7 @@ export async function stageTranslate(ctx: TaskCtx) {
     });
   }
 
-  const translation: TranslateSegment[] = segments.map((u, idx: number) => ({
+  const translation: TranslateSegment[] = segments.map((u, idx) => ({
     text: texts[idx],
     dst: dsts[idx]?.replace(/——/g, "，") ?? "",
     src_lang: srcLang,
@@ -163,10 +163,17 @@ export async function stageTranslate(ctx: TaskCtx) {
     start_ms: u.start_ms,
     end_ms: u.end_ms,
   }));
+  const translateResult: TranslateResult = {
+    segments: translation,
+    meta: {
+      src_lang: srcLang,
+      target_lang: targetLang,
+    },
+  };
 
   const translateDir = join(taskDir, "translate");
   ensureDir(translateDir);
-  writeJson(translationFile, { translation });
+  writeJson(translationFile, translateResult);
 
   await setStage(taskDir, "translate", {
     status: "success",

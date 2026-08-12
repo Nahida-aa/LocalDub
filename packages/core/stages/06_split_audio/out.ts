@@ -1,5 +1,5 @@
 import { SubtitleSegment } from "@repo/subtitle/types";
-import { TranslateSegment } from "../05_translate/out";
+import { TranslateResultMeta, TranslateSegment } from "../05_translate/out";
 import { TargetLang } from "../../cmd/tasks/input";
 
 // start_ms: number; // 视频意图起点
@@ -13,9 +13,12 @@ export type SplitAudioSegment = SplitAudioTiming & {
   split_end_ms: number; // padSegments 切分音频的终点
 };
 
-export interface SplitAudioFile {
-  translation: SplitAudioSegment[];
+export interface SplitAudioTimingResult {
+  segments: SplitAudioTiming[];
 }
-export interface SplitAudioTimingFile {
-  translation: SplitAudioTiming[];
+
+export interface SplitAudioResult {
+  segments: SplitAudioSegment[];
+  meta: TranslateResultMeta;
 }
+export type SplitAudioResultMeta = TranslateResultMeta;
