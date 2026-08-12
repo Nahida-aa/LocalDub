@@ -156,7 +156,12 @@ export async function stageSplitAudio(ctx: TaskCtx) {
   })();
 
   // timings 应用 padding, 得到真实的切块时序 (写进 split_audio.json)
-  const splitAudioSegments = padSegments(timings);
+  const splitArgs = ctx.input.stages.split_audio;
+  const splitAudioSegments = padSegments(
+    timings,
+    splitArgs.startPadMs,
+    splitArgs.endPadMs,
+  );
 
   // 源音频总时长, 用于上界截断
   const totalMs = probeDurationMs(sourceAudio);
@@ -212,9 +217,7 @@ export async function stageSplitAudio(ctx: TaskCtx) {
   // 切块后把 padding 时序写盘 (tts 逐段读它)
   writeJson(splitAudioPath, splitAudioResult);
 
-  // ---- VAD alignment (可选): 用静音检测把每段起点前移到真实语音处 ----
-  const splitArgs = ctx.input.stages.split_audio;
-
+  // ---- VAD alignment (可选): 用静音检测把每段起点前移到真实语音处. ----
   if (splitArgs.vadAlign) {
     const corrected = applyVadAlign({
       segments: splitAudioSegments,

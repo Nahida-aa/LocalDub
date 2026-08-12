@@ -745,7 +745,9 @@
         },
         "split_audio": {
           "default": {
-            "vadAlign": false
+            "vadAlign": false,
+            "startPadMs": 100,
+            "endPadMs": 300
           },
           "type": "object",
           "properties": {
@@ -753,6 +755,16 @@
               "default": false,
               "description": "是否启用静音检测对齐: 修正 segments 前后静音导致的偏移",
               "type": "boolean"
+            },
+            "startPadMs": {
+              "default": 100,
+              "description": "段落切块前缘 padding (ms), 避免语音被截断",
+              "type": "number"
+            },
+            "endPadMs": {
+              "default": 300,
+              "description": "段落切块后缘 padding (ms), 避免语音被截断",
+              "type": "number"
             },
             "vocalsFilePath": {
               "description": "人声文件路径, 调试使用",
