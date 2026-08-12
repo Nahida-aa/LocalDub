@@ -1,7 +1,7 @@
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { ffmpeg } from "@repo/core/stages/utils/utils.ts";
+import { cutAudioRange } from "./util";
 import { env } from "@repo/config/env";
 import { SplitAudioSegment, SplitAudioTiming } from "./out";
 import { log } from "@repo/util/log";
@@ -136,17 +136,7 @@ export function applyVadAlign(opts: {
     if (opts.hasVocals) {
       const newEnd = Math.min(opts.totalMs, endMs + 160);
       if (newEnd > newCutStartMs) {
-        ffmpeg([
-          "-i",
-          opts.sourceAudio,
-          "-ss",
-          String(newCutStartMs / 1000),
-          "-to",
-          String(newEnd / 1000),
-          "-c",
-          "copy",
-          wavPath,
-        ]);
+        cutAudioRange(opts.sourceAudio, newCutStartMs, newEnd, wavPath);
       }
     }
 

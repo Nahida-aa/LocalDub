@@ -23,7 +23,6 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import {
   translationFilePath,
-  ffmpeg,
   nowISO,
   emitLog,
   subtitleFilePath,
@@ -45,6 +44,7 @@ import { resolveLanguage } from "../05_translate/utils";
 import { SrtJson } from "@repo/subtitle/types";
 import { log } from "@repo/util/log";
 import { applyVadAlign } from "./vad_align";
+import { cutAudioRange } from "./util";
 
 /** 用 ffprobe 取媒体总时长 (毫秒) */
 function probeDuration(file: string): number {
@@ -208,17 +208,7 @@ export async function stageSplitAudio(ctx: TaskCtx) {
         continue;
       }
 
-      ffmpeg([
-        "-i",
-        sourceAudio,
-        "-ss",
-        String(start / 1000),
-        "-to",
-        String(end / 1000),
-        "-c",
-        "copy", // 流拷贝, 不重编码 (需源为可 seek 的 wav/pcm, 快)
-        outPath,
-      ]);
+      cutAudioRange(sourceAudio, start, end, outPath);
     }
   }
   const splitAudioResultMeta = {
