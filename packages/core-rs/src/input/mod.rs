@@ -9,6 +9,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::servers::args::ServersArgs;
+
 pub mod stages;
 pub mod task;
 
@@ -35,6 +37,9 @@ pub struct Input {
     /// 执行命令 (默认 env)
     #[serde(default)]
     pub command: Command,
+    /// 服务端参数 (镜像 servers/args.ts), 仅 command=servers 时使用
+    #[serde(default)]
+    pub servers: Option<ServersArgs>,
     #[serde(default)]
     pub stages: stages::Stages,
 }
@@ -44,6 +49,7 @@ impl Default for Input {
         Self {
             task: None,
             command: Command::default(),
+            servers: None,
             stages: stages::Stages::default(),
         }
     }
@@ -107,5 +113,23 @@ mod tests {
 
         let env: Input = serde_json::from_str(r#"{"command":"env"}"#).unwrap();
         assert!(env.validate().is_ok());
+    }
+
+    #[test]
+    fn servers_field_wires_servers_args() {
+        let input: Input = serde_json::from_str(
+            r#"{"command":"servers","servers":{"action":"stop","name":"voxcpm_torch_gradio"}}"#,
+        )
+        .unwrap();
+        assert_eq!(input.command, Command::Servers);
+        let servers = input.servers.unwrap();
+        assert_eq!(servers.action, crate::servers::args::ServerAction::Stop);
+        assert!(matches!(
+            servers.name,
+            Some(config_rs::servers::ServerType::VoxcpmTorchGradio)
+        ));
+
+        let empty: Input = serde_json::from_str(r#"{"command":"servers"}"#).unwrap();
+        assert!(empty.servers.is_none());
     }
 }
