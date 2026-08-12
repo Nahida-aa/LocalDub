@@ -100,8 +100,8 @@ export function applyVadAlign(opts: {
       ? detectSpeechStartMs(wavPath)
       : detectSpeechStartMsSeek(
           opts.sourceAudio,
-          Math.max(0, startMs - 80),
-          Math.min(opts.totalMs, endMs + 160),
+          startMs, // 已是 padSegments 后的 split_start
+          Math.min(opts.totalMs, endMs),
           opts.vocalsSegmentDir,
         );
     if (removedMs <= 500) continue; // 开头静音不足 500ms, 不值得修正

@@ -45,60 +45,7 @@ import { SrtJson } from "@repo/subtitle/types";
 import { log } from "@repo/util/log";
 import { applyVadAlign } from "./vad_align";
 import { cutAudioRange } from "./util";
-
-/**
- * 给各段时间轴加前后 padding (默认前 100ms / 后 300ms), 避免切块时把语音截断。
- *
- * 规则:
- * - 每段独立计算 start/end 的 padding 量, 相邻段之间的空白 (gap) 越充足则越接满默认值;
- * - gap 不足时按比例分摊 start/end, 保证不越过相邻段;
- * - minGap=50ms 之下的缝直接取中点, 避免与相邻段重叠。
- * 返回新数组, 不修改原数组。
- */
-function padSegments(
-  segments: SplitAudioTiming[],
-  startPad = 100,
-  endPad = 300,
-): SplitAudioSegment[] {
-  if (!segments.length) return [];
-  const minGap = 50;
-
-  const startPadAt = (idx: number): number => {
-    const origStart = segments[idx].start_ms;
-    if (idx === 0) return Math.max(0, origStart - startPad);
-    const prevEnd = segments[idx - 1].end_ms;
-    const gap = origStart - prevEnd;
-    const total = startPad + endPad;
-    if (gap >= total + minGap) return origStart - startPad;
-    if (gap > minGap) {
-      const share = ((gap - minGap) * startPad) / total;
-      return origStart - share;
-    }
-    return prevEnd + gap / 2;
-  };
-
-  const endPadAt = (idx: number): number => {
-    const origEnd = segments[idx].end_ms;
-    if (idx === segments.length - 1) {
-      return origEnd + endPad;
-    }
-    const nextStart = segments[idx + 1].start_ms;
-    const gap = nextStart - origEnd;
-    const total = startPad + endPad;
-    if (gap >= total + minGap) return origEnd + endPad;
-    if (gap > minGap) {
-      const share = ((gap - minGap) * endPad) / total;
-      return origEnd + share;
-    }
-    return origEnd + gap / 2;
-  };
-
-  return segments.map((s, idx) => {
-    const newStart = startPadAt(idx);
-    const newEnd = endPadAt(idx);
-    return { ...s, split_start_ms: Math.max(0, newStart), split_end_ms: newEnd };
-  });
-}
+import { padSegments } from "./pad_segment";
 
 export async function stageSplitAudio(ctx: TaskCtx) {
   const taskDir = ctx.task.task_dir;
@@ -157,11 +104,7 @@ export async function stageSplitAudio(ctx: TaskCtx) {
 
   // timings 应用 padding, 得到真实的切块时序 (写进 split_audio.json)
   const splitArgs = ctx.input.stages.split_audio;
-  const splitAudioSegments = padSegments(
-    timings,
-    splitArgs.startPadMs,
-    splitArgs.endPadMs,
-  );
+  const splitAudioSegments = padSegments(timings, splitArgs.startPadMs, splitArgs.endPadMs);
 
   // 源音频总时长, 用于上界截断
   const totalMs = probeDurationMs(sourceAudio);
@@ -195,9 +138,9 @@ export async function stageSplitAudio(ctx: TaskCtx) {
         continue;
       }
 
-      // 前后各留 80ms/160ms 余量, 收在源音频范围内
-      const start = Math.max(0, startMs - 80);
-      const end = Math.min(totalMs, endMs + 160);
+      // split_start/end 已含 startPadMs/endPadMs, 按参数精确切块; 尾段未 clamp 到源音频, 收在范围内
+      const start = startMs;
+      const end = Math.min(totalMs, endMs);
       if (end <= start) {
         writeFileSync(outPath, Buffer.alloc(44));
         continue;
