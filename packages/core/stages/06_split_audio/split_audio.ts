@@ -7,9 +7,9 @@
  * - 源音频: 有分离人声 (vocals) 用干净人声, 否则用原视频音轨
  *
  * 输出 (写入 taskDir/split_audio/):
- * - split_audio.json  → translation: SplitAudioSegment[] 经过 padSegments 补齐边界的时序,
+ * - split_audio.json  → segments: SplitAudioSegment[] 经过 padSegments 补齐边界的时序,
  *                       供 tts 逐段读文本合成, 也是切块的真实时间
- * - timings.json      → translation: SplitAudioTiming[] 未 padding 的「意图时序」,
+ * - timings.json      → segments: SplitAudioTiming[] 未 padding 的「意图时序」,
  *                       供 merge_audio/merge_video 定位最终落点
  * - vocals/0001.wav ... 按段切出的音频 (仅 dub 模式下有 vocals 时)
  *
@@ -44,6 +44,7 @@ import {
 import { resolveLanguage } from "../05_translate/utils";
 import { SrtJson } from "@repo/subtitle/types";
 import { log } from "@repo/util/log";
+import { applyVadAlign } from "./vad_align";
 
 /** 用 ffprobe 取媒体总时长 (毫秒) */
 function probeDuration(file: string): number {
@@ -53,95 +54,6 @@ function probeDuration(file: string): number {
     { stdio: ["pipe", "pipe", "pipe"] },
   );
   return Math.floor(parseFloat(r.stdout.toString().trim()) * 1000) || 0;
-}
-
-/**
- * 检测一段已切好 wav 开头被静音削掉的时长 (ms)。
- *
- * 做法: 用 ffmpeg silenceremove 把 >0.1s 且 < -30dB 的起始静音裁掉,
- * 对比原时长减裁后时长。若原时长异常则返回 0。
- */
-function detectSpeechStartMs(wavPath: string): number {
-  const durProbe = spawnSync(
-    "ffprobe",
-    ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", wavPath],
-    { stdio: ["pipe", "pipe", "pipe"] },
-  );
-  const origDur = parseFloat(durProbe.stdout.toString().trim()) || 0;
-  if (origDur <= 0) return 0;
-
-  const tmpPath = wavPath.replace(".wav", ".trim.wav");
-  const r = spawnSync(
-    env.FFMPEG_PATH,
-    [
-      "-i",
-      wavPath,
-      "-af",
-      "silenceremove=start_periods=1:start_threshold=-30dB:start_duration=0.1",
-      "-y",
-      tmpPath,
-    ],
-    { stdio: ["pipe", "pipe", "pipe"], timeout: 30_000 },
-  );
-
-  let removedMs = 0;
-  if (r.status === 0) {
-    const trimProbe = spawnSync(
-      "ffprobe",
-      ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", tmpPath],
-      { stdio: ["pipe", "pipe", "pipe"] },
-    );
-    const trimmedDur = parseFloat(trimProbe.stdout.toString().trim()) || 0;
-    removedMs = Math.round((origDur - trimmedDur) * 1000);
-  }
-  rmSync(tmpPath, { force: true });
-  return Math.max(0, removedMs);
-}
-
-/**
- * 同 detectSpeechStartMs, 但直接从源音轨 seek [startMs, endMs) 裁出临时 wav 再测,
- * 用于段音频尚未生成 (或未用 vocals) 时估算开头的静音时长。
- */
-function detectSpeechStartMsSeek(
-  source: string,
-  startMs: number,
-  endMs: number,
-  workDir: string,
-): number {
-  const durMs = endMs - startMs;
-  if (durMs <= 0) return 0;
-
-  const tmpPath = join(workDir, ".vad_trim.wav");
-  const r = spawnSync(
-    env.FFMPEG_PATH,
-    [
-      "-ss",
-      String(startMs / 1000),
-      "-to",
-      String(endMs / 1000),
-      "-i",
-      source,
-      "-vn",
-      "-af",
-      "silenceremove=start_periods=1:start_threshold=-30dB:start_duration=0.1",
-      "-y",
-      tmpPath,
-    ],
-    { stdio: ["pipe", "pipe", "pipe"], timeout: 30_000 },
-  );
-
-  let removedMs = 0;
-  if (r.status === 0) {
-    const trimProbe = spawnSync(
-      "ffprobe",
-      ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", tmpPath],
-      { stdio: ["pipe", "pipe", "pipe"] },
-    );
-    const trimmedDur = parseFloat(trimProbe.stdout.toString().trim()) || 0;
-    removedMs = Math.round((durMs / 1000 - trimmedDur) * 1000);
-  }
-  rmSync(tmpPath, { force: true });
-  return Math.max(0, removedMs);
 }
 
 /**
@@ -220,40 +132,38 @@ export async function stageSplitAudio(ctx: TaskCtx) {
 
   // 从字幕文件拿权威时间轴 (毫秒)
   const srtData = await readJson<SrtJson>(srtFilePath);
-  const segmentsSrc = srtData.result?.segments;
-  if (!segmentsSrc?.length) throw new Error(`${srtFilePath} has no segments`);
+  const srtSegments = srtData.result?.segments;
+  if (!srtSegments?.length) throw new Error(`${srtFilePath} has no segments`);
 
   // 拼 timings: 有翻译就取 translate.[dstLang].json 的 dst 文本, 否则退回用原字幕文本
   const translateEnabled = ctx.input.stages.translate.enabled;
-  let timings: SplitAudioTiming[];
-  if (translateEnabled) {
-    const transData = await readTranslationResult(ctx);
-    const translation = transData.segments;
-    if (!translation?.length) throw new Error("translation.json has no segments");
-    timings = translation.map((seg, i) => ({
-      seg_idx: i + 1,
-      text: translation[i].text,
-      dst: translation[i].dst,
-      src_lang: translation[i].src_lang,
-      dst_lang: translation[i].dst_lang,
-      start_ms: translation[i].start_ms,
-      end_ms: translation[i].end_ms,
-      speaker: translation[i].speaker,
-    }));
-  } else {
-    timings = segmentsSrc.map((seg, i) => ({
-      seg_idx: i + 1,
-      text: seg.text,
-      dst: seg.text, // 未翻译时 dst 直接用原文, 保证 tts 有文本可读
-      src_lang: srcLang,
-      dst_lang: srcLang,
-      start_ms: seg.start_ms,
-      end_ms: seg.end_ms,
-    }));
-  }
-
-  // intentTimings 保存未 padding 的意图时序 (留给 merge_audio/merge_video 定位落点)
-  const intentTimings = timings.map((t) => ({ ...t }));
+  const timings: SplitAudioTiming[] = await (async () => {
+    if (translateEnabled) {
+      const transData = await readTranslationResult(ctx);
+      const translation = transData.segments;
+      if (!translation?.length) throw new Error("translation.json has no segments");
+      return translation.map((seg, i) => ({
+        seg_idx: i + 1,
+        text: translation[i].text,
+        dst: translation[i].dst,
+        src_lang: translation[i].src_lang,
+        dst_lang: translation[i].dst_lang,
+        start_ms: translation[i].start_ms,
+        end_ms: translation[i].end_ms,
+        speaker: translation[i].speaker,
+      }));
+    } else {
+      return srtSegments.map((seg, i) => ({
+        seg_idx: i + 1,
+        text: seg.text,
+        dst: seg.text, // 未翻译时 dst 直接用原文, 保证 tts 有文本可读
+        src_lang: srcLang,
+        dst_lang: srcLang,
+        start_ms: seg.start_ms,
+        end_ms: seg.end_ms,
+      }));
+    }
+  })();
 
   // timings 应用 padding, 得到真实的切块时序 (写进 split_audio.json)
   const splitAudioSegments = padSegments(timings);
@@ -264,7 +174,7 @@ export async function stageSplitAudio(ctx: TaskCtx) {
   ensureDir(vocalsSegmentDir);
   ensureDir(splitAudioDir);
 
-  // ---- 切块 (仅 dub 模式有 vocals 时执行; subtitle 模式跳过, 只产出时序文件) ----
+  // 切块 (仅 dub 模式有 vocals 时执行; subtitle 模式跳过, 只产出时序文件)
   if (hasVocals) {
     // 若翻译文件比已切出的块更新 (重跑翻译), 清空旧块重新切
     const anySeg = readdirSync(vocalsSegmentDir).find((f) => f.endsWith(".wav"));
@@ -323,73 +233,22 @@ export async function stageSplitAudio(ctx: TaskCtx) {
   writeJson(splitAudioPath, splitAudioResult);
 
   // ---- VAD alignment (可选): 用静音检测把每段起点前移到真实语音处 ----
-  const splitCfg = ctx.input?.stages?.split_audio;
-  if (splitCfg?.vadAlign) {
-    let corrected = false;
-    for (let i = 0; i < splitAudioSegments.length; i++) {
-      const startMs = splitAudioSegments[i].split_start_ms;
-      const endMs = splitAudioSegments[i].split_end_ms;
-      if (startMs >= endMs) continue;
+  const splitArgs = ctx.input.stages.split_audio;
 
-      // 有切好的块就测块, 否则直接从源音轨 seek 一小段临时测
-      const wavPath = join(vocalsSegmentDir, `${String(i + 1).padStart(4, "0")}.wav`);
-      const removedMs = existsSync(wavPath)
-        ? detectSpeechStartMs(wavPath)
-        : detectSpeechStartMsSeek(
-            sourceAudio,
-            Math.max(0, startMs - 80),
-            Math.min(totalMs, endMs + 160),
-            vocalsSegmentDir,
-          );
-      if (removedMs <= 500) continue; // 开头静音不足 500ms, 不值得修正
-
-      // 起点前移 removedMs-80 (保留 80ms 呼吸余量)
-      const cutStartMs = splitAudioSegments[i].split_start_ms;
-      const newCutStartMs = cutStartMs + removedMs - 80;
-      if (newCutStartMs >= endMs) {
-        log(`vadAlign #${i + 1}: would exceed end (${newCutStartMs} >= ${endMs}), truncating`);
-        continue;
-      }
-
-      log(`vadAlign #${i + 1}: start ${cutStartMs} → ${newCutStartMs} (removed ${removedMs}ms)`);
-
-      // 同步把块重新切 (从新起点到原来的结尾+余量), 并更新两条时序的 start
-      if (hasVocals) {
-        const newEnd = Math.min(totalMs, endMs + 160);
-        if (newEnd > newCutStartMs) {
-          ffmpeg([
-            "-i",
-            sourceAudio,
-            "-ss",
-            String(newCutStartMs / 1000),
-            "-to",
-            String(newEnd / 1000),
-            "-c",
-            "copy",
-            wavPath,
-          ]);
-        }
-      }
-
-      splitAudioSegments[i].split_start_ms = newCutStartMs;
-      intentTimings[i].start_ms = Math.max(0, intentTimings[i].start_ms + removedMs - 80);
-      corrected = true;
-    }
-
-    if (corrected) {
-      const splitAudioResult: SplitAudioResult = {
-        segments: splitAudioSegments,
-        meta: splitAudioResultMeta,
-      };
-      const splitAudioTimingResult: SplitAudioTimingResult = {
-        segments: intentTimings,
-      };
-      writeJson(splitAudioPath, splitAudioResult);
-      writeJson(timingsFile, splitAudioTimingResult);
-    }
+  if (splitArgs.vadAlign) {
+    const corrected = applyVadAlign({
+      segments: splitAudioSegments,
+      timings,
+      sourceAudio,
+      totalMs,
+      vocalsSegmentDir,
+      hasVocals,
+    });
+    // applyVadAlign 会原地改写 splitAudioSegments, 修正过才重新写盘
+    if (corrected) writeJson(splitAudioPath, splitAudioResult);
   }
   const splitAudioTimingResult: SplitAudioTimingResult = {
-    segments: intentTimings,
+    segments: timings,
   };
   // 意图时序始终写盘 (无 vadAlign 或无修正时也恢复最新意图起点)
   writeJson(timingsFile, splitAudioTimingResult);
