@@ -12,5 +12,5 @@ export interface Timing extends SplitAudioTiming {
   actual_end: number; // 实际结束时间（考虑了后面间隙的延后）
 }
 export interface TimingsFile {
-  translation: Timing[];
+  segments: Timing[];
 }

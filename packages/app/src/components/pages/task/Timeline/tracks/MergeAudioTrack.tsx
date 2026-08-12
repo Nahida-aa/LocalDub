@@ -39,7 +39,7 @@ function serializeSegments(segments: TrackSegment[]): string {
       actual_end: s.endMs,
     };
   });
-  return JSON.stringify({ translation: segs }, null, 2);
+  return JSON.stringify({ segments: segs }, null, 2);
 }
 
 const DEFAULT_DURATION_MS = 500;
@@ -115,7 +115,7 @@ export function MergeAudioTrack(props: Props) {
     path: () => `${taskDir}/merge_audio/timings.json`,
     parse: (text) => {
       const data: TimingsFile = JSON.parse(text);
-      return (data.translation || []).map((item, i: number) => ({
+      return (data.segments || []).map((item, i: number) => ({
         index: i,
         text: item.dst,
         startMs: item.actual_start,

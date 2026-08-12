@@ -150,7 +150,7 @@ export async function stageMergeVideo(ctx: TaskCtx) {
 
     const data = await read_timings(ctx);
     const subPath = join(mergeVideoDir, `${targetLang}.srt`);
-    writeSrt(data.translation, ctx, subPath);
+    writeSrt(data.segments, ctx, subPath);
     const style = probeStyle(video_file_path, targetLang, probeOverrides);
 
     const bgmGain = ctx.input?.stages?.merge_video?.bgmGain ?? -6;

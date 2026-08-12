@@ -23,8 +23,8 @@ function serializeSegments(segments: TrackSegment[]): string {
     const raw = (s.raw as SplitAudioTiming) || ({} as SplitAudioTiming);
     return {
       seg_idx: s.index + 1,
-      text: raw.text ?? "",
-      dst: s.text,
+      text: s.text,
+      dst: raw.dst ?? s.text,
       src_lang: raw.src_lang ?? "auto",
       dst_lang: raw.dst_lang ?? "vi",
       start_ms: s.startMs,
@@ -32,7 +32,7 @@ function serializeSegments(segments: TrackSegment[]): string {
       speaker: raw.speaker ?? "1",
     };
   });
-  return JSON.stringify({ translation: segs }, null, 2);
+  return JSON.stringify({ segments: segs }, null, 2);
 }
 
 const DEFAULT_DURATION_MS = 500;
@@ -49,12 +49,12 @@ function insertAt(segments: TrackSegment[], index: number, after: boolean): Trac
     endMs: after ? current.endMs + DEFAULT_DURATION_MS : current.startMs,
     raw: {
       seg_idx: 0,
-      src: "",
+      text: "",
       dst: "",
       src_lang: "auto",
       dst_lang: "vi",
-      start: 0,
-      end: 0,
+      start_ms: 0,
+      end_ms: 0,
       speaker: "1",
     },
   };
@@ -94,10 +94,10 @@ export function SplitAudioTrack(props: Props) {
         ? `${taskDir}/split_audio/timings.json`
         : `${taskDir}/split_audio/split_audio.json`,
     parse: (text) => {
-      const data = JSON.parse(text) as { translation?: SplitAudioTiming[] };
-      return (data.translation || []).map((item, i: number) => ({
+      const data = JSON.parse(text) as { segments?: SplitAudioTiming[] };
+      return (data.segments || []).map((item, i: number) => ({
         index: i,
-        text: item.dst || "",
+        text: item.text,
         startMs: item.start_ms,
         endMs: item.end_ms,
         raw: item,
@@ -126,9 +126,7 @@ export function SplitAudioTrack(props: Props) {
     openModal(
       () => (
         <TrackEditModal
-          textLabel="译文"
-          srcLabel="原文"
-          initialSrc={raw?.text}
+          textLabel="原文"
           initialText={seg.text}
           initialStartMs={seg.startMs}
           initialEndMs={seg.endMs}
@@ -141,7 +139,7 @@ export function SplitAudioTrack(props: Props) {
               </div>
             )
           }
-          onSave={({ text, src, startMs, endMs }) => {
+          onSave={({ text, startMs, endMs }) => {
             const newSegments = segments().map((s, i) =>
               i === segIndex
                 ? {
@@ -149,7 +147,7 @@ export function SplitAudioTrack(props: Props) {
                     text,
                     startMs,
                     endMs,
-                    raw: { ...(s.raw as object), ...(src !== undefined ? { src } : {}) },
+                    raw: { ...(s.raw as object) },
                   }
                 : s,
             );
