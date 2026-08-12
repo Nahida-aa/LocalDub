@@ -12,7 +12,7 @@ import { AudioPlayer } from "#/components/ui/audio-player";
 import { mediaUrl } from "#/lib/utils/path.ts";
 import type { Track, TrackSegment } from "../consts";
 import { client } from "#/integrations/fnrpc/client.ts";
-import type { SplitAudioTiming } from "@repo/core/stages/06_split_audio/types";
+import type { SplitAudioTiming } from "@repo/core/stages/06_split_audio/out";
 import { useTrackData } from "./useTrackData";
 import type { BaseTrackProps } from "./shared";
 
@@ -23,12 +23,12 @@ function serializeSegments(segments: TrackSegment[]): string {
     const raw = (s.raw as SplitAudioTiming) || ({} as SplitAudioTiming);
     return {
       seg_idx: s.index + 1,
-      src: raw.src ?? "",
+      text: raw.text ?? "",
       dst: s.text,
       src_lang: raw.src_lang ?? "auto",
       dst_lang: raw.dst_lang ?? "vi",
-      start: s.startMs,
-      end: s.endMs,
+      start_ms: s.startMs,
+      end_ms: s.endMs,
       speaker: raw.speaker ?? "1",
     };
   });
@@ -98,8 +98,8 @@ export function SplitAudioTrack(props: Props) {
       return (data.translation || []).map((item, i: number) => ({
         index: i,
         text: item.dst || "",
-        startMs: item.start,
-        endMs: item.end,
+        startMs: item.start_ms,
+        endMs: item.end_ms,
         raw: item,
       }));
     },
@@ -128,7 +128,7 @@ export function SplitAudioTrack(props: Props) {
         <TrackEditModal
           textLabel="译文"
           srcLabel="原文"
-          initialSrc={raw?.src}
+          initialSrc={raw?.text}
           initialText={seg.text}
           initialStartMs={seg.startMs}
           initialEndMs={seg.endMs}
@@ -198,9 +198,9 @@ export function SplitAudioTrack(props: Props) {
                   "border-color": `${color}55`,
                 }}
                 onClick={() => onSeek(seg.startMs)}
-                title={(seg.raw as SplitAudioTiming | undefined)?.src || seg.text}
+                title={(seg.raw as SplitAudioTiming | undefined)?.text || seg.text}
               >
-                {(seg.raw as SplitAudioTiming | undefined)?.src || seg.text}
+                {(seg.raw as SplitAudioTiming | undefined)?.text || seg.text}
               </div>
             </ContextMenuTrigger>
             <ContextMenuContent>

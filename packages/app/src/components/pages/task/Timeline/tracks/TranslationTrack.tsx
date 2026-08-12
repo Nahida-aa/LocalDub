@@ -10,7 +10,7 @@ import { openModal } from "@repo/ui-solid/custom/modal/renderer";
 import type { Track, TrackSegment } from "../consts";
 import { client } from "#/integrations/fnrpc/client.ts";
 import { useMutation, useQuery } from "@tanstack/solid-query";
-import type { TranslateFile } from "@repo/core/stages/05_translate/type";
+import type { TranslateFile } from "@repo/core/stages/05_translate/out";
 import { deleteAt, insertAt, type BaseTrackProps } from "./shared";
 import { TrackEditModal } from "./comp/TrackEditModal";
 import { useTrackData } from "./useTrackData";
@@ -21,7 +21,7 @@ function serializeSegments(segments: TrackSegment[]): string {
   const segs: TranslateFile["translation"] = segments.map((s) => {
     const raw = (s.raw as TranslateFile["translation"][number]) || {};
     return {
-      src: raw.src ?? "",
+      text: raw.text ?? "",
       dst: s.text,
       src_lang: raw.src_lang ?? "auto",
       dst_lang: raw.dst_lang ?? "auto",
@@ -105,7 +105,7 @@ export function TranslationTrack(props: Props) {
         <TrackEditModal
           textLabel="译文"
           srcLabel="原文"
-          initialSrc={raw?.src}
+          initialSrc={raw?.text}
           initialText={seg.text}
           initialStartMs={seg.startMs}
           initialEndMs={seg.endMs}
@@ -159,7 +159,7 @@ export function TranslationTrack(props: Props) {
                 }}
                 onClick={() => onSeek(seg.startMs)}
                 title={
-                  (seg.raw as TranslateFile["translation"][number] | undefined)?.src || seg.text
+                  (seg.raw as TranslateFile["translation"][number] | undefined)?.text || seg.text
                 }
               >
                 {seg.text}

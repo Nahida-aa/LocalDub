@@ -103,6 +103,7 @@
           "const": "servers"
         }
       ],
+      "description": " 命令",
       "title": "Command"
     },
     "Input": {
@@ -132,15 +133,26 @@
           "type": "object"
         }
       ],
-      "description": " 顶层输入 (不限定 CLI 场景, Tauri RPC / pipeline 均可复用)",
+      "description": " 顶层输入",
       "title": "Input"
     },
     "Input_Deserialize": {
-      "description": " 顶层输入 (不限定 CLI 场景, Tauri RPC / pipeline 均可复用)",
+      "description": " 顶层输入",
       "properties": {
         "command": {
           "$ref": "#/$defs/Command",
           "description": " 执行命令 (默认 env)"
+        },
+        "servers": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ServersArgs_Deserialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 服务端参数 (镜像 servers/args.ts), 仅 command=servers 时使用"
         },
         "stages": {
           "$ref": "#/$defs/Stages_Deserialize"
@@ -161,11 +173,22 @@
       "type": "object"
     },
     "Input_Serialize": {
-      "description": " 顶层输入 (不限定 CLI 场景, Tauri RPC / pipeline 均可复用)",
+      "description": " 顶层输入",
       "properties": {
         "command": {
           "$ref": "#/$defs/Command",
           "description": " 执行命令 (默认 env)"
+        },
+        "servers": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ServersArgs_Serialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 服务端参数 (镜像 servers/args.ts), 仅 command=servers 时使用"
         },
         "stages": {
           "$ref": "#/$defs/Stages_Serialize"
@@ -185,6 +208,7 @@
       "required": [
         "task",
         "command",
+        "servers",
         "stages"
       ],
       "title": "Input_Serialize",
@@ -285,6 +309,114 @@
         }
       ],
       "title": "Runtime"
+    },
+    "ServerAction": {
+      "anyOf": [
+        {
+          "const": "status"
+        },
+        {
+          "const": "start"
+        },
+        {
+          "const": "stop"
+        },
+        {
+          "const": "discovery"
+        }
+      ],
+      "description": " 服务器操作 (镜像 packages/core/servers/input.ts 的 action 枚举)",
+      "title": "ServerAction"
+    },
+    "ServerType": {
+      "anyOf": [
+        {
+          "const": "voxcpm_torch_gradio"
+        },
+        {
+          "const": "demucs_torch_server"
+        }
+      ],
+      "description": " Server type identifiers for mDNS discovery.\n\n 序列化为 snake_case (voxcpm_torch_gradio / demucs_torch_server), 对齐 TS 侧\n `packages/config/src/servers.ts` 的 serverTypeList。",
+      "title": "ServerType"
+    },
+    "ServersArgs": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/ServersArgs_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/ServersArgs_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " servers 命令参数 (镜像 packages/core/servers/input.ts 的 ServersArgsSchema)",
+      "title": "ServersArgs"
+    },
+    "ServersArgs_Deserialize": {
+      "description": " servers 命令参数 (镜像 packages/core/servers/input.ts 的 ServersArgsSchema)",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/ServerAction",
+          "description": " 服务器操作"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ServerType"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 指定操作的服务器, 不传则操作所有"
+        }
+      },
+      "title": "ServersArgs_Deserialize",
+      "type": "object"
+    },
+    "ServersArgs_Serialize": {
+      "description": " servers 命令参数 (镜像 packages/core/servers/input.ts 的 ServersArgsSchema)",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/ServerAction",
+          "description": " 服务器操作"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ServerType"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 指定操作的服务器, 不传则操作所有"
+        }
+      },
+      "required": [
+        "action",
+        "name"
+      ],
+      "title": "ServersArgs_Serialize",
+      "type": "object"
     },
     "SidechainCompress": {
       "anyOf": [

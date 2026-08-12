@@ -16,8 +16,8 @@ import {
 import { SubtitleSource, TargetLang } from "@repo/core/cmd/tasks/input";
 import { getLastSegment, readJson } from "../../utils/fileOps";
 import { setLogContext, setCurrentStage, getLogContext } from "@repo/util/log";
-import { TranslateFile } from "../05_translate/type";
-import { SplitAudioFile, SplitAudioTimingFile } from "../06_split_audio/types";
+import { TranslateFile } from "../05_translate/out";
+import { SplitAudioFile, SplitAudioTimingFile } from "../06_split_audio/out";
 import { TaskStage } from "../../context/types";
 import { TimingsFile } from "../merge_audio/types";
 

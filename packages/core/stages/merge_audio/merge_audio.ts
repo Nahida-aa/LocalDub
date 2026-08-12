@@ -14,7 +14,7 @@ import {
   read_split_audio_timings,
 } from "@repo/core/stages/utils/utils.ts";
 import { TaskCtx, setStage, setTask } from "@repo/core/context/context.ts";
-import { SplitAudioTiming } from "../06_split_audio/types";
+import { SplitAudioTiming } from "../06_split_audio/out";
 import { Timing } from "./types";
 
 /**
@@ -88,7 +88,7 @@ export async function stageMergeAudio(ctx: TaskCtx) {
     const trimmedSec = probeDuration(trimmedFile);
 
     // Determine advance — conservative for segments that already fit
-    const originalSlotBaseSec = (item.end - item.start) / 1000;
+    const originalSlotBaseSec = (item.end_ms - item.start_ms) / 1000;
     let advanceMs = 0;
     if (trimmedSec <= originalSlotBaseSec) {
       const surplusNoAdvanceSec = drift + (originalSlotBaseSec - trimmedSec);
@@ -102,13 +102,13 @@ export async function stageMergeAudio(ctx: TaskCtx) {
       advanceMs = Math.min(maxAdvanceMs, Math.max(0, Math.round(drift * 1000)));
     }
 
-    const realStartMs = Math.max(item.start - advanceMs, lastEndMs, 0);
-    advanceMs = Math.max(0, item.start - realStartMs);
+    const realStartMs = Math.max(item.start_ms - advanceMs, lastEndMs, 0);
+    advanceMs = Math.max(0, item.start_ms - realStartMs);
     const effectiveDrift = drift - advanceMs / 1000;
 
     // Determine delay — borrow time from the next segment's gap
-    const nextStartMs = i < translation.length - 1 ? translation[i + 1].start : item.end;
-    const gapMs = Math.max(0, nextStartMs - item.end);
+    const nextStartMs = i < translation.length - 1 ? translation[i + 1].start_ms : item.end_ms;
+    const gapMs = Math.max(0, nextStartMs - item.end_ms);
     const delayMs = Math.min(gapMs, maxDelayMs);
 
     if (realStartMs > lastEndMs) {
@@ -126,7 +126,7 @@ export async function stageMergeAudio(ctx: TaskCtx) {
       segmentInputs.push(silenceFile);
     }
 
-    const originalSlotSec = (item.end + delayMs - realStartMs) / 1000;
+    const originalSlotSec = (item.end_ms + delayMs - realStartMs) / 1000;
     // floor at 50ms so speed calc never goes negative
     const slotSec = Math.max(0.05, originalSlotSec + effectiveDrift);
 
@@ -160,9 +160,9 @@ export async function stageMergeAudio(ctx: TaskCtx) {
 
     if (realEndMs <= realStartMs) {
       throw new Error(
-        `[merge_audio] #${i + 1} (${item.src?.slice(0, 30) || "?"}) 生成了零时长段: ` +
+        `[merge_audio] #${i + 1} (${item.text?.slice(0, 30) || "?"}) 生成了零时长段: ` +
           `tts_file=${ttsFile}, ` +
-          `item.start=${item.start}ms, item.end=${item.end}ms (slot=${(item.end - item.start).toFixed(0)}ms), ` +
+          `item.start=${item.start_ms}ms, item.end=${item.end_ms}ms (slot=${(item.end_ms - item.start_ms).toFixed(0)}ms), ` +
           `tts_duration=${(ttsSec * 1000).toFixed(0)}ms, trimmed=${(trimmedSec * 1000).toFixed(0)}ms, ` +
           `advance=${advanceMs}ms, delay=${delayMs}ms, ` +
           `stretched=${(stretchedSec * 1000).toFixed(0)}ms, drift=${drift.toFixed(3)}s\n` +
@@ -173,7 +173,7 @@ export async function stageMergeAudio(ctx: TaskCtx) {
     lastEndMs = realEndMs;
     const segment: Timing = {
       ...item,
-      original_duration_ms: item.end - item.start,
+      original_duration_ms: item.end_ms - item.start_ms,
       drift_ms: Math.round(drift * 1000),
       advance_ms: advanceMs,
       delay_ms: delayMs,

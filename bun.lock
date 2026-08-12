@@ -115,6 +115,7 @@
         "@repo/subtitle": "workspace:*",
         "@repo/subtitle-asr": "workspace:*",
         "@repo/subtitle-ocr": "workspace:*",
+        "@repo/tts": "workspace:*",
         "@repo/util": "workspace:*",
         "@repo/voxlab": "workspace:*",
         "@tanstack/pacer": "^0.21.1",
@@ -190,6 +191,18 @@
         "opencv-wasm": "4.3.0-10",
         "pngjs": "^7.0.0",
         "zod": "^4.4.3",
+      },
+    },
+    "packages/tts": {
+      "name": "@repo/tts",
+      "dependencies": {
+        "zod": "^4.4.3",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+      "peerDependencies": {
+        "typescript": "^7",
       },
     },
     "packages/ui-solid": {
@@ -561,6 +574,8 @@
     "@repo/subtitle-asr": ["@repo/subtitle-asr@workspace:packages/subtitle-asr"],
 
     "@repo/subtitle-ocr": ["@repo/subtitle-ocr@workspace:packages/subtitle-ocr"],
+
+    "@repo/tts": ["@repo/tts@workspace:packages/tts"],
 
     "@repo/ui-solid": ["@repo/ui-solid@workspace:packages/ui-solid"],
 

@@ -21,12 +21,12 @@ function serializeSegments(segments: TrackSegment[]): string {
     const raw = (s.raw as Partial<Timing> | undefined) ?? {};
     return {
       seg_idx: raw.seg_idx ?? s.index + 1,
-      src: raw.src ?? "",
+      text: raw.text ?? "",
       dst: s.text,
       src_lang: raw.src_lang ?? "auto",
       dst_lang: raw.dst_lang ?? "vi",
-      start: raw.start ?? s.startMs,
-      end: raw.end ?? s.endMs,
+      start_ms: raw.start_ms ?? s.startMs,
+      end_ms: raw.end_ms ?? s.endMs,
       speaker: raw.speaker ?? "1",
       original_duration_ms: raw.original_duration_ms ?? s.endMs - s.startMs,
       tts_duration_ms: raw.tts_duration_ms ?? 0,
@@ -47,12 +47,12 @@ const DEFAULT_DURATION_MS = 500;
 function newDefaultRaw(startMs: number, endMs: number): Timing {
   return {
     seg_idx: 0,
-    src: "",
+    text: "",
     dst: "",
     src_lang: "auto",
     dst_lang: "vi",
-    start: startMs,
-    end: endMs,
+    start_ms: startMs,
+    end_ms: endMs,
     speaker: "1",
     original_duration_ms: endMs - startMs,
     tts_duration_ms: 0,
@@ -147,7 +147,7 @@ export function MergeAudioTrack(props: Props) {
         <TrackEditModal
           textLabel="译文"
           srcLabel="原文"
-          initialSrc={raw?.src}
+          initialSrc={raw?.text}
           initialText={seg.text}
           initialStartMs={seg.startMs}
           initialEndMs={seg.endMs}
@@ -200,9 +200,9 @@ export function MergeAudioTrack(props: Props) {
                   "border-color": `${color}55`,
                 }}
                 onClick={() => onSeek(seg.startMs)}
-                title={(seg.raw as Timing | undefined)?.src || seg.text}
+                title={(seg.raw as Timing | undefined)?.text || seg.text}
               >
-                {(seg.raw as Timing | undefined)?.src || seg.text}
+                {(seg.raw as Timing | undefined)?.text || seg.text}
               </div>
             </ContextMenuTrigger>
             <ContextMenuContent>

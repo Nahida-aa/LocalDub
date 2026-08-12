@@ -16,6 +16,7 @@
     "@repo/subtitle": "workspace:*",
     "@repo/subtitle-asr": "workspace:*",
     "@repo/subtitle-ocr": "workspace:*",
+    "@repo/tts": "workspace:*",
     "@repo/util": "workspace:*",
     "@repo/voxlab": "workspace:*",
     "@tanstack/pacer": "^0.21.1",

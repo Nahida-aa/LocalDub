@@ -14,7 +14,7 @@ import { TaskCtx, setCtx, setStage } from "@repo/core/context/context.ts";
 import { buildPreprocessPrompt, buildTranslateSystem, resolveLanguage } from "./utils";
 import { chat_completions } from "../../ml/llm/openai";
 import { to } from "@repo/shared/lib/utils/try";
-import { TranslateFile } from "./type";
+import { TranslateFile, TranslateSegment } from "./out";
 import { writeJson, ensureDir } from "@repo/util/file_op";
 import { SrtJson } from "@repo/subtitle/types";
 import { log } from "@repo/util/log";
@@ -155,14 +155,13 @@ export async function stageTranslate(ctx: TaskCtx) {
     });
   }
 
-  const translation: TranslateFile["translation"] = segments.map((u, idx: number) => ({
-    src: texts[idx],
-    dst: dsts[idx]?.replace(/——/g, "，") || "",
+  const translation: TranslateSegment[] = segments.map((u, idx: number) => ({
+    text: texts[idx],
+    dst: dsts[idx]?.replace(/——/g, "，") ?? "",
     src_lang: srcLang,
     dst_lang: targetLang,
     start_ms: u.start_ms,
     end_ms: u.end_ms,
-    speaker: "1",
   }));
 
   const translateDir = join(taskDir, "translate");

@@ -28,8 +28,9 @@ import {
   // updateStageDB,
   // updateTaskDB,
 } from "@repo/core/stages/utils/utils.ts";
+import { log } from "@repo/util/log";
 
-function snapshotConfig(taskDir: string) {
+function snapshotInput(taskDir: string) {
   const args = readInputArgs();
 
   const snap: NonNullable<TaskCtx["input"]> = {
@@ -52,21 +53,21 @@ export async function runPipeline(ctx: TaskCtx) {
   const stages = getStages(pipeline);
   const targetStage = ctx.input?.targetStage;
   if (targetStage && !stages.find((s) => s === targetStage)) {
-    emitLog(taskDir, `[WARN] targetStage "${targetStage}" 不在 ${pipeline} pipeline 中，忽略`);
+    log(`[WARN] targetStage "${targetStage}" 不在 ${pipeline} pipeline 中，忽略`);
   }
 
-  snapshotConfig(taskDir);
+  snapshotInput(taskDir);
 
-  await setTask(taskDir, { status: "running", started_at: nowISO() });
+  setTask(taskDir, { status: "running", started_at: nowISO() });
 
   for (const stage of stages) {
     const handler = STAGE_HANDLERS[stage];
     if (!handler) {
-      emitLog(taskDir, `[WARN] [Pipeline] No handler for stage ${stage}, skipping`);
+      log(`[WARN] [Pipeline] No handler for stage ${stage}, skipping`);
       continue;
     }
 
-    await setStage(taskDir, stage, {
+    setStage(taskDir, stage, {
       status: "running",
       started_at: nowISO(),
       last_message: `Starting ${stage}...`,
@@ -76,18 +77,18 @@ export async function runPipeline(ctx: TaskCtx) {
     try {
       await handler(taskDir);
       if (targetStage && stage === targetStage) {
-        emitLog(taskDir, `[Pipeline] 达到目标步骤 "${targetStage}"，停止`);
+        log(`[Pipeline] 达到目标步骤 "${targetStage}"，停止`);
         break;
       }
     } catch (err: any) {
       const msg = err.message ?? String(err);
-      emitLog(taskDir, `[ERROR] [Pipeline] Stage ${stage} failed: ${msg}`);
-      await setStage(taskDir, stage, {
+      log(`[ERROR] [Pipeline] Stage ${stage} failed: ${msg}`);
+      setStage(taskDir, stage, {
         status: "failed",
         error_message: msg,
         completed_at: nowISO(),
       });
-      await setTask(taskDir, { status: "failed", error_message: msg });
+      setTask(taskDir, { status: "failed", error_message: msg });
       throw err;
     }
 
@@ -102,7 +103,7 @@ export async function runPipeline(ctx: TaskCtx) {
     completed_at: nowISO(),
     current_stage: null,
   });
-  emitLog(taskDir, `[Pipeline] Task ${taskId} completed`);
+  log(`[Pipeline] Task ${taskId} completed`);
 }
 
 export async function resumePipeline(ctx: TaskCtx) {
@@ -117,7 +118,7 @@ export async function resumePipeline(ctx: TaskCtx) {
   const lastRunMode = ctx.lastRunPipeline;
   if (lastRunMode && lastRunMode !== ctx.pipeline) {
     ctx.lastRunPipeline = ctx.pipeline;
-    emitLog(taskDir, `[Pipeline] switched from "${lastRunMode}" to "${ctx.pipeline}"`);
+    log(`[Pipeline] switched from "${lastRunMode}" to "${ctx.pipeline}"`);
 
     const stages = getStages(ctx.pipeline);
     const existing = listStage(taskDir);
@@ -146,7 +147,7 @@ export async function resumePipeline(ctx: TaskCtx) {
 
   _writeCtx(ctx);
 
-  snapshotConfig(taskDir);
+  snapshotInput(taskDir);
 
   const pipeline = ctx.pipeline || "dub";
   const stages = getStages(pipeline);
@@ -165,8 +166,7 @@ export async function resumePipeline(ctx: TaskCtx) {
         progress: 0,
       });
     }
-    emitLog(
-      taskDir,
+    log(
       `[Pipeline] Resetting from "${resumeFrom}" (${stages.length - startIdx} stage(s)), resuming...`,
     );
   } else {
@@ -181,10 +181,9 @@ export async function resumePipeline(ctx: TaskCtx) {
     }
 
     if (startIdx === 0) {
-      emitLog(taskDir, `[Pipeline] Resuming from beginning`);
+      log(`[Pipeline] Resuming from beginning`);
     } else {
-      emitLog(
-        taskDir,
+      log(
         `[Pipeline] Skipping ${startIdx} completed stage(s), resuming from "${stages[startIdx]}"`,
       );
     }
@@ -192,10 +191,7 @@ export async function resumePipeline(ctx: TaskCtx) {
 
   const resumeTargetStage = ctx.input?.task?.targetStage;
   if (resumeTargetStage && !stages.find((s) => s === resumeTargetStage)) {
-    emitLog(
-      taskDir,
-      `[WARN] targetStage "${resumeTargetStage}" 不在 ${pipeline} pipeline 中，忽略`,
-    );
+    log(`[WARN] targetStage "${resumeTargetStage}" 不在 ${pipeline} pipeline 中，忽略`);
   }
 
   // 计算出目标步骤的索引
@@ -207,7 +203,7 @@ export async function resumePipeline(ctx: TaskCtx) {
     const stage = stages[i];
     const handler = STAGE_HANDLERS[stage];
     if (!handler) {
-      emitLog(taskDir, `[WARN] [Pipeline] No handler for stage ${stage}, skipping`);
+      log(`[WARN] [Pipeline] No handler for stage ${stage}, skipping`);
       continue;
     }
 
@@ -221,12 +217,12 @@ export async function resumePipeline(ctx: TaskCtx) {
     try {
       await handler(taskDir);
       if (resumeTargetStage && stage === resumeTargetStage) {
-        emitLog(taskDir, `[Pipeline] 达到目标步骤 "${resumeTargetStage}"，停止`);
+        log(`[Pipeline] 达到目标步骤 "${resumeTargetStage}"，停止`);
         break;
       }
     } catch (err: any) {
       const msg = err.message ?? String(err);
-      emitLog(taskDir, `[ERROR] [Pipeline] Stage ${stage} failed: ${msg}`);
+      log(`[ERROR] [Pipeline] Stage ${stage} failed: ${msg}`);
       setStage(taskDir, stage, {
         status: "failed",
         error_message: msg,
@@ -247,7 +243,7 @@ export async function resumePipeline(ctx: TaskCtx) {
     completed_at: nowISO(),
     current_stage: null,
   });
-  emitLog(taskDir, `[Pipeline] Task ${taskId} completed`);
+  log(`[Pipeline] Task ${taskId} completed`);
 }
 
 export async function rerunSingleStage(ctx: TaskCtx) {
@@ -265,7 +261,7 @@ export async function rerunSingleStage(ctx: TaskCtx) {
   const handler = STAGE_HANDLERS[stage];
   if (!handler) throw new Error(`No handler for stage "${stageName}"`);
 
-  snapshotConfig(taskDir);
+  snapshotInput(taskDir);
 
   setStage(taskDir, stage, {
     status: "running",

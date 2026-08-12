@@ -92,6 +92,6 @@ export function resolveLanguage(ctx: TaskCtx) {
   }
   return {
     targetLang: resolvedDstLang,
-    srcLang,
+    srcLang: srcLang as TargetLang,
   };
 }

@@ -5,7 +5,7 @@
 //! - 配置读取已落地 ([`read_config`]), 对齐 TS `SplitAudioCliInputSchema`
 //! - 主逻辑 `stage_split_audio` 尚未移植 (返回明确错误)
 
-pub mod types;
+pub mod out;
 
 use crate::context::TaskCtx;
 

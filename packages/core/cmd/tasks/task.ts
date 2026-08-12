@@ -16,7 +16,6 @@ export const cmdTask = async (input: InputArgs) => {
     await cmdRerunStage(input);
   } else if (input.task.action === "status") {
     const taskDir = input.task?.taskDir!;
-    await readCtx(taskDir);
     const status = await getStageStatuses(taskDir);
     console.log(status);
   } else if (input.task.action === "get_group_list") {

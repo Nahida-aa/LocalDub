@@ -123,9 +123,9 @@ export async function stageTts(ctx: TaskCtx) {
         ttsSegments.push({
           seg_idx: i + 1,
           text: item.dst || "",
-          start: item.start,
-          end: item.start,
-          slot_end: item.end,
+          start: item.start_ms,
+          end: item.start_ms,
+          slot_end: item.end_ms,
           tts_duration_ms: 0,
           status: "skipped",
         });
@@ -150,9 +150,9 @@ export async function stageTts(ctx: TaskCtx) {
       ttsSegments.push({
         seg_idx: i + 1,
         text: item.dst || "",
-        start: item.start,
-        end: item.start + durMs,
-        slot_end: item.end,
+        start: item.start_ms,
+        end: item.start_ms + durMs,
+        slot_end: item.end_ms,
         tts_duration_ms: durMs,
         status: "skipped",
       });
@@ -167,9 +167,9 @@ export async function stageTts(ctx: TaskCtx) {
       ttsSegments.push({
         seg_idx: i + 1,
         text: "",
-        start: item.start,
-        end: item.start,
-        slot_end: item.end,
+        start: item.start_ms,
+        end: item.start_ms,
+        slot_end: item.end_ms,
         tts_duration_ms: 0,
         status: "empty",
       });
@@ -184,9 +184,9 @@ export async function stageTts(ctx: TaskCtx) {
       ttsSegments.push({
         seg_idx: i + 1,
         text: item.dst || "",
-        start: item.start,
-        end: item.start,
-        slot_end: item.end,
+        start: item.start_ms,
+        end: item.start_ms,
+        slot_end: item.end_ms,
         tts_duration_ms: 0,
         status: "skipped",
       });
@@ -224,7 +224,7 @@ export async function stageTts(ctx: TaskCtx) {
     let ttsDurationMs = 0;
     let ttsOk = false;
     try {
-      const samples = await engine.synthesize(text, refWav, item.src);
+      const samples = await engine.synthesize(text, refWav, item.text);
       genMs += performance.now() - t1;
       writeWav(samples, outPath, 48000);
       ttsDurationMs = Math.round(probeDuration(outPath) * 1000);
@@ -244,9 +244,9 @@ export async function stageTts(ctx: TaskCtx) {
     ttsSegments.push({
       seg_idx: i + 1,
       text: item.dst || "",
-      start: item.start,
-      end: item.start + ttsDurationMs,
-      slot_end: item.end,
+      start: item.start_ms,
+      end: item.start_ms + ttsDurationMs,
+      slot_end: item.end_ms,
       tts_duration_ms: ttsDurationMs,
       status: ttsOk ? "success" : "error",
     });
@@ -256,7 +256,7 @@ export async function stageTts(ctx: TaskCtx) {
   process.stdout.write("\n");
 
   const genSec = genMs / 1000;
-  const audioSec = translation.reduce((s, t) => s + (t.end - t.start), 0) / 1000;
+  const audioSec = translation.reduce((s, t) => s + (t.end_ms - t.start_ms), 0) / 1000;
   const rtf = audioSec > 0 && genSec > 0 ? genSec / audioSec : 0;
 
   emitLog(
