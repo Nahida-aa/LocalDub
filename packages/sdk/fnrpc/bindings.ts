@@ -210,54 +210,11 @@ export type ProbeResult = "ok" | "fail";
  *  }
  *  ```
  */
-export type RpcErr = RpcErr_Serialize | RpcErr_Deserialize;
-
-/**
- *  An RPC error returned by any handler (query, mutate, subscribe).
- *
- *  Maps to [`RpcError`](https://docs.rs/fnrpc-client/latest/fnrpc_client/class.RpcError.html)
- *  in the TypeScript client.
- *
- *  # TS mirror
- *
- *  ```typescript
- *  class RpcError extends Error {
- *    name: "RpcErr";
- *    code: string;
- *    message: string;
- *    data: unknown;
- *  }
- *  ```
- */
-export type RpcErr_Deserialize = {
+export type RpcErr = {
   name: string;
   code: string;
   message: string;
-  data?: unknown | null;
-};
-
-/**
- *  An RPC error returned by any handler (query, mutate, subscribe).
- *
- *  Maps to [`RpcError`](https://docs.rs/fnrpc-client/latest/fnrpc_client/class.RpcError.html)
- *  in the TypeScript client.
- *
- *  # TS mirror
- *
- *  ```typescript
- *  class RpcError extends Error {
- *    name: "RpcErr";
- *    code: string;
- *    message: string;
- *    data: unknown;
- *  }
- *  ```
- */
-export type RpcErr_Serialize = {
-  name: string;
-  code: string;
-  message: string;
-  data: unknown | null;
+  data: unknown;
 };
 
 export type RunInfo = RunInfo_Serialize | RunInfo_Deserialize;

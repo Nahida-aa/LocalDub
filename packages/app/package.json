@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit",
     "rustcheck": "cargo check",
     "build": "vite build",
-    "gen-fnrpc": "cargo run -p server --bin gen-fnrpc",
+    "gen-fnrpc": "cargo run -p sdk",
     "preview": "vite preview",
     "tauri": "tauri"
   },
@@ -29,6 +29,7 @@
     "@fnrpc/tanstack-query": "^0.4.6",
     "@inlang/paraglide-js": "^2.20.2",
     "@repo/core": "workspace:*",
+    "@repo/sdk": "workspace:*",
     "@repo/shared": "workspace:*",
     "@repo/subtitle-asr": "workspace:*",
     "@repo/subtitle-ocr": "workspace:*",

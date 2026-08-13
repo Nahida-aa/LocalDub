@@ -3417,8 +3417,8 @@ dependencies = [
 
 [[package]]
 name = "fnrpc"
-version = "0.4.2"
-source = "git+https://github.com/Nahida-aa/fnrpc.git?rev=b77f290320ec88fc382c6a5130de1cf2f18af2f9#b77f290320ec88fc382c6a5130de1cf2f18af2f9"
+version = "0.4.6"
+source = "git+https://github.com/Nahida-aa/fnrpc.git?rev=76ddfbfba4d65feff5d911968133987107901151#76ddfbfba4d65feff5d911968133987107901151"
 dependencies = [
  "fnrpc-macros",
  "futures",
@@ -3435,8 +3435,8 @@ dependencies = [
 
 [[package]]
 name = "fnrpc-axum"
-version = "0.4.2"
-source = "git+https://github.com/Nahida-aa/fnrpc.git?rev=b77f290320ec88fc382c6a5130de1cf2f18af2f9#b77f290320ec88fc382c6a5130de1cf2f18af2f9"
+version = "0.4.6"
+source = "git+https://github.com/Nahida-aa/fnrpc.git?rev=76ddfbfba4d65feff5d911968133987107901151#76ddfbfba4d65feff5d911968133987107901151"
 dependencies = [
  "async-trait",
  "axum",
@@ -3450,8 +3450,8 @@ dependencies = [
 
 [[package]]
 name = "fnrpc-macros"
-version = "0.4.2"
-source = "git+https://github.com/Nahida-aa/fnrpc.git?rev=b77f290320ec88fc382c6a5130de1cf2f18af2f9#b77f290320ec88fc382c6a5130de1cf2f18af2f9"
+version = "0.4.6"
+source = "git+https://github.com/Nahida-aa/fnrpc.git?rev=76ddfbfba4d65feff5d911968133987107901151#76ddfbfba4d65feff5d911968133987107901151"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3460,8 +3460,8 @@ dependencies = [
 
 [[package]]
 name = "fnrpc-tauri"
-version = "0.4.2"
-source = "git+https://github.com/Nahida-aa/fnrpc.git?rev=b77f290320ec88fc382c6a5130de1cf2f18af2f9#b77f290320ec88fc382c6a5130de1cf2f18af2f9"
+version = "0.4.6"
+source = "git+https://github.com/Nahida-aa/fnrpc.git?rev=76ddfbfba4d65feff5d911968133987107901151#76ddfbfba4d65feff5d911968133987107901151"
 dependencies = [
  "fnrpc",
  "futures",
@@ -7971,6 +7971,15 @@ name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
+
+[[package]]
+name = "sdk"
+version = "0.1.0"
+dependencies = [
+ "config-rs",
+ "fnrpc",
+ "server",
+]
 
 [[package]]
 name = "security-framework"

@@ -1,7 +1,6 @@
 import { createTanstackQueryUtils } from "@fnrpc/tanstack-query";
 import { createClient, fetchTransport, tauriTransport } from "@fnrpc/client";
-import { __procedureMeta, type Procedures } from "./bindings";
-// import { __procedureMeta } from "./bindings";
+import { __procedureMeta, type Procedures } from "@repo/sdk/fnrpc/bindings";
 import { isTauri } from "@tauri-apps/api/core";
 
 const transport = (() => {

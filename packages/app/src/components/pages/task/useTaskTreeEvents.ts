@@ -1,7 +1,7 @@
 import { onCleanup } from "solid-js";
 import { consumeEventIterator } from "@fnrpc/client";
 import { fnrpc } from "#/integrations/fnrpc/client.ts";
-import type { PathEvent } from "#/integrations/fnrpc/bindings.ts";
+import type { PathEvent } from "@repo/sdk/fnrpc/bindings";
 
 /// 媒体文件扩展名：这些走 axum `/media` ServeDir，不进 TanStack Query，
 /// 刷新靠前端给 `<video src>` 追加 `?v=` 版本号强制重拉（见 mediaVersions store）。
