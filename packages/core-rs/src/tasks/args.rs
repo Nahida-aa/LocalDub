@@ -5,10 +5,8 @@ use serde::{Deserialize, Serialize};
 pub enum TaskAction {
     #[serde(rename = "start")]
     Start,
-    #[serde(rename = "resume")]
-    Resume,
-    #[serde(rename = "rerun_stage")]
-    RerunStage,
+    #[serde(rename = "continue")]
+    Continue,
     #[serde(rename = "status")]
     Status,
     #[serde(rename = "get_group_list")]
@@ -102,14 +100,16 @@ impl Default for SubtitleSource {
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskArgs {
-    /// 任务操作: start=开始, resume=继续, rerun_stage=重新运行某步骤, status=显示状态, get_group_list=列出分组
+    /// 任务操作: start=开始, continue=继续, status=显示状态, get_group_list=列出分组
     pub action: Option<TaskAction>,
     /// 本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl
     pub url: Option<String>,
     pub source_lang: Option<TargetLang>,
     pub target_lang: Option<TargetLang>,
-    /// 继续任务专业参数, 可指定 resumeFrom 从某步骤开始, 不指定则从上次中断的步骤开始
-    pub resume_from: Option<StageName>,
+    /// 继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始
+    pub continue_from: Option<StageName>,
+    /// 目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤
+    pub target_stage: Option<StageName>,
     pub task_dir: Option<String>,
     /// rerunStage 专业参数, 指定要重新运行的步骤
     pub stage_name: Option<StageName>,
@@ -119,8 +119,6 @@ pub struct TaskArgs {
     /// 字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)
     #[serde(default)]
     pub subtitle_source: SubtitleSource,
-    /// 目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤
-    pub target_stage: Option<StageName>,
 }
 
 impl Default for TaskArgs {
@@ -130,12 +128,12 @@ impl Default for TaskArgs {
             url: None,
             source_lang: None,
             target_lang: None,
-            resume_from: None,
+            continue_from: None,
+            target_stage: None,
             task_dir: None,
             stage_name: None,
             pipeline: Pipeline::default(),
             subtitle_source: SubtitleSource::default(),
-            target_stage: None,
         }
     }
 }
