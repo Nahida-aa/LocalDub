@@ -1,7 +1,7 @@
 //! 顶层输入类型 (不限定 CLI 场景, Tauri RPC / pipeline 均可复用)。
 //!
 //! 镜像 TS 侧 `packages/core/input/types.ts`：
-//! - `task` args → [`task`](task)
+//! - `task` args → [`tasks::args`](crate::tasks::args)
 //! - 各 pipeline 阶段参数 → [`stages`](stages)
 //!
 //! input 语义由 `specta_serde::PhasesFormat` 驱动：`#[serde(default)]` 的字段在
@@ -10,9 +10,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::servers::args::ServersArgs;
+use crate::tasks::args;
 
 pub mod stages;
-pub mod task;
 
 /// 命令
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -33,7 +33,7 @@ impl Default for Command {
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Input {
     /// 任务参数, 仅 command=task 时必须
-    pub task: Option<task::TaskArgs>,
+    pub task: Option<args::TaskArgs>,
     /// 执行命令 (默认 env)
     #[serde(default)]
     pub command: Command,
@@ -80,11 +80,11 @@ mod tests {
         assert_eq!(input.stages.asr.reduce_bgm, -12.0);
         assert_eq!(
             input.task.as_ref().unwrap().pipeline,
-            task::Pipeline::Subtitle
+            args::Pipeline::Subtitle
         );
         assert_eq!(
             input.task.as_ref().unwrap().subtitle_source,
-            task::SubtitleSource::Asr
+            args::SubtitleSource::Asr
         );
     }
 
@@ -95,11 +95,11 @@ mod tests {
                 .unwrap();
         assert_eq!(
             input.task.as_ref().unwrap().source_lang,
-            Some(task::TargetLang::Zh)
+            Some(args::TargetLang::Zh)
         );
         assert_eq!(
             input.task.as_ref().unwrap().target_stage,
-            Some(task::StageName::MergeVideo)
+            Some(args::StageName::MergeVideo)
         );
     }
 
