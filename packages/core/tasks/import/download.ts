@@ -11,7 +11,6 @@ import {
   setTask,
   writeCtx,
 } from "@repo/core/context/context.ts";
-import { startLog } from "../../../stages/utils/log.ts";
 import { getStages } from "@repo/core/stages/utils/stages";
 import { InputArgs } from "@repo/core/input/input";
 import {
@@ -21,8 +20,9 @@ import {
   encodeToMp4,
 } from "./utils.ts";
 import { WORKFOLDER } from "@repo/config/path/paths";
-import { probeFrameRate } from "../../../utils/ffmpeg.ts";
 import { log } from "@repo/util/log";
+import { startLog } from "../../stages/utils/log.ts";
+import { probeFrameRate } from "../../utils/ffmpeg.ts";
 
 export const importVideo = async (input: InputArgs) => {
   const args = input.task ?? {};
@@ -44,10 +44,7 @@ export const importVideo = async (input: InputArgs) => {
   );
   // ✅ 探测视频帧率并写回 context
   const frame_rate = probeFrameRate(videoPath);
-  emitLog(
-    taskDir,
-    `[Download] Video frame rate: ${frame_rate.numerator}/${frame_rate.denominator}`,
-  );
+  log(`[Download] Video frame rate: ${frame_rate.numerator}/${frame_rate.denominator}`);
 
   const stages = getStages(input.task.pipeline);
   const ctx: TaskCtx = {

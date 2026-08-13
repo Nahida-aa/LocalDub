@@ -1,4 +1,4 @@
-import { TargetLang } from "../../cmd/tasks/input";
+import { TargetLang } from "../../tasks/args";
 import { setCtx, TaskCtx } from "../../context/context";
 import { readTaskLanguages } from "../utils/utils";
 

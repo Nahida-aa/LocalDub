@@ -127,7 +127,6 @@ export async function stageSplitAudio(ctx: TaskCtx) {
     for (let i = 0; i < splitAudioSegments.length; i++) {
       const idx = String(i + 1).padStart(4, "0");
       const outPath = join(vocalsSegmentDir, `${idx}.wav`);
-      if (existsSync(outPath)) continue; // 已切过就跳过 (支持断点续跑)
 
       const startMs = splitAudioSegments[i].split_start_ms;
       const endMs = splitAudioSegments[i].split_end_ms;

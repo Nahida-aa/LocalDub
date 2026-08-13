@@ -2,7 +2,7 @@
 members = [
     "packages/bridge", "packages/config-rs", "packages/core-rs", "packages/device-rs",
     "packages/separate/demucs_burn", "packages/time", "packages/voxcpm-burn", "packages/app/src-tauri",
-    "packages/fs", "packages/sf-cli", "packages/subtitle-ocr-cli", "packages/server", "packages/task-queue", "packages/tts"]
+    "packages/fs", "packages/sf-cli", "packages/subtitle-ocr-cli", "packages/server", "packages/tts"]
 resolver = "3"
 
 [workspace.package]
@@ -37,9 +37,9 @@ ndarray = "0.17"
 ffmpeg-next = "9.0.0"
 # OCR 核心（从本仓库拆出的 ocr-lab）。git 源由 cargo 自动拉取/解析其内部
 # workspace 依赖与 [patch]，LocalDub 侧零镜像；版本以 ocr-lab 为准。
-subtitle-finder = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "4828a8899336732c9bf2a548abb1fd607c84b5e3" }
-subtitle-ocr = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "4828a8899336732c9bf2a548abb1fd607c84b5e3" }
-rapidocr-ort = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "4828a8899336732c9bf2a548abb1fd607c84b5e3" }
+subtitle-finder = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "2ec33b7f077f1bd446b688da269bcc37f056a5c4" }
+subtitle-ocr = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "2ec33b7f077f1bd446b688da269bcc37f056a5c4" }
+rapidocr-ort = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "2ec33b7f077f1bd446b688da269bcc37f056a5c4" }
 
 [profile.release]
 lto = "fat"

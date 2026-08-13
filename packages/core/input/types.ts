@@ -4,7 +4,7 @@ import { EnvArgsSchema } from "@repo/core/cmd/env/input";
 import { z } from "zod";
 
 import { LlmFixArgsSchema } from "@repo/llm/llm_fix_args";
-import { langList, taskArgsSchema } from "@repo/core/cmd/tasks/input";
+import { langList, taskArgsSchema } from "../tasks/args";
 import { CookieArgsSchema } from "@repo/core/cmd/cookie/input";
 import {
   OcrSegmentAdjustArgsSchema,

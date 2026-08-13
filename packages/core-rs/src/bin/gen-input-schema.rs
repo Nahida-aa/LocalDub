@@ -13,7 +13,7 @@ use core_rs::input::Input;
 use specta::datatype::{DataType, Reference};
 use specta::{Format as _, Type, Types};
 use specta_jsonschema::JsonSchema;
-use specta_serde::{Phase, PhasesFormat, select_phase_datatype};
+use specta_serde::{select_phase_datatype, Phase, PhasesFormat};
 
 /// 占位 formatter：types 已由 [`PhasesFormat`] 预映射，导出时不再二次改写。
 struct NoopFormat;

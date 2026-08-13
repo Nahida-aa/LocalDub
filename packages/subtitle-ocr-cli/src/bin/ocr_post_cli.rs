@@ -19,8 +19,8 @@ use serde::Deserialize;
 use std::path::PathBuf;
 use subtitle_ocr::{
     BoxAdjustedArgs, FrameResult, MergeFramesArgs, OcrBoxResult, OcrSegmentAdjustArgs,
-    compute_box_y_stats, merge_frames, ocr_frames_adjust_box, ocr_frames_filter_box,
-    ocr_segment_adjust, ocr_segment_filter_with_meta,
+    compute_box_x_stats, compute_box_y_stats, merge_frames, ocr_frames_adjust_box,
+    ocr_frames_filter_box, ocr_segment_adjust, ocr_segment_filter_with_meta,
 };
 use tracing::info;
 
@@ -42,9 +42,9 @@ struct InputBox {
     text_confidence: f32,
     #[serde(default)]
     box_confidence: f32,
-    /// 四个顶点（顺时针）；字段名为 `box`。
-    #[serde(default, rename = "box")]
-    box_: [[f32; 2]; 4],
+    /// 四个顶点（顺时针）；字段名为 `bbox`。
+    #[serde(default, rename = "bbox")]
+    bbox: [[f32; 2]; 4],
     #[serde(default)]
     x_range: [f32; 2],
     #[serde(default)]
@@ -59,7 +59,7 @@ impl InputBox {
             text: self.text,
             text_confidence: self.text_confidence,
             box_confidence: self.box_confidence,
-            box_: self.box_,
+            bbox: self.bbox,
             x_range: self.x_range,
             y_range: self.y_range,
             center: self.center,
@@ -217,7 +217,8 @@ fn main() -> Result<()> {
 
     // ─── 1. adjust-box ───
     let y_stats = compute_box_y_stats(&frames);
-    let adjust = ocr_frames_adjust_box(&frames, &y_stats, &BoxAdjustedArgs::default());
+    let x_stats = compute_box_x_stats(&frames);
+    let adjust = ocr_frames_adjust_box(&frames, &y_stats, &x_stats, &BoxAdjustedArgs::default());
     write_json(&out_dir, "frames_box_adjust.json", &adjust)?;
     println!(
         "[1/5] adjust-box: {} 帧，写出 frames_box_adjust.json",

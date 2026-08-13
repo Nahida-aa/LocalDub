@@ -16,8 +16,8 @@ use clap::Parser;
 use serde::Deserialize;
 use std::path::PathBuf;
 use subtitle_ocr::{
-    BoxAdjustedArgs, FrameResult, OcrBoxAdjustResult, OcrBoxResult, YStats, compute_box_y_stats,
-    ocr_frames_adjust_box,
+    BoxAdjustedArgs, FrameResult, OcrBoxAdjustResult, OcrBoxResult, XStats, YStats,
+    compute_box_x_stats, compute_box_y_stats, ocr_frames_adjust_box,
 };
 use tracing::info;
 
@@ -31,8 +31,8 @@ struct InputBox {
     #[serde(default)]
     box_confidence: f32,
     /// 四个顶点（顺时针：左上、右上、右下、左下）；TS/上游 JSON 里字段名为 `box`。
-    #[serde(default, rename = "box")]
-    box_: [[f32; 2]; 4],
+    #[serde(default)]
+    bbox: [[f32; 2]; 4],
     #[serde(default)]
     x_range: [f32; 2],
     #[serde(default)]
@@ -47,7 +47,7 @@ impl InputBox {
             text: self.text,
             text_confidence: self.text_confidence,
             box_confidence: self.box_confidence,
-            box_: self.box_,
+            bbox: self.bbox,
             x_range: self.x_range,
             y_range: self.y_range,
             center: self.center,
@@ -166,12 +166,13 @@ fn main() -> Result<()> {
 
     // 先按各帧框统计纵向分布（对齐 TS 的 y_stats 来源）。
     let y_stats: YStats = compute_box_y_stats(&frames);
+    let x_stats: XStats = compute_box_x_stats(&frames);
 
     let args = BoxAdjustedArgs {
         box_adjusted_threshold: cli.box_adjusted_threshold,
     };
 
-    let result: OcrBoxAdjustResult = ocr_frames_adjust_box(&frames, &y_stats, &args);
+    let result: OcrBoxAdjustResult = ocr_frames_adjust_box(&frames, &y_stats, &x_stats, &args);
 
     if let Some(out) = &cli.out {
         let path = resolve_path(&repo_root, out);

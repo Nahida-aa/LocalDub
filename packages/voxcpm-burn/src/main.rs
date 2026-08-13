@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use voxcpm_rs::{GenerateOptions, VoxCPM, audio};
+use voxcpm_rs::{audio, GenerateOptions, VoxCPM};
 
 #[cfg(all(feature = "vulkan", not(feature = "wgpu")))]
 type B = burn::backend::Vulkan<half::bf16, i32>;

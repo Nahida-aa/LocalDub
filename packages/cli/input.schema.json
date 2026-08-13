@@ -5,16 +5,30 @@
     "command": {
       "default": "env",
       "type": "string",
-      "enum": ["task", "check", "deviceInfo", "servers", "listModels", "env", "cookie"],
+      "enum": [
+        "task",
+        "check",
+        "deviceInfo",
+        "servers",
+        "listModels",
+        "env",
+        "cookie"
+      ],
       "description": "\n\t\t6. check: 检测某任务的结果 (如视频是否下载成功, ASR 结果是否合理等)\n\t\t7. deviceInfo: 显示设备信息\n\t\t8. servers: 统一管理所有服务器 (servers.action=status 查状态, stop 停止, start 启动; servers.name 指定单个)\n\t\t9. listModels: 列出 openai 兼容端点的 可用模型\n\t\t10. env: 环境检查/修复 (check=诊断, ensure=尝试修复)\n\t\t"
     },
     "task": {
       "type": "object",
       "properties": {
         "action": {
-          "description": "任务操作: start=开始, resume=继续, rerun_stage=重新运行某步骤, status=显示状态, get_group_list=列出分组",
+          "description": "任务操作: start=开始, continue=继续, status=显示状态, get_group_list=列出分组",
           "type": "string",
-          "enum": ["start", "resume", "rerun_stage", "status", "get_group_list", "get_task_ctx"]
+          "enum": [
+            "start",
+            "continue",
+            "status",
+            "get_group_list",
+            "get_task_ctx"
+          ]
         },
         "url": {
           "description": "本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl",
@@ -76,8 +90,29 @@
             "bn"
           ]
         },
-        "resumeFrom": {
-          "description": "继续任务专业参数, 可指定 resumeFrom 从某步骤开始, 不指定则从上次中断的步骤开始",
+        "continueFrom": {
+          "description": "继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始",
+          "type": "string",
+          "enum": [
+            "separate",
+            "separate_after",
+            "asr",
+            "asr_fix",
+            "sf_ocr_pre",
+            "sf_ocr",
+            "sf_ocr_fix",
+            "asr_ocr_pre",
+            "asr_ocr",
+            "asr_ocr_fix",
+            "translate",
+            "split_audio",
+            "tts",
+            "merge_audio",
+            "merge_video"
+          ]
+        },
+        "targetStage": {
+          "description": "目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤",
           "type": "string",
           "enum": [
             "separate",
@@ -125,33 +160,19 @@
           "description": "任务模式, dub 配音,subtitle 仅字幕",
           "default": "dub",
           "type": "string",
-          "enum": ["dub", "subtitle"]
+          "enum": [
+            "dub",
+            "subtitle"
+          ]
         },
         "subtitleSource": {
           "description": "字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)",
           "default": "asr",
           "type": "string",
-          "enum": ["asr", "sf_ocr", "asr_ocr"]
-        },
-        "targetStage": {
-          "description": "目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤",
-          "type": "string",
           "enum": [
-            "separate",
-            "separate_after",
             "asr",
-            "asr_fix",
-            "sf_ocr_pre",
             "sf_ocr",
-            "sf_ocr_fix",
-            "asr_ocr_pre",
-            "asr_ocr",
-            "asr_ocr_fix",
-            "translate",
-            "split_audio",
-            "tts",
-            "merge_audio",
-            "merge_video"
+            "asr_ocr"
           ]
         }
       }
@@ -165,7 +186,11 @@
         "type": {
           "default": "video",
           "type": "string",
-          "enum": ["video", "asr", "font"]
+          "enum": [
+            "video",
+            "asr",
+            "font"
+          ]
         }
       }
     },
@@ -176,12 +201,20 @@
           "description": "服务器操作",
           "default": "status",
           "type": "string",
-          "enum": ["status", "start", "stop", "discovery"]
+          "enum": [
+            "status",
+            "start",
+            "stop",
+            "discovery"
+          ]
         },
         "name": {
           "description": "指定操作的服务器，不传则操作所有",
           "type": "string",
-          "enum": ["voxcpm_torch_gradio", "demucs_torch_server"]
+          "enum": [
+            "voxcpm_torch_gradio",
+            "demucs_torch_server"
+          ]
         }
       },
       "additionalProperties": {}
@@ -192,7 +225,10 @@
         "action": {
           "default": "check",
           "type": "string",
-          "enum": ["check", "ensure"]
+          "enum": [
+            "check",
+            "ensure"
+          ]
         },
         "targets": {
           "default": [],
@@ -242,12 +278,16 @@
         "action": {
           "default": "set",
           "type": "string",
-          "enum": ["set"]
+          "enum": [
+            "set"
+          ]
         },
         "service": {
           "default": "youtube",
           "type": "string",
-          "enum": ["youtube"]
+          "enum": [
+            "youtube"
+          ]
         },
         "content": {
           "description": "Netscape cookie，为空则让用户手动粘贴",
@@ -269,13 +309,25 @@
           "properties": {
             "runtime": {
               "type": "string",
-              "enum": ["ggml", "ort", "pytorch", "burn", "burn-tch"]
+              "enum": [
+                "ggml",
+                "ort",
+                "pytorch",
+                "burn",
+                "burn-tch"
+              ]
             },
             "device": {
               "default": "cuda",
               "description": "pytorch:cuda (NVIDIA/ROCm), mps (Apple Silicon)",
               "type": "string",
-              "enum": ["vulkan", "webgpu", "cuda", "cpu", "mps"]
+              "enum": [
+                "vulkan",
+                "webgpu",
+                "cuda",
+                "cpu",
+                "mps"
+              ]
             },
             "always": {
               "default": false,
@@ -283,16 +335,25 @@
               "type": "boolean"
             },
             "stems": {
-              "default": ["vocals"],
+              "default": [
+                "vocals"
+              ],
               "description": "需分离的 stems; 默认只分离 vocals, 目前仅支持 ort",
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": ["drums", "bass", "other", "vocals"]
+                "enum": [
+                  "drums",
+                  "bass",
+                  "other",
+                  "vocals"
+                ]
               }
             }
           },
-          "required": ["runtime"]
+          "required": [
+            "runtime"
+          ]
         },
         "asr": {
           "default": {
@@ -315,12 +376,21 @@
             "runtime": {
               "default": "pytorch",
               "type": "string",
-              "enum": ["ggml", "faster-whisper", "pytorch"]
+              "enum": [
+                "ggml",
+                "faster-whisper",
+                "pytorch"
+              ]
             },
             "device": {
               "default": "cuda",
               "type": "string",
-              "enum": ["vulkan", "cuda", "cpu", "mps"]
+              "enum": [
+                "vulkan",
+                "cuda",
+                "cpu",
+                "mps"
+              ]
             },
             "useSeparated": {
               "default": false,
@@ -331,7 +401,11 @@
               "default": "sidechain",
               "description": "ASR 音频源: vocals=纯分离人声,\n\t\t\t\traw-sum=人声+降低背景音直接叠加,\n\t\t\t\tsidechain=人声+侧链压缩背景音",
               "type": "string",
-              "enum": ["vocals", "raw-sum", "sidechain"]
+              "enum": [
+                "vocals",
+                "raw-sum",
+                "sidechain"
+              ]
             },
             "reduceBgm": {
               "default": -12,
@@ -392,7 +466,10 @@
             "vadModel": {
               "description": "whisper.cpp: VAD 模型, silero-v5 (默认) 或 silero-v6",
               "type": "string",
-              "enum": ["silero-v5", "silero-v6"]
+              "enum": [
+                "silero-v5",
+                "silero-v6"
+              ]
             },
             "vadThreshold": {
               "description": "whisper.cpp: VAD 阈值, 默认 0.5",
@@ -475,13 +552,22 @@
               "default": "ort-rust",
               "description": "OCR 推理运行时: ort-rust (opencv)",
               "type": "string",
-              "enum": ["ort-rust"]
+              "enum": [
+                "ort-rust"
+              ]
             },
             "device": {
               "default": "cpu",
               "description": "OCR 运行设备: cpu, cuda (NVIDIA), directml (Windows), coreml (macOS), rocm (AMD), mps (Apple Silicon)",
               "type": "string",
-              "enum": ["cpu", "cuda", "directml", "coreml", "rocm", "mps"]
+              "enum": [
+                "cpu",
+                "cuda",
+                "directml",
+                "coreml",
+                "rocm",
+                "mps"
+              ]
             },
             "text_confidence_threshold": {
               "default": 0.45,
@@ -534,9 +620,9 @@
           "default": {},
           "type": "object",
           "properties": {
-            "text_confidence_threshold": {
-              "default": 0.5,
-              "description": "字幕段置信度阈值（0-1）：ocr-post filter-segment 用 adjusted_text_confidence 过滤，低于此值丢弃；默认 0.5",
+            "adjusted_confidence_threshold": {
+              "default": 0.45,
+              "description": "字幕段置信度阈值（0-1）：ocr-post filter-segment 用 adjusted_confidence_threshold 过滤，低于此值丢弃；默认 0.5",
               "type": "number"
             },
             "isoThresholdMs": {
@@ -603,13 +689,22 @@
               "default": "ort-rust",
               "description": "OCR 推理运行时: ort-rust (opencv)",
               "type": "string",
-              "enum": ["ort-rust"]
+              "enum": [
+                "ort-rust"
+              ]
             },
             "device": {
               "default": "cpu",
               "description": "OCR 运行设备: cpu, cuda (NVIDIA), directml (Windows), coreml (macOS), rocm (AMD), mps (Apple Silicon)",
               "type": "string",
-              "enum": ["cpu", "cuda", "directml", "coreml", "rocm", "mps"]
+              "enum": [
+                "cpu",
+                "cuda",
+                "directml",
+                "coreml",
+                "rocm",
+                "mps"
+              ]
             },
             "text_confidence_threshold": {
               "default": 0.45,
@@ -633,14 +728,10 @@
           "default": {},
           "type": "object",
           "properties": {
-            "text_confidence_threshold": {
-              "default": 0.5,
-              "description": "OCR 文本置信度阈值（0-1），低于此阈值的帧在合并前会被丢弃",
+            "adjusted_confidence_threshold": {
+              "default": 0.45,
+              "description": "字幕段置信度阈值（0-1）：ocr-post filter-segment 用 adjusted_confidence_threshold 过滤，低于此值丢弃；默认 0.5",
               "type": "number"
-            },
-            "is_resample": {
-              "default": false,
-              "type": "boolean"
             },
             "isoThresholdMs": {
               "default": 1500,
@@ -694,11 +785,16 @@
               "default": false,
               "description": "是否启用 LLM 修正",
               "type": "boolean"
+            },
+            "is_resample": {
+              "default": false,
+              "type": "boolean"
             }
           },
           "additionalProperties": {}
         },
         "translate": {
+          "default": {},
           "type": "object",
           "properties": {
             "apiBase": {
@@ -737,6 +833,7 @@
               ]
             },
             "enabled": {
+              "default": true,
               "description": "设为 false 跳过翻译，直接使用原始识别文本",
               "type": "boolean"
             }
@@ -744,11 +841,7 @@
           "additionalProperties": {}
         },
         "split_audio": {
-          "default": {
-            "vadAlign": false,
-            "startPadMs": 100,
-            "endPadMs": 300
-          },
+          "default": {},
           "type": "object",
           "properties": {
             "vadAlign": {
@@ -779,22 +872,30 @@
         },
         "tts": {
           "description": "input: 1. split_audio/timings.json: translation[i].dst",
-          "default": {
-            "runtime": "pytorch",
-            "device": "cuda",
-            "skipExisting": true
-          },
+          "default": {},
           "type": "object",
           "properties": {
             "runtime": {
               "default": "pytorch",
               "type": "string",
-              "enum": ["ggml", "pytorch", "ort", "cloud", "voxcpm_torch_gradio"]
+              "enum": [
+                "ggml",
+                "pytorch",
+                "ort",
+                "cloud",
+                "voxcpm_torch_gradio"
+              ]
             },
             "device": {
               "default": "cuda",
               "type": "string",
-              "enum": ["webgpu", "cuda", "rocm", "cpu", "mps"]
+              "enum": [
+                "webgpu",
+                "cuda",
+                "rocm",
+                "cpu",
+                "mps"
+              ]
             },
             "skipExisting": {
               "default": true,
@@ -810,35 +911,31 @@
               }
             },
             "refAudioX2": {
-              "description": "将短参考音频（< 2500ms）拼接一倍再送 TTS，帮助稳定输出音色",
               "default": false,
+              "description": "将短参考音频（< 2500ms）拼接一倍再送 TTS，帮助稳定输出音色",
               "type": "boolean"
             }
           }
         },
         "merge_audio": {
-          "default": {
-            "maxSpeed": 1.35,
-            "maxAdvanceMs": 500,
-            "maxDelayMs": 500
-          },
+          "default": {},
           "type": "object",
           "properties": {
             "maxSpeed": {
-              "description": "TTS 音频最大变速比, 1.0=不变速",
               "default": 1.35,
+              "description": "TTS 音频最大变速比, 1.0=不变速",
               "type": "number",
               "minimum": 1
             },
             "maxAdvanceMs": {
-              "description": "字幕允许提前显示的最大毫秒数, 利用前段剩余时间",
               "default": 500,
+              "description": "字幕允许提前显示的最大毫秒数, 利用前段剩余时间",
               "type": "number",
               "minimum": 0
             },
             "maxDelayMs": {
-              "description": "字幕允许延迟显示的最大毫秒数, 借用后段留白",
               "default": 500,
+              "description": "字幕允许延迟显示的最大毫秒数, 借用后段留白",
               "type": "number",
               "minimum": 0
             }
@@ -931,6 +1028,8 @@
       }
     }
   },
-  "required": ["task"],
+  "required": [
+    "task"
+  ],
   "additionalProperties": {}
 }

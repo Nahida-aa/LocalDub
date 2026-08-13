@@ -1,4 +1,4 @@
-import { StageName } from "@repo/core/cmd/tasks/input";
+import { StageName } from "../../tasks/args.ts";
 import { readInputArgs } from "../../input/input.ts";
 
 export const DUB_STAGES: StageName[] = [

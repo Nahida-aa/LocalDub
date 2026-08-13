@@ -30,8 +30,8 @@ struct InputBoxWithAdjust {
     text_confidence: f32,
     #[serde(default)]
     box_confidence: f32,
-    #[serde(default, rename = "box")]
-    box_: [[f32; 2]; 4],
+    #[serde(default, rename = "bbox")]
+    bbox: [[f32; 2]; 4],
     #[serde(default)]
     x_range: [f32; 2],
     #[serde(default)]
@@ -40,13 +40,21 @@ struct InputBoxWithAdjust {
     center: [f32; 2],
     // —— 调整附加字段 ——
     #[serde(default)]
-    top_offset_ratio: f32,
+    y_center_offset_ratio: f32,
     #[serde(default)]
-    bot_offset_ratio: f32,
+    x_center_offset_ratio: f32,
     #[serde(default)]
     height: f32,
     #[serde(default)]
     height_ratio: f32,
+    #[serde(default)]
+    y_penalty: f32,
+    #[serde(default)]
+    x_penalty: f32,
+    #[serde(default)]
+    height_penalty: f32,
+    #[serde(default)]
+    total_penalty: f32,
     #[serde(default)]
     is_outlier: bool,
     #[serde(default)]
@@ -60,15 +68,19 @@ impl InputBoxWithAdjust {
                 text: self.text,
                 text_confidence: self.text_confidence,
                 box_confidence: self.box_confidence,
-                box_: self.box_,
+                bbox: self.bbox,
                 x_range: self.x_range,
                 y_range: self.y_range,
                 center: self.center,
             },
-            top_offset_ratio: self.top_offset_ratio,
-            bot_offset_ratio: self.bot_offset_ratio,
+            y_center_offset_ratio: self.y_center_offset_ratio,
+            x_center_offset_ratio: self.x_center_offset_ratio,
             height: self.height,
             height_ratio: self.height_ratio,
+            y_penalty: self.y_penalty,
+            x_penalty: self.x_penalty,
+            height_penalty: self.height_penalty,
+            total_penalty: self.total_penalty,
             is_outlier: self.is_outlier,
             adjusted_confidence: self.adjusted_confidence,
         }

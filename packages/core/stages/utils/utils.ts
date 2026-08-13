@@ -13,7 +13,7 @@ import {
   readCtx,
   Task,
 } from "@repo/core/context/context.ts";
-import { SubtitleSource, TargetLang } from "@repo/core/cmd/tasks/input";
+import { SubtitleSource, TargetLang } from "../../tasks/args";
 import { getLastSegment, readJson } from "../../utils/fileOps";
 import { setLogContext, setCurrentStage, getLogContext } from "@repo/util/log";
 import { TranslateResult } from "../05_translate/out";

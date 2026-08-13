@@ -1,6 +1,6 @@
 import { LlmArgs } from "@repo/llm/llm_fix_args";
 import { OcrSegment } from "@repo/subtitle-ocr/types";
-import { TargetLang } from "../../cmd/tasks/input";
+import { TargetLang } from "../../tasks/args";
 import { t } from "@repo/shared/i18n/server";
 import { log } from "@repo/util/log";
 import { buildOcrFixSystemPrompt, ocrSegmentsToPrompt } from "../../ml/llm/ocr_llm_fix";

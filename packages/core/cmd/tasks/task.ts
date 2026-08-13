@@ -1,19 +1,16 @@
 import { get_group_list, getTaskCtx } from "./get_task";
 import { InputArgs } from "../../input/input";
-import { cmdRerunStage } from "./rerunStage";
-import { cmdResumeTask } from "./resumeTask";
+import { cmdResumeTask } from "./continueTask";
 import { cmdStartTask } from "./startTask";
 import { cmdTaskStatus } from "./taskStatus";
 import { readCtx } from "@repo/core/context/context";
 import { getStageStatuses } from "@repo/core/stages/utils/utils";
 
 export const cmdTask = async (input: InputArgs) => {
-  if (input.task.action === "resume") {
+  if (input.task.action === "continue") {
     await cmdResumeTask(input);
   } else if (input.task.action === "start") {
     await cmdStartTask(input);
-  } else if (input.task.action === "rerun_stage") {
-    await cmdRerunStage(input);
   } else if (input.task.action === "status") {
     const taskDir = input.task?.taskDir!;
     const status = await getStageStatuses(taskDir);
