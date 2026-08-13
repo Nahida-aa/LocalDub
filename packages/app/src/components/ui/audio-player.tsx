@@ -1,5 +1,5 @@
 import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
-import { loadPeaks, type WaveformPeaks } from "#/lib/audio/waveform";
+import { loadPeaks, type PeaksProgress, type WaveformPeaks } from "#/lib/audio/waveform";
 
 interface Props {
   src: string;
@@ -39,6 +39,8 @@ export function AudioPlayer(props: Props) {
   const [current, setCurrent] = createSignal(0);
   const [duration, setDuration] = createSignal(0);
   const [peaks, setPeaks] = createSignal<WaveformPeaks[] | null>(null);
+  const [loadErr, setLoadErr] = createSignal<string | null>(null);
+  const [progress, setProgress] = createSignal<PeaksProgress | null>(null);
 
   let dragging = false;
 
@@ -72,13 +74,28 @@ export function AudioPlayer(props: Props) {
     const durMs = duration();
     const curMs = current();
 
-    // 波形未就绪: 画纯进度条占位 (仍可点击/拖动 seek)
+    const progressLabel = (p: PeaksProgress): string => {
+      const pct = Math.round(p.ratio * 100);
+      if (p.phase === "fetch") return pct >= 100 ? "解码中…" : `下载 ${pct}%`;
+      if (p.phase === "decode") return "解码中…";
+      return `波形 ${pct}%`;
+    };
+
+    // 波形未就绪: 画纯进度条占位 + 加载进度文字 (仍可点击/拖动 seek)
     const data = peaks();
     if (!data || !durMs) {
       g.fillStyle = UNPLAYED();
       g.fillRect(0, height / 2 - 1, width, 2);
       g.fillStyle = PLAYED();
       g.fillRect(0, height / 2 - 1, Math.min(width, (width * curMs) / durMs || 0), 2);
+
+      const p = progress();
+      const label = loadErr() ? "波形加载失败" : p ? progressLabel(p) : "波形加载中…";
+      g.fillStyle = loadErr() ? "oklch(0.6 0.2 25)" : UNPLAYED();
+      g.font = "10px ui-monospace, monospace";
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.fillText(label, width / 2, height / 2 - 8);
       return;
     }
 
@@ -97,11 +114,13 @@ export function AudioPlayer(props: Props) {
     }
   };
 
-  // 进度/时长/波形任一变化即重绘
+  // 进度/时长/波形/加载状态任一变化即重绘
   createEffect(() => {
     current();
     duration();
     peaks();
+    progress();
+    loadErr();
     draw();
   });
 
@@ -114,9 +133,12 @@ export function AudioPlayer(props: Props) {
     audioRef.addEventListener("play", () => setPlaying(true));
     audioRef.addEventListener("pause", () => setPlaying(false));
 
-    loadPeaks(props.src)
-      .then((res) => setPeaks(res.peaks))
-      .catch(() => setPeaks(null));
+    loadPeaks(props.src, 256, setProgress)
+      .then(({ peaks: p }) => setPeaks(p))
+      .catch((e: unknown) => {
+        setPeaks(null);
+        setLoadErr(String(e instanceof Error ? e.message : e));
+      });
 
     const ro = new ResizeObserver(() => draw());
     ro.observe(canvasRef);

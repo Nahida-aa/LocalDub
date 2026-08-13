@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use fnrpc::router::RpcRouter;
 // use rspc::Procedures;
+use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
 use crate::{
@@ -83,6 +84,10 @@ pub async fn start(
     let media_root = base_dir();
     let app = build_axum_router(fnrpc_router, state)
         .nest_service("/media", ServeDir::new(&media_root))
+        // dev 下前端在 vite(1420), 媒体在 axum(19110) 跨源.
+        // <audio>/<video> 标签播放不受 CORS 限制, 但波形 fetch() 需要 CORS 头,
+        // 否则波形永远加载不出来 (仅有占位进度条).
+        .layer(CorsLayer::permissive())
         // .nest("/rspc", rspc_router)
         // .route(
         //     "/fnrpc/*path",
