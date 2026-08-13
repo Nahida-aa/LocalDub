@@ -30,11 +30,9 @@ pub fn run() {
         server::start(axum_state, axum_fnrpc, dist_dir, 19110).await;
     });
 
-    let tauri_state = fnrpc_tauri::FnrpcTauriState::from_arc(fnrpc_router, move || {
-        server::Ctx {
-            state: app_state.clone(),
-            headers: axum::http::HeaderMap::new(),
-        }
+    let tauri_state = fnrpc_tauri::FnrpcTauriState::from_arc(fnrpc_router, move || server::Ctx {
+        state: app_state.clone(),
+        headers: axum::http::HeaderMap::new(),
     });
     // Tauri desktop
     tauri::Builder::default()

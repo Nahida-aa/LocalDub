@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::Router;
 use fnrpc::router::RpcRouter;
-use fnrpc_axum::{handle, FnrpcState};
+use fnrpc_axum::{FnrpcState, handle};
 use tower_http::cors::CorsLayer;
 
 use crate::ctx::{AppState, Ctx};
