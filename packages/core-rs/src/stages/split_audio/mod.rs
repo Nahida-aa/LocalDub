@@ -5,25 +5,15 @@
 //! - 配置读取已落地 ([`read_config`]), 对齐 TS `SplitAudioCliInputSchema`
 //! - 主逻辑 `stage_split_audio` 尚未移植 (返回明确错误)
 
+pub mod args;
 pub mod out;
 
 use crate::context::TaskCtx;
 
-/// split_audio 阶段配置 (镜像 TS `SplitAudioCliInputSchema`)
-#[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SplitAudioConfig {
-    /// 是否启用静音检测对齐 (修正 segments 前后静音导致的偏移)
-    #[serde(default)]
-    pub vad_align: bool,
-    /// 人声文件路径, 调试使用
-    pub vocals_file_path: Option<String>,
-    /// 原始视频音频路径, 调试使用
-    pub source_file_path: Option<String>,
-}
+pub use args::SplitAudioArgs;
 
 /// 从 `ctx.input.stages.split_audio` 解析配置, 不存在时返回默认 (与 TS default 对齐)
-pub fn read_config(ctx: &TaskCtx) -> SplitAudioConfig {
+pub fn read_config(ctx: &TaskCtx) -> SplitAudioArgs {
     ctx.input
         .get("stages")
         .and_then(|v| v.get("split_audio"))
@@ -60,6 +50,8 @@ mod tests {
         }));
         let cfg = read_config(&ctx);
         assert!(!cfg.vad_align);
+        assert_eq!(cfg.start_pad_ms, 100);
+        assert_eq!(cfg.end_pad_ms, 300);
         assert!(cfg.vocals_file_path.is_none());
         assert!(cfg.source_file_path.is_none());
     }
@@ -71,12 +63,16 @@ mod tests {
                      "status": "running", "created_at": "2024-01-01T00:00:00Z"},
             "input": {"stages": {"split_audio": {
                 "vadAlign": true,
+                "startPadMs": 150,
+                "endPadMs": 400,
                 "vocalsFilePath": "/v.wav",
                 "sourceFilePath": "/s.mp4"
             }}}
         }));
         let cfg = read_config(&ctx);
         assert!(cfg.vad_align);
+        assert_eq!(cfg.start_pad_ms, 150);
+        assert_eq!(cfg.end_pad_ms, 400);
         assert_eq!(cfg.vocals_file_path.as_deref(), Some("/v.wav"));
         assert_eq!(cfg.source_file_path.as_deref(), Some("/s.mp4"));
     }
