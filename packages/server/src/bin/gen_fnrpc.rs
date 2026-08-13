@@ -1,8 +1,11 @@
-fn main() {
-    let router = app_lib::integrations::fnrpc_func::build_fn_rpc_router();
+use config_rs::root::repo_root;
+use server::build_fn_rpc_router;
 
-    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let output_path = manifest_dir.join("../src/integrations/fnrpc/bindings.ts");
+fn main() {
+    let router = build_fn_rpc_router();
+
+    let repo_root = repo_root();
+    let output_path = repo_root.join("packages/app/src/integrations/fnrpc/bindings.ts");
 
     // let rpc_url = "http://localhost:19110/fnrpc";
     fnrpc::gen_ts_client::write_ts_client(&router, &output_path)

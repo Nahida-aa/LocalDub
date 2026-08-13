@@ -8,7 +8,7 @@ use tower_http::services::ServeDir;
 
 use crate::{
     ctx::{AppState, Ctx},
-    integrations::fnrpc_axum::build_axum_router,
+    fnrpc_axum::build_axum_router,
 };
 use config_rs::root::base_dir;
 

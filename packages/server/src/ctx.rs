@@ -14,9 +14,9 @@ pub struct AppState {
 impl AppState {
     pub fn new() -> Self {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        // packages/server → packages → repo root (2 级; 原 app/src-tauri 是 3 级)
         let repo_root = dir
             .parent()
-            .and_then(|p| p.parent())
             .and_then(|p| p.parent())
             .map(|p| p.to_path_buf())
             .unwrap_or(dir);

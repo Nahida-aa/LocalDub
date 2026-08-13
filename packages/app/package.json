@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit",
     "rustcheck": "cargo check",
     "build": "vite build",
-    "gen-fnrpc": "cargo run --bin gen-fnrpc",
+    "gen-fnrpc": "cargo run -p server --bin gen-fnrpc",
     "preview": "vite preview",
     "tauri": "tauri"
   },
