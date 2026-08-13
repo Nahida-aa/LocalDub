@@ -11,7 +11,7 @@ use crate::{
         other::device_info,
         servers::{check_torch, find_server, start_torch, start_voxcpm, stop_torch, stop_voxcpm},
         tasks::{
-            get_group_list, get_task_ctx, log::watch_task_log, resume_task, tree::watch_task_tree,
+            continue_task, get_group_list, get_task_ctx, log::watch_task_log, tree::watch_task_tree,
         },
     },
 };
@@ -58,7 +58,7 @@ pub fn build_fn_rpc_router() -> fnrpc::router::RpcRouter<Ctx> {
         .route_fn(start_voxcpm)
         .route_fn(stop_voxcpm)
         .route_fn(device_info)
-        .route_fn(resume_task)
+        .route_fn(continue_task)
         .layer(TracingLayer)
         .build()
 

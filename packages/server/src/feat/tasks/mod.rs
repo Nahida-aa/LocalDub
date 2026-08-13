@@ -31,7 +31,7 @@ pub async fn get_task_ctx(task_dir: String) -> Result<TaskCtx, String> {
 }
 
 #[fnrpc::rpc_mutate]
-pub async fn resume_task(task_dir: String, from_stage: String) -> Result<(), String> {
+pub async fn continue_task(task_dir: String, from_stage: String) -> Result<(), String> {
     let abs_task_dir = base_dir().join(&task_dir);
     let abs_task_dir_str = abs_task_dir
         .to_str()
@@ -44,10 +44,10 @@ pub async fn resume_task(task_dir: String, from_stage: String) -> Result<(), Str
     let mut ctx: serde_json::Value =
         serde_json::from_str(&ctx_raw).map_err(|e| format!("parse ctx.json failed: {}", e))?;
 
-    // 只修改 action 和 resumeFrom
+    // 只修改 action 和 continueFrom
     ctx["input"]["task"]["taskDir"] = serde_json::Value::String(abs_task_dir_str.to_string());
-    ctx["input"]["task"]["action"] = serde_json::Value::String("resume".into());
-    ctx["input"]["task"]["resumeFrom"] = serde_json::Value::String(from_stage);
+    ctx["input"]["task"]["action"] = serde_json::Value::String("continue".into());
+    ctx["input"]["task"]["continueFrom"] = serde_json::Value::String(from_stage);
     ctx["input"]["stages"]["asr_ocr"]["runtime"] = serde_json::Value::String("ort-py".into());
     ctx["input"]["stages"]["sf_ocr"]["runtime"] = serde_json::Value::String("ort-py".into());
     ctx["input"]["stages"]["tts"]["runtime"] = serde_json::Value::String("cloud".into());
