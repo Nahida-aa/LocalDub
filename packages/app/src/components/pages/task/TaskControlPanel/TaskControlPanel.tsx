@@ -1,4 +1,3 @@
-import type { TaskCtx } from "#/integrations/fnrpc/bindings.ts";
 import { useParams } from "@tanstack/solid-router";
 import { For, Show, createSignal } from "solid-js";
 import { FileTree } from "./FileTree";
@@ -13,7 +12,6 @@ import {
   useRunningStage,
   useViewingTab,
 } from "./taskControlPanelStore";
-import { StageName } from "@repo/core/cmd/tasks/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui-solid/base/tabs";
 import { stages_to_map } from "@repo/core/stages/utils/filtering";
 import {
@@ -24,6 +22,8 @@ import {
 } from "@repo/ui-solid/base/context-menu";
 import { StageStatusBadge } from "./StageStatusBadge";
 import { useMutation } from "@tanstack/solid-query";
+import { TaskCtx } from "@repo/sdk/index";
+import { StageName } from "@repo/core/tasks/args";
 
 export const TaskControlPanel = (p: {
   ctx: TaskCtx;
@@ -53,12 +53,12 @@ export const TaskControlPanel = (p: {
   };
 
   const resume_task = useMutation(() =>
-    client.resume_task.mutationOptions({
+    client.continue_task.mutationOptions({
       onSuccess: () => {
-        console.log("[resume] 继续运行 完成");
+        console.log("[continue] 继续运行 完成");
       },
       onError: (error) => {
-        console.error("[resume] 继续运行 失败:", error);
+        console.error("[continue] 继续运行 失败:", error);
       },
     }),
   );
@@ -83,7 +83,7 @@ export const TaskControlPanel = (p: {
         <TabsList class="w-30">
           <For each={tabs()}>
             {(tab) => {
-              const status = () => (tab !== "root" ? stage_map()[tab]?.status : null);
+              const status = () => (tab !== "root" ? stage_map()[tab as StageName]?.status : null);
               return (
                 <TabsTrigger value={tab} class="w-full justify-start">
                   <ContextMenu>
