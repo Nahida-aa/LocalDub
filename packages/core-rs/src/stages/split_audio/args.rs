@@ -2,9 +2,10 @@ use serde::{Deserialize, Serialize};
 
 /// split_audio 阶段参数 (镜像 TS `packages/core/stages/06_split_audio/args.ts` SplitAudioArgsSchema)
 ///
-/// 默认值带业务含义 (startPadMs=100 / endPadMs=300), 不能靠 `#[derive(Default)]`
-/// (只能给 0), 需手动 impl Default 对齐 TS `z.default()`。
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+/// 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`
+/// 在写入 ctx.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:
+/// 用 `#[serde(default = "…")]` 兜底, 不必手写 `impl Default`。
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SplitAudioArgs {
     /// 是否启用静音检测对齐: 修正 segments 前后静音导致的偏移
@@ -28,16 +29,4 @@ fn default_start_pad_ms() -> u64 {
 
 fn default_end_pad_ms() -> u64 {
     300
-}
-
-impl Default for SplitAudioArgs {
-    fn default() -> Self {
-        Self {
-            vad_align: false,
-            start_pad_ms: default_start_pad_ms(),
-            end_pad_ms: default_end_pad_ms(),
-            vocals_file_path: None,
-            source_file_path: None,
-        }
-    }
 }

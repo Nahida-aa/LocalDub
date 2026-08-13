@@ -13,7 +13,7 @@ use crate::context::TaskCtx;
 pub use args::SplitAudioArgs;
 
 /// 从 `ctx.input.stages.split_audio` 解析配置, 不存在时返回默认 (与 TS default 对齐)
-pub fn read_config(ctx: &TaskCtx) -> SplitAudioArgs {
+pub fn read_args(ctx: &TaskCtx) -> SplitAudioArgs {
     ctx.input
         .get("stages")
         .and_then(|v| v.get("split_audio"))
@@ -26,7 +26,7 @@ pub fn read_config(ctx: &TaskCtx) -> SplitAudioArgs {
 /// TODO: 尚未移植。待迁移: padSegments / ffmpeg 切块 / vadAlign 静音检测对齐 /
 /// writeJson 输出 split_audio.json + timings.json / setStage 完成标记。
 pub fn stage_split_audio(ctx: &TaskCtx) -> Result<(), String> {
-    let cfg = read_config(ctx);
+    let cfg = read_args(ctx);
     Err(format!(
         "split_audio 尚未移植 (vadAlign={}, vocalsFilePath={:?})",
         cfg.vad_align, cfg.vocals_file_path
@@ -43,12 +43,13 @@ mod tests {
     }
 
     #[test]
-    fn read_config_defaults_when_absent() {
+    fn field_defaults_when_absent() {
         let ctx = ctx_with_input(json!({
             "task": {"id": "t", "task_dir": "/x", "url": "http://e", "source": "remote",
-                     "status": "running", "created_at": "2024-01-01T00:00:00Z"}
+                     "status": "running", "created_at": "2024-01-01T00:00:00Z"},
+            "input": {"stages": {"split_audio": {}}}
         }));
-        let cfg = read_config(&ctx);
+        let cfg = read_args(&ctx);
         assert!(!cfg.vad_align);
         assert_eq!(cfg.start_pad_ms, 100);
         assert_eq!(cfg.end_pad_ms, 300);
@@ -69,7 +70,7 @@ mod tests {
                 "sourceFilePath": "/s.mp4"
             }}}
         }));
-        let cfg = read_config(&ctx);
+        let cfg = read_args(&ctx);
         assert!(cfg.vad_align);
         assert_eq!(cfg.start_pad_ms, 150);
         assert_eq!(cfg.end_pad_ms, 400);
