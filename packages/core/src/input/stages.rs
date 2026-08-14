@@ -82,9 +82,9 @@ impl Default for Asr {
     }
 }
 
-/// merge_audio 参数
+/// mix_audio 参数 (混音/拼接配音轨)
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-pub struct MergeAudio {
+pub struct MixAudio {
     /// 最大变速比, 1.0=不变速
     #[serde(default = "default_max_speed")]
     pub max_speed: f64,
@@ -99,7 +99,7 @@ fn default_reduce_bgm() -> f64 {
     -12.0
 }
 
-impl Default for MergeAudio {
+impl Default for MixAudio {
     fn default() -> Self {
         Self {
             max_speed: default_max_speed(),
@@ -113,14 +113,14 @@ pub struct Stages {
     #[serde(default)]
     pub asr: Asr,
     #[serde(default)]
-    pub merge_audio: MergeAudio,
+    pub mix_audio: MixAudio,
 }
 
 impl Default for Stages {
     fn default() -> Self {
         Self {
             asr: Asr::default(),
-            merge_audio: MergeAudio::default(),
+            mix_audio: MixAudio::default(),
         }
     }
 }

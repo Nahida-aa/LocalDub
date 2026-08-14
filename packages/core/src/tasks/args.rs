@@ -34,8 +34,8 @@ pub enum StageName {
     Translate,
     SplitAudio,
     Tts,
-    MergeAudio,
-    MergeVideo,
+    MixAudio,
+    MixVideo,
 }
 
 /// 任务模式: dub=配音, subtitle=仅字幕

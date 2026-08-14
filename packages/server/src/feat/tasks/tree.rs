@@ -7,7 +7,7 @@ use std::pin::Pin;
 ///
 /// Watches the directory at `task_dir` (relative to `base_dir()`, or an absolute
 /// path) with a **recursive** OS watcher, so it covers the whole subtree — including
-/// subdirectories created *after* the watch starts (e.g. a pipeline's `merge_video/`
+/// subdirectories created *after* the watch starts (e.g. a pipeline's `mix_video/`
 /// appearing mid-run and the `.srt`/video files inside it). Emits [`fs::PathEvent`]
 /// for every leaf that changes anywhere under `task_dir` (e.g. `.log` updates,
 /// generated `.srt`/video). The event carries the path and the kind of change, but

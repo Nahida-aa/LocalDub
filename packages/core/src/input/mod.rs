@@ -91,7 +91,7 @@ mod tests {
     #[test]
     fn camel_case_field_names() {
         let input: Input =
-            serde_json::from_str(r#"{"task":{"sourceLang":"zh","targetStage":"merge_video"}}"#)
+            serde_json::from_str(r#"{"task":{"sourceLang":"zh","targetStage":"mix_video"}}"#)
                 .unwrap();
         assert_eq!(
             input.task.as_ref().unwrap().source_lang,
@@ -99,7 +99,7 @@ mod tests {
         );
         assert_eq!(
             input.task.as_ref().unwrap().target_stage,
-            Some(args::StageName::MergeVideo)
+            Some(args::StageName::MixVideo)
         );
     }
 
