@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::r#const::lang::TargetLang;
+
 /// 任务操作
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub enum TaskAction {
@@ -13,35 +15,6 @@ pub enum TaskAction {
     GetGroupList,
     #[serde(rename = "get_task_ctx")]
     GetTaskCtx,
-}
-
-/// 目标语言 (langList)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "lowercase")]
-pub enum TargetLang {
-    En,
-    Zh,
-    Vi,
-    Ja,
-    Ko,
-    Fr,
-    De,
-    Es,
-    Pt,
-    Ru,
-    Ar,
-    Hi,
-    Th,
-    Id,
-    Ms,
-    Tl,
-    My,
-    Km,
-    Lo,
-    Mn,
-    Ne,
-    Ur,
-    Bn,
 }
 
 /// pipeline 阶段名 (stagesList)

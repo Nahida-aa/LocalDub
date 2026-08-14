@@ -95,7 +95,7 @@ mod tests {
                 .unwrap();
         assert_eq!(
             input.task.as_ref().unwrap().source_lang,
-            Some(args::TargetLang::Zh)
+            Some(crate::r#const::lang::TargetLang::Zh)
         );
         assert_eq!(
             input.task.as_ref().unwrap().target_stage,
