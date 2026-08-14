@@ -1,5 +1,38 @@
 {
   "$defs": {
+    "Alignment": {
+      "anyOf": [
+        {
+          "const": "bottom-left"
+        },
+        {
+          "const": "bottom-center"
+        },
+        {
+          "const": "bottom-right"
+        },
+        {
+          "const": "middle-left"
+        },
+        {
+          "const": "center"
+        },
+        {
+          "const": "middle-right"
+        },
+        {
+          "const": "top-left"
+        },
+        {
+          "const": "top-center"
+        },
+        {
+          "const": "top-right"
+        }
+      ],
+      "description": " 字幕对齐位置 (镜像 TS `packages/core/stages/mix_video/args.ts` alignmentList)\n\n 顺序即 ffmpeg ass `Alignment` 数值 (1..9), 见 [`alignment_to_ffmpeg`]。",
+      "title": "Alignment"
+    },
     "Asr": {
       "anyOf": [
         {
@@ -29,6 +62,221 @@
       ],
       "description": " asr: 语音转写",
       "title": "Asr"
+    },
+    "AsrOcrArgs": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/AsrOcrArgs_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/AsrOcrArgs_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " asr_ocr 阶段参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "title": "AsrOcrArgs"
+    },
+    "AsrOcrArgs_Deserialize": {
+      "description": " asr_ocr 阶段参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "properties": {
+        "cleanupFrames": {
+          "description": " 步骤完成后是否删除抽出的帧图片; 默认 false (保留)",
+          "type": "boolean"
+        },
+        "device": {
+          "$ref": "#/$defs/OcrDevice",
+          "description": " OCR 运行设备: cpu, cuda, directml, coreml, rocm, mps"
+        },
+        "runtime": {
+          "$ref": "#/$defs/OcrRuntime",
+          "description": " OCR 推理运行时: ort-rust (opencv)"
+        },
+        "subtitleOnly": {
+          "description": " 只识别字幕区域 (Y轴裁剪); 默认 true",
+          "type": "boolean"
+        },
+        "textConfidenceThreshold": {
+          "description": " OCR 识别置信度阈值, 默认 0.45",
+          "type": "number"
+        }
+      },
+      "title": "AsrOcrArgs_Deserialize",
+      "type": "object"
+    },
+    "AsrOcrArgs_Serialize": {
+      "description": " asr_ocr 阶段参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "properties": {
+        "cleanupFrames": {
+          "description": " 步骤完成后是否删除抽出的帧图片; 默认 false (保留)",
+          "type": "boolean"
+        },
+        "device": {
+          "$ref": "#/$defs/OcrDevice",
+          "description": " OCR 运行设备: cpu, cuda, directml, coreml, rocm, mps"
+        },
+        "runtime": {
+          "$ref": "#/$defs/OcrRuntime",
+          "description": " OCR 推理运行时: ort-rust (opencv)"
+        },
+        "subtitleOnly": {
+          "description": " 只识别字幕区域 (Y轴裁剪); 默认 true",
+          "type": "boolean"
+        },
+        "textConfidenceThreshold": {
+          "description": " OCR 识别置信度阈值, 默认 0.45",
+          "type": "number"
+        }
+      },
+      "required": [
+        "runtime",
+        "device",
+        "textConfidenceThreshold",
+        "subtitleOnly",
+        "cleanupFrames"
+      ],
+      "title": "AsrOcrArgs_Serialize",
+      "type": "object"
+    },
+    "AsrOcrFixArgs": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/AsrOcrFixArgs_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/AsrOcrFixArgs_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " asr_ocr 阶段 OCR 修正参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "title": "AsrOcrFixArgs"
+    },
+    "AsrOcrFixArgs_Deserialize": {
+      "allOf": [
+        {
+          "properties": {
+            "isResample": {
+              "description": " 是否重采样",
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/OcrFixArgs_Deserialize"
+        }
+      ],
+      "description": " asr_ocr 阶段 OCR 修正参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "title": "AsrOcrFixArgs_Deserialize"
+    },
+    "AsrOcrFixArgs_Serialize": {
+      "allOf": [
+        {
+          "properties": {
+            "isResample": {
+              "description": " 是否重采样",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "isResample"
+          ],
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/OcrFixArgs_Serialize"
+        }
+      ],
+      "description": " asr_ocr 阶段 OCR 修正参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "title": "AsrOcrFixArgs_Serialize"
+    },
+    "AsrOcrPreArgs": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/AsrOcrPreArgs_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/AsrOcrPreArgs_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " asr_ocr 阶段预处理参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "title": "AsrOcrPreArgs"
+    },
+    "AsrOcrPreArgs_Deserialize": {
+      "description": " asr_ocr 阶段预处理参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "properties": {
+        "fps": {
+          "description": " 帧率 (fps), 越高时间戳越准但越慢; 默认 2",
+          "type": "number"
+        }
+      },
+      "title": "AsrOcrPreArgs_Deserialize",
+      "type": "object"
+    },
+    "AsrOcrPreArgs_Serialize": {
+      "description": " asr_ocr 阶段预处理参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "properties": {
+        "fps": {
+          "description": " 帧率 (fps), 越高时间戳越准但越慢; 默认 2",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fps"
+      ],
+      "title": "AsrOcrPreArgs_Serialize",
+      "type": "object"
     },
     "Asr_Deserialize": {
       "description": " asr: 语音转写",
@@ -214,13 +462,13 @@
       "title": "Input_Serialize",
       "type": "object"
     },
-    "MergeAudio": {
+    "LlmFixArgs": {
       "anyOf": [
         {
           "additionalProperties": false,
           "properties": {
             "Serialize": {
-              "$ref": "#/$defs/MergeAudio_Serialize"
+              "$ref": "#/$defs/LlmFixArgs_Serialize"
             }
           },
           "required": [
@@ -232,7 +480,7 @@
           "additionalProperties": false,
           "properties": {
             "Deserialize": {
-              "$ref": "#/$defs/MergeAudio_Deserialize"
+              "$ref": "#/$defs/LlmFixArgs_Deserialize"
             }
           },
           "required": [
@@ -241,32 +489,146 @@
           "type": "object"
         }
       ],
-      "description": " merge_audio 参数",
-      "title": "MergeAudio"
+      "description": " LLM 修正参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致。",
+      "title": "LlmFixArgs"
     },
-    "MergeAudio_Deserialize": {
-      "description": " merge_audio 参数",
+    "LlmFixArgs_Deserialize": {
+      "description": " LLM 修正参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致。",
       "properties": {
-        "max_speed": {
-          "description": " 最大变速比, 1.0=不变速",
+        "domainHint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\""
+        },
+        "llmApiBase": {
+          "description": " LLM API 地址",
+          "type": "string"
+        },
+        "llmFix": {
+          "description": " 是否启用 LLM 修正",
+          "type": "boolean"
+        },
+        "llmModel": {
+          "description": " LLM 模型名",
+          "type": "string"
+        }
+      },
+      "title": "LlmFixArgs_Deserialize",
+      "type": "object"
+    },
+    "LlmFixArgs_Serialize": {
+      "description": " LLM 修正参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致。",
+      "properties": {
+        "domainHint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\""
+        },
+        "llmApiBase": {
+          "description": " LLM API 地址",
+          "type": "string"
+        },
+        "llmFix": {
+          "description": " 是否启用 LLM 修正",
+          "type": "boolean"
+        },
+        "llmModel": {
+          "description": " LLM 模型名",
+          "type": "string"
+        }
+      },
+      "required": [
+        "llmModel",
+        "llmApiBase",
+        "domainHint",
+        "llmFix"
+      ],
+      "title": "LlmFixArgs_Serialize",
+      "type": "object"
+    },
+    "MixAudioArgs": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/MixAudioArgs_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/MixAudioArgs_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " mix_audio 阶段参数 (镜像 TS `packages/core/stages/mix_audio/args.ts` MixAudioArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "title": "MixAudioArgs"
+    },
+    "MixAudioArgs_Deserialize": {
+      "description": " mix_audio 阶段参数 (镜像 TS `packages/core/stages/mix_audio/args.ts` MixAudioArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "properties": {
+        "maxAdvanceMs": {
+          "description": " 字幕允许提前显示的最大毫秒数, 利用前段剩余时间; 默认 500",
+          "type": "number"
+        },
+        "maxDelayMs": {
+          "description": " 字幕允许延迟显示的最大毫秒数, 借用后段留白; 默认 500",
+          "type": "number"
+        },
+        "maxSpeed": {
+          "description": " TTS 音频最大变速比, 1.0=不变速; 默认 1.35",
           "type": "number"
         }
       },
-      "title": "MergeAudio_Deserialize",
+      "title": "MixAudioArgs_Deserialize",
       "type": "object"
     },
-    "MergeAudio_Serialize": {
-      "description": " merge_audio 参数",
+    "MixAudioArgs_Serialize": {
+      "description": " mix_audio 阶段参数 (镜像 TS `packages/core/stages/mix_audio/args.ts` MixAudioArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
       "properties": {
-        "max_speed": {
-          "description": " 最大变速比, 1.0=不变速",
+        "maxAdvanceMs": {
+          "description": " 字幕允许提前显示的最大毫秒数, 利用前段剩余时间; 默认 500",
+          "type": "number"
+        },
+        "maxDelayMs": {
+          "description": " 字幕允许延迟显示的最大毫秒数, 借用后段留白; 默认 500",
+          "type": "number"
+        },
+        "maxSpeed": {
+          "description": " TTS 音频最大变速比, 1.0=不变速; 默认 1.35",
           "type": "number"
         }
       },
       "required": [
-        "max_speed"
+        "maxSpeed",
+        "maxAdvanceMs",
+        "maxDelayMs"
       ],
-      "title": "MergeAudio_Serialize",
+      "title": "MixAudioArgs_Serialize",
       "type": "object"
     },
     "MixMode": {
@@ -283,6 +645,449 @@
       ],
       "description": " ASR 音频源: vocals=纯分离人声, raw-sum=直接叠加, sidechain=侧链压缩背景音",
       "title": "MixMode"
+    },
+    "MixVideoArgs": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/MixVideoArgs_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/MixVideoArgs_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " mix_video 阶段参数 (镜像 TS `packages/core/stages/mix_video/args.ts` MixVideoArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "title": "MixVideoArgs"
+    },
+    "MixVideoArgs_Deserialize": {
+      "description": " mix_video 阶段参数 (镜像 TS `packages/core/stages/mix_video/args.ts` MixVideoArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "properties": {
+        "alignment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Alignment"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 对齐位置; 默认 bottom-center"
+        },
+        "bgmGain": {
+          "description": " 背景音乐增益(dB), 0=不变, 负值=衰减; 默认 -6",
+          "type": "number"
+        },
+        "bgmPath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 调试使用: 外部 bgm 路径"
+        },
+        "dubGain": {
+          "description": " 配音增益(dB), 补偿合成语音偏小的听感差; 默认 3",
+          "type": "number"
+        },
+        "font": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " ASS 字幕字体名 (须系统已安装), 默认 Noto Sans CJK SC"
+        },
+        "fontSize": {
+          "anyOf": [
+            {
+              "maximum": 4294967295,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 字幕字号, 不填则自动: 竖屏 12(zh)/9(其他) ← 横屏 24(zh)/18(其他)"
+        },
+        "marginV": {
+          "anyOf": [
+            {
+              "maximum": 4294967295,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 垂直边距(像素), 不填则自动: 竖屏 70 / 横屏 5"
+        },
+        "outline": {
+          "description": " 描边宽度; 默认 0",
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "shadow": {
+          "description": " 阴影宽度; 默认 1",
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "srtPath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 调试使用: 外部 srt 路径"
+        }
+      },
+      "title": "MixVideoArgs_Deserialize",
+      "type": "object"
+    },
+    "MixVideoArgs_Serialize": {
+      "description": " mix_video 阶段参数 (镜像 TS `packages/core/stages/mix_video/args.ts` MixVideoArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "properties": {
+        "alignment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Alignment"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 对齐位置; 默认 bottom-center"
+        },
+        "bgmGain": {
+          "description": " 背景音乐增益(dB), 0=不变, 负值=衰减; 默认 -6",
+          "type": "number"
+        },
+        "bgmPath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 调试使用: 外部 bgm 路径"
+        },
+        "dubGain": {
+          "description": " 配音增益(dB), 补偿合成语音偏小的听感差; 默认 3",
+          "type": "number"
+        },
+        "font": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " ASS 字幕字体名 (须系统已安装), 默认 Noto Sans CJK SC"
+        },
+        "fontSize": {
+          "anyOf": [
+            {
+              "maximum": 4294967295,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 字幕字号, 不填则自动: 竖屏 12(zh)/9(其他) ← 横屏 24(zh)/18(其他)"
+        },
+        "marginV": {
+          "anyOf": [
+            {
+              "maximum": 4294967295,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 垂直边距(像素), 不填则自动: 竖屏 70 / 横屏 5"
+        },
+        "outline": {
+          "description": " 描边宽度; 默认 0",
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "shadow": {
+          "description": " 阴影宽度; 默认 1",
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "srtPath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 调试使用: 外部 srt 路径"
+        }
+      },
+      "required": [
+        "fontSize",
+        "marginV",
+        "alignment",
+        "outline",
+        "shadow",
+        "font",
+        "srtPath",
+        "bgmPath",
+        "bgmGain",
+        "dubGain"
+      ],
+      "title": "MixVideoArgs_Serialize",
+      "type": "object"
+    },
+    "OcrDevice": {
+      "anyOf": [
+        {
+          "const": "cpu",
+          "description": " cpu"
+        },
+        {
+          "const": "cuda",
+          "description": " cuda (NVIDIA)"
+        },
+        {
+          "const": "directml",
+          "description": " directml (Windows)"
+        },
+        {
+          "const": "coreml",
+          "description": " coreml (macOS)"
+        },
+        {
+          "const": "rocm",
+          "description": " rocm (AMD)"
+        },
+        {
+          "const": "mps",
+          "description": " mps (Apple Silicon)"
+        }
+      ],
+      "description": " OCR 运行设备。",
+      "title": "OcrDevice"
+    },
+    "OcrFixArgs": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/OcrFixArgs_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/OcrFixArgs_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " sf_ocr 阶段 OCR 修正参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "title": "OcrFixArgs"
+    },
+    "OcrFixArgs_Deserialize": {
+      "description": " sf_ocr 阶段 OCR 修正参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "properties": {
+        "adjustIsoWeight": {
+          "description": " 孤立程度在调整置信度中的权重 (0~1); 默认 0.2",
+          "type": "number"
+        },
+        "adjustYFactor": {
+          "description": " Y 偏移惩罚归一化系数: 偏移量 / (videoHeight × adjustYFactor); 越小越严格; 默认 0.08",
+          "type": "number"
+        },
+        "adjustYWeight": {
+          "description": " Y 偏移在调整置信度中的权重 (0~1); 默认 0.8",
+          "type": "number"
+        },
+        "adjustedConfidenceThreshold": {
+          "description": " 字幕段置信度阈值（0-1）：ocr-post filter-segment 用 adjusted_confidence_threshold 过滤，低于此值丢弃；默认 0.45",
+          "type": "number"
+        },
+        "boxAdjustedThreshold": {
+          "description": " box调整的置信度阈值: confidence < 此值则进行box调整; 默认 0.5",
+          "type": "number"
+        },
+        "dedupEditDistance": {
+          "description": " dedupOverlap 的编辑距离阈值: edit_distance ≤ 此值则合并; 默认 1",
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "domainHint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\""
+        },
+        "isMergeSubstring": {
+          "description": " 是否合并子串",
+          "type": "boolean"
+        },
+        "isoThresholdMs": {
+          "description": " 单帧孤立惩罚的参考时间 (ms)，在此时长内无同文帧则视为完全孤立; 默认 1500",
+          "type": "number"
+        },
+        "llmApiBase": {
+          "description": " LLM API 地址",
+          "type": "string"
+        },
+        "llmFix": {
+          "description": " 是否启用 LLM 修正",
+          "type": "boolean"
+        },
+        "llmModel": {
+          "description": " LLM 模型名",
+          "type": "string"
+        }
+      },
+      "title": "OcrFixArgs_Deserialize",
+      "type": "object"
+    },
+    "OcrFixArgs_Serialize": {
+      "description": " sf_ocr 阶段 OCR 修正参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "properties": {
+        "adjustIsoWeight": {
+          "description": " 孤立程度在调整置信度中的权重 (0~1); 默认 0.2",
+          "type": "number"
+        },
+        "adjustYFactor": {
+          "description": " Y 偏移惩罚归一化系数: 偏移量 / (videoHeight × adjustYFactor); 越小越严格; 默认 0.08",
+          "type": "number"
+        },
+        "adjustYWeight": {
+          "description": " Y 偏移在调整置信度中的权重 (0~1); 默认 0.8",
+          "type": "number"
+        },
+        "adjustedConfidenceThreshold": {
+          "description": " 字幕段置信度阈值（0-1）：ocr-post filter-segment 用 adjusted_confidence_threshold 过滤，低于此值丢弃；默认 0.45",
+          "type": "number"
+        },
+        "boxAdjustedThreshold": {
+          "description": " box调整的置信度阈值: confidence < 此值则进行box调整; 默认 0.5",
+          "type": "number"
+        },
+        "dedupEditDistance": {
+          "description": " dedupOverlap 的编辑距离阈值: edit_distance ≤ 此值则合并; 默认 1",
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "domainHint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\""
+        },
+        "isMergeSubstring": {
+          "description": " 是否合并子串",
+          "type": "boolean"
+        },
+        "isoThresholdMs": {
+          "description": " 单帧孤立惩罚的参考时间 (ms)，在此时长内无同文帧则视为完全孤立; 默认 1500",
+          "type": "number"
+        },
+        "llmApiBase": {
+          "description": " LLM API 地址",
+          "type": "string"
+        },
+        "llmFix": {
+          "description": " 是否启用 LLM 修正",
+          "type": "boolean"
+        },
+        "llmModel": {
+          "description": " LLM 模型名",
+          "type": "string"
+        }
+      },
+      "required": [
+        "adjustedConfidenceThreshold",
+        "isoThresholdMs",
+        "adjustYWeight",
+        "adjustIsoWeight",
+        "adjustYFactor",
+        "boxAdjustedThreshold",
+        "isMergeSubstring",
+        "dedupEditDistance",
+        "llmModel",
+        "llmApiBase",
+        "domainHint",
+        "llmFix"
+      ],
+      "title": "OcrFixArgs_Serialize",
+      "type": "object"
+    },
+    "OcrRuntime": {
+      "const": "ort-rust",
+      "description": " OCR 推理运行时。\n\n ort-rust (opencv)",
+      "title": "OcrRuntime"
     },
     "Pipeline": {
       "anyOf": [
@@ -418,6 +1223,97 @@
       "title": "ServersArgs_Serialize",
       "type": "object"
     },
+    "SfOcrArgs": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/SfOcrArgs_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/SfOcrArgs_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " sf_ocr 阶段参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "title": "SfOcrArgs"
+    },
+    "SfOcrArgs_Deserialize": {
+      "description": " sf_ocr 阶段参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "properties": {
+        "cleanupFrames": {
+          "description": " 步骤完成后是否删除抽出的帧图片; 默认 false (保留)",
+          "type": "boolean"
+        },
+        "device": {
+          "$ref": "#/$defs/OcrDevice",
+          "description": " OCR 运行设备: cpu, cuda, directml, coreml, rocm, mps"
+        },
+        "runtime": {
+          "$ref": "#/$defs/OcrRuntime",
+          "description": " OCR 推理运行时: ort-rust (opencv)"
+        },
+        "subtitleOnly": {
+          "description": " 只识别字幕区域 (Y轴裁剪); 默认 true",
+          "type": "boolean"
+        },
+        "textConfidenceThreshold": {
+          "description": " OCR 识别置信度阈值, 默认 0.45",
+          "type": "number"
+        }
+      },
+      "title": "SfOcrArgs_Deserialize",
+      "type": "object"
+    },
+    "SfOcrArgs_Serialize": {
+      "description": " sf_ocr 阶段参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "properties": {
+        "cleanupFrames": {
+          "description": " 步骤完成后是否删除抽出的帧图片; 默认 false (保留)",
+          "type": "boolean"
+        },
+        "device": {
+          "$ref": "#/$defs/OcrDevice",
+          "description": " OCR 运行设备: cpu, cuda, directml, coreml, rocm, mps"
+        },
+        "runtime": {
+          "$ref": "#/$defs/OcrRuntime",
+          "description": " OCR 推理运行时: ort-rust (opencv)"
+        },
+        "subtitleOnly": {
+          "description": " 只识别字幕区域 (Y轴裁剪); 默认 true",
+          "type": "boolean"
+        },
+        "textConfidenceThreshold": {
+          "description": " OCR 识别置信度阈值, 默认 0.45",
+          "type": "number"
+        }
+      },
+      "required": [
+        "runtime",
+        "device",
+        "textConfidenceThreshold",
+        "subtitleOnly",
+        "cleanupFrames"
+      ],
+      "title": "SfOcrArgs_Serialize",
+      "type": "object"
+    },
     "SidechainCompress": {
       "anyOf": [
         {
@@ -524,10 +1420,10 @@
           "const": "tts"
         },
         {
-          "const": "merge_audio"
+          "const": "mix_audio"
         },
         {
-          "const": "merge_video"
+          "const": "mix_video"
         }
       ],
       "description": " pipeline 阶段名 (stagesList)",
@@ -560,35 +1456,77 @@
           "type": "object"
         }
       ],
-      "description": " 各处理阶段的入参",
+      "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StagesSchema)\n\n mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。",
       "title": "Stages"
     },
     "Stages_Deserialize": {
-      "description": " 各处理阶段的入参",
+      "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StagesSchema)\n\n mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。",
       "properties": {
         "asr": {
           "$ref": "#/$defs/Asr_Deserialize"
         },
-        "merge_audio": {
-          "$ref": "#/$defs/MergeAudio_Deserialize"
+        "asr_ocr": {
+          "$ref": "#/$defs/AsrOcrArgs_Deserialize"
+        },
+        "asr_ocr_fix": {
+          "$ref": "#/$defs/AsrOcrFixArgs_Deserialize"
+        },
+        "asr_ocr_pre": {
+          "$ref": "#/$defs/AsrOcrPreArgs_Deserialize"
+        },
+        "mix_audio": {
+          "$ref": "#/$defs/MixAudioArgs_Deserialize"
+        },
+        "mix_video": {
+          "$ref": "#/$defs/MixVideoArgs_Deserialize"
+        },
+        "sf_ocr": {
+          "$ref": "#/$defs/SfOcrArgs_Deserialize"
+        },
+        "sf_ocr_fix": {
+          "$ref": "#/$defs/OcrFixArgs_Deserialize"
         }
       },
       "title": "Stages_Deserialize",
       "type": "object"
     },
     "Stages_Serialize": {
-      "description": " 各处理阶段的入参",
+      "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StagesSchema)\n\n mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。",
       "properties": {
         "asr": {
           "$ref": "#/$defs/Asr_Serialize"
         },
-        "merge_audio": {
-          "$ref": "#/$defs/MergeAudio_Serialize"
+        "asr_ocr": {
+          "$ref": "#/$defs/AsrOcrArgs_Serialize"
+        },
+        "asr_ocr_fix": {
+          "$ref": "#/$defs/AsrOcrFixArgs_Serialize"
+        },
+        "asr_ocr_pre": {
+          "$ref": "#/$defs/AsrOcrPreArgs_Serialize"
+        },
+        "mix_audio": {
+          "$ref": "#/$defs/MixAudioArgs_Serialize"
+        },
+        "mix_video": {
+          "$ref": "#/$defs/MixVideoArgs_Serialize"
+        },
+        "sf_ocr": {
+          "$ref": "#/$defs/SfOcrArgs_Serialize"
+        },
+        "sf_ocr_fix": {
+          "$ref": "#/$defs/OcrFixArgs_Serialize"
         }
       },
       "required": [
         "asr",
-        "merge_audio"
+        "sf_ocr",
+        "sf_ocr_fix",
+        "asr_ocr_pre",
+        "asr_ocr",
+        "asr_ocr_fix",
+        "mix_audio",
+        "mix_video"
       ],
       "title": "Stages_Serialize",
       "type": "object"

@@ -37,7 +37,11 @@ pub fn alignment_to_ffmpeg(alignment: Alignment) -> u8 {
 ///
 /// 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),
 /// 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。
-#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
+///
+/// 注意: `#[serde(default = "fn")]` 仅在字段级反序列化时生效; 当父结构用
+/// `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`
+/// 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MixVideoArgs {
     /// 字幕字号, 不填则自动: 竖屏 12(zh)/9(其他) ← 横屏 24(zh)/18(其他)
@@ -70,6 +74,23 @@ pub struct MixVideoArgs {
     /// 配音增益(dB), 补偿合成语音偏小的听感差; 默认 3
     #[serde(default = "default_dub_gain")]
     pub dub_gain: f64,
+}
+
+impl Default for MixVideoArgs {
+    fn default() -> Self {
+        Self {
+            font_size: None,
+            margin_v: None,
+            alignment: None,
+            outline: default_outline(),
+            shadow: default_shadow(),
+            font: None,
+            srt_path: None,
+            bgm_path: None,
+            bgm_gain: default_bgm_gain(),
+            dub_gain: default_dub_gain(),
+        }
+    }
 }
 
 fn default_outline() -> u32 {

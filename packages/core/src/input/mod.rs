@@ -104,6 +104,20 @@ mod tests {
     }
 
     #[test]
+    fn sf_ocr_flatten_fields_deserialize() {
+        let input: Input = serde_json::from_str(
+            r#"{"stages":{"sf_ocr":{"textConfidenceThreshold":0.6},"sf_ocr_fix":{"llmFix":true,"llmModel":"x"}}}"#,
+        )
+        .unwrap();
+        assert_eq!(input.stages.sf_ocr.text_confidence_threshold, 0.6);
+        assert!(input.stages.sf_ocr_fix.llm_fix.llm_fix);
+        assert_eq!(input.stages.sf_ocr_fix.llm_fix.llm_model, "x");
+        // 默认值补齐 (absent 字段走 Rust Default, 应为预期字面默认值)
+        assert_eq!(input.stages.asr_ocr_pre.fps, 2.0);
+        assert_eq!(input.stages.sf_ocr.subtitle_only, true);
+    }
+
+    #[test]
     fn validate_task_required_for_task_command() {
         let ok: Input = serde_json::from_str(r#"{"command":"task","task":{}}"#).unwrap();
         assert!(ok.validate().is_ok());

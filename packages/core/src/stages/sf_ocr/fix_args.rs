@@ -9,7 +9,11 @@ use llm::llm_fix_args::LlmFixArgs;
 use serde::{Deserialize, Serialize};
 
 /// sf_ocr 阶段 OCR 修正参数。
-#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
+///
+/// 注意: `#[serde(default = "fn")]` 仅在字段级反序列化时生效; 当父结构用
+/// `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`
+/// 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct OcrFixArgs {
     /// 字幕段置信度阈值（0-1）：ocr-post filter-segment 用 adjusted_confidence_threshold 过滤，低于此值丢弃；默认 0.45
@@ -39,6 +43,22 @@ pub struct OcrFixArgs {
     /// LLM 修正参数 (flatten, 扁平展开为 llmModel / llmApiBase / domainHint / llmFix)
     #[serde(default, flatten)]
     pub llm_fix: LlmFixArgs,
+}
+
+impl Default for OcrFixArgs {
+    fn default() -> Self {
+        Self {
+            adjusted_confidence_threshold: default_adjusted_confidence_threshold(),
+            iso_threshold_ms: default_iso_threshold_ms(),
+            adjust_y_weight: default_adjust_y_weight(),
+            adjust_iso_weight: default_adjust_iso_weight(),
+            adjust_y_factor: default_adjust_y_factor(),
+            box_adjusted_threshold: default_box_adjusted_threshold(),
+            is_merge_substring: false,
+            dedup_edit_distance: default_dedup_edit_distance(),
+            llm_fix: LlmFixArgs::default(),
+        }
+    }
 }
 
 fn default_adjusted_confidence_threshold() -> f64 {
