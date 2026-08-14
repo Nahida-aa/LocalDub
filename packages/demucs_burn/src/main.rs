@@ -5,10 +5,10 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use demucs_core::listener::{ForwardEvent, ForwardListener};
 use demucs_core::model::metadata::{
-    ModelInfo, ALL_MODELS, HTDEMUCS_6S_ID, HTDEMUCS_FT_ID, HTDEMUCS_ID,
+    ALL_MODELS, HTDEMUCS_6S_ID, HTDEMUCS_FT_ID, HTDEMUCS_ID, ModelInfo,
 };
-use demucs_core::provider::fs::FsProvider;
 use demucs_core::provider::ModelProvider;
+use demucs_core::provider::fs::FsProvider;
 use demucs_core::{Demucs, ModelOptions};
 
 #[cfg(feature = "cubecl-cpu")]
@@ -115,7 +115,7 @@ fn run() -> Result<()> {
 
     #[cfg(feature = "cubecl-wgpu")]
     let device = {
-        use burn::backend::wgpu::{graphics::AutoGraphicsApi, init_setup, RuntimeOptions};
+        use burn::backend::wgpu::{RuntimeOptions, graphics::AutoGraphicsApi, init_setup};
         let d = Default::default();
         let options = RuntimeOptions {
             tasks_max: cli.tasks_max as usize,

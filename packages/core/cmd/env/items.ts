@@ -327,7 +327,7 @@ export async function checkDemucsBurnBin(): Promise<CheckResult> {
       required: false,
     };
 
-  const latestSource = getLatestSource(["packages/separate/demucs_burn/", "submodule/demucs-rs/"]);
+  const latestSource = getLatestSource(["packages/demucs_burn/", "submodule/demucs-rs/"]);
   const staleBins: string[] = [];
   const freshBins: string[] = [];
 

@@ -2,7 +2,7 @@
 resolver = "3"
 members = [
     "packages/bridge", "packages/config-rs", "packages/core", "packages/device-rs",
-    "packages/separate/demucs_burn", "packages/time", "packages/voxcpm-burn", "packages/app/src-tauri",
+    "packages/demucs_burn", "packages/time", "packages/voxcpm-burn", "packages/app/src-tauri",
     "packages/fs", "packages/sf-cli", "packages/subtitle-ocr-cli", "packages/server", "packages/tts",
     "packages/sdk", "packages/cli", "packages/env", "packages/subtitle-asr", "packages/llm", "packages/voxlab",
 ]

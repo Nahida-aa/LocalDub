@@ -15,7 +15,7 @@ All benchmarks on `htdemucs_ft`, `tasks_max=1`. CPU: Ryzen 7 7840HS. GPU: Radeon
 
 ## Burn wgpu
 
-`packages/separate/demucs_burn/` — Thin Rust binary wrapping demucs-core with Burn backend.
+`packages/demucs_burn/` — Thin Rust binary wrapping demucs-core with Burn backend.
 
 ### Build
 

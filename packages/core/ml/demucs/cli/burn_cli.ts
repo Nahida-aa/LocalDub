@@ -28,7 +28,7 @@ async function ensureDemucsBin(taskDir: string, binName: string): Promise<string
   const binPath = join(REPO_ROOT, "target", "release", binName);
   if (existsSync(binPath)) return binPath;
 
-  const crateDir = join(REPO_ROOT, "packages", "separate", "demucs_burn");
+  const crateDir = join(REPO_ROOT, "packages", "demucs_burn");
   // Cargo.toml 中每个 bin 有各自 required-features（tch / cubecl-wgpu / ...），
   // 按 bin 后缀派生对应 feature 并以 --no-default-features 关闭默认的 cubecl-wgpu。
   const backend = binName.replace("demucs-burn-", "");
