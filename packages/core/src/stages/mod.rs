@@ -6,3 +6,4 @@
 pub mod separate;
 pub mod split_audio;
 pub mod translate;
+pub mod tts;
