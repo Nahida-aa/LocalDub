@@ -6,6 +6,7 @@
 pub mod mix_audio;
 pub mod mix_video;
 pub mod separate;
+pub mod sf_ocr;
 pub mod split_audio;
 pub mod translate;
 pub mod tts;
