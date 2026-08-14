@@ -9,9 +9,9 @@ import { openModal } from "@repo/ui-solid/custom/modal/renderer";
 import { AudioPlayer } from "#/components/ui/audio-player";
 import { mediaUrl } from "#/lib/utils/path.ts";
 import type { Track, TrackSegment } from "../consts";
-import type { TtsFile, TtsSegment } from "@repo/core/stages/07_tts/types";
 import { useTrackData } from "./useTrackData";
 import type { BaseTrackProps } from "./shared";
+import { TtsFile, TtsSegment } from "@repo/core/stages/07_tts/out";
 
 type Props = BaseTrackProps;
 
@@ -27,8 +27,8 @@ export function TtsTrack(props: Props) {
       return (data.segments || []).map((item, i: number) => ({
         index: i,
         text: item.text,
-        startMs: item.start,
-        endMs: item.end,
+        startMs: item.start_ms,
+        endMs: item.end_ms,
         raw: item,
       }));
     },

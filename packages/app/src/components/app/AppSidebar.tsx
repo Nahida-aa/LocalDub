@@ -27,9 +27,9 @@ import { Separator } from "@repo/ui-solid/base/separator";
 import { cn } from "@repo/shared/lib/utils";
 import { ScrollArea } from "@repo/ui-solid/base/scroll-area";
 import { client, fnrpc } from "#/integrations/fnrpc/client.ts";
-import type { GroupInfo } from "#/integrations/fnrpc/bindings.ts";
 import { useLiveQuery } from "@tanstack/solid-db";
 import { taskGroupExpandCollection } from "#/feat/task_tree/sync.ts";
+import { GroupInfo } from "@repo/sdk/index";
 
 const getButtonPx = (depth: number) => ({
   "padding-left": `${(2 + 6 * depth) * 0.25}rem`,
