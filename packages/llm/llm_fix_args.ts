@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 const LlmArgsSchema = z.object({
-  llmModel: z.string().optional().default("gemma4:31b-cloud").describe("LLM 模型名"),
-  llmApiBase: z.string().optional().default("http://localhost:11434/v1").describe("LLM API 地址"),
+  llmModel: z.string().default("gemma4:31b-cloud").describe("LLM 模型名"),
+  llmApiBase: z.string().default("http://localhost:11434/v1").describe("LLM API 地址"),
   domainHint: z
     .string()
     .optional()
