@@ -31,3 +31,11 @@ pub fn workfolder() -> PathBuf {
 pub fn model_cache_dir() -> PathBuf {
     resolve_path(&var_or("MODEL_CACHE_DIR", "data/models"))
 }
+
+pub fn openai_base_url() -> String {
+    var_or("OPENAI_BASE_URL", "http://localhost:11434/v1")
+}
+
+pub fn openai_model() -> String {
+    var_or("OPENAI_MODEL", "gemma4:31b-cloud")
+}
