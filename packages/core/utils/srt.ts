@@ -1,7 +1,7 @@
 import { TaskCtx } from "../context/context";
 import { srtTime } from "./utils";
 import { writeFile } from "./fileOps";
-import { Timing } from "../stages/merge_audio/types";
+import { Timing } from "../stages/mix_audio/types";
 import { TranslateSegment } from "../stages/05_translate/out";
 
 /**

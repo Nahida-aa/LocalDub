@@ -19,8 +19,8 @@ import { AsrArgsSchema } from "@repo/subtitle-asr/args";
 import { SplitAudioArgsSchema } from "../stages/06_split_audio/args";
 import { TranslateArgsSchema } from "../stages/05_translate/args";
 import { AsrFixArgsSchema } from "../stages/asr/fix_args";
-import { MergeAudioArgsSchema } from "../stages/merge_audio/args";
-import { MergeVideoArgsSchema } from "../stages/merge_video/args";
+import { MixAudioArgsSchema } from "../stages/mix_audio/args";
+import { MixVideoArgsSchema } from "../stages/mix_video/args";
 
 const deviceList = ["cpu", "cuda", "mps", "webgpu"] as const;
 export type Device = (typeof deviceList)[number];
@@ -96,8 +96,8 @@ const StagesSchema = z
     translate: TranslateArgsSchema,
     split_audio: SplitAudioArgsSchema,
     tts: TtsStageArgsSchema,
-    merge_audio: MergeAudioArgsSchema,
-    merge_video: MergeVideoArgsSchema,
+    mix_audio: MixAudioArgsSchema,
+    mix_video: MixVideoArgsSchema,
   })
   .prefault({});
 

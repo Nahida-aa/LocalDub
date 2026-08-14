@@ -62,19 +62,19 @@ function probeStyle(
   return `FontName=${font},FontSize=${fontSize},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=${outline > 0 ? 1 : 0},Outline=${outline},Shadow=${shadow},Alignment=${alignment},MarginV=${marginV}`;
 }
 
-export async function stageMergeVideo(ctx: TaskCtx) {
-  startLog("merge_video", ctx.task.id);
+export async function stageMixVideo(ctx: TaskCtx) {
+  startLog("mix_video", ctx.task.id);
   const taskId = ctx.task.id;
   const taskDir = ctx.task.task_dir;
   const video_file_path = video_source_path(ctx);
-  const mergeVideoDir = join(taskDir, "merge_video");
+  const mergeVideoDir = join(taskDir, "mix_video");
   ensureDir(mergeVideoDir);
-  const srtPath = ctx.input?.stages?.merge_video?.srtPath;
+  const srtPath = ctx.input?.stages?.mix_video?.srtPath;
   if (!existsSync(video_file_path)) throw new Error("video_source.mp4 not found");
   const pipeline = readCtx(taskDir)?.pipeline || "dub";
   const { srcLang, targetLang } = resolveLanguage(ctx);
 
-  const mergeCfg = ctx.input?.stages?.merge_video;
+  const mergeCfg = ctx.input?.stages?.mix_video;
   const probeOverrides = {
     fontSize: mergeCfg?.fontSize ?? undefined,
     font: mergeCfg?.font ?? undefined,
@@ -142,8 +142,8 @@ export async function stageMergeVideo(ctx: TaskCtx) {
       300_000,
     );
   } else {
-    const dubbingFile = join(taskDir, "merge_audio", "audio_dubbing.wav");
-    const ctxBgmPath = ctx.input?.stages?.merge_video?.bgmPath;
+    const dubbingFile = join(taskDir, "mix_audio", "audio_dubbing.wav");
+    const ctxBgmPath = ctx.input?.stages?.mix_video?.bgmPath;
     const bgmFile = ctxBgmPath ? ctxBgmPath : bgmPath(taskDir);
 
     if (!existsSync(dubbingFile)) throw new Error("audio_dubbing.wav not found");
@@ -153,8 +153,8 @@ export async function stageMergeVideo(ctx: TaskCtx) {
     writeSrt(data.segments, ctx, subPath);
     const style = probeStyle(video_file_path, targetLang, probeOverrides);
 
-    const bgmGain = ctx.input?.stages?.merge_video?.bgmGain ?? -6;
-    const dubGain = ctx.input?.stages?.merge_video?.dubGain ?? 3;
+    const bgmGain = ctx.input?.stages?.mix_video?.bgmGain ?? -6;
+    const dubGain = ctx.input?.stages?.mix_video?.dubGain ?? 3;
     const mixedAudio = join(mergeVideoDir, "audio_mixed.m4a");
     ffmpeg([
       "-i",
@@ -201,7 +201,7 @@ export async function stageMergeVideo(ctx: TaskCtx) {
 
   fileLog("write", finalVideo);
 
-  await setStage(taskDir, "merge_video", {
+  await setStage(taskDir, "mix_video", {
     status: "success",
     completed_at: nowISO(),
     progress: 100,

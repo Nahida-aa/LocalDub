@@ -9,8 +9,8 @@ export const DUB_STAGES: StageName[] = [
   "translate",
   "split_audio",
   "tts",
-  "merge_audio",
-  "merge_video",
+  "mix_audio",
+  "mix_video",
 ];
 
 export const DUB_SF_OCR_STAGES: StageName[] = [
@@ -22,8 +22,8 @@ export const DUB_SF_OCR_STAGES: StageName[] = [
   "translate",
   "split_audio",
   "tts",
-  "merge_audio",
-  "merge_video",
+  "mix_audio",
+  "mix_video",
 ];
 
 export const DUB_ASR_OCR_STAGES: StageName[] = [
@@ -36,8 +36,8 @@ export const DUB_ASR_OCR_STAGES: StageName[] = [
   "translate",
   "split_audio",
   "tts",
-  "merge_audio",
-  "merge_video",
+  "mix_audio",
+  "mix_video",
 ];
 
 export const SUBTITLE_STAGES: StageName[] = [
@@ -47,7 +47,7 @@ export const SUBTITLE_STAGES: StageName[] = [
   "asr_fix",
   "translate",
   "split_audio",
-  "merge_video",
+  "mix_video",
 ];
 
 /** Build stage list based on pipeline mode and subtitleSource config */

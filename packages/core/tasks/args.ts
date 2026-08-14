@@ -15,8 +15,8 @@ const stagesList = [
   "translate",
   "split_audio",
   "tts",
-  "merge_audio",
-  "merge_video",
+  "mix_audio",
+  "mix_video",
 ] as const;
 export type StageName = (typeof stagesList)[number];
 

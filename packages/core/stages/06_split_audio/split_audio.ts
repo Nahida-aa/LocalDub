@@ -10,7 +10,7 @@
  * - split_audio.json  → segments: SplitAudioSegment[] 经过 padSegments 补齐边界的时序,
  *                       供 tts 逐段读文本合成, 也是切块的真实时间
  * - timings.json      → segments: SplitAudioTiming[] 未 padding 的「意图时序」,
- *                       供 merge_audio/merge_video 定位最终落点
+ *                       供 mix_audio/mix_video 定位最终落点
  * - vocals/0001.wav ... 按段切出的音频 (仅 dub 模式下有 vocals 时)
  *
  * 可选 vadAlign: 用 ffmpeg silenceremove 检测每段开头的静音并前移切割起点,

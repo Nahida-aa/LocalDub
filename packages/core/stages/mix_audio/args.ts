@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-export const MergeAudioArgsSchema = z
+export const MixAudioArgsSchema = z
   .object({
     maxSpeed: z.number().min(1).default(1.35).describe("TTS 音频最大变速比, 1.0=不变速"),
     maxAdvanceMs: z

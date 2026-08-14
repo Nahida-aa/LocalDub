@@ -140,7 +140,7 @@ export async function stageAsrOcrFix(ctx: TaskCtx) {
 
   // === 阶段 7: 融合重叠段 + 最终去重 ===
   // Write asr_ocr_fused.json — fixOverlap fused result
-  const maxAdvanceMs = ctx.input?.stages?.merge_audio?.maxAdvanceMs ?? 500;
+  const maxAdvanceMs = ctx.input?.stages?.mix_audio?.maxAdvanceMs ?? 500;
   const fix = fixOverlap(
     asrOcrSegs,
     cleanFramesResult.frames,

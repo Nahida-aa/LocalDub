@@ -20,7 +20,7 @@ import { setLogContext, setCurrentStage, getLogContext } from "@repo/util/log";
 import { TranslateResult } from "../05_translate/out";
 import { SplitAudioResult, SplitAudioTimingResult } from "../06_split_audio/out";
 import { TaskStage } from "../../context/types";
-import { TimingsFile } from "../merge_audio/types";
+import { TimingsFile } from "../mix_audio/types";
 
 /** Get the downloaded video source path for a session. */
 export function video_source_path(ctx: TaskCtx): string {
@@ -233,10 +233,10 @@ export function read_split_audio_timings(ctx: TaskCtx) {
 }
 
 /**
- * 目前修改此文件不会影响配音结果, 但重新运行 merge_video 时会改变生成的字幕时间位置
+ * 目前修改此文件不会影响配音结果, 但重新运行 mix_video 时会改变生成的字幕时间位置
  */
 export function timings_filepath(taskDir: string): string {
-  return join(taskDir, "merge_audio", "timings.json");
+  return join(taskDir, "mix_audio", "timings.json");
 }
 export function read_timings(ctx: TaskCtx) {
   const filepath = timings_filepath(ctx.task.task_dir);
@@ -257,7 +257,7 @@ export function gatedVocalsPath(taskDir: string): string {
 }
 
 export function dubbingPath(taskDir: string): string {
-  return join(taskDir, "merge_audio", "audio_dubbing.wav");
+  return join(taskDir, "mix_audio", "audio_dubbing.wav");
 }
 
 export function finalVideoDir(

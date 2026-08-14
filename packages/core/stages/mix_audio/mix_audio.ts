@@ -18,7 +18,7 @@ import { SplitAudioTiming } from "../06_split_audio/out";
 import { Timing } from "./types";
 
 /**
- * `merge_audio.ts` 负责把 TTS 生成的各段音频合并成一条完整配音轨，同时做 timing 微调使配音与原视频时间线对齐。
+ * `mix_audio.ts` 负责把 TTS 生成的各段音频合并成一条完整配音轨，同时做 timing 微调使配音与原视频时间线对齐。
  * **流程：**
  1. 读 `split_audio/timings.json` 得到每段的视频意图起止时间，构建 TTS wav 路径
  2. 逐段处理：
@@ -27,15 +27,15 @@ import { Timing } from "./types";
     - 若 TTS 时长 ≤ 可用槽位 → 直接复制；超了则 `rubberband` 加速（上限 `maxSpeed` 1.35x）
     - **drift** 累加传到下一段，防止误差累积偏移
  3. 各段之间如果有空隙，插入静音填充
- 4. 用 ffmpeg concat 合并所有片段为 `merge_audio/audio_dubbing.wav`
- 5. 输出 `merge_audio/timings.json` 含每段实际起止时间、拉伸比、drift 等
+ 4. 用 ffmpeg concat 合并所有片段为 `mix_audio/audio_dubbing.wav`
+ 5. 输出 `mix_audio/timings.json` 含每段实际起止时间、拉伸比、drift 等
 
  核心设计点：drift 传播 + advance/delay 借间隙时间，让配音节奏自然而不破坏整体同步。
  */
-export async function stageMergeAudio(ctx: TaskCtx) {
+export async function stageMixAudio(ctx: TaskCtx) {
   const taskId = ctx.task.id;
   const taskDir = ctx.task.task_dir;
-  const mergeAudioDir = join(taskDir, "merge_audio");
+  const mergeAudioDir = join(taskDir, "mix_audio");
   const ttsDir = join(taskDir, "tts", "wavs");
   const stretchedDir = join(mergeAudioDir, "stretched");
   const silenceDir = join(mergeAudioDir, "silences");
@@ -62,9 +62,9 @@ export async function stageMergeAudio(ctx: TaskCtx) {
   let lastEndMs = 0;
   let driftMs = 0;
 
-  const maxSpeed = ctx.input.stages.merge_audio.maxSpeed;
-  const maxAdvanceMs = ctx.input.stages.merge_audio.maxAdvanceMs;
-  const maxDelayMs = ctx.input.stages.merge_audio.maxDelayMs;
+  const maxSpeed = ctx.input.stages.mix_audio.maxSpeed;
+  const maxAdvanceMs = ctx.input.stages.mix_audio.maxAdvanceMs;
+  const maxDelayMs = ctx.input.stages.mix_audio.maxDelayMs;
   const newTranslation: Timing[] = [];
   for (const [i, item] of segments.entries()) {
     // const segment = translation[i];
@@ -157,7 +157,7 @@ export async function stageMergeAudio(ctx: TaskCtx) {
 
     if (realEndMs <= realStartMs) {
       throw new Error(
-        `[merge_audio] #${i + 1} (${item.text?.slice(0, 30) || "?"}) 生成了零时长段: ` +
+        `[mix_audio] #${i + 1} (${item.text?.slice(0, 30) || "?"}) 生成了零时长段: ` +
           `tts_file=${ttsFile}, ` +
           `item.start=${item.start_ms}ms, item.end=${item.end_ms}ms (slot=${(item.end_ms - item.start_ms).toFixed(0)}ms), ` +
           `tts_duration=${ttsMs.toFixed(0)}ms, trimmed=${trimmedMs.toFixed(0)}ms, ` +
@@ -202,10 +202,10 @@ export async function stageMergeAudio(ctx: TaskCtx) {
     "-ac",
     "1", // 单声道
     dubbingFile,
-  ]); // 输出到 `merge_audio/audio_dubbing.wav
+  ]); // 输出到 `mix_audio/audio_dubbing.wav
 
   writeJson(timings_filepath(taskDir), { segments: newTranslation });
-  await setStage(taskDir, "merge_audio", {
+  await setStage(taskDir, "mix_audio", {
     status: "success",
     completed_at: nowISO(),
     progress: 100,

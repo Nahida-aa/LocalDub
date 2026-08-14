@@ -60,8 +60,8 @@ export async function continuePipeline(ctx: TaskCtx) {
         })),
       );
     }
-    // merge_video produces different output per pipeline → force re-run
-    setStage(taskDir, "merge_video", {
+    // mix_video produces different output per pipeline → force re-run
+    setStage(taskDir, "mix_video", {
       status: "pending",
       started_at: null,
       completed_at: null,

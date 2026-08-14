@@ -22,7 +22,7 @@ export function alignmentToFfmpeg(alignment: Alignment): number {
   return ALIGNMENT_MAP[alignment] ?? 2;
 }
 
-export const MergeVideoArgsSchema = z
+export const MixVideoArgsSchema = z
   .object({
     fontSize: z
       .number()

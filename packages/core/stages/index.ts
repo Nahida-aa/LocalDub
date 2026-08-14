@@ -11,8 +11,8 @@ import { stageAsrOcrFix } from "./04_asr_ocr/ocr_fix";
 import { stageTranslate } from "./05_translate/translate";
 import { stageSplitAudio } from "./06_split_audio/split_audio";
 import { stageTts } from "./07_tts/tts";
-import { stageMergeAudio } from "./merge_audio/merge_audio";
-import { stageMergeVideo } from "./merge_video";
+import { stageMixAudio } from "./mix_audio/mix_audio";
+import { stageMixVideo } from "./mix_video";
 import { TaskCtx, readCtx, Task } from "@repo/core/context/context.ts";
 
 export type StageHandler = (sp: string) => Promise<void>;
@@ -31,6 +31,6 @@ export const STAGE_HANDLERS: Record<string, StageHandler> = {
   translate: async (sp) => await stageTranslate(readCtx(sp)),
   split_audio: async (sp) => await stageSplitAudio(readCtx(sp)),
   tts: (sp) => stageTts(readCtx(sp)),
-  merge_audio: async (sp) => await stageMergeAudio(readCtx(sp)),
-  merge_video: async (sp) => await stageMergeVideo(readCtx(sp)),
+  mix_audio: async (sp) => await stageMixAudio(readCtx(sp)),
+  mix_video: async (sp) => await stageMixVideo(readCtx(sp)),
 };
