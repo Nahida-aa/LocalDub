@@ -1,10 +1,11 @@
 import { z } from "zod/v4";
 import { langList } from "../../const/lang";
+import { env } from "@repo/config/env";
 
-export const TranslateCliInputSchema = z
+export const TranslateArgsSchema = z
   .looseObject({
-    apiBase: z.string().optional(),
-    model: z.string().optional(),
+    apiBase: z.string().default(env.OPENAI_BASE_URL),
+    model: z.string().default(env.OPENAI_MODEL),
     targetLang: z
       .enum(langList)
       .optional()

@@ -66,7 +66,6 @@ mod tests {
             }}}
         }));
         let cfg = read_args(&ctx);
-        assert_eq!(cfg.runtime, args::Runtime::Ggml);
         assert_eq!(cfg.device, args::Device::Mps);
         assert!(cfg.always);
         assert_eq!(cfg.stems, vec![args::Stem::Drums, args::Stem::Vocals]);

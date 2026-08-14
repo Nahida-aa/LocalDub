@@ -1,5 +1,5 @@
 import { stageSeparate } from "./separate";
-import { stageSeparateAfter } from "./separate_after";
+import { stageSeparateAfter } from "./separate/after";
 import { stageAsr } from "./asr/asr";
 import { stageAsrFix } from "./asr/asr_fix";
 import { stageSfOcrPre } from "./sf_ocr/ocr_pre";

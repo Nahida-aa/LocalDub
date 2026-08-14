@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const AsrCliArgsSchema = z
+export const AsrArgsSchema = z
   .looseObject({
     runtime: z.enum(["ggml", "faster-whisper", "pytorch"]).default("pytorch"),
     device: z.enum(["vulkan", "cuda", "cpu", "mps"]).default("cuda"),
@@ -96,4 +96,4 @@ export const AsrCliArgsSchema = z
   })
   .optional();
 
-export type AsrArgs = z.output<typeof AsrCliArgsSchema>;
+export type AsrArgs = z.output<typeof AsrArgsSchema>;

@@ -1,3 +1,4 @@
+import { SubtitleSegment } from "@repo/subtitle/types";
 import { SplitAudioSegment, SplitAudioTiming } from "./out";
 
 /**
@@ -9,11 +10,14 @@ import { SplitAudioSegment, SplitAudioTiming } from "./out";
  * - minGap=50ms 之下的缝直接取中点, 避免与相邻段重叠。
  * 返回新数组, 不修改原数组。
  */
-export function padSegments(
-  segments: SplitAudioTiming[],
+export function padSegments<Seg extends SubtitleSegment>(
+  segments: Seg[],
   startPad = 100,
   endPad = 300,
-): SplitAudioSegment[] {
+): (Seg & {
+  split_start_ms: number;
+  split_end_ms: number;
+})[] {
   if (!segments.length) return [];
   const minGap = 50;
 

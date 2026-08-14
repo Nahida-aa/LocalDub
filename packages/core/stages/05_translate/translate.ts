@@ -41,7 +41,7 @@ export async function stageTranslate(ctx: TaskCtx) {
     meta = readJson(ytdlpPath);
   }
 
-  const transArgs = readInputArgs().stages?.translate;
+  const transArgs = readInputArgs().stages.translate;
   const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
 

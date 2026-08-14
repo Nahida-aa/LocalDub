@@ -17,7 +17,8 @@ import {
 } from "@repo/subtitle-ocr/args";
 import { AsrArgsSchema } from "@repo/subtitle-asr/args";
 import { SplitAudioArgsSchema } from "../stages/06_split_audio/args";
-import { TranslateCliInputSchema } from "../stages/05_translate/args";
+import { TranslateArgsSchema } from "../stages/05_translate/args";
+import { AsrFixArgsSchema } from "../stages/asr/fix_args";
 
 const deviceList = ["cpu", "cuda", "mps", "webgpu"] as const;
 export type Device = (typeof deviceList)[number];
@@ -136,17 +137,12 @@ const StagesSchema = z
   .object({
     separate: SeparateArgsSchema,
     asr: AsrArgsSchema,
-    asr_fix: z
-      .looseObject({
-        ...LlmFixArgsSchema.shape,
-        asrFilePath: z.string().optional().describe("ASR 结果文件路径, 调试使用"),
-      })
-      .prefault({}),
+    asr_fix: AsrFixArgsSchema,
     sf_ocr: SfOcrArgsSchema,
     sf_ocr_fix: OcrFixArgsSchema.prefault({}),
     asr_ocr: AsrOcrCliInputSchema,
     asr_ocr_fix: AsrOcrFixArgsSchema.prefault({}),
-    translate: TranslateCliInputSchema,
+    translate: TranslateArgsSchema,
     split_audio: SplitAudioArgsSchema,
     tts: TtsStageArgsSchema,
     merge_audio: z
