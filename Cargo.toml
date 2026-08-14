@@ -20,6 +20,7 @@ config-rs = { path = "packages/config-rs" }
 device-rs = { path = "packages/device-rs" }
 fs = { path = "packages/fs" }
 ld-core = { path = "packages/core" }
+llm = { path = "packages/llm" }
 server = { path = "packages/server" }
 time = { path = "packages/time" }
 async-trait = "0.1"

@@ -1,9 +1,11 @@
 //! sf_ocr 阶段 OCR 修正参数 (镜像 TS `packages/core/stages/sf_ocr/fix_args.ts`)。
 //!
 //! TS 端通过 spread 组合了 `OcrSegmentAdjustArgsSchema` / `BoxAdjustedArgsSchema` /
-//! `MergeFramesArgsSchema` / `LlmFixArgsSchema`，这里内联同一组字段
-//! (subtitle-ocr / llm 的 Rust crate 尚未落地，不宜跨 crate 依赖)。
+//! `MergeFramesArgsSchema` / `LlmFixArgsSchema`。`OcrSegmentAdjustArgs` / `BoxAdjustedArgs` /
+//! `MergeFramesArgs` 仍内联（subtitle-ocr 的 Rust crate 尚未落地），`LlmFixArgs` 直接复用
+//! `llm` crate 的类型，并用 `#[serde(flatten)]` 保持与 TS spread 一致的扁平 JSON 结构。
 
+use llm::llm_fix_args::LlmFixArgs;
 use serde::{Deserialize, Serialize};
 
 /// sf_ocr 阶段 OCR 修正参数。
@@ -34,18 +36,9 @@ pub struct OcrFixArgs {
     /// dedupOverlap 的编辑距离阈值: edit_distance ≤ 此值则合并; 默认 1
     #[serde(default = "default_dedup_edit_distance")]
     pub dedup_edit_distance: u32,
-    /// LLM 模型名
-    #[serde(default = "default_llm_model")]
-    pub llm_model: String,
-    /// LLM API 地址
-    #[serde(default = "default_llm_api_base")]
-    pub llm_api_base: String,
-    /// 领域提示, 帮助 LLM 理解上下文，例如"仙侠题材，角色：叶白、慧天、夜白"
-    #[serde(default)]
-    pub domain_hint: Option<String>,
-    /// 是否启用 LLM 修正
-    #[serde(default)]
-    pub llm_fix: bool,
+    /// LLM 修正参数 (flatten, 扁平展开为 llmModel / llmApiBase / domainHint / llmFix)
+    #[serde(default, flatten)]
+    pub llm_fix: LlmFixArgs,
 }
 
 fn default_adjusted_confidence_threshold() -> f64 {
@@ -74,12 +67,4 @@ fn default_box_adjusted_threshold() -> f64 {
 
 fn default_dedup_edit_distance() -> u32 {
     1
-}
-
-fn default_llm_model() -> String {
-    "gemma4:31b-cloud".to_string()
-}
-
-fn default_llm_api_base() -> String {
-    "http://localhost:11434/v1".to_string()
 }
