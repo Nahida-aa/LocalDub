@@ -1,7 +1,7 @@
 // use std::fs;
 
 // use config_rs::{root::base_dir, servers::ServerType};
-// use core_rs::{
+// use ld_core::{
 //     cmd::tasks::get_task::GroupInfo,
 //     context::{self, Context, Task},
 //     servers::discovery::ServerInfo,

@@ -1,4 +1,5 @@
 import { z } from "zod";
+
 export const langList = [
   "en",
   "zh",
@@ -49,6 +50,7 @@ export const subtitleSourceList = ["asr", "sf_ocr", "asr_ocr"] as const;
 export type SubtitleSource = (typeof subtitleSourceList)[number];
 
 const taskActionList = ["start", "continue", "status", "get_group_list", "get_task_ctx"] as const;
+
 export const taskArgsSchema = z.object({
   action: z
     .enum(taskActionList)

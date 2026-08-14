@@ -2,6 +2,7 @@ import { TtsStageArgsSchema } from "@repo/tts/args";
 import { ServersArgsSchema } from "../servers/args";
 import { EnvArgsSchema } from "@repo/core/cmd/env/input";
 import { z } from "zod";
+import { SeparateArgsSchema } from "../stages/separate/args";
 
 import { LlmFixArgsSchema } from "@repo/llm/llm_fix_args";
 import { langList, taskArgsSchema } from "../tasks/args";
@@ -30,34 +31,6 @@ export const commandList = [
 ] as const;
 
 export type Command = (typeof commandList)[number];
-
-const SeparateCliInputSchema = z
-  .object({
-    runtime: z.enum(["ggml", "ort", "pytorch", "burn", "burn-tch"]),
-    device: z
-      .enum(["vulkan", "webgpu", "cuda", "cpu", "mps"])
-      .default("cuda")
-      .describe("pytorch:cuda (NVIDIA/ROCm), mps (Apple Silicon)"),
-    always: z
-      .boolean()
-      .default(false)
-      .describe(
-        "效果(默认关闭): subtitle 模式下也始终分离人声，保留 vocals 以便后续切换到 dub; dub 流程下始终 需要分离人声以 保证 tts-vc 的质量",
-      )
-      .optional(),
-    stems: z
-      .array(z.enum(["drums", "bass", "other", "vocals"]))
-      .default(["vocals"])
-      .describe("需分离的 stems; 默认只分离 vocals, 目前仅支持 ort")
-      .optional(),
-  })
-  .default({
-    runtime: "pytorch",
-    device: "cuda",
-  })
-  .optional()
-  .describe(`separate: demucs 分离人声与背景声, 提升 tts-vc 的质量`);
-export type SeparateConfig = z.infer<typeof SeparateCliInputSchema>;
 
 const ocrRuntimeList = ["ort-rust"] as const;
 const ocrRuntimeSchema = z
@@ -171,7 +144,7 @@ export type MergeVideoConfig = z.output<typeof MergeVideoSchema>;
 
 const StagesSchema = z
   .object({
-    separate: SeparateCliInputSchema,
+    separate: SeparateArgsSchema,
     asr: AsrCliArgsSchema,
     asr_fix: z
       .looseObject({

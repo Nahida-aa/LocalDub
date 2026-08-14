@@ -689,10 +689,7 @@
           "const": "start"
         },
         {
-          "const": "resume"
-        },
-        {
-          "const": "rerun_stage"
+          "const": "continue"
         },
         {
           "const": "status"
@@ -749,13 +746,9 @@
               "type": "null"
             }
           ],
-          "description": " 任务操作: start=开始, resume=继续, rerun_stage=重新运行某步骤, status=显示状态, get_group_list=列出分组"
+          "description": " 任务操作: start=开始, continue=继续, status=显示状态, get_group_list=列出分组"
         },
-        "pipeline": {
-          "$ref": "#/$defs/Pipeline",
-          "description": " 任务模式, dub 配音, subtitle 仅字幕"
-        },
-        "resumeFrom": {
+        "continueFrom": {
           "anyOf": [
             {
               "$ref": "#/$defs/StageName"
@@ -764,7 +757,11 @@
               "type": "null"
             }
           ],
-          "description": " 继续任务专业参数, 可指定 resumeFrom 从某步骤开始, 不指定则从上次中断的步骤开始"
+          "description": " 继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始"
+        },
+        "pipeline": {
+          "$ref": "#/$defs/Pipeline",
+          "description": " 任务模式, dub 配音, subtitle 仅字幕"
         },
         "sourceLang": {
           "anyOf": [
@@ -849,13 +846,9 @@
               "type": "null"
             }
           ],
-          "description": " 任务操作: start=开始, resume=继续, rerun_stage=重新运行某步骤, status=显示状态, get_group_list=列出分组"
+          "description": " 任务操作: start=开始, continue=继续, status=显示状态, get_group_list=列出分组"
         },
-        "pipeline": {
-          "$ref": "#/$defs/Pipeline",
-          "description": " 任务模式, dub 配音, subtitle 仅字幕"
-        },
-        "resumeFrom": {
+        "continueFrom": {
           "anyOf": [
             {
               "$ref": "#/$defs/StageName"
@@ -864,7 +857,11 @@
               "type": "null"
             }
           ],
-          "description": " 继续任务专业参数, 可指定 resumeFrom 从某步骤开始, 不指定则从上次中断的步骤开始"
+          "description": " 继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始"
+        },
+        "pipeline": {
+          "$ref": "#/$defs/Pipeline",
+          "description": " 任务模式, dub 配音, subtitle 仅字幕"
         },
         "sourceLang": {
           "anyOf": [
@@ -939,12 +936,12 @@
         "url",
         "sourceLang",
         "targetLang",
-        "resumeFrom",
+        "continueFrom",
+        "targetStage",
         "taskDir",
         "stageName",
         "pipeline",
-        "subtitleSource",
-        "targetStage"
+        "subtitleSource"
       ],
       "title": "TaskArgs_Serialize",
       "type": "object"

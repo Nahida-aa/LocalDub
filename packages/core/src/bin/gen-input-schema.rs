@@ -2,18 +2,18 @@
 //!
 //! 对标 TS 侧 `packages/cli/scripts/gen-input-schema.ts`（zod `toJSONSchema({io:'input'})`）。
 //!
-//! 类型定义已迁到 [`core_rs::input`]，本 bin 只负责导出：
+//! 类型定义已迁到 [`ld_core::input`]，本 bin 只负责导出：
 //! `PhasesFormat::Deserialize` 面 = input schema (root `Input_Deserialize`)。
 //! 运行时由 `#[serde(default)]` 补齐默认值。specta 无 `Ranged`/min/max 约束，
 //! 数值范围需在解析时自行校验（见 input 模块 TODO）。
 
 use std::borrow::Cow;
 
-use core_rs::input::Input;
+use ld_core::input::Input;
 use specta::datatype::{DataType, Reference};
 use specta::{Format as _, Type, Types};
 use specta_jsonschema::JsonSchema;
-use specta_serde::{select_phase_datatype, Phase, PhasesFormat};
+use specta_serde::{Phase, PhasesFormat, select_phase_datatype};
 
 /// 占位 formatter：types 已由 [`PhasesFormat`] 预映射，导出时不再二次改写。
 struct NoopFormat;

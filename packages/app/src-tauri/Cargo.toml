@@ -3,7 +3,7 @@ name = "app"
 version = "0.1.0"
 description = "LocalDub Desktop Application"
 authors = ["Nahida-aa"]
-edition = "2021"
+edition = "2024"
 default-run = "app"
 
 [lib]

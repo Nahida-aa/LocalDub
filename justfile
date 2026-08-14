@@ -10,5 +10,5 @@ demo-py:
 run_cli:
     bun --cwd packages/cli run-task.ts
 
-gen_input_schema:
-    cargo run -p core-rs --bin gen-input-schema
+gen-input-schema:
+    cargo run -p ld-core --bin gen-input-schema

@@ -66,22 +66,18 @@ pub enum StageName {
 }
 
 /// 任务模式: dub=配音, subtitle=仅字幕
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum Pipeline {
+    #[default]
     Dub,
     Subtitle,
 }
 
-impl Default for Pipeline {
-    fn default() -> Self {
-        Self::Dub
-    }
-}
-
 /// 字幕源
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
 pub enum SubtitleSource {
+    #[default]
     #[serde(rename = "asr")]
     Asr,
     #[serde(rename = "sf_ocr")]
@@ -90,14 +86,8 @@ pub enum SubtitleSource {
     AsrOcr,
 }
 
-impl Default for SubtitleSource {
-    fn default() -> Self {
-        Self::Asr
-    }
-}
-
 /// 任务参数 (镜像 taskArgsSchema)
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskArgs {
     /// 任务操作: start=开始, continue=继续, status=显示状态, get_group_list=列出分组
@@ -119,21 +109,4 @@ pub struct TaskArgs {
     /// 字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)
     #[serde(default)]
     pub subtitle_source: SubtitleSource,
-}
-
-impl Default for TaskArgs {
-    fn default() -> Self {
-        Self {
-            action: None,
-            url: None,
-            source_lang: None,
-            target_lang: None,
-            continue_from: None,
-            target_stage: None,
-            task_dir: None,
-            stage_name: None,
-            pipeline: Pipeline::default(),
-            subtitle_source: SubtitleSource::default(),
-        }
-    }
 }

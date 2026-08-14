@@ -218,3 +218,4 @@ tmp
 build/
 out/
 input.json
+input.jsonc

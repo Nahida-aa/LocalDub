@@ -1,10 +1,10 @@
 use crate::{commands, ctx::Ctx};
 use config_rs::servers::ServerType;
-use core_rs::servers::discovery::ServerInfo;
+use ld_core::servers::discovery::ServerInfo;
 
 #[fnrpc::rpc_query]
 pub async fn find_server(input: ServerType) -> ServerInfo {
-    core_rs::servers::discovery::find_server(input).await
+    ld_core::servers::discovery::find_server(input).await
 }
 
 #[fnrpc::rpc_mutate]

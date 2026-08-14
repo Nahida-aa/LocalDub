@@ -6,7 +6,7 @@ use config_rs::{
     // servers::ServerType
 };
 
-use core_rs::{
+use ld_core::{
     cmd::tasks::get_task::GroupInfo,
     context::{
         self,
@@ -17,7 +17,7 @@ use core_rs::{
 
 #[fnrpc::rpc_query]
 pub async fn get_group_list() -> Result<Vec<GroupInfo>, String> {
-    core_rs::cmd::tasks::get_task::get_group_list()
+    ld_core::cmd::tasks::get_task::get_group_list()
 }
 
 #[fnrpc::rpc_query]
