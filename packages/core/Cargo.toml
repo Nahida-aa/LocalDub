@@ -8,9 +8,9 @@ serde = { version = "1", features = ["derive"] }
 specta.workspace = true
 serde_json = "1"
 chrono = { version = "0.4", features = ["serde"] }
-config-rs = { path = "../config-rs" }
+config-rs.workspace = true
 mdns-sd = "0.13"
 specta-typescript.workspace = true
 specta-serde.workspace = true
 specta-jsonschema.workspace = true
-time = { path = "../time" }
+time.workspace = true

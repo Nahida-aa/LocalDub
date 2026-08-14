@@ -31,7 +31,7 @@ vulkan = ["voxcpm-rs/vulkan"]
 tch = ["burn/tch"]
 
 [dependencies]
-config-rs = { path = "../config-rs" }
+config-rs.workspace = true
 voxcpm-rs = { path = "../../submodule/voxcpm-rs", default-features = false }
 burn = { version = "0.20.1", default-features = false, features = ["std"] }
 clap = { version = "4", features = ["derive"] }

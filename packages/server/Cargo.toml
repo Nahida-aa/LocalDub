@@ -19,8 +19,8 @@ serde_json = "1"
 specta.workspace = true
 config-rs = { workspace = true }
 ld-core = { workspace = true }
-device-rs = { path = "../device-rs" }
-fs = { path = "../fs" }
+device-rs.workspace = true
+fs.workspace = true
 fnrpc.workspace = true
 fnrpc-axum.workspace = true
 axum = "0.8"

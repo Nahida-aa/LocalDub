@@ -39,7 +39,7 @@ fusion = ["demucs-core/fusion"]
 autotune = ["demucs-core/autotune"]
 
 [dependencies]
-config-rs = { path = "../../config-rs" }
+config-rs.workspace = true
 demucs-core = { path = "../../../submodule/demucs-rs/demucs-core", default-features = false }
 burn = { version = "0.20.1", default-features = false }
 clap = { version = "4", features = ["derive"] }

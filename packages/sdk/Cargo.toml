@@ -6,6 +6,6 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-config-rs = { path = "../config-rs" }
-server = { path = "../server" }
+config-rs.workspace = true
+server.workspace = true
 fnrpc.workspace = true

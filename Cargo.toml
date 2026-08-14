@@ -3,7 +3,9 @@ resolver = "3"
 members = [
     "packages/bridge", "packages/config-rs", "packages/core", "packages/device-rs",
     "packages/separate/demucs_burn", "packages/time", "packages/voxcpm-burn", "packages/app/src-tauri",
-    "packages/fs", "packages/sf-cli", "packages/subtitle-ocr-cli", "packages/server", "packages/tts", "packages/sdk", "packages/cli", "packages/env", "packages/app/src-tauri", ]
+    "packages/fs", "packages/sf-cli", "packages/subtitle-ocr-cli", "packages/server", "packages/tts",
+    "packages/sdk", "packages/cli", "packages/env",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -12,8 +14,14 @@ license = "Apache-2.0"
 publish = false
 
 [workspace.dependencies]
+# 本地 workspace crate
+bridge = { path = "packages/bridge" }
 config-rs = { path = "packages/config-rs" }
+device-rs = { path = "packages/device-rs" }
+fs = { path = "packages/fs" }
 ld-core = { path = "packages/core" }
+server = { path = "packages/server" }
+time = { path = "packages/time" }
 async-trait = "0.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
