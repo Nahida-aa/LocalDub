@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const TtsStageArgsSchema = z
   .object({
-    runtime: z.enum(["ggml", "pytorch", "ort", "cloud", "voxcpm_torch_gradio"]).default("pytorch"),
+    runtime: z.enum(["ggml", "cloud", "voxcpm_torch_gradio"]).default("cloud"),
     device: z.enum(["webgpu", "cuda", "rocm", "cpu", "mps"]).default("cuda"),
     skipExisting: z.boolean().default(true),
     onlyIndices: z

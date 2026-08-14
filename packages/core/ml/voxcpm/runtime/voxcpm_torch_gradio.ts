@@ -4,7 +4,7 @@ import type { ModelServerStatus } from "@repo/core/servers/type";
 import { spawn, type ChildProcess } from "node:child_process";
 import { to } from "@repo/shared/lib/utils/try";
 import { fetchStatsData } from "@repo/core/servers/client";
-import { TtsArgs } from "@repo/tts/args";
+import { TtsArgs } from "../../../stages/07_tts/args";
 import { pythonBin, VOXCPM_TORCH_GRADIO_MAIN } from "@repo/config/path/bin";
 import { findServer, readPortFromOutput } from "@repo/core/servers/discovery";
 

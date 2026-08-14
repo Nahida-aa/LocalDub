@@ -1,11 +1,10 @@
-import { VoxCPMCloud, VoxCPMNodeONNX, VoxCPMPython, writeWav } from "@repo/voxlab";
+import { VoxCPMCloud, VoxCPMNodeONNX } from "@repo/voxlab";
 import type { TTSBackend } from "@repo/voxlab";
 import { AsyncRetryer } from "@tanstack/pacer";
-import { spawn, type ChildProcess } from "node:child_process";
 import { join } from "node:path";
 import { to } from "@repo/shared/lib/utils/try.ts";
 
-import { TtsArgs } from "@repo/tts/args";
+import { TtsArgs } from "../../stages/07_tts/args";
 import { newVoxCPMPyTorchGradio } from "@repo/core/ml/voxcpm/runtime/voxcpm_torch_gradio";
 
 export type { TTSBackend } from "@repo/voxlab";
@@ -13,7 +12,6 @@ export type { TTSBackend } from "@repo/voxlab";
 function createBackend(cfg: TtsArgs): TTSBackend {
   if (!cfg) throw new Error("TTS input not found");
   if (cfg.runtime === "cloud") return new VoxCPMCloud();
-  if (cfg.runtime === "pytorch") return new VoxCPMPython();
   if (cfg.runtime === "voxcpm_torch_gradio") return newVoxCPMPyTorchGradio(cfg);
   const device = cfg.device === "webgpu" ? "webgpu" : "cpu";
   return new VoxCPMNodeONNX({ executionProvider: device });

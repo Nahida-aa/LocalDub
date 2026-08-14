@@ -10,7 +10,7 @@ import { stageAsrOcr } from "./04_asr_ocr/ocr";
 import { stageAsrOcrFix } from "./04_asr_ocr/ocr_fix";
 import { stageTranslate } from "./05_translate/translate";
 import { stageSplitAudio } from "./06_split_audio/split_audio";
-import { stageTts } from "./tts";
+import { stageTts } from "./07_tts/tts";
 import { stageMergeAudio } from "./merge_audio/merge_audio";
 import { stageMergeVideo } from "./merge_video";
 import { TaskCtx, readCtx, Task } from "@repo/core/context/context.ts";

@@ -3,20 +3,26 @@ import { writeJson, ensureDir } from "@repo/util/file_op";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { writeWav } from "@repo/voxlab";
-import type { TtsFile, TtsSegment } from "./07_tts/out.ts";
+import type { TtsFile, TtsSegment } from "./out.ts";
 
 import {
   emitLog,
   ffmpeg,
   nowISO,
   read_split_audio_timings,
-  readTaskLanguages,
   tts_filepath,
 } from "@repo/core/stages/utils/utils.ts";
 import { probeDurationMs } from "@repo/core/utils/ffmpeg";
 import { TaskCtx, setStage, setTask } from "@repo/core/context/context.ts";
-import { startLog } from "./utils/log.ts";
+import { startLog } from "../utils/log.ts";
 import { newVoxCPMEngine } from "@repo/core/ml/voxcpm/voxcpm";
+import { log } from "@repo/util/log";
+
+// vocals 参考音的"非静音"判定阈值: PCM 裸数据 > 该字节数才认为有实际声音内容。
+// 1200 = 1200 个采样帧 (约 75ms @ 16kHz), 16 = 16bit 采样深度, 2 = 双声道。
+const MIN_REF_BYTES = 1200 * 16 * 2;
+// refAudioX2 触发阈值: 参考音短于该时长时, 拼接自身翻倍作为 TTS 参考输入。
+const MIN_REF_DURATION_MS = 2500;
 
 /**
  * Progress bar
@@ -50,28 +56,28 @@ export async function stageTts(ctx: TaskCtx) {
   const taskDir = ctx.task.task_dir;
   startLog(taskDir, taskId);
 
-  const ttsCfg = ctx.input?.stages?.tts!;
+  const ttsArgs = ctx.input.stages.tts;
   const vocalsDir = join(taskDir, "split_audio", "vocals");
   const ttsWavDir = join(taskDir, "tts", "wavs");
   const doubledDir = join(taskDir, "tts", "ref_doubled");
 
   ensureDir(ttsWavDir);
-  if (ttsCfg.refAudioX2) {
+  if (ttsArgs.refAudioX2) {
     ensureDir(doubledDir);
   }
 
   const { segments } = await read_split_audio_timings(ctx);
 
-  if (!ttsCfg.skipExisting) {
+  if (!ttsArgs.skipExisting) {
     const anyTts = readdirSync(ttsWavDir).find((f) => f.endsWith(".wav"));
     if (anyTts) {
-      emitLog(taskDir, `[tts] Existing TTS segments found; will overwrite without deleting files`);
+      log(`Existing TTS segments found; will overwrite without deleting files`);
     }
   }
   // Unified engine (handles all runtimes via createBackend)
 
-  emitLog(taskDir, `[tts] Using ${ttsCfg.runtime} backend`);
-  const engine = newVoxCPMEngine(ttsCfg);
+  log(`Using ${ttsArgs.runtime} backend`);
+  const engine = newVoxCPMEngine(ttsArgs);
   await engine.load();
 
   //  Generation loop
@@ -94,12 +100,12 @@ export async function stageTts(ctx: TaskCtx) {
    */
   const i = segments.findIndex((_, i) => {
     const refPath = join(vocalsDir, `${String(i + 1).padStart(4, "0")}.wav`);
-    return existsSync(refPath) && statSync(refPath).size > 1200 * 16 * 2;
+    return existsSync(refPath) && statSync(refPath).size > MIN_REF_BYTES;
   });
   const fallbackRef = i !== -1 ? join(vocalsDir, `${String(i + 1).padStart(4, "0")}.wav`) : "";
 
   const isStart = ctx.input?.task.action === "start";
-  const onlyIndices = isStart ? undefined : ttsCfg.onlyIndices;
+  const onlyIndices = isStart ? undefined : ttsArgs.onlyIndices;
 
   let existingSegments: Map<number, TtsSegment> | undefined;
   if (onlyIndices?.length) {
@@ -121,10 +127,11 @@ export async function stageTts(ctx: TaskCtx) {
       } else {
         ttsSegments.push({
           seg_idx: i + 1,
-          text: item.dst || "",
-          start: item.start_ms,
-          end: item.start_ms,
-          slot_end: item.end_ms,
+          text: item.text,
+          dst: item.dst,
+          start_ms: item.start_ms,
+          end_ms: item.start_ms,
+          slot_end_ms: item.end_ms,
           tts_duration_ms: 0,
           status: "skipped",
         });
@@ -139,19 +146,20 @@ export async function stageTts(ctx: TaskCtx) {
     }
 
     let refWav = join(vocalsDir, `${idx}.wav`);
-    if (!existsSync(refWav) || statSync(refWav).size < 1200 * 16 * 2) {
+    if (!existsSync(refWav) || statSync(refWav).size < MIN_REF_BYTES) {
       refWav = fallbackRef;
     }
     const refMtime = refWav && existsSync(refWav) ? statSync(refWav).mtimeMs : 0;
 
-    if (ttsCfg.skipExisting && existsSync(outPath) && statSync(outPath).mtimeMs > refMtime) {
+    if (ttsArgs.skipExisting && existsSync(outPath) && statSync(outPath).mtimeMs > refMtime) {
       const durMs = probeDurationMs(outPath);
       ttsSegments.push({
         seg_idx: i + 1,
-        text: item.dst || "",
-        start: item.start_ms,
-        end: item.start_ms + durMs,
-        slot_end: item.end_ms,
+        text: item.text,
+        dst: item.dst,
+        start_ms: item.start_ms,
+        end_ms: item.start_ms + durMs,
+        slot_end_ms: item.end_ms,
         tts_duration_ms: durMs,
         status: "skipped",
       });
@@ -166,9 +174,10 @@ export async function stageTts(ctx: TaskCtx) {
       ttsSegments.push({
         seg_idx: i + 1,
         text: "",
-        start: item.start_ms,
-        end: item.start_ms,
-        slot_end: item.end_ms,
+        dst: "",
+        start_ms: item.start_ms,
+        end_ms: item.start_ms,
+        slot_end_ms: item.end_ms,
         tts_duration_ms: 0,
         status: "empty",
       });
@@ -182,10 +191,11 @@ export async function stageTts(ctx: TaskCtx) {
       writeFile(outPath, Buffer.alloc(44), ctx);
       ttsSegments.push({
         seg_idx: i + 1,
-        text: item.dst || "",
-        start: item.start_ms,
-        end: item.start_ms,
-        slot_end: item.end_ms,
+        text: item.text,
+        dst: item.dst,
+        start_ms: item.start_ms,
+        end_ms: item.start_ms,
+        slot_end_ms: item.end_ms,
         tts_duration_ms: 0,
         status: "skipped",
       });
@@ -194,9 +204,9 @@ export async function stageTts(ctx: TaskCtx) {
       continue;
     }
 
-    // Double reference audio if shorter than 2500ms
-    if (ttsCfg.refAudioX2) {
-      const minRefMs = 2500;
+    // Double reference audio if shorter than MIN_REF_DURATION_MS
+    if (ttsArgs.refAudioX2) {
+      const minRefMs = MIN_REF_DURATION_MS;
       const refMs = probeDurationMs(refWav);
       if (refMs > 0 && refMs < minRefMs) {
         const doubled = resolve(doubledDir, `ref_${idx}_x2.wav`);
@@ -225,11 +235,11 @@ export async function stageTts(ctx: TaskCtx) {
       generated += 1;
       ttsOk = true;
     } catch (e) {
-      emitLog(
-        taskDir,
+      log(
         `[tts] [ERROR] Segment ${idx} failed: ${e instanceof Error ? e.message : JSON.stringify(e)}`,
       );
-      // 重试耗尽后仍失败：直接抛出，终止任务，避免产出零内容音频被后续阶段当作正常段。
+      // 重试逻辑在 engine.synthesize 内部完成; 走到这里说明已重试耗尽仍失败。
+      // 直接抛出终止任务, 避免产出零内容音频被后续阶段当作正常段。
       throw new Error(
         `[tts] Segment ${idx} TTS failed after retries: ${e instanceof Error ? e.message : JSON.stringify(e)}`,
       );
@@ -237,10 +247,11 @@ export async function stageTts(ctx: TaskCtx) {
 
     ttsSegments.push({
       seg_idx: i + 1,
-      text: item.dst || "",
-      start: item.start_ms,
-      end: item.start_ms + ttsDurationMs,
-      slot_end: item.end_ms,
+      text: item.text,
+      dst: item.dst,
+      start_ms: item.start_ms,
+      end_ms: item.start_ms + ttsDurationMs,
+      slot_end_ms: item.end_ms,
       tts_duration_ms: ttsDurationMs,
       status: ttsOk ? "success" : "error",
     });
@@ -253,11 +264,8 @@ export async function stageTts(ctx: TaskCtx) {
   const audioSec = segments.reduce((s, t) => s + (t.end_ms - t.start_ms), 0) / 1000;
   const rtf = audioSec > 0 && genSec > 0 ? genSec / audioSec : 0;
 
-  emitLog(
-    taskDir,
-    `[TTS] Batch complete: ${generated} generated, ${skipped} skipped, ${errors} errors`,
-  );
-  emitLog(taskDir, `[VoxCPM] Generated in ${genSec.toFixed(1)}s | RTF ${rtf.toFixed(3)}`);
+  log(`Batch complete: ${generated} generated, ${skipped} skipped, ${errors} errors`);
+  log(`Generated in ${genSec.toFixed(1)}s | RTF ${rtf.toFixed(3)}`);
 
   ensureDir(join(taskDir, "tts"));
   writeJson(tts_filepath(taskDir), { segments: ttsSegments });
