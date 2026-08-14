@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-serde = { version = "1", features = ["derive"] }
+serde.workspace = true
 specta.workspace = true
-serde_json = "1"
-chrono = { version = "0.4", features = ["serde"] }
+serde_json.workspace = true
+chrono.workspace = true
 config-rs.workspace = true
 llm.workspace = true
-mdns-sd = "0.13"
+mdns-sd.workspace = true
 specta-typescript.workspace = true
 specta-serde.workspace = true
 specta-jsonschema.workspace = true

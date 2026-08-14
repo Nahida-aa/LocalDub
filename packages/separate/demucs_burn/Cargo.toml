@@ -42,7 +42,7 @@ autotune = ["demucs-core/autotune"]
 config-rs.workspace = true
 demucs-core = { path = "../../../submodule/demucs-rs/demucs-core", default-features = false }
 burn = { version = "0.20.1", default-features = false }
-clap = { version = "4", features = ["derive"] }
+clap.workspace = true
 hound = "3"
-anyhow = "1"
+anyhow.workspace = true
 pollster = "0.4"
