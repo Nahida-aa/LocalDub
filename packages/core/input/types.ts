@@ -84,24 +84,6 @@ const AsrOcrCliInputSchema = z
 
 export type AsrOcrConfig = z.output<typeof AsrOcrCliInputSchema>;
 
-const alignmentList = [
-  "bottom-left",
-  "bottom-center",
-  "bottom-right",
-  "middle-left",
-  "center",
-  "middle-right",
-  "top-left",
-  "top-center",
-  "top-right",
-] as const;
-type Alignment = (typeof alignmentList)[number];
-const AlignmentSchema = z.enum(alignmentList).default("bottom-center");
-
-const ALIGNMENT_MAP: Record<Alignment, number> = Object.fromEntries(
-  alignmentList.map((key, i) => [key, i + 1]),
-) as Record<Alignment, number>;
-
 const StagesSchema = z
   .object({
     separate: SeparateArgsSchema,
