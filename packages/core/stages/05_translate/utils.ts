@@ -1,4 +1,4 @@
-import { TargetLang } from "../../tasks/args";
+import { TargetLang } from "../../const/lang";
 import { setCtx, TaskCtx } from "../../context/context";
 import { readTaskLanguages } from "../utils/utils";
 

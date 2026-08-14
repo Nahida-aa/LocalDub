@@ -1,5 +1,5 @@
 import { SubtitleSegment } from "@repo/subtitle/types";
-import { TargetLang } from "../../tasks/args";
+import { TargetLang } from "../../const/lang";
 
 export type TranslateSegment = SubtitleSegment & {
   dst: string; // (dubbed | sutitled) translation

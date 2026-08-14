@@ -5,7 +5,8 @@ import { z } from "zod";
 import { SeparateArgsSchema } from "../stages/separate/args";
 
 import { LlmFixArgsSchema } from "@repo/llm/llm_fix_args";
-import { langList, taskArgsSchema } from "../tasks/args";
+import { taskArgsSchema } from "../tasks/args";
+import { langList } from "../const/lang";
 import { CookieArgsSchema } from "@repo/core/cmd/cookie/input";
 import {
   OcrSegmentAdjustArgsSchema,
@@ -14,8 +15,9 @@ import {
   AsrOcrFixArgsSchema,
   OcrFixArgsSchema,
 } from "@repo/subtitle-ocr/args";
-import { AsrCliArgsSchema } from "@repo/subtitle-asr/args";
+import { AsrArgsSchema } from "@repo/subtitle-asr/args";
 import { SplitAudioArgsSchema } from "../stages/06_split_audio/args";
+import { TranslateCliInputSchema } from "../stages/05_translate/args";
 
 const deviceList = ["cpu", "cuda", "mps", "webgpu"] as const;
 export type Device = (typeof deviceList)[number];
@@ -79,18 +81,6 @@ const AsrOcrCliInputSchema = z
 
 export type AsrOcrConfig = z.output<typeof AsrOcrCliInputSchema>;
 
-const TranslateCliInputSchema = z
-  .looseObject({
-    apiBase: z.string().optional(),
-    model: z.string().optional(),
-    targetLang: z
-      .enum(langList)
-      .optional()
-      .describe("如果不填则 按照这个逻辑: 源语言: zh -> en, 否则 any -> zh"), //
-    enabled: z.boolean().default(true).describe("设为 false 跳过翻译，直接使用原始识别文本"),
-  })
-  .prefault({});
-
 const alignmentList = [
   "bottom-left",
   "bottom-center",
@@ -145,23 +135,13 @@ export type MergeVideoConfig = z.output<typeof MergeVideoSchema>;
 const StagesSchema = z
   .object({
     separate: SeparateArgsSchema,
-    asr: AsrCliArgsSchema,
+    asr: AsrArgsSchema,
     asr_fix: z
       .looseObject({
         ...LlmFixArgsSchema.shape,
-        segmentPad: z
-          .boolean()
-          .default(true)
-          .describe("是否对 ASR 段落添加时间轴 padding")
-          .optional(),
         asrFilePath: z.string().optional().describe("ASR 结果文件路径, 调试使用"),
       })
-      .default({
-        llmFix: false,
-        segmentPad: true,
-      } as any)
-      .optional(),
-
+      .prefault({}),
     sf_ocr: SfOcrArgsSchema,
     sf_ocr_fix: OcrFixArgsSchema.prefault({}),
     asr_ocr: AsrOcrCliInputSchema,

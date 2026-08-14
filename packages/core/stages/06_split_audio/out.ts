@@ -1,6 +1,6 @@
 import { SubtitleSegment } from "@repo/subtitle/types";
 import { TranslateResultMeta, TranslateSegment } from "../05_translate/out";
-import { TargetLang } from "../../tasks/args";
+import { TargetLang } from "../../const/lang";
 
 // start_ms: number; // 视频意图起点
 // end_ms: number; // 视频意图终点

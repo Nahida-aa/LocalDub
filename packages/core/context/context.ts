@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { getLastSegment } from "../utils/fileOps.ts";
-import { TargetLang } from "../tasks/args.ts";
+import { TargetLang } from "../const/lang";
 import { TaskStage } from "./types.ts";
 
 export const getTaskId = (taskDir: string) => getLastSegment(taskDir);

@@ -36,7 +36,7 @@ import {
   OcrFramesBoxFilteredResult,
 } from "@repo/subtitle-ocr/ocr_fix/box_filter";
 import { AsrSplitResult } from "./ocr_pre.ts";
-import { TargetLang } from "../../tasks/args.ts";
+import { TargetLang } from "../../const/lang";
 import { ocrLlmFix } from "../sf_ocr/llm_fix.ts";
 import { AsrResult } from "@repo/subtitle-asr/types";
 import { cellOcrPost } from "../sf_ocr/util.ts";
