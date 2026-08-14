@@ -10,7 +10,7 @@ import { openModal } from "@repo/ui-solid/custom/modal/renderer";
 import type { Track, TrackSegment } from "../consts";
 import { TrackEditModal } from "./comp/TrackEditModal";
 import { client } from "#/integrations/fnrpc/client.ts";
-import type { Timing, TimingsFile } from "@repo/core/stages/merge_audio/types";
+import type { Timing, TimingsFile } from "@repo/core/stages/mix_audio/types";
 import { useTrackData } from "./useTrackData";
 import type { BaseTrackProps } from "./shared";
 
@@ -106,13 +106,13 @@ function deleteAt(segments: TrackSegment[], index: number): TrackSegment[] {
   return segments.filter((_, i) => i !== index).map((s, i) => ({ ...s, index: i }));
 }
 
-export function MergeAudioTrack(props: Props) {
+export function MixAudioTrack(props: Props) {
   const { taskDir, pxPerMs, onSeek, color } = props;
   const track = () => props.track;
   const { segments } = useTrackData({
     taskDir,
     trackId: track().id,
-    path: () => `${taskDir}/merge_audio/timings.json`,
+    path: () => `${taskDir}/mix_audio/timings.json`,
     parse: (text) => {
       const data: TimingsFile = JSON.parse(text);
       return (data.segments || []).map((item, i: number) => ({
@@ -123,9 +123,9 @@ export function MergeAudioTrack(props: Props) {
         raw: item,
       }));
     },
-    label: () => "merge_audio/timings.json",
+    label: () => "mix_audio/timings.json",
   });
-  const filePath = () => `${taskDir}/merge_audio/timings.json`;
+  const filePath = () => `${taskDir}/mix_audio/timings.json`;
 
   const handleInsertBefore = async (segIndex: number) => {
     const newSegments = insertAt(segments(), segIndex, false);
