@@ -1,8 +1,12 @@
 use serde::{Deserialize, Serialize};
 
 /// separate 推理运行时
+///
+/// TS 侧为 `z.enum(["burn", "burn-tch"])` (kebab-case), 故用 `rename_all = "kebab-case"`
+/// (`BurnTch` → `"burn-tch"`)。原先误用 `lowercase` 会得到 `"burntch"`, 与 TS 对不上,
+/// 导致运行时 `"burn-tch"` 解析失败回落默认 (see `read_args_parses_camel_case_fields`)。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 pub enum Runtime {
     Burn,
     #[default]

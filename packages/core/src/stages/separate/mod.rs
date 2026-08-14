@@ -59,7 +59,7 @@ mod tests {
             "task": {"id": "t", "task_dir": "/x", "url": "http://e", "source": "remote",
                      "status": "running", "created_at": "2024-01-01T00:00:00Z"},
             "input": {"stages": {"separate": {
-                "runtime": "ggml",
+                "runtime": "burn-tch",
                 "device": "mps",
                 "always": true,
                 "stems": ["drums", "vocals"]
