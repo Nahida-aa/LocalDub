@@ -16,8 +16,8 @@ export const STAGE_TRACKS: Record<StageName, string[]> = {
   translate: ["translation", "asr_ocr_fix"],
   split_audio: ["split_audio", "split_audio_timings"],
   tts: ["tts"],
-  merge_audio: ["merge_audio"],
-  merge_video: [],
+  mix_audio: ["mix_audio"],
+  mix_video: [],
 };
 
 /// 轨道描述符（静态）：TaskDetailPage 只负责按 tab 过滤后交给 Timeline，
@@ -29,7 +29,7 @@ export interface TrackDef {
 }
 
 export const TRACK_DEFS: TrackDef[] = [
-  { id: "merge_audio", label: "merge_audio/timings.json", color: "#3b82f6" },
+  { id: "mix_audio", label: "mix_audio/timings.json", color: "#3b82f6" },
   { id: "tts", label: "tts/tts.json", color: "#f43f5e" },
   { id: "split_audio_timings", label: "split_audio/timings.json", color: "#3b82f6" },
   { id: "split_audio", label: "split_audio/split_audio.json", color: "#f59e0b" },

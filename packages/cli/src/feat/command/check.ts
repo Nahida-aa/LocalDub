@@ -110,7 +110,7 @@ export async function cmdCheck(opts: {
 
   if (type === "font") {
     const cfg = readInputArgs();
-    const configuredFont = cfg.stages?.merge_video?.font ?? "Noto Sans CJK SC";
+    const configuredFont = cfg.stages?.mix_video?.font ?? "Noto Sans CJK SC";
 
     const result: Record<string, unknown> = {
       ok: true,

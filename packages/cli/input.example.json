@@ -9,10 +9,10 @@
     "sourceLang": "zh"
   },
   "resumeTask": {
-    "resumeFrom": "merge_audio",
+    "resumeFrom": "mix_audio",
     "taskDir": "/home/aa/repos/env_ls/LocalDub/workfolder/local/大/11"
   },
-  "targetStage": "merge_video",
+  "targetStage": "mix_video",
   "pipeline": "dub",
   "subtitleSource": "asr_ocr",
   "stages": {
@@ -50,10 +50,10 @@
       "runtime": "pytorch",
       "device": "cuda"
     },
-    "merge_audio": {
+    "mix_audio": {
       "maxSpeed": 1.35
     },
-    "merge_video": {
+    "mix_video": {
       "fontSize": 21.4,
       "marginV": 37,
       "font": "Noto Sans CJK SC Medium",

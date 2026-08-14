@@ -5,15 +5,7 @@
     "command": {
       "default": "env",
       "type": "string",
-      "enum": [
-        "task",
-        "check",
-        "deviceInfo",
-        "servers",
-        "listModels",
-        "env",
-        "cookie"
-      ],
+      "enum": ["task", "check", "deviceInfo", "servers", "listModels", "env", "cookie"],
       "description": "\n\t\t6. check: 检测某任务的结果 (如视频是否下载成功, ASR 结果是否合理等)\n\t\t7. deviceInfo: 显示设备信息\n\t\t8. servers: 统一管理所有服务器 (servers.action=status 查状态, stop 停止, start 启动; servers.name 指定单个)\n\t\t9. listModels: 列出 openai 兼容端点的 可用模型\n\t\t10. env: 环境检查/修复 (check=诊断, ensure=尝试修复)\n\t\t"
     },
     "task": {
@@ -22,13 +14,7 @@
         "action": {
           "description": "任务操作: start=开始, continue=继续, status=显示状态, get_group_list=列出分组",
           "type": "string",
-          "enum": [
-            "start",
-            "continue",
-            "status",
-            "get_group_list",
-            "get_task_ctx"
-          ]
+          "enum": ["start", "continue", "status", "get_group_list", "get_task_ctx"]
         },
         "url": {
           "description": "本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl",
@@ -107,8 +93,8 @@
             "translate",
             "split_audio",
             "tts",
-            "merge_audio",
-            "merge_video"
+            "mix_audio",
+            "mix_video"
           ]
         },
         "targetStage": {
@@ -128,8 +114,8 @@
             "translate",
             "split_audio",
             "tts",
-            "merge_audio",
-            "merge_video"
+            "mix_audio",
+            "mix_video"
           ]
         },
         "taskDir": {
@@ -152,28 +138,21 @@
             "translate",
             "split_audio",
             "tts",
-            "merge_audio",
-            "merge_video"
+            "mix_audio",
+            "mix_video"
           ]
         },
         "pipeline": {
           "description": "任务模式, dub 配音,subtitle 仅字幕",
           "default": "dub",
           "type": "string",
-          "enum": [
-            "dub",
-            "subtitle"
-          ]
+          "enum": ["dub", "subtitle"]
         },
         "subtitleSource": {
           "description": "字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)",
           "default": "asr",
           "type": "string",
-          "enum": [
-            "asr",
-            "sf_ocr",
-            "asr_ocr"
-          ]
+          "enum": ["asr", "sf_ocr", "asr_ocr"]
         }
       }
     },
@@ -186,11 +165,7 @@
         "type": {
           "default": "video",
           "type": "string",
-          "enum": [
-            "video",
-            "asr",
-            "font"
-          ]
+          "enum": ["video", "asr", "font"]
         }
       }
     },
@@ -201,20 +176,12 @@
           "description": "服务器操作",
           "default": "status",
           "type": "string",
-          "enum": [
-            "status",
-            "start",
-            "stop",
-            "discovery"
-          ]
+          "enum": ["status", "start", "stop", "discovery"]
         },
         "name": {
           "description": "指定操作的服务器，不传则操作所有",
           "type": "string",
-          "enum": [
-            "voxcpm_torch_gradio",
-            "demucs_torch_server"
-          ]
+          "enum": ["voxcpm_torch_gradio", "demucs_torch_server"]
         }
       },
       "additionalProperties": {}
@@ -225,10 +192,7 @@
         "action": {
           "default": "check",
           "type": "string",
-          "enum": [
-            "check",
-            "ensure"
-          ]
+          "enum": ["check", "ensure"]
         },
         "targets": {
           "default": [],
@@ -278,16 +242,12 @@
         "action": {
           "default": "set",
           "type": "string",
-          "enum": [
-            "set"
-          ]
+          "enum": ["set"]
         },
         "service": {
           "default": "youtube",
           "type": "string",
-          "enum": [
-            "youtube"
-          ]
+          "enum": ["youtube"]
         },
         "content": {
           "description": "Netscape cookie，为空则让用户手动粘贴",
@@ -301,33 +261,19 @@
       "properties": {
         "separate": {
           "description": "separate: demucs 分离人声与背景声, 提升 tts-vc 的质量",
-          "default": {
-            "runtime": "pytorch",
-            "device": "cuda"
-          },
+          "default": {},
           "type": "object",
           "properties": {
             "runtime": {
+              "default": "burn-tch",
               "type": "string",
-              "enum": [
-                "ggml",
-                "ort",
-                "pytorch",
-                "burn",
-                "burn-tch"
-              ]
+              "enum": ["burn", "burn-tch"]
             },
             "device": {
               "default": "cuda",
-              "description": "pytorch:cuda (NVIDIA/ROCm), mps (Apple Silicon)",
+              "description": "torch:cuda (NVIDIA/ROCm), mps (Apple Silicon)",
               "type": "string",
-              "enum": [
-                "vulkan",
-                "webgpu",
-                "cuda",
-                "cpu",
-                "mps"
-              ]
+              "enum": ["vulkan", "webgpu", "cuda", "cpu", "mps"]
             },
             "always": {
               "default": false,
@@ -335,25 +281,15 @@
               "type": "boolean"
             },
             "stems": {
-              "default": [
-                "vocals"
-              ],
-              "description": "需分离的 stems; 默认只分离 vocals, 目前仅支持 ort",
+              "default": [],
+              "description": "需分离的 stems; 暂不被消费",
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": [
-                  "drums",
-                  "bass",
-                  "other",
-                  "vocals"
-                ]
+                "enum": ["drums", "bass", "other", "vocals"]
               }
             }
-          },
-          "required": [
-            "runtime"
-          ]
+          }
         },
         "asr": {
           "default": {
@@ -376,21 +312,12 @@
             "runtime": {
               "default": "pytorch",
               "type": "string",
-              "enum": [
-                "ggml",
-                "faster-whisper",
-                "pytorch"
-              ]
+              "enum": ["ggml", "faster-whisper", "pytorch"]
             },
             "device": {
               "default": "cuda",
               "type": "string",
-              "enum": [
-                "vulkan",
-                "cuda",
-                "cpu",
-                "mps"
-              ]
+              "enum": ["vulkan", "cuda", "cpu", "mps"]
             },
             "useSeparated": {
               "default": false,
@@ -401,11 +328,7 @@
               "default": "sidechain",
               "description": "ASR 音频源: vocals=纯分离人声,\n\t\t\t\traw-sum=人声+降低背景音直接叠加,\n\t\t\t\tsidechain=人声+侧链压缩背景音",
               "type": "string",
-              "enum": [
-                "vocals",
-                "raw-sum",
-                "sidechain"
-              ]
+              "enum": ["vocals", "raw-sum", "sidechain"]
             },
             "reduceBgm": {
               "default": -12,
@@ -466,10 +389,7 @@
             "vadModel": {
               "description": "whisper.cpp: VAD 模型, silero-v5 (默认) 或 silero-v6",
               "type": "string",
-              "enum": [
-                "silero-v5",
-                "silero-v6"
-              ]
+              "enum": ["silero-v5", "silero-v6"]
             },
             "vadThreshold": {
               "description": "whisper.cpp: VAD 阈值, 默认 0.5",
@@ -507,10 +427,7 @@
           "additionalProperties": {}
         },
         "asr_fix": {
-          "default": {
-            "llmFix": false,
-            "segmentPad": true
-          },
+          "default": {},
           "type": "object",
           "properties": {
             "llmModel": {
@@ -532,11 +449,6 @@
               "description": "是否启用 LLM 修正",
               "type": "boolean"
             },
-            "segmentPad": {
-              "default": true,
-              "description": "是否对 ASR 段落添加时间轴 padding",
-              "type": "boolean"
-            },
             "asrFilePath": {
               "description": "ASR 结果文件路径, 调试使用",
               "type": "string"
@@ -552,22 +464,13 @@
               "default": "ort-rust",
               "description": "OCR 推理运行时: ort-rust (opencv)",
               "type": "string",
-              "enum": [
-                "ort-rust"
-              ]
+              "enum": ["ort-rust"]
             },
             "device": {
               "default": "cpu",
               "description": "OCR 运行设备: cpu, cuda (NVIDIA), directml (Windows), coreml (macOS), rocm (AMD), mps (Apple Silicon)",
               "type": "string",
-              "enum": [
-                "cpu",
-                "cuda",
-                "directml",
-                "coreml",
-                "rocm",
-                "mps"
-              ]
+              "enum": ["cpu", "cuda", "directml", "coreml", "rocm", "mps"]
             },
             "text_confidence_threshold": {
               "default": 0.45,
@@ -689,22 +592,13 @@
               "default": "ort-rust",
               "description": "OCR 推理运行时: ort-rust (opencv)",
               "type": "string",
-              "enum": [
-                "ort-rust"
-              ]
+              "enum": ["ort-rust"]
             },
             "device": {
               "default": "cpu",
               "description": "OCR 运行设备: cpu, cuda (NVIDIA), directml (Windows), coreml (macOS), rocm (AMD), mps (Apple Silicon)",
               "type": "string",
-              "enum": [
-                "cpu",
-                "cuda",
-                "directml",
-                "coreml",
-                "rocm",
-                "mps"
-              ]
+              "enum": ["cpu", "cuda", "directml", "coreml", "rocm", "mps"]
             },
             "text_confidence_threshold": {
               "default": 0.45,
@@ -798,9 +692,11 @@
           "type": "object",
           "properties": {
             "apiBase": {
+              "default": "http://localhost:11434/v1",
               "type": "string"
             },
             "model": {
+              "default": "gemma4:31b:cloud",
               "type": "string"
             },
             "targetLang": {
@@ -876,26 +772,14 @@
           "type": "object",
           "properties": {
             "runtime": {
-              "default": "pytorch",
+              "default": "cloud",
               "type": "string",
-              "enum": [
-                "ggml",
-                "pytorch",
-                "ort",
-                "cloud",
-                "voxcpm_torch_gradio"
-              ]
+              "enum": ["ggml", "cloud", "voxcpm_torch_gradio"]
             },
             "device": {
               "default": "cuda",
               "type": "string",
-              "enum": [
-                "webgpu",
-                "cuda",
-                "rocm",
-                "cpu",
-                "mps"
-              ]
+              "enum": ["webgpu", "cuda", "rocm", "cpu", "mps"]
             },
             "skipExisting": {
               "default": true,
@@ -917,7 +801,7 @@
             }
           }
         },
-        "merge_audio": {
+        "mix_audio": {
           "default": {},
           "type": "object",
           "properties": {
@@ -941,7 +825,7 @@
             }
           }
         },
-        "merge_video": {
+        "mix_video": {
           "default": {
             "alignment": "bottom-center",
             "outline": 0,
@@ -1028,8 +912,6 @@
       }
     }
   },
-  "required": [
-    "task"
-  ],
+  "required": ["task"],
   "additionalProperties": {}
 }

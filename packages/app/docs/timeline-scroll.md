@@ -69,7 +69,7 @@
 
 1. 父层只下发**稳定引用**的轨道定义（`id/label/color/filePath/stageName`，不含数据），按 `viewingTab` + `STAGE_TRACKS` + stage status 决定显示哪些行，`createMemo` + 按 id 缓存引用 → Timeline `<For>` item 引用不变 → **轨道行永不 remount**。
 2. 各轨道组件（`AsrTrack` 等）内部 `useQuery(read_app_file_text, filePath)` + parse，mutation 后 invalidate 自己的 read key → 仅自身 rerender（行容器 `h-16` 固定，scrollWidth 不变）→ 无 clamp。
-3. 只读轨道（merge_audio_timings / split_audio_timings）用通用 `ReadOnlyFileTrack`。
+3. 只读轨道（mix_audio_timings / split_audio_timings）用通用 `ReadOnlyFileTrack`。
 
 此方案从机制上消除「父层重建 → remount」，比 scrollLeft 恢复更治本；若 `duration` 双稳态另存，还需叠加初始渲染防御（duration 为 0 时不渲染可滚动内容）。
 
