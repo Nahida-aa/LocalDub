@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 
+use crate::stages::mix_audio::args::MixAudioArgs;
+use crate::stages::mix_video::args::MixVideoArgs;
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum Runtime {
@@ -82,45 +85,31 @@ impl Default for Asr {
     }
 }
 
-/// mix_audio 参数 (混音/拼接配音轨)
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-pub struct MixAudio {
-    /// 最大变速比, 1.0=不变速
-    #[serde(default = "default_max_speed")]
-    pub max_speed: f64,
-}
-
-fn default_max_speed() -> f64 {
-    1.35
-}
-
 /// 与 TS `reduceBgm.default(-12)` 对应，避免 `#[serde(default)]` 填成 0.0
 fn default_reduce_bgm() -> f64 {
     -12.0
 }
 
-impl Default for MixAudio {
-    fn default() -> Self {
-        Self {
-            max_speed: default_max_speed(),
-        }
-    }
-}
-
-/// 各处理阶段的入参
+/// 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StagesSchema)
+///
+/// mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的
+/// 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Stages {
     #[serde(default)]
     pub asr: Asr,
     #[serde(default)]
-    pub mix_audio: MixAudio,
+    pub mix_audio: MixAudioArgs,
+    #[serde(default)]
+    pub mix_video: MixVideoArgs,
 }
 
 impl Default for Stages {
     fn default() -> Self {
         Self {
             asr: Asr::default(),
-            mix_audio: MixAudio::default(),
+            mix_audio: MixAudioArgs::default(),
+            mix_video: MixVideoArgs::default(),
         }
     }
 }
