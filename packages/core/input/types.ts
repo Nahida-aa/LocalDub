@@ -1,4 +1,4 @@
-import { TtsStageArgsSchema } from "@repo/tts/args";
+import { TtsStageArgsSchema } from "../stages/07_tts/args";
 import { ServersArgsSchema } from "../servers/args";
 import { EnvArgsSchema } from "@repo/core/cmd/env/input";
 import { z } from "zod";
@@ -19,6 +19,8 @@ import { AsrArgsSchema } from "@repo/subtitle-asr/args";
 import { SplitAudioArgsSchema } from "../stages/06_split_audio/args";
 import { TranslateArgsSchema } from "../stages/05_translate/args";
 import { AsrFixArgsSchema } from "../stages/asr/fix_args";
+import { MergeAudioArgsSchema } from "../stages/merge_audio/args";
+import { MergeVideoArgsSchema } from "../stages/merge_video/args";
 
 const deviceList = ["cpu", "cuda", "mps", "webgpu"] as const;
 export type Device = (typeof deviceList)[number];
@@ -100,39 +102,6 @@ const ALIGNMENT_MAP: Record<Alignment, number> = Object.fromEntries(
   alignmentList.map((key, i) => [key, i + 1]),
 ) as Record<Alignment, number>;
 
-export function alignmentToFfmpeg(alignment: Alignment): number {
-  return ALIGNMENT_MAP[alignment] ?? 2;
-}
-
-const MergeVideoSchema = z
-  .object({
-    fontSize: z
-      .number()
-      .min(1)
-      .max(200)
-      .nullish()
-      .describe("字幕字号，不填则自动: 竖屏: 12(zh) / 9(其他) ← 横屏: 24(zh) / 18(其他)"),
-    marginV: z.number().min(0).nullish().describe("垂直边距(像素)，不填则自动: 竖屏 70 / 横屏 5"),
-    alignment: AlignmentSchema.optional(),
-    outline: z.number().min(0).default(0).optional(),
-    shadow: z.number().min(0).default(1).optional(),
-    font: z.string().optional().describe("ASS 字幕字体名（须系统已安装），默认 Noto Sans CJK SC"),
-    srtPath: z.string().optional().describe("调试使用"),
-    bgmPath: z.string().optional().describe("调试使用"),
-    bgmGain: z.number().default(-6).optional().describe("背景音乐增益(dB), 0=不变, 负值=衰减"),
-    dubGain: z.number().default(3).optional().describe("配音增益(dB), 补偿合成语音偏小的听感差"),
-  })
-  .default({
-    alignment: "bottom-center",
-    outline: 0,
-    shadow: 1,
-    bgmGain: -6,
-    dubGain: 3,
-  })
-  .optional();
-
-export type MergeVideoConfig = z.output<typeof MergeVideoSchema>;
-
 const StagesSchema = z
   .object({
     separate: SeparateArgsSchema,
@@ -141,26 +110,12 @@ const StagesSchema = z
     sf_ocr: SfOcrArgsSchema,
     sf_ocr_fix: OcrFixArgsSchema.prefault({}),
     asr_ocr: AsrOcrCliInputSchema,
-    asr_ocr_fix: AsrOcrFixArgsSchema.prefault({}),
+    asr_ocr_fix: AsrOcrFixArgsSchema,
     translate: TranslateArgsSchema,
     split_audio: SplitAudioArgsSchema,
     tts: TtsStageArgsSchema,
-    merge_audio: z
-      .object({
-        maxSpeed: z.number().min(1).default(1.35).describe("TTS 音频最大变速比, 1.0=不变速"),
-        maxAdvanceMs: z
-          .number()
-          .min(0)
-          .default(500)
-          .describe("字幕允许提前显示的最大毫秒数, 利用前段剩余时间"),
-        maxDelayMs: z
-          .number()
-          .min(0)
-          .default(500)
-          .describe("字幕允许延迟显示的最大毫秒数, 借用后段留白"),
-      })
-      .prefault({}),
-    merge_video: MergeVideoSchema,
+    merge_audio: MergeAudioArgsSchema,
+    merge_video: MergeVideoArgsSchema,
   })
   .prefault({});
 

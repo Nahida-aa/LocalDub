@@ -62,9 +62,9 @@ export async function stageMergeAudio(ctx: TaskCtx) {
   let lastEndMs = 0;
   let driftMs = 0;
 
-  const maxSpeed = ctx.input?.stages?.merge_audio?.maxSpeed;
-  const maxAdvanceMs = ctx.input?.stages?.merge_audio?.maxAdvanceMs;
-  const maxDelayMs = ctx.input?.stages?.merge_audio?.maxDelayMs;
+  const maxSpeed = ctx.input.stages.merge_audio.maxSpeed;
+  const maxAdvanceMs = ctx.input.stages.merge_audio.maxAdvanceMs;
+  const maxDelayMs = ctx.input.stages.merge_audio.maxDelayMs;
   const newTranslation: Timing[] = [];
   for (const [i, item] of segments.entries()) {
     // const segment = translation[i];
@@ -93,10 +93,7 @@ export async function stageMergeAudio(ctx: TaskCtx) {
     if (trimmedMs <= originalSlotBaseMs) {
       const surplusNoAdvanceMs = driftMs + (originalSlotBaseMs - trimmedMs);
       if (surplusNoAdvanceMs < 500) {
-        advanceMs = Math.min(
-          Math.round(500 - surplusNoAdvanceMs),
-          Math.round(maxAdvanceMs * 0.2),
-        );
+        advanceMs = Math.min(Math.round(500 - surplusNoAdvanceMs), Math.round(maxAdvanceMs * 0.2));
       }
     } else {
       advanceMs = Math.min(maxAdvanceMs, Math.max(0, Math.round(driftMs)));

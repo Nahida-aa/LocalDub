@@ -49,9 +49,11 @@ export const OcrFixArgsSchema = z.looseObject({
 
 export type OcrFixArgs = z.output<typeof OcrFixArgsSchema>;
 
-export const AsrOcrFixArgsSchema = z.looseObject({
-  ...OcrFixArgsSchema.shape,
-  is_resample: z.boolean().default(false),
-});
+export const AsrOcrFixArgsSchema = z
+  .looseObject({
+    ...OcrFixArgsSchema.shape,
+    is_resample: z.boolean().default(false),
+  })
+  .prefault({});
 
 export type AsrOcrFixArgs = z.output<typeof AsrOcrFixArgsSchema>;
