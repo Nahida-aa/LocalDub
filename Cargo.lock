@@ -3068,10 +3068,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "env"
-version = "0.1.0"
-
-[[package]]
 name = "env_filter"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5190,6 +5186,10 @@ dependencies = [
  "specta-typescript",
  "time 0.1.0",
 ]
+
+[[package]]
+name = "ld-env"
+version = "0.1.0"
 
 [[package]]
 name = "lebe"
@@ -10619,6 +10619,10 @@ dependencies = [
  "thiserror 2.0.20",
  "tokenizers",
 ]
+
+[[package]]
+name = "voxlab"
+version = "0.1.0"
 
 [[package]]
 name = "vswhom"
