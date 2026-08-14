@@ -3,7 +3,6 @@ import { ensureDir } from "@repo/util/file_op";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { TaskCtx, readCtx, setStage, setTask } from "@repo/core/context/context.ts";
-import { alignmentToFfmpeg } from "@repo/core/input/types";
 import {
   ffmpeg,
   nowISO,
@@ -19,12 +18,13 @@ import {
   split_audio_path,
   read_timings,
 } from "@repo/core/stages/utils/utils";
-import { startLog } from "./utils/log.ts";
+import { startLog } from "../utils/log.ts";
 import { writeSrt } from "@repo/core/utils/srt";
 import { SrtJson } from "@repo/subtitle/types";
-import { SplitAudioResult } from "./06_split_audio/out.ts";
-import { TranslateResult } from "./05_translate/out.ts";
-import { resolveLanguage } from "./05_translate/utils.ts";
+import { SplitAudioResult } from "../06_split_audio/out.ts";
+import { TranslateResult } from "../05_translate/out.ts";
+import { resolveLanguage } from "../05_translate/utils.ts";
+import { alignmentToFfmpeg } from "./args.ts";
 
 function filterSubPath(subPath: string): string {
   if (process.platform !== "win32") return subPath;
