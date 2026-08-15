@@ -8,19 +8,18 @@ import { LlmFixArgsSchema } from "@repo/llm/llm_fix_args";
 import { taskArgsSchema } from "../tasks/args";
 import { langList } from "../const/lang";
 import { CookieArgsSchema } from "@repo/core/cmd/cookie/input";
-import {
-  OcrSegmentAdjustArgsSchema,
-  MergeFramesArgsSchema,
-  BoxAdjustedArgsSchema,
-  AsrOcrFixArgsSchema,
-  OcrFixArgsSchema,
-} from "@repo/subtitle-ocr/args";
+
 import { AsrArgsSchema } from "@repo/subtitle-asr/args";
 import { SplitAudioArgsSchema } from "../stages/06_split_audio/args";
 import { TranslateArgsSchema } from "../stages/05_translate/args";
 import { AsrFixArgsSchema } from "../stages/asr/fix_args";
 import { MixAudioArgsSchema } from "../stages/mix_audio/args";
 import { MixVideoArgsSchema } from "../stages/mix_video/args";
+import { AsrOcrPreArgsSchema } from "../stages/04_asr_ocr/pre_args";
+import { OcrFixArgsSchema } from "../stages/sf_ocr/fix_args";
+import { AsrOcrFixArgsSchema } from "../stages/04_asr_ocr/fix_args";
+import { AsrOcrArgsSchema } from "../stages/04_asr_ocr/args";
+import { SfOcrArgsSchema } from "../stages/sf_ocr/args";
 
 const deviceList = ["cpu", "cuda", "mps", "webgpu"] as const;
 export type Device = (typeof deviceList)[number];
@@ -37,53 +36,6 @@ export const commandList = [
 
 export type Command = (typeof commandList)[number];
 
-const ocrRuntimeList = ["ort-rust"] as const;
-const ocrRuntimeSchema = z
-  .enum(ocrRuntimeList)
-  .default("ort-rust")
-  .describe("OCR 推理运行时: ort-rust (opencv)");
-
-const SfOcrArgsSchema = z
-  .looseObject({
-    runtime: ocrRuntimeSchema,
-    device: z
-      .enum(["cpu", "cuda", "directml", "coreml", "rocm", "mps"])
-      .default("cpu")
-      .describe(
-        "OCR 运行设备: cpu, cuda (NVIDIA), directml (Windows), coreml (macOS), rocm (AMD), mps (Apple Silicon)",
-      ),
-    text_confidence_threshold: z.number().default(0.45).describe("OCR 识别置信度阈值, 默认 0.45"),
-    subtitleOnly: z.boolean().default(true).describe("只识别字幕区域 (Y轴裁剪); 默认 true"),
-    cleanupFrames: z
-      .boolean()
-      .default(false)
-      .describe("步骤完成后是否删除抽出的帧图片; 默认 false (保留)"),
-    ...OcrSegmentAdjustArgsSchema.shape,
-    ...MergeFramesArgsSchema.shape,
-  })
-  .prefault({});
-export type SfOcrArgs = z.output<typeof SfOcrArgsSchema>;
-
-const AsrOcrCliInputSchema = z
-  .looseObject({
-    runtime: ocrRuntimeSchema,
-    device: z
-      .enum(["cpu", "cuda", "directml", "coreml", "rocm", "mps"])
-      .default("cpu")
-      .describe(
-        "OCR 运行设备: cpu, cuda (NVIDIA), directml (Windows), coreml (macOS), rocm (AMD), mps (Apple Silicon)",
-      ),
-    text_confidence_threshold: z.number().default(0.45).describe("OCR 识别置信度阈值, 默认 0.45"),
-    subtitleOnly: z.boolean().default(true).describe("只识别字幕区域 (Y轴裁剪); 默认 true"),
-    cleanupFrames: z
-      .boolean()
-      .default(false)
-      .describe("步骤完成后是否删除抽出的帧图片; 默认 false (保留)"),
-  })
-  .prefault({});
-
-export type AsrOcrConfig = z.output<typeof AsrOcrCliInputSchema>;
-
 const StagesSchema = z
   .object({
     separate: SeparateArgsSchema,
@@ -91,7 +43,8 @@ const StagesSchema = z
     asr_fix: AsrFixArgsSchema,
     sf_ocr: SfOcrArgsSchema,
     sf_ocr_fix: OcrFixArgsSchema.prefault({}),
-    asr_ocr: AsrOcrCliInputSchema,
+    asr_ocr_pre: AsrOcrPreArgsSchema,
+    asr_ocr: AsrOcrArgsSchema,
     asr_ocr_fix: AsrOcrFixArgsSchema,
     translate: TranslateArgsSchema,
     split_audio: SplitAudioArgsSchema,

@@ -1,12 +1,7 @@
 import z from "zod";
+import { ocrRuntimeSchema } from "../sf_ocr/args";
 
-const ocrRuntimeList = ["ort-rust"] as const;
-export const ocrRuntimeSchema = z
-  .enum(ocrRuntimeList)
-  .default("ort-rust")
-  .describe("OCR 推理运行时: ort-rust (opencv)");
-
-export const SfOcrArgsSchema = z
+export const AsrOcrArgsSchema = z
   .looseObject({
     runtime: ocrRuntimeSchema,
     device: z
