@@ -10,3 +10,4 @@ anyhow.workspace = true
 serde_json.workspace = true
 config-rs.workspace = true
 ld-core = { path = "../core" }
+jsonc-parser = "0.33.1"
