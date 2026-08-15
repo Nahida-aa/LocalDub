@@ -9,9 +9,19 @@ path = "src/main.rs"
 required-features = ["wgpu"]
 
 [[bin]]
+name = "demucs-burn-vulkan"
+path = "src/main.rs"
+required-features = ["vulkan"]
+
+[[bin]]
 name = "demucs-burn-cpu"
 path = "src/main.rs"
 required-features = ["cpu"]
+
+[[bin]]
+name = "demucs-burn-flex"
+path = "src/main.rs"
+required-features = ["flex"]
 
 [[bin]]
 name = "demucs-burn-rocm"
@@ -31,6 +41,8 @@ required-features = ["cuda"]
 [features]
 default = ["wgpu"]
 wgpu = ["demucs-core/wgpu"]
+flex = ["burn/flex"]
+vulkan = ["demucs-core/wgpu", "burn/vulkan"]
 cpu = ["demucs-core/cpu"]
 rocm = ["demucs-core/rocm"]
 cuda = ["demucs-core/cuda"]

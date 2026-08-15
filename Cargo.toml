@@ -42,6 +42,7 @@ async-channel = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 clap = { version = "4", features = ["derive"] }
 # 进度条（UX 层反馈，独立于 tracing 诊断日志）。
 indicatif = "0.17"

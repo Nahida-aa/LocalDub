@@ -2,15 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import { emitLog, ffmpeg, nowISO } from "@repo/core/stages/utils/utils.ts";
-import {
-  TaskCtx,
-  VideoSource,
-  readCtx,
-  setCtx,
-  setStage,
-  setTask,
-  writeCtx,
-} from "@repo/core/context/context.ts";
+import { TaskCtx, VideoSource, writeCtx } from "@repo/core/context/context.ts";
 import { getStages } from "@repo/core/stages/utils/stages";
 import { InputArgs } from "@repo/core/input/input";
 import {

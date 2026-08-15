@@ -14,7 +14,13 @@ use demucs_core::{Demucs, ModelOptions};
 #[cfg(feature = "cpu")]
 type B = burn::backend::Cpu;
 
+#[cfg(feature = "flex")]
+type B = burn::backend::Flex;
+
 #[cfg(feature = "wgpu")]
+type B = burn::backend::wgpu::Wgpu;
+
+#[cfg(all(feature = "vulkan", not(feature = "wgpu")))]
 type B = burn::backend::wgpu::Wgpu;
 
 #[cfg(feature = "rocm")]
@@ -113,7 +119,7 @@ fn run() -> Result<()> {
         );
     };
 
-    #[cfg(feature = "wgpu")]
+    #[cfg(any(feature = "wgpu", feature = "vulkan"))]
     let device = {
         use burn::backend::wgpu::{RuntimeOptions, graphics::AutoGraphicsApi, init_setup};
         let d = Default::default();
@@ -125,7 +131,7 @@ fn run() -> Result<()> {
         d
     };
 
-    #[cfg(not(feature = "wgpu"))]
+    #[cfg(not(any(feature = "wgpu", feature = "vulkan")))]
     let device = Default::default();
 
     let load_start = Instant::now();
@@ -136,7 +142,7 @@ fn run() -> Result<()> {
     println!("Benchmark-Load-Time: {:.3}", load_time.as_secs_f64());
 
     if cli.warmup {
-        #[cfg(feature = "wgpu")]
+        #[cfg(any(feature = "wgpu", feature = "vulkan"))]
         {
             eprintln!("Pre-compiling GPU shaders (first run only)...");
             let warmup_start = Instant::now();
