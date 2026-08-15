@@ -5194,6 +5194,7 @@ dependencies = [
  "specta-typescript",
  "time 0.1.0",
  "tracing",
+ "voxlab",
 ]
 
 [[package]]
@@ -7592,6 +7593,7 @@ dependencies = [
  "hyper-util",
  "js-sys",
  "log",
+ "mime_guess",
  "percent-encoding",
  "pin-project-lite",
  "quinn",
@@ -10637,6 +10639,12 @@ dependencies = [
 [[package]]
 name = "voxlab"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "vswhom"

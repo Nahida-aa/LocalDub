@@ -18,3 +18,4 @@ time.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 ffmpeg-next.workspace = true
+voxlab.workspace = true

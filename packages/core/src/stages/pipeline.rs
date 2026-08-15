@@ -138,7 +138,7 @@ pub fn run_pipeline(task_dir: &str) -> anyhow::Result<()> {
 }
 
 /// 是否存在已注册的 handler (镜像 TS `STAGE_HANDLERS[stage]` 是否存在)。
-fn has_handler(stage: &str) -> bool {
+pub fn has_handler(stage: &str) -> bool {
     matches!(
         stage,
         "separate"
@@ -160,7 +160,7 @@ fn has_handler(stage: &str) -> bool {
 ///
 /// 每个 handler 自行 `read_ctx` 获取最新 ctx (与 TS `readCtx(sp)` 一致)。
 /// 调用方已通过 [`has_handler`] 过滤, 此处仅处理已知 stage。
-fn run_stage(stage: &str, task_dir: &str) -> anyhow::Result<()> {
+pub fn run_stage(stage: &str, task_dir: &str) -> anyhow::Result<()> {
     let ctx = read_ctx(task_dir).map_err(anyhow::Error::msg)?;
     match stage {
         "separate" => stage_separate(&ctx),

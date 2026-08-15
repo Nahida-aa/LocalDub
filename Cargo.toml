@@ -23,6 +23,7 @@ ld-core = { path = "packages/core" }
 llm = { path = "packages/llm" }
 server = { path = "packages/server" }
 time = { path = "packages/time" }
+voxlab = { path = "packages/voxlab" }
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 mdns-sd = "0.13"

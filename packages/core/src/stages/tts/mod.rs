@@ -39,17 +39,16 @@ fn read_args(ctx: &TaskCtx) -> TtsArgs {
 
 /// 选择 voxcpm-burn 后端二进制名 (镜像 TS runtime/device -> 二进制)。
 /// 优先返回 workspace 中已构建的二进制。
+///
+/// 仅用于非 cloud 运行时 (cloud 在 `stage_tts` 中直接走 `VoxCPMCloud`, 不调用本函数)。
+/// 因此这里只按 device 选 GPU 后端, runtime 参数仅用于报错信息。
 fn pick_voxcpm_bin(device: TtsDevice, runtime: TtsRuntime) -> anyhow::Result<String> {
-    // runtime=cloud 无独立后端, 退回按 device 选 GPU 后端
-    let candidates: Vec<&str> = match (runtime, device) {
-        (_, TtsDevice::Cpu) => vec!["voxcpm-burn-cpu"],
-        (_, TtsDevice::Rocm) => vec!["voxcpm-burn-vulkan", "voxcpm-burn-wgpu"],
-        (_, TtsDevice::Mps) => vec!["voxcpm-burn-wgpu", "voxcpm-burn-cpu"],
-        (TtsRuntime::VoxcpmTorchGradio, _) => vec!["voxcpm-burn-tch", "voxcpm-burn-wgpu"],
-        (_, TtsDevice::Webgpu) => vec!["voxcpm-burn-wgpu", "voxcpm-burn-cpu"],
-        (_, TtsDevice::Cuda) => vec!["voxcpm-burn-vulkan", "voxcpm-burn-wgpu", "voxcpm-burn-cpu"],
-        // 默认 cloud: 优先 GPU
-        _ => vec!["voxcpm-burn-wgpu", "voxcpm-burn-vulkan", "voxcpm-burn-cpu"],
+    let candidates: Vec<&str> = match device {
+        TtsDevice::Cpu => vec!["voxcpm-burn-cpu"],
+        TtsDevice::Rocm => vec!["voxcpm-burn-vulkan", "voxcpm-burn-wgpu"],
+        TtsDevice::Mps => vec!["voxcpm-burn-wgpu", "voxcpm-burn-cpu"],
+        TtsDevice::Webgpu => vec!["voxcpm-burn-wgpu", "voxcpm-burn-cpu"],
+        TtsDevice::Cuda => vec!["voxcpm-burn-vulkan", "voxcpm-burn-wgpu", "voxcpm-burn-cpu"],
     };
     for c in candidates {
         if let Some(p) = find_release_bin(c) {
@@ -88,8 +87,33 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
         return Err(anyhow::anyhow!("split_audio/timings.json 无 segments"));
     }
 
-    let bin = pick_voxcpm_bin(args.device, args.runtime)?;
-    emit_log(Some(&task_dir), &format!("Using voxcpm backend: {bin}"));
+    // cloud 运行时走 HTTP gradio (voxlab::VoxCPMCloud), 不 spawn 本地二进制。
+    // 镜像 TS: runtime === "cloud" -> new VoxCPMCloud() (而非本地 onnx/pytorch 引擎)。
+    let use_cloud = args.runtime == TtsRuntime::Cloud;
+    let cloud = if use_cloud {
+        Some(voxlab::VoxCPMCloud::new(voxlab::VoxCPMCloudConfig {
+            api_url: None,
+            control_instruction: None,
+        })?)
+    } else {
+        None
+    };
+    let bin = if use_cloud {
+        None
+    } else {
+        Some(pick_voxcpm_bin(args.device, args.runtime)?)
+    };
+    emit_log(
+        Some(&task_dir),
+        &format!(
+            "Using voxcpm backend: {}",
+            if use_cloud {
+                "cloud (gradio)".to_string()
+            } else {
+                bin.clone().unwrap()
+            }
+        ),
+    );
 
     // 找第一个非静音 vocals 作为 fallback 参考音
     let fallback_ref: Option<String> = (0..segments.len())
@@ -285,21 +309,32 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
         )
         .ok();
 
-        // 调 voxcpm-burn 合成
-        let mut cmd = std::process::Command::new(&bin);
-        cmd.arg("--ref-audio").arg(&ref_for_tts);
-        cmd.arg(&text);
-        cmd.arg(&out_path);
-        let out = cmd
-            .output()
-            .map_err(|e| anyhow::anyhow!("spawn {bin} 失败: {e}"))?;
-        if !out.status.success() {
-            let stderr = String::from_utf8_lossy(&out.stderr);
-            return Err(anyhow::anyhow!(
-                "voxcpm-burn 段 {idx} 失败 (exit {:?}): {}",
-                out.status.code(),
-                stderr
-            ));
+        // 调 voxcpm 合成: cloud -> HTTP gradio; 其他 -> 本地二进制
+        if let Some(cloud) = &cloud {
+            let samples = cloud
+                .generate(&text, &ref_for_tts, Some(&item_text), 2.0)
+                .map_err(|e| anyhow::anyhow!("voxcpm cloud 段 {idx} 失败: {e}"))?;
+            voxlab::write_wav(&samples.samples, samples.sample_rate, &out_path)
+                .map_err(|e| anyhow::anyhow!("写 cloud tts wav 段 {idx} 失败: {e}"))?;
+        } else {
+            let bin = bin
+                .as_ref()
+                .expect("non-cloud runtime must select a local voxcpm binary");
+            let mut cmd = std::process::Command::new(bin);
+            cmd.arg("--ref-audio").arg(&ref_for_tts);
+            cmd.arg(&text);
+            cmd.arg(&out_path);
+            let out = cmd
+                .output()
+                .map_err(|e| anyhow::anyhow!("spawn {bin} 失败: {e}"))?;
+            if !out.status.success() {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                return Err(anyhow::anyhow!(
+                    "voxcpm-burn 段 {idx} 失败 (exit {:?}): {}",
+                    out.status.code(),
+                    stderr
+                ));
+            }
         }
 
         let tts_duration = probe_duration_ms(&out_path);

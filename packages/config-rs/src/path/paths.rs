@@ -1,19 +1,11 @@
 //! 工作区根目录 (镜像 TS `config/path/paths.WORKFOLDER`)。
 
-use crate::root::repo_root;
 use std::path::PathBuf;
 
 /// 任务工作区根目录。
 ///
-/// - debug 构建: 仓库根 (`repo_root()`), 与 TS dev 下 `WORKFOLDER` = 仓库根一致
-/// - release 构建: `<data_dir>/aa.localdub` (见 `root::base_dir`)
+/// 与 TS `workfolder()` 一致: 默认 `workfolder` (相对仓库根解析为 `<repo>/workfolder`),
+/// 可用环境变量 `WORKFOLDER` 覆盖。直接复用 `env::workfolder` 的实现。
 pub fn workfolder() -> PathBuf {
-    #[cfg(not(debug_assertions))]
-    {
-        crate::root::base_dir()
-    }
-    #[cfg(debug_assertions)]
-    {
-        repo_root()
-    }
+    crate::env::workfolder()
 }
