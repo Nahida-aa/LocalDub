@@ -304,6 +304,11 @@ pub fn format_result(r: &CheckResult) -> String {
     let first = format!("{prefix} {} — {}  ({:?})", r.key, msg, r.status);
 
     let mut extras: Vec<String> = Vec::new();
+    if let Some(p) = r.data.get("path").and_then(|v| v.as_str()) {
+        if !p.is_empty() {
+            extras.push(format!("    path: {p}"));
+        }
+    }
     if let Some(m) = r.data.get("missing_bins").and_then(|v| v.as_str()) {
         if !m.is_empty() {
             extras.push(format!("    missing: {m}"));

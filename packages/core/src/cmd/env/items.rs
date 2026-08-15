@@ -113,11 +113,12 @@ fn get_latest_source(watch_paths: &[&str]) -> Option<u64> {
 
 /// 模型大小检查 (镜像 TS `checkModel`)。min_mb 支持小数 (如 silero vad 0.5MB)。
 fn check_model(path: &Path, key: &str, min_mb: f64) -> CheckResult {
+    let path_str = path.display().to_string();
     match file_size(path) {
         None => CheckResult {
             key: key.to_string(),
             status: CheckStatus::Fail,
-            data: json!({}),
+            data: json!({ "path": path_str, "msg": format!("模型不存在: {}", path_str) }),
             required: false,
         },
         Some(size) => {
@@ -126,14 +127,14 @@ fn check_model(path: &Path, key: &str, min_mb: f64) -> CheckResult {
                 CheckResult {
                     key: key.to_string(),
                     status: CheckStatus::Warn,
-                    data: json!({ "size": fmt_size(size), "msg": format!("模型偏小: {}", fmt_size(size)) }),
+                    data: json!({ "path": path_str, "size": fmt_size(size), "msg": format!("模型偏小: {}", fmt_size(size)) }),
                     required: false,
                 }
             } else {
                 CheckResult {
                     key: key.to_string(),
                     status: CheckStatus::Pass,
-                    data: json!({ "size": fmt_size(size), "msg": format!("大小 {}", fmt_size(size)) }),
+                    data: json!({ "path": path_str, "size": fmt_size(size), "msg": format!("大小 {}", fmt_size(size)) }),
                     required: false,
                 }
             }
