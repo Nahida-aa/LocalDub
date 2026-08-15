@@ -170,7 +170,7 @@ fn translate_batch(
 /// 入口 (镜像 TS `stageTranslate`)。
 pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    emit_log(Some(&task_dir), "translate: start");
+    emit_log("translate: start");
 
     let args = read_args(ctx);
     let (src_lang, target_lang) = resolve_language(ctx)?;
@@ -315,10 +315,7 @@ pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
                     }
                 }
             }
-            Err(e) => emit_log(
-                Some(&task_dir),
-                &format!("[WARN] [Translate] Preprocess failed: {e}"),
-            ),
+            Err(e) => emit_log(&format!("[WARN] [Translate] Preprocess failed: {e}")),
         }
     }
 
@@ -399,7 +396,7 @@ pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    emit_log(Some(&task_dir), "translate: done");
+    emit_log("translate: done");
     Ok(())
 }
 

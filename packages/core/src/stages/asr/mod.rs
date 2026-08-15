@@ -33,7 +33,7 @@ fn read_args(ctx: &TaskCtx) -> AsrArgs {
 /// 入口 (镜像 TS `stageAsr`)。
 pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    emit_log(Some(&task_dir), "asr: start");
+    emit_log("asr: start");
 
     set_stage_anyhow(
         &task_dir,
@@ -48,10 +48,7 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
     let cfg = read_args(ctx);
 
     if !cfg.enabled {
-        emit_log(
-            Some(&task_dir),
-            "[ASR] disabled (asr.enabled=false), skipping",
-        );
+        emit_log("[ASR] disabled (asr.enabled=false), skipping");
         return Ok(());
     }
 
@@ -82,32 +79,20 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
         };
         if let Some(p) = mixed_or_gated {
             audio_path = p.to_string_lossy().to_string();
-            emit_log(
-                Some(&task_dir),
-                &format!("[ASR] Using pre-mixed audio: {audio_path}"),
-            );
+            emit_log(&format!("[ASR] Using pre-mixed audio: {audio_path}"));
         } else {
-            emit_log(
-                Some(&task_dir),
-                "[ASR] No mixed audio found, using vocals-only",
-            );
+            emit_log("[ASR] No mixed audio found, using vocals-only");
         }
     }
 
     let runtime = "ggml";
-    emit_log(
-        Some(&task_dir),
-        &format!("[ASR] runtime={runtime} device=vulkan"),
-    );
+    emit_log(&format!("[ASR] runtime={runtime} device=vulkan"));
 
     // —— 准备 whisper 输入 WAV (已是 .wav 则直接复用, 否则 ffmpeg 转单声道) ——
     let audio_dir = asr_dir(&task_dir);
     ensure_dir(&audio_dir)?;
     let tmp_audio: String = if audio_path.to_lowercase().ends_with(".wav") {
-        emit_log(
-            Some(&task_dir),
-            &format!("[ASR] Using existing WAV input: {audio_path}"),
-        );
+        emit_log(&format!("[ASR] Using existing WAV input: {audio_path}"));
         audio_path.clone()
     } else {
         let wav = audio_dir.join("whisper-input.wav");
@@ -175,15 +160,12 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
         whisper_args.push("--split-on-word".into());
     }
 
-    emit_log(
-        Some(&task_dir),
-        &format!(
-            "whisper-vulkan -m {} {} -l {} ...",
-            model.display(),
-            tmp_audio,
-            language
-        ),
-    );
+    emit_log(&format!(
+        "whisper-vulkan -m {} {} -l {} ...",
+        model.display(),
+        tmp_audio,
+        language
+    ));
 
     let t0 = std::time::Instant::now();
     let status = Command::new(&whisper_cli)
@@ -249,14 +231,11 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
                 if !raw_words.is_empty() {
                     let offset = start_ms as i64 - raw_words[0].start as i64;
                     if offset.abs() > 500 {
-                        emit_log(
-                            Some(&task_dir),
-                            &format!(
-                                "[ASR] VAD word timestamp shift: {} words offset by {}ms",
-                                raw_words.len(),
-                                offset
-                            ),
-                        );
+                        emit_log(&format!(
+                            "[ASR] VAD word timestamp shift: {} words offset by {}ms",
+                            raw_words.len(),
+                            offset
+                        ));
                     }
                     let mut shifted = raw_words;
                     for w in &mut shifted {
@@ -320,15 +299,12 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
     set_asr_language(&task_dir, &detected_language)?;
 
     // —— 幻觉段后处理 (所有路径 shared) ——
-    postprocess_hallucination(&task_dir, &asr_file, &audio_path)?;
+    postprocess_hallucination(&asr_file, &audio_path)?;
 
-    emit_log(
-        Some(&task_dir),
-        &format!(
-            "Transcribed in {:.1}s, RTF {:.3}, language {}",
-            elapsed_sec, rtf, detected_language
-        ),
-    );
+    emit_log(&format!(
+        "Transcribed in {:.1}s, RTF {:.3}, language {}",
+        elapsed_sec, rtf, detected_language
+    ));
 
     set_stage_anyhow(
         &task_dir,
@@ -407,11 +383,7 @@ fn dirs_home() -> std::path::PathBuf {
 /// 幻觉段后处理:
 /// 1. 过滤 start_ms >= 音频时长 或 end_ms <= 0 的段
 /// 2. 末尾段 RMS 过低则判为幻觉剔除
-fn postprocess_hallucination(
-    task_dir: &str,
-    asr_file: &std::path::Path,
-    audio_path: &str,
-) -> anyhow::Result<()> {
+fn postprocess_hallucination(asr_file: &std::path::Path, audio_path: &str) -> anyhow::Result<()> {
     let raw = std::fs::read_to_string(asr_file)
         .with_context(|| format!("读取 {} 失败", asr_file.display()))?;
     let mut data: AsrResult =
@@ -425,12 +397,9 @@ fn postprocess_hallucination(
             .retain(|u| u.start_ms < duration_ms && u.end_ms > 0);
         if data.result.segments.len() < before {
             let removed = before - data.result.segments.len();
-            emit_log(
-                Some(task_dir),
-                &format!(
-                    "Removed {removed} hallucinated segment(s) (start >= {duration_ms}ms or end <= 0ms)"
-                ),
-            );
+            emit_log(&format!(
+                "Removed {removed} hallucinated segment(s) (start >= {duration_ms}ms or end <= 0ms)"
+            ));
         }
     }
 
@@ -438,17 +407,14 @@ fn postprocess_hallucination(
     if let Some(last) = data.result.segments.last().cloned() {
         if std::path::Path::new(audio_path).exists() {
             let rms = segment_rms(audio_path, last.start_ms, last.end_ms);
-            emit_log(Some(task_dir), &format!("[ASR] Last segment RMS: {rms:.5}"));
+            emit_log(&format!("[ASR] Last segment RMS: {rms:.5}"));
             if rms > 0.0 && rms < 0.005 {
                 if let Some(removed) = data.result.segments.pop() {
-                    emit_log(
-                        Some(task_dir),
-                        &format!(
-                            "Removed low-energy hallucinated segment \"{}\" (RMS={:.5})",
-                            &removed.text.chars().take(30).collect::<String>(),
-                            rms
-                        ),
-                    );
+                    emit_log(&format!(
+                        "Removed low-energy hallucinated segment \"{}\" (RMS={:.5})",
+                        &removed.text.chars().take(30).collect::<String>(),
+                        rms
+                    ));
                 }
             }
         }

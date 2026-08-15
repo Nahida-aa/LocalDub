@@ -55,7 +55,7 @@ impl SegmentBounds for SplitAudioTiming {
 /// 入口 (镜像 TS `stageSplitAudio`)。
 pub fn stage_split_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    emit_log(Some(&task_dir), "split_audio: start");
+    emit_log("split_audio: start");
 
     let args = read_args(ctx);
 
@@ -305,7 +305,7 @@ pub fn stage_split_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    emit_log(Some(&task_dir), "split_audio: done");
+    emit_log("split_audio: done");
     Ok(())
 }
 

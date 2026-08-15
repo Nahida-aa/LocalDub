@@ -109,7 +109,7 @@ fn run_demucs(
     audio_path: &str,
     sep_dir: &std::path::Path,
 ) -> anyhow::Result<()> {
-    emit_log(Some(task_dir), &format!("spawn {}", bin_path.display()));
+    emit_log(&format!("spawn {}", bin_path.display()));
 
     // tch 后端运行时依赖 LibTorch 动态库 (libtorch_cpu.so 等), 必须注入 LD_LIBRARY_PATH,
     // 否则 loader 找不到库 → exit 127 (镜像 TS wrapper.ts 的 env.LD_LIBRARY_PATH 注入)。
@@ -130,10 +130,7 @@ fn run_demucs(
                 } else {
                     format!("{}:{}", lib.to_string_lossy(), existing)
                 };
-                emit_log(
-                    Some(task_dir),
-                    &format!("tch 后端注入 LD_LIBRARY_PATH={}", lib.display()),
-                );
+                emit_log(&format!("tch 后端注入 LD_LIBRARY_PATH={}", lib.display()));
                 cmd.env("LD_LIBRARY_PATH", combined);
             }
             None => {
@@ -221,16 +218,13 @@ fn run_demucs(
 /// 入口 (镜像 TS `stageSeparate`)。
 pub fn stage_separate(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    emit_log(Some(&task_dir), "separate: start");
+    emit_log("separate: start");
 
     let cfg = read_args(ctx);
 
     // subtitle 模式且未配置 always → 跳过分离
     if ctx.pipeline == "subtitle" && !cfg.always {
-        emit_log(
-            Some(&task_dir),
-            "Skipped (subtitle pipeline, set separate.always=true to force)",
-        );
+        emit_log("Skipped (subtitle pipeline, set separate.always=true to force)");
         set_stage_anyhow(
             &task_dir,
             "separate",
@@ -276,10 +270,7 @@ pub fn stage_separate(ctx: &TaskCtx) -> anyhow::Result<()> {
         Some(p) => p,
         None => {
             // 阶段内自动编译缺失二进制 (用户选项: 阶段内自动编译)
-            emit_log(
-                Some(&task_dir),
-                &format!("未找到 {bin_name}, 尝试自动编译..."),
-            );
+            emit_log(&format!("未找到 {bin_name}, 尝试自动编译..."));
             cargo_build_bin("demucs-burn", &bin_name, &[backend], false).map_err(|e| {
                 anyhow::anyhow!(
                     "{e}\n若编译失败, 请手动执行: cargo build -p demucs-burn --bin {bin_name} --no-default-features --features {backend}"
@@ -302,29 +293,23 @@ pub fn stage_separate(ctx: &TaskCtx) -> anyhow::Result<()> {
     std::fs::create_dir_all(&sep_dir)
         .map_err(|e| anyhow::anyhow!("创建 separate 目录失败: {}", e))?;
 
-    emit_log(
-        Some(&task_dir),
-        &format!(
-            "runtime={} device={:?} binary={}",
-            backend,
-            cfg.device,
-            bin_path.display()
-        ),
-    );
+    emit_log(&format!(
+        "runtime={} device={:?} binary={}",
+        backend,
+        cfg.device,
+        bin_path.display()
+    ));
 
     let t0 = std::time::Instant::now();
     run_demucs(&task_dir, &bin_path, &audio_path, &sep_dir)?;
     let elapsed = t0.elapsed();
-    emit_log(
-        Some(&task_dir),
-        &format!("Processed in {:.1}s", elapsed.as_secs_f64()),
-    );
+    emit_log(&format!("Processed in {:.1}s", elapsed.as_secs_f64()));
 
     // 校验 stem 产物
     for (i, name) in ["drums", "bass", "other", "vocals"].iter().enumerate() {
         let p = sep_dir.join(format!("target_{i}_{name}.wav"));
         if !p.exists() {
-            emit_log(Some(&task_dir), &format!("WARN: {} not found", p.display()));
+            emit_log(&format!("WARN: {} not found", p.display()));
         }
     }
 
@@ -339,7 +324,7 @@ pub fn stage_separate(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    emit_log(Some(&task_dir), "separate: done");
+    emit_log("separate: done");
     Ok(())
 }
 

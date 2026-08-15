@@ -693,10 +693,7 @@ pub fn resolve_language(ctx: &crate::context::TaskCtx) -> anyhow::Result<(String
         // 写回 ctx.target_language, 供后续翻译文件命名 / split_audio 读取 (best-effort:
         // ctx.json 不存在时仅告警, 不影响当前 stage 返回解析结果)
         if let Err(e) = write_target_language(&ctx.task.task_dir, &resolved) {
-            emit_log(
-                Some(&ctx.task.task_dir),
-                &format!("[WARN] 写回 target_language 失败: {e}"),
-            );
+            emit_log(&format!("[WARN] 写回 target_language 失败: {e}"));
         }
     }
     Ok((src_lang, resolved))
@@ -713,13 +710,42 @@ fn write_target_language(task_dir: &str, lang: &str) -> Result<(), String> {
 // 日志 (镜像 TS `emitLog`)
 // ---------------------------------------------------------------------------
 
+// 全局任务日志上下文 (镜像 TS `packages/util/log.ts` 的 AsyncLocalStorage)。
+// 单进程单任务模型下, 一个 thread_local 即足够: pipeline 入口 set_log_dir 注入一次,
+// stage 边界 set_log_stage 更新 stage 前缀, 之后 emit_log 免传 task_dir。
+thread_local! {
+    static LOG_CTX: std::cell::RefCell<LogCtx> = std::cell::RefCell::new(LogCtx::default());
+}
+
+#[derive(Default)]
+struct LogCtx {
+    task_dir: Option<String>,
+    stage: Option<String>,
+}
+
+/// 设置当前任务日志目录 (对标 TS `setLogContext`)。pipeline 入口调用一次。
+pub fn set_log_dir(task_dir: &str) {
+    LOG_CTX.with(|c| c.borrow_mut().task_dir = Some(task_dir.to_string()));
+}
+
+/// 设置当前 stage 名 (对标 TS `setCurrentStage`)。日志行自动带 `[stage] ` 前缀。
+pub fn set_log_stage(stage: &str) {
+    LOG_CTX.with(|c| c.borrow_mut().stage = Some(stage.to_string()));
+}
+
 /// 写日志: tracing info + 追加到 `<task_dir>/<tid>.log`。
-pub fn emit_log(task_dir: Option<&str>, line: &str) {
+/// task_dir 从全局上下文取 (由 [`set_log_dir`] 注入), 无需每次传参。
+pub fn emit_log(line: &str) {
     tracing::info!("{line}");
-    let Some(dir) = task_dir else { return };
-    let Some(tid) = task_id(dir) else { return };
-    let log_path = Path::new(dir).join(format!("{tid}.log"));
-    let entry = format!("[{}] {}\n", now_iso(), line);
+    let (dir, stage) = LOG_CTX.with(|c| {
+        let c = c.borrow();
+        (c.task_dir.clone(), c.stage.clone())
+    });
+    let Some(dir) = dir else { return };
+    let Some(tid) = task_id(&dir) else { return };
+    let log_path = Path::new(&dir).join(format!("{tid}.log"));
+    let prefix = stage.map(|s| format!("[{s}] ")).unwrap_or_default();
+    let entry = format!("[{}] {prefix}{line}\n", now_iso());
     // 追加失败不应中断流程
     if let Ok(mut f) = fs::OpenOptions::new()
         .create(true)

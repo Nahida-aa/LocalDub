@@ -11,7 +11,7 @@
 
 use crate::context::TaskCtx;
 use crate::stages::utils::{
-    StagePatch, StageStatus, emit_log, now_iso, set_stage_anyhow, set_task_anyhow,
+    StagePatch, StageStatus, emit_log, now_iso, set_log_dir, set_stage_anyhow, set_task_anyhow,
 };
 use crate::tasks::pipeline::{has_handler, run_stage};
 
@@ -21,7 +21,8 @@ use crate::tasks::pipeline::{has_handler, run_stage};
 /// 避免续跑基于陈旧 ctx。
 pub fn continue_pipeline(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.as_str();
-    emit_log(Some(task_dir), "continue_pipeline: start");
+    set_log_dir(task_dir);
+    emit_log("continue_pipeline: start");
 
     let pipeline = ctx.pipeline.clone();
     let task_id = ctx.task.id.clone();
@@ -44,10 +45,9 @@ pub fn continue_pipeline(ctx: &TaskCtx) -> anyhow::Result<()> {
     // targetStage 不在序列中则告警忽略 (镜像 TS)
     if let Some(ts) = &target_stage {
         if !stages.iter().any(|s| s == ts) {
-            emit_log(
-                Some(task_dir),
-                &format!("[WARN] targetStage \"{ts}\" 不在 {pipeline} pipeline 中, 忽略"),
-            );
+            emit_log(&format!(
+                "[WARN] targetStage \"{ts}\" 不在 {pipeline} pipeline 中, 忽略"
+            ));
         }
     }
 
@@ -71,13 +71,10 @@ pub fn continue_pipeline(ctx: &TaskCtx) -> anyhow::Result<()> {
                 },
             )?;
         }
-        emit_log(
-            Some(task_dir),
-            &format!(
-                "[Pipeline] Resetting from \"{cf}\" ({} stage(s)), resuming...",
-                stages.len() - start_idx
-            ),
-        );
+        emit_log(&format!(
+            "[Pipeline] Resetting from \"{cf}\" ({} stage(s)), resuming...",
+            stages.len() - start_idx
+        ));
     } else {
         // 无 continueFrom → 跳过已完成前缀, 从第一个未完成 stage 续跑
         let existing: std::collections::HashMap<String, StageStatus> = ctx
@@ -94,15 +91,12 @@ pub fn continue_pipeline(ctx: &TaskCtx) -> anyhow::Result<()> {
             }
         }
         if start_idx == 0 {
-            emit_log(Some(task_dir), "[Pipeline] continue from beginning");
+            emit_log("[Pipeline] continue from beginning");
         } else {
-            emit_log(
-                Some(task_dir),
-                &format!(
-                    "[Pipeline] Skipping {start_idx} completed stage(s), resuming from \"{}\"",
-                    stages[start_idx]
-                ),
-            );
+            emit_log(&format!(
+                "[Pipeline] Skipping {start_idx} completed stage(s), resuming from \"{}\"",
+                stages[start_idx]
+            ));
         }
     }
 
@@ -116,19 +110,18 @@ pub fn continue_pipeline(ctx: &TaskCtx) -> anyhow::Result<()> {
         },
     )?;
 
-    emit_log(
-        Some(task_dir),
-        &format!("[Pipeline] Running runStages: {:?}", &stages[start_idx..]),
-    );
+    emit_log(&format!(
+        "[Pipeline] Running runStages: {:?}",
+        &stages[start_idx..]
+    ));
 
     for i in start_idx..stages.len() {
         let stage = &stages[i];
 
         if !has_handler(stage) {
-            emit_log(
-                Some(task_dir),
-                &format!("[WARN] [Pipeline] No handler for stage {stage}, skipping"),
-            );
+            emit_log(&format!(
+                "[WARN] [Pipeline] No handler for stage {stage}, skipping"
+            ));
             continue;
         }
 
@@ -150,26 +143,20 @@ pub fn continue_pipeline(ctx: &TaskCtx) -> anyhow::Result<()> {
                 ..Default::default()
             },
         )?;
-        emit_log(Some(task_dir), &format!("[Pipeline] Running {stage}"));
+        emit_log(&format!("[Pipeline] Running {stage}"));
 
         match run_stage(stage, task_dir) {
             Ok(()) => {
                 if let Some(ts) = &target_stage {
                     if stage == ts {
-                        emit_log(
-                            Some(task_dir),
-                            &format!("[Pipeline] 达到目标步骤 \"{ts}\", 停止"),
-                        );
+                        emit_log(&format!("[Pipeline] 达到目标步骤 \"{ts}\", 停止"));
                         break;
                     }
                 }
             }
             Err(e) => {
                 let msg = e.to_string();
-                emit_log(
-                    Some(task_dir),
-                    &format!("[ERROR] [Pipeline] Stage {stage} failed: {msg}"),
-                );
+                emit_log(&format!("[ERROR] [Pipeline] Stage {stage} failed: {msg}"));
                 set_stage_anyhow(
                     task_dir,
                     stage,
@@ -202,9 +189,6 @@ pub fn continue_pipeline(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    emit_log(
-        Some(task_dir),
-        &format!("[Pipeline] Task {task_id} completed"),
-    );
+    emit_log(&format!("[Pipeline] Task {task_id} completed"));
     Ok(())
 }

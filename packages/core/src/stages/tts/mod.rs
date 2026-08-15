@@ -78,10 +78,9 @@ fn pick_voxcpm_bin(device: TtsDevice, runtime: TtsRuntime) -> anyhow::Result<Str
         .ok_or_else(|| anyhow::anyhow!("无可用 voxcpm-burn 后端候选为空 (device={device:?})"))?;
     // 候选名 `voxcpm-burn-<feature>`, feature 即后缀
     let first_feat = first.strip_prefix("voxcpm-burn-").unwrap_or("wgpu");
-    emit_log(
-        None,
-        &format!("未找到 voxcpm-burn 二进制, 尝试自动编译 {first} (--features {first_feat})..."),
-    );
+    emit_log(&format!(
+        "未找到 voxcpm-burn 二进制, 尝试自动编译 {first} (--features {first_feat})..."
+    ));
     let _ = cargo_build_bin("voxcpm-burn", first, &[first_feat], false).map_err(|e| {
         anyhow::anyhow!(
             "{e}\n若编译失败, 请手动执行: cargo build --release -p voxcpm-burn --bin {first} --no-default-features --features {first_feat}"
@@ -101,7 +100,7 @@ fn pick_voxcpm_bin(device: TtsDevice, runtime: TtsRuntime) -> anyhow::Result<Str
 /// 入口 (镜像 TS `stageTts`)。
 pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    emit_log(Some(&task_dir), "tts: start");
+    emit_log("tts: start");
 
     let args = read_args(ctx);
     let vocals_dir = Path::new(&task_dir).join("split_audio").join("vocals");
@@ -138,17 +137,14 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
     } else {
         Some(pick_voxcpm_bin(args.device, args.runtime)?)
     };
-    emit_log(
-        Some(&task_dir),
-        &format!(
-            "Using voxcpm backend: {}",
-            if use_cloud {
-                "cloud (gradio)".to_string()
-            } else {
-                bin.clone().unwrap()
-            }
-        ),
-    );
+    emit_log(&format!(
+        "Using voxcpm backend: {}",
+        if use_cloud {
+            "cloud (gradio)".to_string()
+        } else {
+            bin.clone().unwrap()
+        }
+    ));
 
     // regenIndices 语义 (continue 模式精准重跑):
     // - 首次 start 时强制忽略, 全量跑; 仅 continue 重跑时用。
@@ -218,17 +214,15 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
                     .map(|_| Path::new(&out_path).exists() && probe_duration_ms(&out_path) > 0)
                     .unwrap_or(false);
                 if old_valid {
-                    emit_log(
-                        Some(&task_dir),
-                        &format!("[TTS] 段 {idx} 不在 regenIndices 中, 复用有效旧结果"),
-                    );
+                    emit_log(&format!(
+                        "[TTS] 段 {idx} 不在 regenIndices 中, 复用有效旧结果"
+                    ));
                     tts_segments.push(existing_segments.get(&seg_idx).unwrap().clone());
                     continue;
                 }
-                emit_log(
-                    Some(&task_dir),
-                    &format!("[TTS] 段 {idx} 无有效旧结果, 正常生成 (regenIndices 跳过不适用)"),
-                );
+                emit_log(&format!(
+                    "[TTS] 段 {idx} 无有效旧结果, 正常生成 (regenIndices 跳过不适用)"
+                ));
                 // fall through: 走下方空译文/无参考音/正式合成逻辑
             }
         }
@@ -354,10 +348,7 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
 
         // 无参考音 -> 跳过
         if !Path::new(&ref_wav).exists() {
-            emit_log(
-                Some(&task_dir),
-                &format!("[WARN] [TTS] 段 {idx} 无参考音, 跳过"),
-            );
+            emit_log(&format!("[WARN] [TTS] 段 {idx} 无参考音, 跳过"));
             write_silent_wav(&out_path)?;
             tts_segments.push(TtsSegment {
                 timing: crate::stages::split_audio::out::SplitAudioTiming {
@@ -501,7 +492,7 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    emit_log(Some(&task_dir), "tts: done");
+    emit_log("tts: done");
     Ok(())
 }
 

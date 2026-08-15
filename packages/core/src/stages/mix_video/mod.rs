@@ -35,10 +35,7 @@ pub fn stage_mix_video(ctx: &TaskCtx) -> anyhow::Result<()> {
     let cfg = read_args(ctx);
 
     if !cfg.enabled {
-        emit_log(
-            Some(&task_dir),
-            "[mix_video] disabled (mix_video.enabled=false), skipping",
-        );
+        emit_log("[mix_video] disabled (mix_video.enabled=false), skipping");
         set_stage_anyhow(
             &task_dir,
             "mix_video",
@@ -200,10 +197,7 @@ pub fn stage_mix_video(ctx: &TaskCtx) -> anyhow::Result<()> {
         .map_err(|e| anyhow!("mix_video (dub) ffmpeg 失败: {e}"))?;
     }
 
-    emit_log(
-        Some(&task_dir),
-        &format!("Wrote final video: {}", final_video.display()),
-    );
+    emit_log(&format!("Wrote final video: {}", final_video.display()));
 
     // 写回 ctx.task.final_video_path (镜像 TS mix_video 设置 finalVideoPath)
     set_task_anyhow(

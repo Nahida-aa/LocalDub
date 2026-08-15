@@ -26,7 +26,7 @@ fn read_args(ctx: &TaskCtx) -> OcrFixArgs {
 /// 入口 (镜像 TS `stageSfOcrFix`)。
 pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    emit_log(Some(&task_dir), "sf_ocr_fix: start");
+    emit_log("sf_ocr_fix: start");
 
     let frames_file = sf_ocr_dir(&task_dir).join("frames.json");
     if !frames_file.exists() {
@@ -46,7 +46,7 @@ pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
         Some(p) => p,
         None => {
             // 阶段内自动编译缺失二进制 (用户选项: 阶段内自动编译)
-            emit_log(Some(&task_dir), "未找到 ocr-post, 尝试自动编译...");
+            emit_log("未找到 ocr-post, 尝试自动编译...");
             cargo_build_bin("subtitle-ocr-cli", "ocr-post", &[], true).map_err(|e| {
                 anyhow::anyhow!(
                     "{e}\n若编译失败, 请手动执行: cargo build --release -p subtitle-ocr-cli --bin ocr-post"
@@ -67,10 +67,7 @@ pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
         "--stop-at".to_string(),
         "filter-segment".to_string(),
     ];
-    emit_log(
-        Some(&task_dir),
-        &format!("ocr-post {}", post_args.join(" ")),
-    );
+    emit_log(&format!("ocr-post {}", post_args.join(" ")));
     let status = Command::new(&bin)
         .args(&post_args)
         .status()
@@ -95,10 +92,10 @@ pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
         .and_then(|s| s.as_array())
         .cloned()
         .unwrap_or_default();
-    emit_log(
-        Some(&task_dir),
-        &format!("ocr-post → {} segments (filtered)", segments.len()),
-    );
+    emit_log(&format!(
+        "ocr-post → {} segments (filtered)",
+        segments.len()
+    ));
 
     // === LLM 修正 (最后一层修复) ===
     let llm_fix_file = out_dir.join("segment_filter_llm_fix.json");
@@ -109,14 +106,11 @@ pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
             .filter_map(|s| s.get("text").and_then(|t| t.as_str()).map(String::from))
             .collect();
         let lang_label = llm::lang_label(&args.source_lang);
-        emit_log(
-            Some(&task_dir),
-            &format!(
-                "sf_ocr_fix: LLM 修正 {} segs (model={})",
-                src_texts.len(),
-                args.llm_fix.llm_model
-            ),
-        );
+        emit_log(&format!(
+            "sf_ocr_fix: LLM 修正 {} segs (model={})",
+            src_texts.len(),
+            args.llm_fix.llm_model
+        ));
         match llm::ocr_llm_fix(&src_texts, lang_label, &args.llm_fix) {
             Ok(fixed) => {
                 // 逐段回填修正文本 (保持原段结构/时间戳)
@@ -127,10 +121,7 @@ pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
                 }
             }
             Err(e) => {
-                emit_log(
-                    Some(&task_dir),
-                    &format!("[WARN] sf_ocr_fix LLM 修正失败, 保留原文: {e}"),
-                );
+                emit_log(&format!("[WARN] sf_ocr_fix LLM 修正失败, 保留原文: {e}"));
             }
         }
     }
@@ -166,7 +157,7 @@ pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    emit_log(Some(&task_dir), "sf_ocr_fix: done");
+    emit_log("sf_ocr_fix: done");
     Ok(())
 }
 
