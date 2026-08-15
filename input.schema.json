@@ -33,13 +33,13 @@
       "description": " 字幕对齐位置 (镜像 TS `packages/core/stages/mix_video/args.ts` alignmentList)\n\n 顺序即 ffmpeg ass `Alignment` 数值 (1..9), 见 [`alignment_to_ffmpeg`]。",
       "title": "Alignment"
     },
-    "Asr": {
+    "AsrArgs": {
       "anyOf": [
         {
           "additionalProperties": false,
           "properties": {
             "Serialize": {
-              "$ref": "#/$defs/Asr_Serialize"
+              "$ref": "#/$defs/AsrArgs_Serialize"
             }
           },
           "required": [
@@ -51,7 +51,7 @@
           "additionalProperties": false,
           "properties": {
             "Deserialize": {
-              "$ref": "#/$defs/Asr_Deserialize"
+              "$ref": "#/$defs/AsrArgs_Deserialize"
             }
           },
           "required": [
@@ -60,8 +60,218 @@
           "type": "object"
         }
       ],
-      "description": " asr: 语音转写",
-      "title": "Asr"
+      "description": " asr 阶段参数。",
+      "title": "AsrArgs"
+    },
+    "AsrArgs_Deserialize": {
+      "description": " asr 阶段参数。",
+      "properties": {
+        "device": {
+          "$ref": "#/$defs/AsrDevice",
+          "description": " 推理设备, 默认 cuda"
+        },
+        "maxLen": {
+          "description": " whisper.cpp: 最大段长(字符), 0=不限",
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mixMode": {
+          "$ref": "#/$defs/MixMode",
+          "description": " ASR 音频源 (默认 sidechain)"
+        },
+        "noSpeechThold": {
+          "description": " whisper.cpp: no-speech 阈值, 默认 0.6",
+          "type": "number"
+        },
+        "reduceBgm": {
+          "description": " 背景音降低量(dB); raw-sum 叠加前衰减, sidechain 时压缩后额外衰减; 默认 -12",
+          "type": "number"
+        },
+        "runtime": {
+          "$ref": "#/$defs/Runtime",
+          "description": " 推理运行时, 默认 pytorch"
+        },
+        "sidechainCompress": {
+          "$ref": "#/$defs/SidechainCompress_Deserialize",
+          "description": " mixMode=sidechain 时侧链压缩器参数"
+        },
+        "splitOnWord": {
+          "description": " whisper.cpp: 按词边界分割",
+          "type": "boolean"
+        },
+        "temperature": {
+          "description": " whisper.cpp: 解码温度, 默认 0.0",
+          "type": "number"
+        },
+        "useGate": {
+          "description": " 对分离后的人声应用 silence gate 过滤静音段噪声",
+          "type": "boolean"
+        },
+        "useSeparated": {
+          "description": " 使用分离后的人声 (target_3_vocals.wav) 而非原始视频音频",
+          "type": "boolean"
+        },
+        "vad": {
+          "description": " whisper.cpp: 启用 VAD",
+          "type": "boolean"
+        },
+        "vadModel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VadModel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " whisper.cpp: VAD 模型, silero-v5 (默认) 或 silero-v6"
+        },
+        "vadThreshold": {
+          "description": " whisper.cpp: VAD 阈值, 默认 0.5",
+          "type": "number"
+        },
+        "vocalAudioPath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " ASR 输入的人声音频路径, 调试使用"
+        },
+        "wordsOutput": {
+          "description": " 是否在 asr.json 中包含词级时间戳 (words), 分离场景下可能受幻觉影响; 默认关闭, 调试时开启",
+          "type": "boolean"
+        }
+      },
+      "title": "AsrArgs_Deserialize",
+      "type": "object"
+    },
+    "AsrArgs_Serialize": {
+      "description": " asr 阶段参数。",
+      "properties": {
+        "device": {
+          "$ref": "#/$defs/AsrDevice",
+          "description": " 推理设备, 默认 cuda"
+        },
+        "maxLen": {
+          "description": " whisper.cpp: 最大段长(字符), 0=不限",
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mixMode": {
+          "$ref": "#/$defs/MixMode",
+          "description": " ASR 音频源 (默认 sidechain)"
+        },
+        "noSpeechThold": {
+          "description": " whisper.cpp: no-speech 阈值, 默认 0.6",
+          "type": "number"
+        },
+        "reduceBgm": {
+          "description": " 背景音降低量(dB); raw-sum 叠加前衰减, sidechain 时压缩后额外衰减; 默认 -12",
+          "type": "number"
+        },
+        "runtime": {
+          "$ref": "#/$defs/Runtime",
+          "description": " 推理运行时, 默认 pytorch"
+        },
+        "sidechainCompress": {
+          "$ref": "#/$defs/SidechainCompress_Serialize",
+          "description": " mixMode=sidechain 时侧链压缩器参数"
+        },
+        "splitOnWord": {
+          "description": " whisper.cpp: 按词边界分割",
+          "type": "boolean"
+        },
+        "temperature": {
+          "description": " whisper.cpp: 解码温度, 默认 0.0",
+          "type": "number"
+        },
+        "useGate": {
+          "description": " 对分离后的人声应用 silence gate 过滤静音段噪声",
+          "type": "boolean"
+        },
+        "useSeparated": {
+          "description": " 使用分离后的人声 (target_3_vocals.wav) 而非原始视频音频",
+          "type": "boolean"
+        },
+        "vad": {
+          "description": " whisper.cpp: 启用 VAD",
+          "type": "boolean"
+        },
+        "vadModel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VadModel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " whisper.cpp: VAD 模型, silero-v5 (默认) 或 silero-v6"
+        },
+        "vadThreshold": {
+          "description": " whisper.cpp: VAD 阈值, 默认 0.5",
+          "type": "number"
+        },
+        "vocalAudioPath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " ASR 输入的人声音频路径, 调试使用"
+        },
+        "wordsOutput": {
+          "description": " 是否在 asr.json 中包含词级时间戳 (words), 分离场景下可能受幻觉影响; 默认关闭, 调试时开启",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "runtime",
+        "device",
+        "useSeparated",
+        "mixMode",
+        "reduceBgm",
+        "wordsOutput",
+        "sidechainCompress",
+        "useGate",
+        "vocalAudioPath",
+        "vad",
+        "vadModel",
+        "vadThreshold",
+        "noSpeechThold",
+        "temperature",
+        "maxLen",
+        "splitOnWord"
+      ],
+      "title": "AsrArgs_Serialize",
+      "type": "object"
+    },
+    "AsrDevice": {
+      "anyOf": [
+        {
+          "const": "vulkan"
+        },
+        {
+          "const": "cuda"
+        },
+        {
+          "const": "cpu"
+        },
+        {
+          "const": "mps"
+        }
+      ],
+      "description": " 推理设备 (asr 侧无 webgpu)。",
+      "title": "AsrDevice"
     },
     "AsrOcrArgs": {
       "anyOf": [
@@ -278,67 +488,6 @@
       "title": "AsrOcrPreArgs_Serialize",
       "type": "object"
     },
-    "Asr_Deserialize": {
-      "description": " asr: 语音转写",
-      "properties": {
-        "mix_mode": {
-          "$ref": "#/$defs/MixMode",
-          "description": " ASR 音频源 (默认 sidechain)"
-        },
-        "reduce_bgm": {
-          "description": " 背景音降低量(dB), raw-sum 叠加前衰减",
-          "type": "number"
-        },
-        "runtime": {
-          "$ref": "#/$defs/Runtime",
-          "description": " 推理运行时, 默认 pytorch"
-        },
-        "sidechain_compress": {
-          "$ref": "#/$defs/SidechainCompress_Deserialize",
-          "description": " mixMode=sidechain 时压缩器参数"
-        },
-        "words_output": {
-          "description": " ASR 结果是否包含词级时间戳 (默认关闭, 调试时开启)",
-          "type": "boolean"
-        }
-      },
-      "title": "Asr_Deserialize",
-      "type": "object"
-    },
-    "Asr_Serialize": {
-      "description": " asr: 语音转写",
-      "properties": {
-        "mix_mode": {
-          "$ref": "#/$defs/MixMode",
-          "description": " ASR 音频源 (默认 sidechain)"
-        },
-        "reduce_bgm": {
-          "description": " 背景音降低量(dB), raw-sum 叠加前衰减",
-          "type": "number"
-        },
-        "runtime": {
-          "$ref": "#/$defs/Runtime",
-          "description": " 推理运行时, 默认 pytorch"
-        },
-        "sidechain_compress": {
-          "$ref": "#/$defs/SidechainCompress_Serialize",
-          "description": " mixMode=sidechain 时压缩器参数"
-        },
-        "words_output": {
-          "description": " ASR 结果是否包含词级时间戳 (默认关闭, 调试时开启)",
-          "type": "boolean"
-        }
-      },
-      "required": [
-        "runtime",
-        "mix_mode",
-        "reduce_bgm",
-        "words_output",
-        "sidechain_compress"
-      ],
-      "title": "Asr_Serialize",
-      "type": "object"
-    },
     "Command": {
       "anyOf": [
         {
@@ -489,11 +638,11 @@
           "type": "object"
         }
       ],
-      "description": " LLM 修正参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致。",
+      "description": " LLM 修正参数。",
       "title": "LlmFixArgs"
     },
     "LlmFixArgs_Deserialize": {
-      "description": " LLM 修正参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致。",
+      "description": " LLM 修正参数。",
       "properties": {
         "domainHint": {
           "anyOf": [
@@ -523,7 +672,7 @@
       "type": "object"
     },
     "LlmFixArgs_Serialize": {
-      "description": " LLM 修正参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致。",
+      "description": " LLM 修正参数。",
       "properties": {
         "domainHint": {
           "anyOf": [
@@ -1107,12 +1256,13 @@
           "const": "ggml"
         },
         {
-          "const": "fasterwhisper"
+          "const": "faster-whisper"
         },
         {
           "const": "pytorch"
         }
       ],
+      "description": " asr 推理运行时。\n\n TS 侧为 `z.enum([\"ggml\", \"faster-whisper\", \"pytorch\"])` (kebab-case),\n 故用 `rename_all = \"kebab-case\"` (`FasterWhisper` → `\"faster-whisper\"`)。",
       "title": "Runtime"
     },
     "ServerAction": {
@@ -1341,14 +1491,22 @@
           "type": "object"
         }
       ],
-      "description": " 侧链压缩器参数",
+      "description": " 侧链压缩器参数 (镜像 TS `sidechainCompress`)",
       "title": "SidechainCompress"
     },
     "SidechainCompress_Deserialize": {
-      "description": " 侧链压缩器参数",
+      "description": " 侧链压缩器参数 (镜像 TS `sidechainCompress`)",
       "properties": {
+        "attack": {
+          "description": " attack 时间(ms), 默认 1",
+          "type": "number"
+        },
         "ratio": {
           "description": " 压缩比, 默认 20",
+          "type": "number"
+        },
+        "release": {
+          "description": " release 时间(ms), 默认 200",
           "type": "number"
         },
         "threshold": {
@@ -1360,10 +1518,18 @@
       "type": "object"
     },
     "SidechainCompress_Serialize": {
-      "description": " 侧链压缩器参数",
+      "description": " 侧链压缩器参数 (镜像 TS `sidechainCompress`)",
       "properties": {
+        "attack": {
+          "description": " attack 时间(ms), 默认 1",
+          "type": "number"
+        },
         "ratio": {
           "description": " 压缩比, 默认 20",
+          "type": "number"
+        },
+        "release": {
+          "description": " release 时间(ms), 默认 200",
           "type": "number"
         },
         "threshold": {
@@ -1373,7 +1539,9 @@
       },
       "required": [
         "threshold",
-        "ratio"
+        "ratio",
+        "attack",
+        "release"
       ],
       "title": "SidechainCompress_Serialize",
       "type": "object"
@@ -1463,7 +1631,7 @@
       "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StagesSchema)\n\n mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。",
       "properties": {
         "asr": {
-          "$ref": "#/$defs/Asr_Deserialize"
+          "$ref": "#/$defs/AsrArgs_Deserialize"
         },
         "asr_ocr": {
           "$ref": "#/$defs/AsrOcrArgs_Deserialize"
@@ -1494,7 +1662,7 @@
       "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StagesSchema)\n\n mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。",
       "properties": {
         "asr": {
-          "$ref": "#/$defs/Asr_Serialize"
+          "$ref": "#/$defs/AsrArgs_Serialize"
         },
         "asr_ocr": {
           "$ref": "#/$defs/AsrOcrArgs_Serialize"
@@ -1883,6 +2051,18 @@
       ],
       "title": "TaskArgs_Serialize",
       "type": "object"
+    },
+    "VadModel": {
+      "anyOf": [
+        {
+          "const": "silero-v5"
+        },
+        {
+          "const": "silero-v6"
+        }
+      ],
+      "description": " whisper.cpp VAD 模型",
+      "title": "VadModel"
     }
   },
   "$ref": "#/$defs/Input_Deserialize",

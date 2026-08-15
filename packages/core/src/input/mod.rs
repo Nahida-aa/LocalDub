@@ -76,7 +76,7 @@ mod tests {
         let input: Input =
             serde_json::from_str(r#"{"command":"env","task":{"pipeline":"subtitle"}}"#).unwrap();
         assert_eq!(input.command, Command::Env);
-        assert!(input.stages.asr.mix_mode == stages::MixMode::Sidechain);
+        assert!(input.stages.asr.mix_mode == crate::stages::asr::args::MixMode::Sidechain);
         assert_eq!(input.stages.asr.reduce_bgm, -12.0);
         assert_eq!(
             input.task.as_ref().unwrap().pipeline,
