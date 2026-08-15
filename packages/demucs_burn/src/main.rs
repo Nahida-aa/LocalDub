@@ -11,16 +11,16 @@ use demucs_core::provider::ModelProvider;
 use demucs_core::provider::fs::FsProvider;
 use demucs_core::{Demucs, ModelOptions};
 
-#[cfg(feature = "cubecl-cpu")]
+#[cfg(feature = "cpu")]
 type B = burn::backend::Cpu;
 
-#[cfg(feature = "cubecl-wgpu")]
+#[cfg(feature = "wgpu")]
 type B = burn::backend::wgpu::Wgpu;
 
-#[cfg(feature = "cubecl-rocm")]
+#[cfg(feature = "rocm")]
 type B = burn::backend::Rocm;
 
-#[cfg(feature = "cubecl-cuda")]
+#[cfg(feature = "cuda")]
 type B = burn::backend::Cuda;
 
 #[cfg(feature = "tch")]
@@ -113,7 +113,7 @@ fn run() -> Result<()> {
         );
     };
 
-    #[cfg(feature = "cubecl-wgpu")]
+    #[cfg(feature = "wgpu")]
     let device = {
         use burn::backend::wgpu::{RuntimeOptions, graphics::AutoGraphicsApi, init_setup};
         let d = Default::default();
@@ -125,7 +125,7 @@ fn run() -> Result<()> {
         d
     };
 
-    #[cfg(not(feature = "cubecl-wgpu"))]
+    #[cfg(not(feature = "wgpu"))]
     let device = Default::default();
 
     let load_start = Instant::now();
@@ -136,7 +136,7 @@ fn run() -> Result<()> {
     println!("Benchmark-Load-Time: {:.3}", load_time.as_secs_f64());
 
     if cli.warmup {
-        #[cfg(feature = "cubecl-wgpu")]
+        #[cfg(feature = "wgpu")]
         {
             eprintln!("Pre-compiling GPU shaders (first run only)...");
             let warmup_start = Instant::now();
@@ -145,7 +145,7 @@ fn run() -> Result<()> {
             eprintln!("Warmup done in {:.1}s", t.as_secs_f64());
             println!("Benchmark-Warmup-Time: {:.3}", t.as_secs_f64());
         }
-        #[cfg(not(feature = "cubecl-wgpu"))]
+        #[cfg(not(feature = "wgpu"))]
         eprintln!("Skipping GPU warmup (not wgpu backend)");
     }
 

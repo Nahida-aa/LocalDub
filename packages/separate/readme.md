@@ -20,14 +20,14 @@ All benchmarks on `htdemucs_ft`, `tasks_max=1`. CPU: Ryzen 7 7840HS. GPU: Radeon
 ### Build
 
 ```bash
-# cubecl-wgpu (GPU via Vulkan/Metal/DX12, default) — works
+# wgpu (GPU via Vulkan/Metal/DX12, default) — works
 cargo build --release --bin demucs-burn-wgpu
 
-# cubecl-cpu (CubeCL CPU via MLIR — experimental, very slow for demucs)
-cargo build --release --bin demucs-burn-cpu --no-default-features --features cubecl-cpu
+# cpu (CubeCL CPU via MLIR — experimental, very slow for demucs)
+cargo build --release --bin demucs-burn-cpu --no-default-features --features cpu
 
-# cubecl-rocm (AMD ROCm HIP — MES hang on 780M, requires gfx9+ with stable ROCm)
-cargo build --release --bin demucs-burn-rocm --no-default-features --features cubecl-rocm
+# rocm (AMD ROCm HIP — MES hang on 780M, requires gfx9+ with stable ROCm)
+cargo build --release --bin demucs-burn-rocm --no-default-features --features rocm
 
 # tch (libtorch CPU via MKL — best CPU path, requires LD_LIBRARY_PATH)
 LIBTORCH_DIR=$(find target/release/build/torch-sys-*/out/libtorch/libtorch/lib -maxdepth 0)
@@ -50,7 +50,7 @@ LIBTORCH_DIR=$LIBTORCH_DIR cargo build --release --bin demucs-burn-tch --no-defa
 - 多轮 benchmark (`--benchmark-rounds N`): 不重启进程跑 N 次推理，验证 CubeCL JIT 是否存在冷启动之外的残余开销。
   实测在 warmup 后第二轮与第一轮生成时间差 <0.3%（26.34s vs 26.58s，10s 音频）。
   **结论：warmup 已全覆盖所有 shader，无残余 JIT。单轮 benchmark 即可反映稳定态性能。**
-- GPU fusion (`--features cubecl-wgpu,fusion`): 实测无改善（RTF 2.40 vs 2.41，在误差范围内）。fusion 对 demucs 的小 kernel 卷积和 transposed conv 无效。已确认在 RADV 780M 上不 crash。
+- GPU fusion (`--features wgpu,fusion`): 实测无改善（RTF 2.40 vs 2.41，在误差范围内）。fusion 对 demucs 的小 kernel 卷积和 transposed conv 无效。已确认在 RADV 780M 上不 crash。
 - CUDA GPU: tch can use CUDA if available (not tested here)
 - Real CPU production path: **tch** (RTF 1.26-1.66) or **ggml** (RTF 1.44-2.91)
 - Default model: `htdemucs_ft` (4 per-stem specialist models, 333MB). Change with `--model htdemucs`.
@@ -58,12 +58,12 @@ LIBTORCH_DIR=$LIBTORCH_DIR cargo build --release --bin demucs-burn-tch --no-defa
 ### Known issues
 
 - **CubeCL autotune** (wgpu 已禁用): causes `elemwise_fuse` pipeline failure → GPU driver hang on RADV. Fix: remove `AutotuneConfig`.
-- **Burn fusion** (`--features cubecl-wgpu,fusion`): 在 RADV+780M 上不 crash，但对 demucs 无性能提升（RTF 2.41→2.40，误差范围）。fusion 主要优化 elementwise 操作链（add+norm+act等），而 demucs 瓶颈在 conv/conv_transpose，fusion 无法覆盖。
+- **Burn fusion** (`--features wgpu,fusion`): 在 RADV+780M 上不 crash，但对 demucs 无性能提升（RTF 2.41→2.40，误差范围）。fusion 主要优化 elementwise 操作链（add+norm+act等），而 demucs 瓶颈在 conv/conv_transpose，fusion 无法覆盖。
 - **wgpu ≠ Vulkan**: wgpu is cross-platform; on Linux this uses Vulkan via RADV.
 - **GPU memory on 780M**: 5.86 GiB device-local + 11.73 GiB host-visible. 120s wgpu stable.
 - **tch libtorch**: needs `LD_LIBRARY_PATH` pointing to libtorch lib dir at runtime.
-- **cubecl-cpu**: impractical for demucs — MLIR JIT compiles each kernel individually, conv/matmul unoptimized per Burn 0.20 notes.
-- **cubecl-rocm**: `GPU Hang` on 780M (MES firmware issue), requires gfx9+ with stable ROCm.
+- **cpu**: impractical for demucs — MLIR JIT compiles each kernel individually, conv/matmul unoptimized per Burn 0.20 notes.
+- **rocm**: `GPU Hang` on 780M (MES firmware issue), requires gfx9+ with stable ROCm.
 
 ### tasks_max tuning (wgpu only)
 
