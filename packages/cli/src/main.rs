@@ -251,17 +251,17 @@ fn run_env(args: &[String]) -> anyhow::Result<()> {
         })
         .unwrap_or_else(|| "check".to_string());
 
-    // targets: CLI 显式 > input.env.targets > 推断
-    let targets: Vec<String> = if !cli_targets.is_empty() {
-        cli_targets.to_vec()
+    // targets: CLI 显式 > input.env.targets > 推断 (推断时附带 precise 后端映射)
+    let (targets, desired) = if !cli_targets.is_empty() {
+        (cli_targets.to_vec(), std::collections::HashMap::new())
     } else if let Some(env_args) = input.as_ref().and_then(|i| i.env.as_ref()) {
         if env_args.targets.is_empty() {
             ld_core::cmd::env::infer_targets(input.as_ref().unwrap())
         } else {
-            env_args.targets.clone()
+            (env_args.targets.clone(), std::collections::HashMap::new())
         }
     } else {
-        Vec::new() // 回退: run_check 全量
+        (Vec::new(), std::collections::HashMap::new()) // 回退: run_check 全量
     };
 
     let infer_note = if cli_targets.is_empty()
@@ -277,9 +277,9 @@ fn run_env(args: &[String]) -> anyhow::Result<()> {
     };
 
     let results = if action == "ensure" {
-        ld_core::cmd::env::run_ensure(&targets)
+        ld_core::cmd::env::run_ensure(&targets, &desired)
     } else {
-        ld_core::cmd::env::run_check(&targets)
+        ld_core::cmd::env::run_check(&targets, &desired)
     };
     for r in &results {
         println!("{}", ld_core::cmd::env::format_result(r));

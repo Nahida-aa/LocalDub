@@ -7,11 +7,12 @@ pub mod input;
 pub mod items;
 
 use serde::Serialize;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::cmd::env::input::{env_names, zh_desc};
 use crate::cmd::env::items::{all_checks, ensure_fns};
 use crate::input::Input;
+use crate::stages::tts::args::TtsDevice;
 
 /// 检查状态 (serde 小写对齐 TS 字符串 "pass"/"warn"/"fail"/"skip")。
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
@@ -42,13 +43,14 @@ pub fn env_list() -> Vec<&'static str> {
 ///
 /// 设计: 从「核心工具链 + 配置」基础集出发, 按各 stage 的 runtime/device 追加依赖。
 /// 这是启发式推断 (非精确依赖图), 目标是给出「跟当前配置相关」的检查项, 避免每次扫全 31 项。
-pub fn infer_targets(input: &Input) -> Vec<String> {
+pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
     use crate::stages::asr::args::{AsrDevice, Runtime as AsrRuntime};
     use crate::stages::separate::args::Device as SepDevice;
     use crate::stages::tts::args::{TtsDevice, TtsRuntime};
     use crate::tasks::args::SubtitleSource;
 
     let mut set: HashSet<String> = HashSet::new();
+    let mut desired: HashMap<String, String> = HashMap::new();
     let add = |s: &str, set: &mut HashSet<String>| {
         set.insert(s.to_string());
     };
@@ -100,6 +102,9 @@ pub fn infer_targets(input: &Input) -> Vec<String> {
     if stages.asr.use_separated || stages.separate.always {
         add("demucs_pth", &mut set);
         add("demucs_burn_bin", &mut set);
+        // 本次配置实际需要的 demucs 后端后缀 (bin = demucs-burn-{suffix})
+        let suffix = demucs_backend_suffix(stages.separate.runtime, stages.separate.device);
+        desired.insert("demucs_burn_bin".to_string(), suffix.to_string());
         match stages.separate.device {
             SepDevice::Vulkan => add("vulkan", &mut set),
             SepDevice::Cuda => add("cuda", &mut set),
@@ -119,10 +124,18 @@ pub fn infer_targets(input: &Input) -> Vec<String> {
         TtsRuntime::Ggml => {
             add("voxcpm2_onnx", &mut set);
             add("voxcpm_burn_bin", &mut set);
+            desired.insert(
+                "voxcpm_burn_bin".to_string(),
+                voxcpm_backend_suffix(stages.tts.device).to_string(),
+            );
         }
         TtsRuntime::VoxcpmTorchGradio => {
             add("voxcpm2_pth", &mut set);
             add("voxcpm_burn_bin", &mut set);
+            desired.insert(
+                "voxcpm_burn_bin".to_string(),
+                voxcpm_backend_suffix(stages.tts.device).to_string(),
+            );
         }
     }
     match stages.tts.device {
@@ -133,11 +146,39 @@ pub fn infer_targets(input: &Input) -> Vec<String> {
     }
 
     // 按 env_names 稳定顺序输出 (与 run_check 全量顺序一致)
-    env_names()
+    let targets = env_names()
         .into_iter()
         .filter(|n| set.contains(*n))
         .map(|s| s.to_string())
-        .collect()
+        .collect();
+    (targets, desired)
+}
+
+/// separate 后端后缀: bin = demucs-burn-{suffix}。runtime 优先 (burn-tch→tch), 否则按 device 映射。
+fn demucs_backend_suffix(
+    runtime: crate::stages::separate::args::Runtime,
+    device: crate::stages::separate::args::Device,
+) -> &'static str {
+    use crate::stages::separate::args::{Device as SepDevice, Runtime as SepRuntime};
+    match runtime {
+        SepRuntime::BurnTch => "tch",
+        SepRuntime::Burn => match device {
+            SepDevice::Cpu | SepDevice::Mps => "cpu",
+            SepDevice::Cuda => "cuda",
+            SepDevice::Vulkan => "vulkan",
+            SepDevice::Webgpu => "wgpu",
+        },
+    }
+}
+
+/// tts 后端后缀: bin = voxcpm-burn-{suffix} (按 device 映射)。
+fn voxcpm_backend_suffix(device: TtsDevice) -> &'static str {
+    match device {
+        TtsDevice::Cpu | TtsDevice::Mps => "cpu",
+        TtsDevice::Cuda => "cuda",
+        TtsDevice::Rocm => "rocm",
+        TtsDevice::Webgpu => "wgpu",
+    }
 }
 
 /// 解析目标: 空 → 全部; 过滤到 all_checks 中存在的 key; 过滤后空 → 全部。
@@ -158,11 +199,27 @@ fn resolve_targets(targets: &[String]) -> Vec<String> {
 }
 
 /// 运行检查 (镜像 TS `runCheck`)。
-pub fn run_check(targets: &[String]) -> Vec<CheckResult> {
+///
+/// `desired` 为「本次配置实际需要的环境项后端」映射 (如 `demucs_burn_bin` → "tch"),
+/// 用于让 burn 系检查精确报告缺失的后端二进制, 而非笼统列出全部变体。
+pub fn run_check(targets: &[String], desired: &HashMap<String, String>) -> Vec<CheckResult> {
     let selected = resolve_targets(targets);
     let checks = all_checks();
     let mut results = Vec::new();
     for key in &selected {
+        // burn 系二进制: 传入本次配置所需的后端后缀, 精确报告
+        if key == "demucs_burn_bin" {
+            results.push(crate::cmd::env::items::check_demucs_burn_bin(
+                desired.get("demucs_burn_bin").map(|s| s.as_str()),
+            ));
+            continue;
+        }
+        if key == "voxcpm_burn_bin" {
+            results.push(crate::cmd::env::items::check_voxcpm_burn_bin(
+                desired.get("voxcpm_burn_bin").map(|s| s.as_str()),
+            ));
+            continue;
+        }
         match checks.get(key.as_str()) {
             Some(f) => {
                 // 单 check 内部已吞异常式处理; 这里再包一层防御
@@ -187,8 +244,8 @@ pub fn run_check(targets: &[String]) -> Vec<CheckResult> {
     results
 }
 
-/// 运行 ensure (镜像 TS `runEnsure`)。
-pub fn run_ensure(targets: &[String]) -> Vec<CheckResult> {
+/// 运行 ensure (镜像 TS `runEnsure`)。`desired` 目前仅 check 路径使用, 这里接受以保持签名一致。
+pub fn run_ensure(targets: &[String], _desired: &HashMap<String, String>) -> Vec<CheckResult> {
     let selected = resolve_targets(targets);
     let fns = ensure_fns();
     let mut results = Vec::new();

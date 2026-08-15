@@ -538,7 +538,17 @@ fn scan_release_bins(prefix: &str) -> Vec<PathBuf> {
     out
 }
 
-fn check_burn_bins(key: &str, prefix: &str, expected: &[&str], watch: &[&str]) -> CheckResult {
+/// 检查 burn 系二进制。
+///
+/// `required` 为「本次配置实际需要的后端后缀」(如 "tch" / "cuda"): 仅当它缺失才判 Fail
+/// 且给出精确缺失信息; 其余变体缺失仅作提示。None 时保持旧行为 (全变体任一缺失即 Fail)。
+fn check_burn_bins(
+    key: &str,
+    prefix: &str,
+    expected: &[&str],
+    watch: &[&str],
+    required: Option<&str>,
+) -> CheckResult {
     let files = scan_release_bins(prefix);
     let existing: std::collections::HashSet<String> = files
         .iter()
@@ -551,10 +561,15 @@ fn check_burn_bins(key: &str, prefix: &str, expected: &[&str], watch: &[&str]) -
         .collect();
 
     if files.is_empty() {
+        // 无任一产物: 若已知所需后端, 精确报缺失; 否则笼统报
+        let precise = required.map(|r| format!("demucs-burn-{r}"));
         return CheckResult {
             key: key.to_string(),
             status: CheckStatus::Fail,
-            data: json!({ "missing_bins": missing.join(", "), "msg": "未找到编译产物" }),
+            data: json!({ "missing_bins": missing.join(", "), "msg": match precise {
+                Some(b) => format!("未找到编译产物: 需要 {b}"),
+                None => "未找到编译产物".to_string(),
+            } }),
             required: false,
         };
     }
@@ -574,10 +589,35 @@ fn check_burn_bins(key: &str, prefix: &str, expected: &[&str], watch: &[&str]) -
         }
     }
 
-    let status = if !stale_bins.is_empty() || !missing.is_empty() {
-        CheckStatus::Warn
-    } else {
-        CheckStatus::Pass
+    // 判定: 已知所需后端时, 仅该后端缺失/过时 → Fail/Warn; 其余变体缺失仅提示
+    let (status, fail_msg) = match required {
+        Some(req) => {
+            let req_bin = format!("{prefix}{req}");
+            let req_missing = !existing.contains(&req_bin);
+            let req_stale = stale_bins.iter().any(|b| b == &req_bin);
+            if req_missing {
+                (
+                    CheckStatus::Fail,
+                    format!(
+                        "缺失所需后端: {req_bin} (请先 cargo build -p demucs-burn --bin {req_bin})"
+                    ),
+                )
+            } else if req_stale {
+                (CheckStatus::Warn, format!("{req_bin} 可能过时"))
+            } else {
+                (
+                    CheckStatus::Pass,
+                    format!("{req_bin} 已编译且最新").to_string(),
+                )
+            }
+        }
+        None => {
+            if !stale_bins.is_empty() || !missing.is_empty() {
+                (CheckStatus::Warn, "部分缺失/过时".to_string())
+            } else {
+                (CheckStatus::Pass, "全部已编译且最新".to_string())
+            }
+        }
     };
     let binaries: Vec<String> = files
         .iter()
@@ -591,13 +631,13 @@ fn check_burn_bins(key: &str, prefix: &str, expected: &[&str], watch: &[&str]) -
             "fresh_bins": fresh_bins.join(", "),
             "missing_bins": missing.join(", "),
             "binaries": binaries.join(", "),
-            "msg": if status == CheckStatus::Pass { "全部已编译且最新".to_string() } else if !missing.is_empty() { format!("缺失: {}", missing.join(", ")) } else { "部分过时".to_string() }
+            "msg": fail_msg
         }),
         required: false,
     }
 }
 
-pub fn check_voxcpm_burn_bin() -> CheckResult {
+pub fn check_voxcpm_burn_bin(required: Option<&str>) -> CheckResult {
     check_burn_bins(
         "voxcpm_burn_bin",
         "voxcpm-burn-",
@@ -608,10 +648,11 @@ pub fn check_voxcpm_burn_bin() -> CheckResult {
             "voxcpm-burn-tch",
         ],
         &["packages/voxcpm-burn/", "submodule/voxcpm-rs/"],
+        required,
     )
 }
 
-pub fn check_demucs_burn_bin() -> CheckResult {
+pub fn check_demucs_burn_bin(required: Option<&str>) -> CheckResult {
     check_burn_bins(
         "demucs_burn_bin",
         "demucs-burn-",
@@ -623,6 +664,7 @@ pub fn check_demucs_burn_bin() -> CheckResult {
             "demucs-burn-cuda",
         ],
         &["packages/demucs_burn/", "submodule/demucs-rs/"],
+        required,
     )
 }
 
@@ -1234,8 +1276,8 @@ pub fn all_checks() -> HashMap<&'static str, fn() -> CheckResult> {
     m.insert("submodule_voxcpm_rs", check_submodule_voxcpm_rs);
     m.insert("whisper_bin", check_whisper_bin);
     m.insert("demucs_ggml_bin", check_demucs_ggml_bin);
-    m.insert("voxcpm_burn_bin", check_voxcpm_burn_bin);
-    m.insert("demucs_burn_bin", check_demucs_burn_bin);
+    m.insert("voxcpm_burn_bin", || check_voxcpm_burn_bin(None));
+    m.insert("demucs_burn_bin", || check_demucs_burn_bin(None));
     m.insert("ocr_cpp_bin", check_ocr_cpp_bin);
     m.insert("cmake", check_cmake);
     m.insert("git", check_git);
