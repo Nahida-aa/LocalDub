@@ -8,6 +8,7 @@
 use crate::context::read_ctx;
 use crate::stages::get_stages;
 use crate::stages::separate::{stage_separate, stage_separate_after};
+use crate::stages::sf_ocr::{stage_sf_ocr, stage_sf_ocr_fix, stage_sf_ocr_pre};
 use crate::stages::utils::{
     StagePatch, StageStatus, emit_log, now_iso, set_stage_anyhow, set_task_anyhow,
 };
@@ -130,7 +131,10 @@ pub fn run_pipeline(task_dir: &str) -> anyhow::Result<()> {
 
 /// 是否存在已注册的 handler (镜像 TS `STAGE_HANDLERS[stage]` 是否存在)。
 fn has_handler(stage: &str) -> bool {
-    matches!(stage, "separate" | "separate_after")
+    matches!(
+        stage,
+        "separate" | "separate_after" | "sf_ocr_pre" | "sf_ocr" | "sf_ocr_fix"
+    )
 }
 
 /// 按 stage 名分派到具体 handler (镜像 TS `STAGE_HANDLERS`)。
@@ -142,6 +146,9 @@ fn run_stage(stage: &str, task_dir: &str) -> anyhow::Result<()> {
     match stage {
         "separate" => stage_separate(&ctx),
         "separate_after" => stage_separate_after(&ctx),
+        "sf_ocr_pre" => stage_sf_ocr_pre(&ctx),
+        "sf_ocr" => stage_sf_ocr(&ctx),
+        "sf_ocr_fix" => stage_sf_ocr_fix(&ctx),
         // 后续阶段在此登记, 例如:
         // "asr" => stage_asr(&ctx),
         _ => Ok(()),

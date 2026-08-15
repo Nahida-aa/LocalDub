@@ -219,6 +219,44 @@ pub fn gated_vocals_path(task_dir: &str) -> PathBuf {
     separate_after_dir(task_dir).join("target_3_vocals_gated.wav")
 }
 
+/// sf_ocr_pre 关键帧目录
+pub fn sf_ocr_pre_dir(task_dir: &str) -> PathBuf {
+    Path::new(task_dir).join("sf_ocr_pre")
+}
+/// sf_ocr OCR 结果目录
+pub fn sf_ocr_dir(task_dir: &str) -> PathBuf {
+    Path::new(task_dir).join("sf_ocr")
+}
+/// sf_ocr_fix 修正结果目录
+pub fn sf_ocr_fix_dir(task_dir: &str) -> PathBuf {
+    Path::new(task_dir).join("sf_ocr_fix")
+}
+
+/// 取 video_source_path (缺则报错, 与 TS `video_source_path` 一致)。
+pub fn video_source_path(ctx: &crate::context::TaskCtx) -> anyhow::Result<String> {
+    ctx.video_source_path
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("video_source_path 未设置 (session {})", ctx.task.task_dir))
+}
+
+/// 确保目录存在 (镜像 TS `ensureDir`)。
+pub fn ensure_dir(path: &std::path::Path) -> anyhow::Result<()> {
+    fs::create_dir_all(path).map_err(|e| anyhow::anyhow!("创建目录 {} 失败: {}", path.display(), e))
+}
+
+/// 定位 workspace 构建的二进制: 优先 `target/release/<name>`, 回退 `target/debug/<name>`
+/// (镜像 TS 的 `$REPO_ROOT/target/release/<bin>` 解析, 兼容 dev/debug 构建)。
+pub fn find_release_bin(name: &str) -> Option<PathBuf> {
+    let repo = config_rs::root::repo_root();
+    for profile in ["release", "debug"] {
+        let p = repo.join("target").join(profile).join(name);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+    None
+}
+
 // ---------------------------------------------------------------------------
 // 日志 (镜像 TS `emitLog`)
 // ---------------------------------------------------------------------------
