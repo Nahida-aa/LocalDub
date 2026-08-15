@@ -8,3 +8,5 @@ publish.workspace = true
 [dependencies]
 serde.workspace = true
 specta.workspace = true
+anyhow.workspace = true
+reqwest.workspace = true

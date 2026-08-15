@@ -5,7 +5,7 @@
 //! `MergeFramesArgs` 仍内联（subtitle-ocr 的 Rust crate 尚未落地），`LlmFixArgs` 直接复用
 //! `llm` crate 的类型，并用 `#[serde(flatten)]` 保持与 TS spread 一致的扁平 JSON 结构。
 
-use llm::llm_fix_args::LlmFixArgs;
+use llm::LlmFixArgs;
 use serde::{Deserialize, Serialize};
 
 /// sf_ocr 阶段 OCR 修正参数。

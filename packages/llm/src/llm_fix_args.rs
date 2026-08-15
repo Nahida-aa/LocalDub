@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// LLM 修正参数。
-#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct LlmFixArgs {
     /// LLM 模型名
@@ -18,6 +18,17 @@ pub struct LlmFixArgs {
     /// 是否启用 LLM 修正
     #[serde(default)]
     pub llm_fix: bool,
+}
+
+impl Default for LlmFixArgs {
+    fn default() -> Self {
+        Self {
+            llm_model: default_llm_model(),
+            llm_api_base: default_llm_api_base(),
+            domain_hint: None,
+            llm_fix: false,
+        }
+    }
 }
 
 fn default_llm_model() -> String {
