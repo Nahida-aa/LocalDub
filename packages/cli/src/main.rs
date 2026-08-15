@@ -14,7 +14,7 @@ use std::process::{Command, exit};
 
 use anyhow::Context;
 use ld_core::cmd::tasks::task::cmd_task;
-use ld_core::input::Input;
+use ld_core::input::{Command as InputCommand, Input};
 
 /// 剥离 JSONC 注释: `//` 行注释 与 `/* ... */` 块注释。
 ///
@@ -183,10 +183,23 @@ fn main() {
         )
         .try_init();
 
-    // `cli env [check|ensure] [targets...]` 子命令在 task 路径之前拦截。
+    // 分发 (镜像 TS `cmdTask` 的 command 分派):
+    // 1. 显式 `cli env [check|ensure] [targets...]` 子命令优先;
+    // 2. 否则读 input.jsonc 的 `command` 字段 (默认 "env") —— command=env 走 env 检查;
+    // 3. 其余 (command=task / 解析失败 / 无 command) 走现有 task 路径。
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.first().map(|s| s.as_str()) == Some("env") {
         if let Err(e) = run_env(&args[1..]) {
+            eprintln!("[cli] env 错误: {e:#}");
+            exit(1);
+        }
+        return;
+    }
+    if parse_repo_input()
+        .map(|i| i.command == InputCommand::Env)
+        .unwrap_or(false)
+    {
+        if let Err(e) = run_env(&[]) {
             eprintln!("[cli] env 错误: {e:#}");
             exit(1);
         }
