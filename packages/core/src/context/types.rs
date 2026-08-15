@@ -12,14 +12,20 @@ pub enum StageStatus {
     Failed,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
 pub struct TaskStage {
     pub name: String,
     pub label: String,
+    #[serde(default)]
     pub status: StageStatus,
+    #[serde(default)]
     pub progress: Option<f64>,
+    #[serde(default)]
     pub started_at: Option<String>,
+    #[serde(default)]
     pub completed_at: Option<String>,
+    #[serde(default)]
     pub last_message: Option<String>,
+    #[serde(default)]
     pub error_message: Option<String>,
 }
