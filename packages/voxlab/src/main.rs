@@ -54,7 +54,7 @@ fn main() -> anyhow::Result<()> {
     let cloud = VoxCPMCloud::new(VoxCPMCloudConfig {
         api_url,
         control_instruction: None,
-    });
+    })?;
 
     println!("[voxlab] generating via cloud backend...");
     let result = cloud.generate(&text, &ref_path, prompt.as_deref(), cfg)?;
