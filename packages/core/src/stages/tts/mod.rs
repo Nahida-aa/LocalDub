@@ -82,7 +82,7 @@ fn pick_voxcpm_bin(device: TtsDevice, runtime: TtsRuntime) -> anyhow::Result<Str
         None,
         &format!("未找到 voxcpm-burn 二进制, 尝试自动编译 {first} (--features {first_feat})..."),
     );
-    let _ = cargo_build_bin("voxcpm-burn", first, &[first_feat]).map_err(|e| {
+    let _ = cargo_build_bin("voxcpm-burn", first, &[first_feat], false).map_err(|e| {
         anyhow::anyhow!(
             "{e}\n若编译失败, 请手动执行: cargo build --release -p voxcpm-burn --bin {first} --no-default-features --features {first_feat}"
         )

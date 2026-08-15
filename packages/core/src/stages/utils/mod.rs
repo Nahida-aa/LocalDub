@@ -454,10 +454,15 @@ pub fn find_release_bin(name: &str) -> Option<PathBuf> {
 /// 构造 `cargo build -p <package> --bin <bin>` 命令 (复用当前仓库根 + cargo 可执行)。
 /// `features` 非空时追加 `--no-default-features --features <a>,<b>`, 确保只启用目标后端
 /// (各 burn 包 `default = ["wgpu"]`, 不关 default 会让 wgpu 与指定后端同时编译,
-/// 触发 `main.rs` 中 `type B` 重复定义冲突)。
+/// 触发 `main.rs` 中 `type B` 重复定义冲突)。`release` 为真时追加 `--release`。
 ///
 /// 注: 不在此处 `.output()`, 交由调用方决定同步/流式, 故只返回构造好的 [`Command`]。
-fn cargo_build_cmd(package: &str, bin: &str, features: &[&str]) -> std::process::Command {
+fn cargo_build_cmd(
+    package: &str,
+    bin: &str,
+    features: &[&str],
+    release: bool,
+) -> std::process::Command {
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
     let mut cmd = std::process::Command::new(cargo);
     cmd.arg("build")
@@ -465,6 +470,9 @@ fn cargo_build_cmd(package: &str, bin: &str, features: &[&str]) -> std::process:
         .arg(package)
         .arg("--bin")
         .arg(bin);
+    if release {
+        cmd.arg("--release");
+    }
     if !features.is_empty() {
         // 关掉 default features, 只启用目标后端, 避免多后端 type B 冲突
         cmd.arg("--no-default-features");
@@ -476,31 +484,45 @@ fn cargo_build_cmd(package: &str, bin: &str, features: &[&str]) -> std::process:
 
 /// 缺失时自动编译 workspace 二进制, 返回编译产物路径。
 ///
-/// 执行 `cargo build -p <package> --bin <bin> [--no-default-features --features ...]`,
+/// 执行 `cargo build [-p <package>] --bin <bin> [--release] [--no-default-features --features ...]`,
 /// 成功后在 `target/release` / `target/debug` 中定位产物 (优先 release)。失败 (编译错误 /
 /// 产物缺失) 时返回错误, 由调用方决定如何上报。
 ///
 /// `features` 用于指定后端 feature (如 demucs-burn 的 `tch`/`wgpu`/`cuda`...), 因为各 burn 包
 /// 用 `required-features` 把二进制绑定到对应 feature, 不显式 `--features` 会编译失败; 同时会
-/// 关掉 default features (默认 wgpu), 避免多后端 `type B` 重复定义冲突。
+/// 关掉 default features (默认 wgpu), 避免多后端 `type B` 重复定义冲突。`release` 控制是否
+/// 编 release 产物 (与 `find_release_bin` 的 release 优先、及手动提示一致)。
 ///
 /// 用于「阶段内自动编译缺失二进制」(用户选项: 阶段内自动编译), 镜像 TS 侧手动
 /// `cargo build` 的引导步骤, 减少「先去 build 再跑」的来回。
-pub fn cargo_build_bin(package: &str, bin: &str, features: &[&str]) -> anyhow::Result<PathBuf> {
+///
+/// 编译输出 (stdout/stderr) 直接 inherit 到当前进程, 便于实时看到 `Compiling...` /
+/// 进度, 避免长时间静默让人误以为卡住。失败时仍由 exit status 判断并给出手动命令提示。
+pub fn cargo_build_bin(
+    package: &str,
+    bin: &str,
+    features: &[&str],
+    release: bool,
+) -> anyhow::Result<PathBuf> {
     let feat_str = if features.is_empty() {
         String::new()
     } else {
         format!(" --no-default-features --features {}", features.join(","))
     };
-    let cmdline = format!("cargo build -p {package} --bin {bin}{feat_str}");
+    let rel_str = if release { " --release" } else { "" };
+    let cmdline = format!("cargo build -p {package} --bin {bin}{rel_str}{feat_str}");
     tracing::info!("[auto-build] 未找到 {bin}, 执行: {cmdline}");
-    let mut cmd = cargo_build_cmd(package, bin, features);
-    let out = cmd
-        .output()
+    let mut cmd = cargo_build_cmd(package, bin, features, release);
+    // 透传编译输出, 实时可见
+    cmd.stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit());
+    let status = cmd
+        .status()
         .map_err(|e| anyhow::anyhow!("无法执行 `{cmdline}` (cargo 未安装/未找到?): {e}"))?;
-    if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        return Err(anyhow::anyhow!("编译 {bin} 失败 (`{cmdline}`):\n{stderr}"));
+    if !status.success() {
+        return Err(anyhow::anyhow!(
+            "编译 {bin} 失败 (`{cmdline}`), 详见上方 cargo 输出"
+        ));
     }
     // 优先 release, 回退 debug (dev 构建)
     let repo = config_rs::root::repo_root();

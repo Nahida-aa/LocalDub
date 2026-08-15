@@ -5,8 +5,8 @@
 
 use crate::context::TaskCtx;
 use crate::stages::utils::{
-    StagePatch, StageStatus, emit_log, ensure_dir, find_release_bin, now_iso, set_stage_anyhow,
-    sf_ocr_pre_dir, video_source_path,
+    StagePatch, StageStatus, cargo_build_bin, emit_log, ensure_dir, find_release_bin, now_iso,
+    set_stage_anyhow, sf_ocr_pre_dir, video_source_path,
 };
 use std::process::Command;
 
@@ -30,9 +30,18 @@ pub fn stage_sf_ocr_pre(ctx: &TaskCtx) -> anyhow::Result<()> {
         return Err(anyhow::anyhow!("OCR input not found: {video_path}"));
     }
 
-    let bin = find_release_bin("sf-cli").ok_or_else(|| {
-        anyhow::anyhow!("sf-cli 未构建。请先 cargo build --release -p sf-cli --bin sf-cli")
-    })?;
+    let bin = match find_release_bin("sf-cli") {
+        Some(p) => p,
+        None => {
+            // 阶段内自动编译缺失二进制 (用户选项: 阶段内自动编译)
+            emit_log(Some(&task_dir), "未找到 sf-cli, 尝试自动编译...");
+            cargo_build_bin("sf-cli", "sf-cli", &[], true).map_err(|e| {
+                anyhow::anyhow!(
+                    "{e}\n若编译失败, 请手动执行: cargo build --release -p sf-cli --bin sf-cli"
+                )
+            })?
+        }
+    };
 
     let out_dir = sf_ocr_pre_dir(&task_dir);
     ensure_dir(&out_dir)?;
