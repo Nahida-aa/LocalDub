@@ -43,6 +43,9 @@ pub struct OcrFixArgs {
     /// LLM 修正参数 (flatten, 扁平展开为 llmModel / llmApiBase / domainHint / llmFix)
     #[serde(default, flatten)]
     pub llm_fix: LlmFixArgs,
+    /// 源语言代码 (供 LLM 系统提示, 镜像 TS `ctx.input.task.sourceLang`); 默认 "zh"
+    #[serde(default = "default_source_lang")]
+    pub source_lang: String,
 }
 
 impl Default for OcrFixArgs {
@@ -57,6 +60,7 @@ impl Default for OcrFixArgs {
             is_merge_substring: false,
             dedup_edit_distance: default_dedup_edit_distance(),
             llm_fix: LlmFixArgs::default(),
+            source_lang: default_source_lang(),
         }
     }
 }
@@ -87,4 +91,8 @@ fn default_box_adjusted_threshold() -> f64 {
 
 fn default_dedup_edit_distance() -> u32 {
     1
+}
+
+fn default_source_lang() -> String {
+    "zh".to_string()
 }

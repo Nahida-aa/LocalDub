@@ -3,9 +3,8 @@
 //!
 //! 镜像 TS `packages/core/stages/sf_ocr/ocr_fix.ts` (stageSfOcrFix)。
 //!
-//! 注意: LLM 修正 (`chat_completions`) 在 Rust core 暂无对应客户端 (`llm` crate 目前仅导出
-//! `LlmFixArgs` 参数类型), 故 `llmFix=true` 时先 warn 并以 adjusted segments 直接落盘
-//! `segment_filter_llm_fix.json` 作为桥接, 待 LLM 客户端移植后替换。
+//! 注意: LLM 修正通过 `llm` crate 的 `chat_completions` + `ocr_llm_fix` 实现 (`llmFix=true` 时),
+//! 失败时 warn 并保留原文 (不中断 stage)。
 
 use crate::context::TaskCtx;
 use crate::stages::sf_ocr::fix_args::OcrFixArgs;
@@ -95,21 +94,48 @@ pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
     );
 
     // === LLM 修正 (最后一层修复) ===
-    // Rust core 暂无 LLM 客户端, llmFix 时桥接落盘, 待 #21 移植 chat 客户端后替换。
     let llm_fix_file = out_dir.join("segment_filter_llm_fix.json");
+    let mut final_segments = segments.clone();
     if args.llm_fix.llm_fix {
+        let src_texts: Vec<String> = segments
+            .iter()
+            .filter_map(|s| s.get("text").and_then(|t| t.as_str()).map(String::from))
+            .collect();
+        let lang_label = llm::lang_label(&args.source_lang);
         emit_log(
             Some(&task_dir),
-            "[WARN] sf_ocr_fix LLM 修正尚未移植 (Rust core 无 LLM 客户端), 暂以 adjusted segments 落盘",
+            &format!(
+                "sf_ocr_fix: LLM 修正 {} segs (model={})",
+                src_texts.len(),
+                args.llm_fix.llm_model
+            ),
         );
-        let texts: Vec<String> = segments
+        match llm::ocr_llm_fix(&src_texts, lang_label, &args.llm_fix) {
+            Ok(fixed) => {
+                // 逐段回填修正文本 (保持原段结构/时间戳)
+                for (seg, text) in final_segments.iter_mut().zip(fixed.into_iter()) {
+                    if let Some(obj) = seg.as_object_mut() {
+                        obj.insert("text".to_string(), serde_json::Value::String(text));
+                    }
+                }
+            }
+            Err(e) => {
+                emit_log(
+                    Some(&task_dir),
+                    &format!("[WARN] sf_ocr_fix LLM 修正失败, 保留原文: {e}"),
+                );
+            }
+        }
+    }
+    if args.llm_fix.llm_fix {
+        let texts: Vec<String> = final_segments
             .iter()
             .filter_map(|s| s.get("text").and_then(|t| t.as_str()).map(String::from))
             .collect();
         let out = serde_json::json!({
             "result": {
                 "text": texts.join(" "),
-                "segments": segments,
+                "segments": final_segments,
             }
         });
         let s = serde_json::to_string_pretty(&out)
@@ -164,6 +190,7 @@ mod tests {
         let cfg = read_args(&ctx);
         assert_eq!(cfg.adjusted_confidence_threshold, 0.45);
         assert!(!cfg.llm_fix.llm_fix);
+        assert_eq!(cfg.source_lang, "zh");
     }
 
     #[test]

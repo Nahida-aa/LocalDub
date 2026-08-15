@@ -5,8 +5,22 @@
 //! 不依赖全局 env 单例 (与 Rust core 设计一致)。
 
 mod llm_fix_args;
+mod ocr_fix;
 
 pub use llm_fix_args::LlmFixArgs;
+pub use ocr_fix::{build_ocr_fix_system_prompt, ocr_llm_fix, ocr_segments_to_prompt, parse_lines};
+
+/// 语言代码 -> 展示名 (供 LLM 系统提示), 镜像 TS `t(sourceLang)` 的常用映射。
+/// 未命中时缺省 "中文"。
+pub fn lang_label(code: &str) -> &str {
+    match code {
+        "zh" => "中文",
+        "en" => "English",
+        "ja" => "日本語",
+        "ko" => "한국어",
+        _ => "中文",
+    }
+}
 
 /// `chat_completions` 选项 (镜像 TS `opts`)。
 #[derive(Debug, Clone)]
