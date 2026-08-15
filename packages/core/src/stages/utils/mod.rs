@@ -148,6 +148,16 @@ pub fn set_task(task_dir: &str, patch: TaskPatch) -> Result<(), String> {
     write_ctx(task_dir, &ctx)
 }
 
+/// `set_stage` 返回 `Result<(), String>`, 此 wrapper 转 `anyhow::Result` 以便 `?`。
+pub fn set_stage_anyhow(task_dir: &str, name: &str, patch: StagePatch) -> anyhow::Result<()> {
+    set_stage(task_dir, name, patch).map_err(anyhow::Error::msg)
+}
+
+/// `set_task` 返回 `Result<(), String>`, 此 wrapper 转 `anyhow::Result` 以便 `?`。
+pub fn set_task_anyhow(task_dir: &str, patch: TaskPatch) -> anyhow::Result<()> {
+    set_task(task_dir, patch).map_err(anyhow::Error::msg)
+}
+
 // ---------------------------------------------------------------------------
 // 输出目录 / 路径 helper (镜像 TS utils.ts 的 *_dir / *_path)
 // ---------------------------------------------------------------------------

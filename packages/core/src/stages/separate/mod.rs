@@ -9,7 +9,9 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use crate::context::TaskCtx;
-use crate::stages::utils::{StagePatch, StageStatus, emit_log, now_iso, separate_dir, set_stage};
+use crate::stages::utils::{
+    StagePatch, StageStatus, emit_log, now_iso, separate_dir, set_stage, set_stage_anyhow,
+};
 
 pub use args::SeparateArgs;
 
@@ -53,11 +55,6 @@ fn parse_progress_pct(s: &str) -> Option<i32> {
     let pct = inner.strip_suffix('%').unwrap_or(inner).trim();
     let val: f64 = pct.parse().ok()?;
     Some(val.clamp(0.0, 100.0) as i32)
-}
-
-/// `set_stage` 返回 `Result<(), String>`, 此 wrapper 转成 `anyhow::Result` 以便 `?`。
-fn set_stage_anyhow(task_dir: &str, name: &str, patch: StagePatch) -> anyhow::Result<()> {
-    set_stage(task_dir, name, patch).map_err(anyhow::Error::msg)
 }
 
 /// 运行 demucs-burn 分离, 流式把 stdout 的 `(xx%)` 进度写入 stage。
