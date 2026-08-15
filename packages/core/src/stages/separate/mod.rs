@@ -11,7 +11,8 @@ use std::process::{Command, Stdio};
 
 use crate::context::TaskCtx;
 use crate::stages::utils::{
-    StagePatch, StageStatus, emit_log, now_iso, separate_dir, set_stage, set_stage_anyhow,
+    StagePatch, StageStatus, cargo_build_bin, emit_log, now_iso, separate_dir, set_stage,
+    set_stage_anyhow,
 };
 
 pub use after::stage_separate_after;
@@ -26,12 +27,18 @@ pub fn read_args(ctx: &TaskCtx) -> SeparateArgs {
         .unwrap_or_default()
 }
 
-/// 根据 runtime 选择 demucs-burn 后端 (镜像 TS `separateBurn` 的 backend 派生)。
-/// `burn` → wgpu; `burn-tch` → tch。
-fn backend_for(runtime: args::Runtime) -> &'static str {
+/// 根据 runtime + device 选择 demucs-burn 后端 (镜像 TS `separateBurn` 的 backend 派生)。
+/// `burn-tch` → tch (device 无关); `burn` → 按 device (Cpu/Mps→cpu, Cuda→cuda,
+/// Vulkan→vulkan, Webgpu→wgpu)。须与 `cmd/env` 的 `demucs_backend_suffix` 保持一致。
+fn backend_for(runtime: args::Runtime, device: args::Device) -> &'static str {
     match runtime {
-        args::Runtime::Burn => "wgpu",
         args::Runtime::BurnTch => "tch",
+        args::Runtime::Burn => match device {
+            args::Device::Cpu | args::Device::Mps => "cpu",
+            args::Device::Cuda => "cuda",
+            args::Device::Vulkan => "vulkan",
+            args::Device::Webgpu => "wgpu",
+        },
     }
 }
 
@@ -187,12 +194,23 @@ pub fn stage_separate(ctx: &TaskCtx) -> anyhow::Result<()> {
         return Err(anyhow::anyhow!("audio_source.wav not found"));
     }
 
-    let backend = backend_for(cfg.runtime);
-    let bin_path = demucs_bin_path(backend).ok_or_else(|| {
-        anyhow::anyhow!(
-            "demucs-burn-{backend} 未构建。请先 cargo build -p demucs-burn --bin demucs-burn-{backend}"
-        )
-    })?;
+    let backend = backend_for(cfg.runtime, cfg.device);
+    let bin_name = format!("demucs-burn-{backend}");
+    let bin_path = match demucs_bin_path(backend) {
+        Some(p) => p,
+        None => {
+            // 阶段内自动编译缺失二进制 (用户选项: 阶段内自动编译)
+            emit_log(
+                Some(&task_dir),
+                &format!("未找到 {bin_name}, 尝试自动编译..."),
+            );
+            cargo_build_bin("demucs-burn", &bin_name).map_err(|e| {
+                anyhow::anyhow!(
+                    "{e}\n若编译失败, 请手动执行: cargo build -p demucs-burn --bin {bin_name}"
+                )
+            })?
+        }
+    };
 
     // 模型存在性检查 (镜像 TS 的 modelPath 校验)
     let model_path = config_rs::path::models::demucs_model_dir().join("htdemucs_ft.safetensors");
@@ -318,8 +336,15 @@ mod tests {
 
     #[test]
     fn backend_selection() {
-        assert_eq!(backend_for(args::Runtime::Burn), "wgpu");
-        assert_eq!(backend_for(args::Runtime::BurnTch), "tch");
+        assert_eq!(
+            backend_for(args::Runtime::Burn, args::Device::Webgpu),
+            "wgpu"
+        );
+        assert_eq!(backend_for(args::Runtime::Burn, args::Device::Cuda), "cuda");
+        assert_eq!(
+            backend_for(args::Runtime::BurnTch, args::Device::Cpu),
+            "tch"
+        );
     }
 
     #[test]

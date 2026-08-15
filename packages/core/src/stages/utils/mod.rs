@@ -451,6 +451,51 @@ pub fn find_release_bin(name: &str) -> Option<PathBuf> {
     None
 }
 
+/// 构造 `cargo build -p <package> --bin <bin>` 命令 (复用当前仓库根 + cargo 可执行)。
+///
+/// 注: 不在此处 `.output()`, 交由调用方决定同步/流式, 故只返回构造好的 [`Command`]。
+fn cargo_build_cmd(package: &str, bin: &str) -> std::process::Command {
+    let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
+    let mut cmd = std::process::Command::new(cargo);
+    cmd.arg("build")
+        .arg("-p")
+        .arg(package)
+        .arg("--bin")
+        .arg(bin);
+    cmd
+}
+
+/// 缺失时自动编译 workspace 二进制, 返回编译产物路径。
+///
+/// 执行 `cargo build -p <package> --bin <bin>`, 成功后在 `target/release` / `target/debug`
+/// 中定位产物 (优先 release)。失败 (编译错误 / 产物缺失) 时返回错误, 由调用方决定如何上报。
+///
+/// 用于「阶段内自动编译缺失二进制」(用户选项: 阶段内自动编译), 镜像 TS 侧手动
+/// `cargo build` 的引导步骤, 减少「先去 build 再跑」的来回。
+pub fn cargo_build_bin(package: &str, bin: &str) -> anyhow::Result<PathBuf> {
+    let cmdline = format!("cargo build -p {package} --bin {bin}");
+    tracing::info!("[auto-build] 未找到 {bin}, 执行: {cmdline}");
+    let mut cmd = cargo_build_cmd(package, bin);
+    let out = cmd
+        .output()
+        .map_err(|e| anyhow::anyhow!("无法执行 `{cmdline}` (cargo 未安装/未找到?): {e}"))?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        return Err(anyhow::anyhow!("编译 {bin} 失败 (`{cmdline}`):\n{stderr}"));
+    }
+    // 优先 release, 回退 debug (dev 构建)
+    let repo = config_rs::root::repo_root();
+    for profile in ["release", "debug"] {
+        let p = repo.join("target").join(profile).join(bin);
+        if p.exists() {
+            return Ok(p);
+        }
+    }
+    Err(anyhow::anyhow!(
+        "编译 {bin} 成功但未找到产物 (target/release 或 target/debug 下均无 {bin})"
+    ))
+}
+
 // ---------------------------------------------------------------------------
 // 字幕/翻译/切分 路径 helper (镜像 TS stages/utils/utils.ts)
 // ---------------------------------------------------------------------------

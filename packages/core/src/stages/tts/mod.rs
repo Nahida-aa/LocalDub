@@ -18,8 +18,8 @@ use crate::context::TaskCtx;
 use crate::stages::tts::args::{TtsArgs, TtsDevice, TtsRuntime};
 use crate::stages::tts::out::{TtsFile, TtsSegment};
 use crate::stages::utils::{
-    StagePatch, StageStatus, emit_log, ensure_dir, ffmpeg, find_release_bin, now_iso,
-    probe_duration_ms, read_split_audio_timings, set_stage_anyhow, tts_filepath,
+    StagePatch, StageStatus, cargo_build_bin, emit_log, ensure_dir, ffmpeg, find_release_bin,
+    now_iso, probe_duration_ms, read_split_audio_timings, set_stage_anyhow, tts_filepath,
 };
 
 /// vocals 参考音"非静音"判定阈值: PCM 裸数据 > 该字节数才认为有实际声音。
@@ -66,12 +66,29 @@ fn pick_voxcpm_bin(device: TtsDevice, runtime: TtsRuntime) -> anyhow::Result<Str
         TtsDevice::Webgpu => vec!["voxcpm-burn-wgpu", "voxcpm-burn-cpu"],
         TtsDevice::Cuda => vec!["voxcpm-burn-vulkan", "voxcpm-burn-wgpu", "voxcpm-burn-cpu"],
     };
-    for c in candidates {
+    for c in &candidates {
         if let Some(p) = find_release_bin(c) {
             return Ok(p.to_string_lossy().into_owned());
         }
     }
-    // 回退: 期望默认 profile 二进制存在 (引导用户先 build)
+    // 阶段内自动编译缺失二进制 (用户选项: 阶段内自动编译): 取首个候选后端编译后重试
+    let first = candidates
+        .first()
+        .copied()
+        .ok_or_else(|| anyhow::anyhow!("无可用 voxcpm-burn 后端候选 (device={device:?})"))?;
+    emit_log(
+        None,
+        &format!("未找到 voxcpm-burn 二进制, 尝试自动编译 {first}..."),
+    );
+    let _ = cargo_build_bin("voxcpm-burn", first).map_err(|e| {
+        anyhow::anyhow!(
+            "{e}\n若编译失败, 请手动执行: cargo build --release -p voxcpm-burn --bin {first}"
+        )
+    })?;
+    if let Some(p) = find_release_bin(first) {
+        return Ok(p.to_string_lossy().into_owned());
+    }
+    // 回退: 编译成功但产物仍缺失 (理论上不会发生), 引导用户先 build
     Err(anyhow::anyhow!(
         "未找到 voxcpm-burn 二进制 (profile: {:?}/{:?})。请先 cargo build --release -p voxcpm-burn",
         device,
