@@ -107,6 +107,9 @@ pub struct AsrArgs {
     /// 使用分离后的人声 (target_3_vocals.wav) 而非原始视频音频
     #[serde(default)]
     pub use_separated: bool,
+    /// 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr, 与 translate.enabled 一致)
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
     /// ASR 音频源 (默认 sidechain)
     #[serde(default = "default_mix_mode")]
     pub mix_mode: MixMode,
@@ -154,6 +157,7 @@ impl Default for AsrArgs {
             runtime: default_runtime(),
             device: default_device(),
             use_separated: false,
+            enabled: default_enabled(),
             mix_mode: default_mix_mode(),
             reduce_bgm: default_reduce_bgm(),
             words_output: false,
@@ -181,6 +185,10 @@ fn default_device() -> AsrDevice {
 
 fn default_mix_mode() -> MixMode {
     MixMode::Sidechain
+}
+
+fn default_enabled() -> bool {
+    true
 }
 
 fn default_reduce_bgm() -> f64 {

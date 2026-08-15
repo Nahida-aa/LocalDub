@@ -4,7 +4,6 @@ import { writeJson, ensureDir } from "@repo/util/file_op";
 import { copyFileSync, existsSync, renameSync } from "node:fs";
 import { delimiter, join, resolve, basename } from "node:path";
 import { homedir } from "node:os";
-import { runStage, getTorchServerUrl } from "../../servers/client.ts";
 
 import {
   emitLog,
@@ -16,15 +15,9 @@ import {
   mixedVocalsPath,
   gatedVocalsPath,
 } from "@repo/core/stages/utils/utils";
-import { AsrOptions } from "./types.ts";
-import { parseAsrOutput } from "./utils.ts";
 import { TaskCtx, setCtx, setStage } from "@repo/core/context/context.ts";
 import { pythonBin } from "@repo/config/path/bin";
-import { findServer } from "@repo/core/servers/discovery";
-import { REPO_ROOT } from "@repo/config/root";
-import { whisperCppModelPath } from "@repo/config/path/models";
 import { asrWhisperCpp } from "../../ml/whisper/runtime/ggml.ts";
-import { asrFasterWhisper } from "../../ml/whisper/runtime/faster_whisper_py.ts";
 import { AsrResult } from "@repo/subtitle-asr/types";
 import { log } from "@repo/util/log";
 
@@ -68,50 +61,43 @@ export async function stageAsr(ctx: TaskCtx) {
   const pyBin = pythonBin();
   ctx.input.task.sourceLang;
 
-  if (runtime === "pytorch") {
-    emitLog(taskDir, `[ASR] Using demucs_torch_server (device=${device})`);
-    const { port } = await findServer("demucs_torch_server");
-    const asrUrl = getTorchServerUrl(port);
-    const result = await runStage(asrUrl, "asr", taskId, {
-      vocals_path: audioPath,
-      task_dir: taskDir,
-      language: ctx.input.task.sourceLang || "auto",
-      device,
-      word_timestamps: asrCfg?.wordsOutput ?? false,
-    });
-    const r = result as Record<string, any>;
-    const actualDevice: string = r.actual_device ?? device;
-    const fallbackToCpu = device !== "cpu" && actualDevice === "cpu";
-    if (fallbackToCpu) {
-      console.warn(`[WARN] [ASR] GPU failed, fell back to CPU (actual device: ${actualDevice})`);
-    }
-    if (r.detected_language) {
-      setCtx(taskDir, {
-        runInfo: {
-          asr: {
-            engine: "whisper-pytorch",
-            device: actualDevice,
-            gpuAttempted: device !== "cpu",
-            fallbackToCpu,
-          },
-        },
-      });
-    }
-    if (r.load_time_s) emitLog(taskDir, `[ASR] Model loaded in ${r.load_time_s}s`);
-    if (r.process_time_s) emitLog(taskDir, `[ASR] Transcribed in ${r.process_time_s}s`);
-    if (r.audio_duration_s)
-      emitLog(taskDir, `[ASR] Audio duration ${Number(r.audio_duration_s).toFixed(1)}s`);
-    if (r.rtf) emitLog(taskDir, `[ASR] RTF ${r.rtf}`);
-  } else if (runtime === "faster-whisper") {
-    await asrFasterWhisper({
-      ctx,
-      taskId,
-      audioPath,
-      taskDir: taskDir,
-      language: ctx.input.task.sourceLang,
-      device,
-      pythonBin: pyBin,
-    });
+  // if (runtime === "pytorch") {
+  //   emitLog(taskDir, `[ASR] Using demucs_torch_server (device=${device})`);
+  //   const { port } = await findServer("demucs_torch_server");
+  //   const asrUrl = getTorchServerUrl(port);
+  //   const result = await runStage(asrUrl, "asr", taskId, {
+  //     vocals_path: audioPath,
+  //     task_dir: taskDir,
+  //     language: ctx.input.task.sourceLang || "auto",
+  //     device,
+  //     word_timestamps: asrCfg?.wordsOutput ?? false,
+  //   });
+  //   const r = result as Record<string, any>;
+  //   const actualDevice: string = r.actual_device ?? device;
+  //   const fallbackToCpu = device !== "cpu" && actualDevice === "cpu";
+  //   if (fallbackToCpu) {
+  //     console.warn(`[WARN] [ASR] GPU failed, fell back to CPU (actual device: ${actualDevice})`);
+  //   }
+  //   if (r.detected_language) {
+  //     setCtx(taskDir, {
+  //       runInfo: {
+  //         asr: {
+  //           engine: "whisper-pytorch",
+  //           device: actualDevice,
+  //           gpuAttempted: device !== "cpu",
+  //           fallbackToCpu,
+  //         },
+  //       },
+  //     });
+  //   }
+  //   if (r.load_time_s) emitLog(taskDir, `[ASR] Model loaded in ${r.load_time_s}s`);
+  //   if (r.process_time_s) emitLog(taskDir, `[ASR] Transcribed in ${r.process_time_s}s`);
+  //   if (r.audio_duration_s)
+  //     emitLog(taskDir, `[ASR] Audio duration ${Number(r.audio_duration_s).toFixed(1)}s`);
+  //   if (r.rtf) emitLog(taskDir, `[ASR] RTF ${r.rtf}`);
+  // } else
+  if (runtime === "ggml") {
+    await asrWhisperCpp(ctx, audioPath, taskDir, ctx.input.task.sourceLang);
   } else {
     await asrWhisperCpp(ctx, audioPath, taskDir, ctx.input.task.sourceLang);
   }

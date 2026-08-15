@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const AsrArgsSchema = z
   .looseObject({
-    runtime: z.enum(["ggml", "faster-whisper", "pytorch"]).default("pytorch"),
+    runtime: z.enum(["ggml", "faster-whisper", "pytorch"]).default("ggml"),
     device: z.enum(["vulkan", "cuda", "cpu", "mps"]).default("cuda"),
     useSeparated: z
       .boolean()
