@@ -18,8 +18,9 @@ use ld_core::tasks::import::download::import_video;
 
 /// 剥离 JSONC 注释: `//` 行注释 与 `/* ... */` 块注释。
 ///
-/// 不依赖正则 (遵循 AGENTS.md "no regex dep" 约定), 逐字符状态机处理。
-/// 字符串内 (单/双引号) 的注释符号原样保留。
+/// 同时移除尾随逗号 (JSONC 允许, 但 `serde_json` 不允许), 例如
+/// `{ "a": 1, }` → `{ "a": 1 }`。不依赖正则 (遵循 AGENTS.md "no regex dep"
+/// 约定), 逐字符状态机处理。字符串内 (单/双引号) 的注释符号 / 逗号原样保留。
 fn strip_jsonc_comments(src: &str) -> String {
     let bytes = src.as_bytes();
     let mut out = String::with_capacity(src.len());
@@ -84,6 +85,17 @@ fn strip_jsonc_comments(src: &str) -> String {
                     i += 2;
                     continue;
                 }
+            }
+        }
+        // 遇到 `}` / `]` 时, 先吃掉前面可能存在的尾随逗号 (JSONC 特性)
+        if c == b'}' || c == b']' {
+            // 回退跳过尾随空白, 若前一非空白字符是逗号则移除之
+            let mut j = out.len();
+            while j > 0 && out.as_bytes()[j - 1].is_ascii_whitespace() {
+                j -= 1;
+            }
+            if j > 0 && out.as_bytes()[j - 1] == b',' {
+                out.truncate(j - 1);
             }
         }
         out.push(c as char);
@@ -169,6 +181,23 @@ mod tests {
     }
 
     #[test]
+    fn strips_trailing_commas() {
+        // JSONC 允许尾随逗号, serde_json 不允许 → 必须移除
+        let src = r#"{
+            "a": 1,
+            "b": [1, 2,],
+        }"#;
+        let out = strip_jsonc_comments(src);
+        // 去掉空白后应为合法 JSON: {"a":1,"b":[1,2]}
+        let compact: String = out.chars().filter(|c| !c.is_whitespace()).collect();
+        assert_eq!(compact, r#"{"a":1,"b":[1,2]}"#);
+        // 确保反序列化成功 (无 trailing comma 错误)
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["a"], 1);
+        assert_eq!(v["b"][1], 2);
+    }
+
+    #[test]
     fn preserves_comment_like_inside_string() {
         // 字符串里的 // 与 /* */ 不能当注释处理
         let src = r#"{ "path": "a//b", "note": "c /* d */ e" }"#;
@@ -185,5 +214,34 @@ mod tests {
         let b = root.join("input.json");
         assert!(a.to_string_lossy().ends_with("input.jsonc"));
         assert!(b.to_string_lossy().ends_with("input.json"));
+    }
+
+    /// 解析仓库根 input.jsonc, 验证 JSONC 剥离 + Input 反序列化 + mix_video 小数生效。
+    ///
+    /// 不触发 import_video / run_pipeline, 仅做配置读取层面的端到端校验。
+    #[test]
+    fn parses_repo_input_jsonc_and_mix_video_decimals() {
+        let path = resolve_input_path().expect("应能在仓库根找到 input.jsonc/json");
+        let raw = std::fs::read_to_string(&path).expect("读取 input 失败");
+        let cleaned = strip_jsonc_comments(&raw);
+        let input: Input =
+            serde_json::from_str(&cleaned).expect("解析 input.jsonc 失败 (JSONC 应已剥离)");
+        assert!(input.validate().is_ok());
+
+        // subtitleSource=sf_ocr → sf_ocr 全链路, 不经过 asr
+        assert_eq!(
+            input.task.as_ref().unwrap().subtitle_source,
+            ld_core::tasks::args::SubtitleSource::SfOcr
+        );
+
+        let mv = &input.stages.mix_video;
+        assert_eq!(mv.font_size, Some(21.4), "fontSize 小数应被读取");
+        assert_eq!(mv.shadow, 1.1, "shadow 小数应被读取");
+        assert_eq!(mv.margin_v, Some(45.0));
+        assert_eq!(mv.font.as_deref(), Some("Noto Sans CJK SC Medium"));
+        assert_eq!(mv.bgm_gain, -9.0);
+
+        let ma = &input.stages.mix_audio;
+        assert_eq!(ma.max_speed, 1.55);
     }
 }
