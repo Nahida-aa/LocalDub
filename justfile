@@ -16,3 +16,8 @@ dev-desktop:
 
 gen-input-schema:
     cargo run -p ld-core --bin gen-input-schema
+
+# 运行环境检测 (镜像 TS env 命令): `cargo run -p cli -- env check`。
+# 可加 targets 过滤: `just run-env ffmpeg python`
+run-env:
+    cargo run -p cli -- env check

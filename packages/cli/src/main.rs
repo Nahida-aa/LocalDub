@@ -183,6 +183,16 @@ fn main() {
         )
         .try_init();
 
+    // `cli env [check|ensure] [targets...]` 子命令在 task 路径之前拦截。
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(|s| s.as_str()) == Some("env") {
+        if let Err(e) = run_env(&args[1..]) {
+            eprintln!("[cli] env 错误: {e:#}");
+            exit(1);
+        }
+        return;
+    }
+
     match run() {
         Ok(()) => {
             println!("[cli] 完成");
@@ -194,6 +204,26 @@ fn main() {
             exit(1);
         }
     }
+}
+
+/// 处理 `cli env` 子命令: 默认 `check`, 支持 `check`/`ensure` 动作与 targets 过滤。
+fn run_env(args: &[String]) -> anyhow::Result<()> {
+    let (action, targets) = match args.first().map(|s| s.as_str()) {
+        Some("check") => ("check", &args[1..]),
+        Some("ensure") => ("ensure", &args[1..]),
+        // 无动作 / 未知首参 → 当作 targets, 走默认 check
+        _ => ("check", args),
+    };
+    let results = if action == "ensure" {
+        ld_core::cmd::env::run_ensure(targets)
+    } else {
+        ld_core::cmd::env::run_check(targets)
+    };
+    for r in &results {
+        println!("{}", ld_core::cmd::env::format_result(r));
+    }
+    println!("[cli] env {} 完成: {} 项", action, results.len());
+    Ok(())
 }
 
 #[cfg(test)]
