@@ -1,0 +1,6 @@
+{
+  "file_scan_exclusions": [".git", ".idea", ".vscode"]
+  // "project_panel": {
+  //   "hide_hidden": false
+  // }
+}

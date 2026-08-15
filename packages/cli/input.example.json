@@ -1,34 +1,48 @@
 {
   "$schema": "./input.schema.json",
-  "command": "createTask",
+  "command": "task",
+  "task": {
+    "action": "start",
+    "url": "/home/aa/下载/大/36.mp4",
+    "taskDir": "/home/aa/repos/env_ls/LocalDub/workfolder/大/22",
+    "continueFrom": "tts",
+    "targetStage": "mix_video",
+    "pipeline": "dub",
+    "subtitleSource": "sf_ocr"
+  },
   "check": {
     "type": "font"
   },
-  "createTask": {
-    "url": "/home/aa/下载/大/14.mp4",
-    "sourceLang": "zh"
+  "env": {
+    "action": "check",
+    "targets": ["ffmpeg"]
   },
-  "resumeTask": {
-    "resumeFrom": "mix_audio",
-    "taskDir": "/home/aa/repos/env_ls/LocalDub/workfolder/local/大/11"
+  "servers": {
+    "action": "discovery",
+    "name": "voxcpm_torch_gradio"
   },
-  "targetStage": "mix_video",
-  "pipeline": "dub",
-  "subtitleSource": "asr_ocr",
   "stages": {
     "separate": {
-      "runtime": "pytorch",
-      "device": "cuda",
+      "runtime": "burn-tch",
+      "device": "cpu",
       "always": true
     },
     "asr": {
-      "runtime": "pytorch",
-      "device": "cuda",
+      "runtime": "ggml",
+      "device": "vulkan",
       "useSeparated": true,
       "mixMode": "sidechain",
       "vad": true,
       "vadModel": "silero-v6",
-      "vadThreshold": 0.2
+      "wordsOutput": true
+    },
+    "asr_ocr": {
+      "runtime": "ort-rust",
+      "textScore": 0.45
+    },
+    "asr_ocr_fix": {
+      "is_resample": false,
+      "llmFix": true
     },
     "asr_fix": {
       "llmFix": true,
@@ -44,18 +58,23 @@
       "model": "gemma4:31b-cloud"
     },
     "split_audio": {
+      "startPadMs": 100,
+      "endPadMs": 0,
       "vadAlign": false
     },
     "tts": {
-      "runtime": "pytorch",
-      "device": "cuda"
+      "runtime": "cloud",
+      "device": "cpu",
+      "regenIndices": [1, 2, 3]
     },
-    "mix_audio": {
-      "maxSpeed": 1.35
+    "merge_audio": {
+      "maxSpeed": 1.55,
+      "maxAdvanceMs": 300,
+      "maxDelayMs": 300
     },
-    "mix_video": {
+    "merge_video": {
       "fontSize": 21.4,
-      "marginV": 37,
+      "marginV": 45,
       "font": "Noto Sans CJK SC Medium",
       "shadow": 1.1,
       "bgmGain": -9
