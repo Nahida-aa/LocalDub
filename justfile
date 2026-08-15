@@ -5,5 +5,12 @@
 run-cli:
     cargo run -p cli
 
+# 启动桌面端 (Tauri + Solid 前端)。等价于 packages/app 的 `dev:desktop`:
+# 进入 packages/app 跑 `bun run tauri dev` (需先 bun install 装好依赖)。
+# 用 cd 而非 `bun --cwd`, 后者对 `run <script>` 解析不可靠。
+desktop:
+    cd packages/app
+    bun run dev:desktop
+
 gen-input-schema:
     cargo run -p ld-core --bin gen-input-schema
