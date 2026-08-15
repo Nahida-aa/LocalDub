@@ -89,7 +89,7 @@
           "type": "number"
         },
         "runtime": {
-          "$ref": "#/$defs/Runtime",
+          "$ref": "#/$defs/ld_core%3A%3Astages%3A%3Aasr%3A%3Aargs%3A%3ARuntime",
           "description": " 推理运行时, 默认 pytorch"
         },
         "sidechainCompress": {
@@ -176,7 +176,7 @@
           "type": "number"
         },
         "runtime": {
-          "$ref": "#/$defs/Runtime",
+          "$ref": "#/$defs/ld_core%3A%3Astages%3A%3Aasr%3A%3Aargs%3A%3ARuntime",
           "description": " 推理运行时, 默认 pytorch"
         },
         "sidechainCompress": {
@@ -272,6 +272,125 @@
       ],
       "description": " 推理设备 (asr 侧无 webgpu)。",
       "title": "AsrDevice"
+    },
+    "AsrFixArgs": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/AsrFixArgs_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/AsrFixArgs_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " asr 阶段修正参数。",
+      "title": "AsrFixArgs"
+    },
+    "AsrFixArgs_Deserialize": {
+      "description": " asr 阶段修正参数。",
+      "properties": {
+        "asrFilePath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " ASR 结果文件路径, 调试使用"
+        },
+        "domainHint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\""
+        },
+        "llmApiBase": {
+          "description": " LLM API 地址",
+          "type": "string"
+        },
+        "llmFix": {
+          "description": " 是否启用 LLM 修正",
+          "type": "boolean"
+        },
+        "llmModel": {
+          "description": " LLM 模型名",
+          "type": "string"
+        }
+      },
+      "title": "AsrFixArgs_Deserialize",
+      "type": "object"
+    },
+    "AsrFixArgs_Serialize": {
+      "description": " asr 阶段修正参数。",
+      "properties": {
+        "asrFilePath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " ASR 结果文件路径, 调试使用"
+        },
+        "domainHint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\""
+        },
+        "llmApiBase": {
+          "description": " LLM API 地址",
+          "type": "string"
+        },
+        "llmFix": {
+          "description": " 是否启用 LLM 修正",
+          "type": "boolean"
+        },
+        "llmModel": {
+          "description": " LLM 模型名",
+          "type": "string"
+        }
+      },
+      "required": [
+        "asrFilePath",
+        "llmModel",
+        "llmApiBase",
+        "domainHint",
+        "llmFix"
+      ],
+      "title": "AsrFixArgs_Serialize",
+      "type": "object"
     },
     "AsrOcrArgs": {
       "anyOf": [
@@ -502,6 +621,27 @@
       ],
       "description": " 命令",
       "title": "Command"
+    },
+    "Device": {
+      "anyOf": [
+        {
+          "const": "vulkan"
+        },
+        {
+          "const": "webgpu"
+        },
+        {
+          "const": "cuda"
+        },
+        {
+          "const": "cpu"
+        },
+        {
+          "const": "mps"
+        }
+      ],
+      "description": " 推理设备",
+      "title": "Device"
     },
     "Input": {
       "anyOf": [
@@ -1250,20 +1390,93 @@
       "description": " 任务模式: dub=配音, subtitle=仅字幕",
       "title": "Pipeline"
     },
-    "Runtime": {
+    "SeparateArgs": {
       "anyOf": [
         {
-          "const": "ggml"
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/SeparateArgs_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
         },
         {
-          "const": "faster-whisper"
-        },
-        {
-          "const": "pytorch"
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/SeparateArgs_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
         }
       ],
-      "description": " asr 推理运行时。\n\n TS 侧为 `z.enum([\"ggml\", \"faster-whisper\", \"pytorch\"])` (kebab-case),\n 故用 `rename_all = \"kebab-case\"` (`FasterWhisper` → `\"faster-whisper\"`)。",
-      "title": "Runtime"
+      "description": " separate 阶段参数 (镜像 TS `packages/core/stages/separate/args.ts` SeparateArgsSchema)\n\n 枚举/数组默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})`), 这里只需处理\n 「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。",
+      "title": "SeparateArgs"
+    },
+    "SeparateArgs_Deserialize": {
+      "description": " separate 阶段参数 (镜像 TS `packages/core/stages/separate/args.ts` SeparateArgsSchema)\n\n 枚举/数组默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})`), 这里只需处理\n 「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。",
+      "properties": {
+        "always": {
+          "description": " 效果(默认关闭): subtitle 模式下也始终分离人声, 保留 vocals 以便后续切换到 dub;\n dub 流程下始终需要分离人声以保证 tts-vc 的质量",
+          "type": "boolean"
+        },
+        "device": {
+          "$ref": "#/$defs/Device",
+          "description": " torch:cuda (NVIDIA/ROCm), mps (Apple Silicon)"
+        },
+        "runtime": {
+          "$ref": "#/$defs/ld_core%3A%3Astages%3A%3Aseparate%3A%3Aargs%3A%3ARuntime",
+          "description": " 推理运行时"
+        },
+        "stems": {
+          "description": " 需分离的 stems; 暂不被消费",
+          "items": {
+            "$ref": "#/$defs/Stem"
+          },
+          "type": "array"
+        }
+      },
+      "title": "SeparateArgs_Deserialize",
+      "type": "object"
+    },
+    "SeparateArgs_Serialize": {
+      "description": " separate 阶段参数 (镜像 TS `packages/core/stages/separate/args.ts` SeparateArgsSchema)\n\n 枚举/数组默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})`), 这里只需处理\n 「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。",
+      "properties": {
+        "always": {
+          "description": " 效果(默认关闭): subtitle 模式下也始终分离人声, 保留 vocals 以便后续切换到 dub;\n dub 流程下始终需要分离人声以保证 tts-vc 的质量",
+          "type": "boolean"
+        },
+        "device": {
+          "$ref": "#/$defs/Device",
+          "description": " torch:cuda (NVIDIA/ROCm), mps (Apple Silicon)"
+        },
+        "runtime": {
+          "$ref": "#/$defs/ld_core%3A%3Astages%3A%3Aseparate%3A%3Aargs%3A%3ARuntime",
+          "description": " 推理运行时"
+        },
+        "stems": {
+          "description": " 需分离的 stems; 暂不被消费",
+          "items": {
+            "$ref": "#/$defs/Stem"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "runtime",
+        "device",
+        "always",
+        "stems"
+      ],
+      "title": "SeparateArgs_Serialize",
+      "type": "object"
     },
     "ServerAction": {
       "anyOf": [
@@ -1546,6 +1759,133 @@
       "title": "SidechainCompress_Serialize",
       "type": "object"
     },
+    "SplitAudioArgs": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/SplitAudioArgs_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/SplitAudioArgs_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " split_audio 阶段参数 (镜像 TS `packages/core/stages/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 ctx.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。",
+      "title": "SplitAudioArgs"
+    },
+    "SplitAudioArgs_Deserialize": {
+      "description": " split_audio 阶段参数 (镜像 TS `packages/core/stages/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 ctx.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。",
+      "properties": {
+        "endPadMs": {
+          "description": " 段落切块后缘 padding (ms), 避免语音被截断",
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sourceFilePath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 原始视频音频路径, 调试使用"
+        },
+        "startPadMs": {
+          "description": " 段落切块前缘 padding (ms), 避免语音被截断",
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "vadAlign": {
+          "description": " 是否启用静音检测对齐: 修正 segments 前后静音导致的偏移",
+          "type": "boolean"
+        },
+        "vocalsFilePath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 人声文件路径, 调试使用"
+        }
+      },
+      "title": "SplitAudioArgs_Deserialize",
+      "type": "object"
+    },
+    "SplitAudioArgs_Serialize": {
+      "description": " split_audio 阶段参数 (镜像 TS `packages/core/stages/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 ctx.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。",
+      "properties": {
+        "endPadMs": {
+          "description": " 段落切块后缘 padding (ms), 避免语音被截断",
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sourceFilePath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 原始视频音频路径, 调试使用"
+        },
+        "startPadMs": {
+          "description": " 段落切块前缘 padding (ms), 避免语音被截断",
+          "maximum": 18446744073709551615,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "vadAlign": {
+          "description": " 是否启用静音检测对齐: 修正 segments 前后静音导致的偏移",
+          "type": "boolean"
+        },
+        "vocalsFilePath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 人声文件路径, 调试使用"
+        }
+      },
+      "required": [
+        "vadAlign",
+        "startPadMs",
+        "endPadMs",
+        "vocalsFilePath",
+        "sourceFilePath"
+      ],
+      "title": "SplitAudioArgs_Serialize",
+      "type": "object"
+    },
     "StageName": {
       "anyOf": [
         {
@@ -1633,6 +1973,9 @@
         "asr": {
           "$ref": "#/$defs/AsrArgs_Deserialize"
         },
+        "asr_fix": {
+          "$ref": "#/$defs/AsrFixArgs_Deserialize"
+        },
         "asr_ocr": {
           "$ref": "#/$defs/AsrOcrArgs_Deserialize"
         },
@@ -1648,11 +1991,23 @@
         "mix_video": {
           "$ref": "#/$defs/MixVideoArgs_Deserialize"
         },
+        "separate": {
+          "$ref": "#/$defs/SeparateArgs_Deserialize"
+        },
         "sf_ocr": {
           "$ref": "#/$defs/SfOcrArgs_Deserialize"
         },
         "sf_ocr_fix": {
           "$ref": "#/$defs/OcrFixArgs_Deserialize"
+        },
+        "split_audio": {
+          "$ref": "#/$defs/SplitAudioArgs_Deserialize"
+        },
+        "translate": {
+          "$ref": "#/$defs/TranslateArgs_Deserialize"
+        },
+        "tts": {
+          "$ref": "#/$defs/TtsArgs_Deserialize"
         }
       },
       "title": "Stages_Deserialize",
@@ -1663,6 +2018,9 @@
       "properties": {
         "asr": {
           "$ref": "#/$defs/AsrArgs_Serialize"
+        },
+        "asr_fix": {
+          "$ref": "#/$defs/AsrFixArgs_Serialize"
         },
         "asr_ocr": {
           "$ref": "#/$defs/AsrOcrArgs_Serialize"
@@ -1679,25 +2037,60 @@
         "mix_video": {
           "$ref": "#/$defs/MixVideoArgs_Serialize"
         },
+        "separate": {
+          "$ref": "#/$defs/SeparateArgs_Serialize"
+        },
         "sf_ocr": {
           "$ref": "#/$defs/SfOcrArgs_Serialize"
         },
         "sf_ocr_fix": {
           "$ref": "#/$defs/OcrFixArgs_Serialize"
+        },
+        "split_audio": {
+          "$ref": "#/$defs/SplitAudioArgs_Serialize"
+        },
+        "translate": {
+          "$ref": "#/$defs/TranslateArgs_Serialize"
+        },
+        "tts": {
+          "$ref": "#/$defs/TtsArgs_Serialize"
         }
       },
       "required": [
+        "separate",
         "asr",
+        "asr_fix",
         "sf_ocr",
         "sf_ocr_fix",
         "asr_ocr_pre",
         "asr_ocr",
         "asr_ocr_fix",
+        "translate",
+        "split_audio",
+        "tts",
         "mix_audio",
         "mix_video"
       ],
       "title": "Stages_Serialize",
       "type": "object"
+    },
+    "Stem": {
+      "anyOf": [
+        {
+          "const": "drums"
+        },
+        {
+          "const": "bass"
+        },
+        {
+          "const": "other"
+        },
+        {
+          "const": "vocals"
+        }
+      ],
+      "description": " 可分离的 stem",
+      "title": "Stem"
     },
     "SubtitleSource": {
       "anyOf": [
@@ -2052,6 +2445,253 @@
       "title": "TaskArgs_Serialize",
       "type": "object"
     },
+    "TranslateArgs": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/TranslateArgs_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/TranslateArgs_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " translate 阶段参数 (镜像 TS `packages/core/stages/05_translate/args.ts` TranslateArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。",
+      "title": "TranslateArgs"
+    },
+    "TranslateArgs_Deserialize": {
+      "description": " translate 阶段参数 (镜像 TS `packages/core/stages/05_translate/args.ts` TranslateArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。",
+      "properties": {
+        "apiBase": {
+          "description": " OpenAI 兼容端点",
+          "type": "string"
+        },
+        "enabled": {
+          "description": " 设为 false 跳过翻译, 直接使用原始识别文本",
+          "type": "boolean"
+        },
+        "model": {
+          "description": " 翻译模型",
+          "type": "string"
+        },
+        "targetLang": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TargetLang"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 目标语言; 不填则按逻辑: 源语言 zh -> en, 否则 any -> zh"
+        }
+      },
+      "title": "TranslateArgs_Deserialize",
+      "type": "object"
+    },
+    "TranslateArgs_Serialize": {
+      "description": " translate 阶段参数 (镜像 TS `packages/core/stages/05_translate/args.ts` TranslateArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。",
+      "properties": {
+        "apiBase": {
+          "description": " OpenAI 兼容端点",
+          "type": "string"
+        },
+        "enabled": {
+          "description": " 设为 false 跳过翻译, 直接使用原始识别文本",
+          "type": "boolean"
+        },
+        "model": {
+          "description": " 翻译模型",
+          "type": "string"
+        },
+        "targetLang": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TargetLang"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 目标语言; 不填则按逻辑: 源语言 zh -> en, 否则 any -> zh"
+        }
+      },
+      "required": [
+        "apiBase",
+        "model",
+        "targetLang",
+        "enabled"
+      ],
+      "title": "TranslateArgs_Serialize",
+      "type": "object"
+    },
+    "TtsArgs": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/TtsArgs_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/TtsArgs_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " tts 阶段参数 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。",
+      "title": "TtsArgs"
+    },
+    "TtsArgs_Deserialize": {
+      "description": " tts 阶段参数 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。",
+      "properties": {
+        "device": {
+          "$ref": "#/$defs/TtsDevice",
+          "description": " 计算设备; 默认 cuda"
+        },
+        "onlyIndices": {
+          "anyOf": [
+            {
+              "items": {
+                "maximum": 4294967295,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 仅处理指定索引的 segment (其余跳过), 可用于精准重跑指定段"
+        },
+        "refAudioX2": {
+          "description": " 将短参考音频 (< 2500ms) 拼接一倍再送 TTS, 帮助稳定输出音色; 默认 false",
+          "type": "boolean"
+        },
+        "runtime": {
+          "$ref": "#/$defs/TtsRuntime",
+          "description": " 运行时后端; 默认 cloud"
+        },
+        "skipExisting": {
+          "description": " 跳过已存在的段 (按 mtime 比对参考音); 默认 true",
+          "type": "boolean"
+        }
+      },
+      "title": "TtsArgs_Deserialize",
+      "type": "object"
+    },
+    "TtsArgs_Serialize": {
+      "description": " tts 阶段参数 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。",
+      "properties": {
+        "device": {
+          "$ref": "#/$defs/TtsDevice",
+          "description": " 计算设备; 默认 cuda"
+        },
+        "onlyIndices": {
+          "anyOf": [
+            {
+              "items": {
+                "maximum": 4294967295,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 仅处理指定索引的 segment (其余跳过), 可用于精准重跑指定段"
+        },
+        "refAudioX2": {
+          "description": " 将短参考音频 (< 2500ms) 拼接一倍再送 TTS, 帮助稳定输出音色; 默认 false",
+          "type": "boolean"
+        },
+        "runtime": {
+          "$ref": "#/$defs/TtsRuntime",
+          "description": " 运行时后端; 默认 cloud"
+        },
+        "skipExisting": {
+          "description": " 跳过已存在的段 (按 mtime 比对参考音); 默认 true",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "runtime",
+        "device",
+        "skipExisting",
+        "onlyIndices",
+        "refAudioX2"
+      ],
+      "title": "TtsArgs_Serialize",
+      "type": "object"
+    },
+    "TtsDevice": {
+      "anyOf": [
+        {
+          "const": "webgpu"
+        },
+        {
+          "const": "cuda"
+        },
+        {
+          "const": "rocm"
+        },
+        {
+          "const": "cpu"
+        },
+        {
+          "const": "mps"
+        }
+      ],
+      "description": " TTS 计算设备 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema.device)",
+      "title": "TtsDevice"
+    },
+    "TtsRuntime": {
+      "anyOf": [
+        {
+          "const": "ggml"
+        },
+        {
+          "const": "cloud"
+        },
+        {
+          "const": "voxcpmtorchgradio"
+        }
+      ],
+      "description": " TTS 运行时后端 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema.runtime)",
+      "title": "TtsRuntime"
+    },
     "VadModel": {
       "anyOf": [
         {
@@ -2063,6 +2703,33 @@
       ],
       "description": " whisper.cpp VAD 模型",
       "title": "VadModel"
+    },
+    "ld_core::stages::asr::args::Runtime": {
+      "anyOf": [
+        {
+          "const": "ggml"
+        },
+        {
+          "const": "faster-whisper"
+        },
+        {
+          "const": "pytorch"
+        }
+      ],
+      "description": " asr 推理运行时。\n\n TS 侧为 `z.enum([\"ggml\", \"faster-whisper\", \"pytorch\"])` (kebab-case),\n 故用 `rename_all = \"kebab-case\"` (`FasterWhisper` → `\"faster-whisper\"`)。",
+      "title": "Runtime"
+    },
+    "ld_core::stages::separate::args::Runtime": {
+      "anyOf": [
+        {
+          "const": "burn"
+        },
+        {
+          "const": "burn-tch"
+        }
+      ],
+      "description": " separate 推理运行时\n\n TS 侧为 `z.enum([\"burn\", \"burn-tch\"])` (kebab-case), 故用 `rename_all = \"kebab-case\"`\n (`BurnTch` → `\"burn-tch\"`)。原先误用 `lowercase` 会得到 `\"burntch\"`, 与 TS 对不上,\n 导致运行时 `\"burn-tch\"` 解析失败回落默认 (see `read_args_parses_camel_case_fields`)。",
+      "title": "Runtime"
     }
   },
   "$ref": "#/$defs/Input_Deserialize",
