@@ -1,6 +1,9 @@
 pub mod log;
 pub mod tree;
 
+use std::collections::HashSet;
+use std::sync::{Mutex, OnceLock};
+
 use config_rs::{
     root::base_dir,
     // servers::ServerType
@@ -13,7 +16,18 @@ use ld_core::{
         TaskCtx,
         // Task
     },
+    input::Input,
 };
+
+/// 各任务目录是否已有续跑在途 (防同一任务并发续跑)。
+///
+/// 锁的获取/释放都在 `spawn_blocking` 闭包内 (RAII), 即使客户端断连导致外层
+/// `.await` 被取消, 闭包仍会跑完并释放锁, 不会泄漏。
+static INFLIGHT: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+
+fn inflight_lock() -> &'static Mutex<HashSet<String>> {
+    INFLIGHT.get_or_init(|| Mutex::new(HashSet::new()))
+}
 
 #[fnrpc::rpc_query]
 pub async fn get_group_list() -> Result<Vec<GroupInfo>, String> {
@@ -35,39 +49,48 @@ pub async fn continue_task(task_dir: String, from_stage: String) -> Result<(), S
     let abs_task_dir = base_dir().join(&task_dir);
     let abs_task_dir_str = abs_task_dir
         .to_str()
-        .ok_or_else(|| "invalid path".to_string())?;
+        .ok_or_else(|| "invalid task_dir".to_string())?
+        .to_string();
 
-    // 读原始的 ctx.json
+    // 读 ctx.json 的 input 字段作为续跑基准配置 (仅改写 task 相关字段, 其余原样保留)。
     let ctx_path = abs_task_dir.join("ctx.json");
     let ctx_raw =
         std::fs::read_to_string(&ctx_path).map_err(|e| format!("read ctx.json failed: {}", e))?;
     let mut ctx: serde_json::Value =
         serde_json::from_str(&ctx_raw).map_err(|e| format!("parse ctx.json failed: {}", e))?;
 
-    // 只修改 action 和 continueFrom
-    ctx["input"]["task"]["taskDir"] = serde_json::Value::String(abs_task_dir_str.to_string());
-    ctx["input"]["task"]["action"] = serde_json::Value::String("continue".into());
-    ctx["input"]["task"]["continueFrom"] = serde_json::Value::String(from_stage);
-    ctx["input"]["stages"]["asr_ocr"]["runtime"] = serde_json::Value::String("ort-py".into());
-    ctx["input"]["stages"]["sf_ocr"]["runtime"] = serde_json::Value::String("ort-py".into());
-    ctx["input"]["stages"]["tts"]["runtime"] = serde_json::Value::String("cloud".into());
+    let mut input_value = ctx
+        .get_mut("input")
+        .map(|v| v.take())
+        .ok_or_else(|| "ctx.json 缺少 input 字段".to_string())?;
+    let task = input_value
+        .get_mut("task")
+        .ok_or_else(|| "input 缺少 task 字段".to_string())?;
+    task["taskDir"] = serde_json::Value::String(abs_task_dir_str.clone());
+    task["action"] = serde_json::Value::String("continue".into());
+    task["continueFrom"] = serde_json::Value::String(from_stage);
 
-    let input_path = base_dir().join("packages").join("cli").join("input.json");
-    std::fs::write(
-        &input_path,
-        serde_json::to_string_pretty(&ctx["input"]).unwrap(),
-    )
-    .map_err(|e| format!("write input.json failed: {}", e))?;
+    let input: Input =
+        serde_json::from_value(input_value).map_err(|e| format!("parse input failed: {}", e))?;
 
-    let output = std::process::Command::new("bun")
-        .args(["run", "run-task.ts"])
-        .current_dir(base_dir().join("packages/cli"))
-        .output()
-        .map_err(|e| format!("spawn failed: {}", e))?;
+    // 在 blocking 池跑 Rust pipeline (ld_core::cmd::tasks::continue_task:
+    // setCtx 合并 → continue_pipeline)。不再 spawn bun / 写全局 input.json /
+    // 硬编码 runtime —— 那些是旧 TS 实现的遗留。
+    let task_dir_owned = abs_task_dir_str.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let mut set = inflight_lock().lock().unwrap();
+        if !set.insert(task_dir_owned.clone()) {
+            return Err("任务已在续跑中".to_string());
+        }
+        let r = ld_core::cmd::tasks::continue_task(&input);
+        set.remove(&task_dir_owned);
+        r.map_err(|e| format!("continue_task 失败: {e:#}"))
+    })
+    .await;
 
-    if output.status.success() {
-        Ok(())
-    } else {
-        Err(String::from_utf8_lossy(&output.stderr).to_string())
+    match result {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(e)) => Err(e),
+        Err(e) => Err(format!("continue_task 任务崩溃: {e}")),
     }
 }

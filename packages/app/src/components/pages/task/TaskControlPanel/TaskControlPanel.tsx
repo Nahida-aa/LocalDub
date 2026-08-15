@@ -21,7 +21,7 @@ import {
   ContextMenuTrigger,
 } from "@repo/ui-solid/base/context-menu";
 import { StageStatusBadge } from "./StageStatusBadge";
-import { useMutation } from "@tanstack/solid-query";
+import { useMutation, useQueryClient } from "@tanstack/solid-query";
 import { TaskCtx } from "@repo/sdk/index";
 import { StageName } from "@repo/core/tasks/args";
 
@@ -37,6 +37,7 @@ export const TaskControlPanel = (p: {
   const resumeFrom = use_resumeFrom();
   const runningStage = useRunningStage();
   const viewingTab = useViewingTab();
+  const qc = useQueryClient();
 
   /**
    * 跳转到对应阶段前一个 tab 让用户确认\
@@ -56,6 +57,13 @@ export const TaskControlPanel = (p: {
     client.continue_task.mutationOptions({
       onSuccess: () => {
         console.log("[continue] 继续运行 完成");
+        // 运行结束后立即刷新 ctx 与文件树（watch 事件通常已覆盖，这里兜底）
+        qc.invalidateQueries({
+          queryKey: client.get_task_ctx.queryKey(taskDir),
+        });
+        qc.invalidateQueries({
+          queryKey: client.list_app_directory.queryKey(taskDir),
+        });
       },
       onError: (error) => {
         console.error("[continue] 继续运行 失败:", error);
@@ -64,7 +72,6 @@ export const TaskControlPanel = (p: {
   );
   const handleConfirmResume = () => {
     const stage = resumeFrom();
-    console.log("[resume] taskDir:", taskDir, "stage:", stage); // ← 加这行
     if (!stage) return;
     resume_task.mutate([taskDir, stage]);
     set_resumeFrom(null);
@@ -115,8 +122,11 @@ export const TaskControlPanel = (p: {
               <Show when={resumeFrom()}>
                 <div class="flex items-center gap-1.5 px-3 py-1.5 border-b text-sm bg-muted/30 shrink-0">
                   <Play
-                    class="size-3 text-green-500 hover:text-green-400 cursor-pointer shrink-0"
-                    onClick={handleConfirmResume}
+                    class={`size-3 text-green-500 hover:text-green-400 cursor-pointer shrink-0 ${resume_task.isPending ? "pointer-events-none opacity-40" : ""}`}
+                    onClick={() => {
+                      if (resume_task.isPending) return;
+                      handleConfirmResume();
+                    }}
                   />
                   <span class="text-muted-foreground">继续阶段:</span>
                   <span class="font-medium text-foreground">{resumeFrom()}</span>
