@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use voxcpm_rs::{audio, GenerateOptions, VoxCPM};
+use voxcpm_rs::{GenerateOptions, VoxCPM, audio};
 
 #[cfg(all(feature = "vulkan", not(feature = "wgpu")))]
 type B = burn::backend::Vulkan<half::bf16, i32>;
@@ -44,6 +44,10 @@ struct Cli {
     /// Parallel segment generation (batch N sentences). GPU sweet spot ~8.
     #[arg(long)]
     parallel_segments: Option<usize>,
+
+    /// Reference audio for voice cloning (zero-shot). Pass a WAV/FLAC/MP3 path.
+    #[arg(long, default_value = "")]
+    ref_audio: String,
 }
 
 fn main() -> Result<()> {
@@ -106,6 +110,13 @@ fn main() -> Result<()> {
             .max_len(cli.max_len);
         if let Some(n) = cli.parallel_segments {
             b = b.parallel_segments(n);
+        }
+        if !cli.ref_audio.is_empty() {
+            b = b.prompt(voxcpm_rs::Prompt::Reference {
+                audio: voxcpm_rs::PromptAudio::File(std::path::PathBuf::from(
+                    cli.ref_audio.clone(),
+                )),
+            });
         }
         b.build()
     };

@@ -3,14 +3,17 @@
 //! 流程: 读 ctx → `get_stages` 得到阶段序列 → 逐个调用 `run_stage` (handler 读 ctx.json
 //! 跑完写回) → 每阶段前后用 `set_stage` / `set_task` 标状态, 失败即中断。
 //!
-//! 目前 `run_stage` 仅注册了 `separate`; 后续阶段逐个移植后在此登记即可, 无需改派发逻辑。
+//! 目前 `run_stage` 已注册 separate / separate_after / sf_ocr* / translate / split_audio /
+//! tts / mix_audio; 后续阶段 (asr / asr_fix / asr_ocr* / mix_video) 移植后在此登记即可。
 
 use crate::context::read_ctx;
 use crate::stages::get_stages;
+use crate::stages::mix_audio::stage_mix_audio;
 use crate::stages::separate::{stage_separate, stage_separate_after};
 use crate::stages::sf_ocr::{stage_sf_ocr, stage_sf_ocr_fix, stage_sf_ocr_pre};
 use crate::stages::split_audio::stage_split_audio;
 use crate::stages::translate::stage_translate;
+use crate::stages::tts::stage_tts;
 use crate::stages::utils::{
     StagePatch, StageStatus, emit_log, now_iso, set_stage_anyhow, set_task_anyhow,
 };
@@ -142,6 +145,8 @@ fn has_handler(stage: &str) -> bool {
             | "sf_ocr_fix"
             | "translate"
             | "split_audio"
+            | "tts"
+            | "mix_audio"
     )
 }
 
@@ -159,6 +164,8 @@ fn run_stage(stage: &str, task_dir: &str) -> anyhow::Result<()> {
         "sf_ocr_fix" => stage_sf_ocr_fix(&ctx),
         "translate" => stage_translate(&ctx),
         "split_audio" => stage_split_audio(&ctx),
+        "tts" => stage_tts(&ctx),
+        "mix_audio" => stage_mix_audio(&ctx),
         // 后续阶段在此登记, 例如:
         // "asr" => stage_asr(&ctx),
         _ => Ok(()),

@@ -14,9 +14,6 @@ use demucs_core::{Demucs, ModelOptions};
 #[cfg(feature = "cpu")]
 type B = burn::backend::Cpu;
 
-#[cfg(feature = "flex")]
-type B = burn::backend::Flex;
-
 #[cfg(feature = "wgpu")]
 type B = burn::backend::wgpu::Wgpu;
 

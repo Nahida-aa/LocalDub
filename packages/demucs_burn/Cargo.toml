@@ -19,11 +19,6 @@ path = "src/main.rs"
 required-features = ["cpu"]
 
 [[bin]]
-name = "demucs-burn-flex"
-path = "src/main.rs"
-required-features = ["flex"]
-
-[[bin]]
 name = "demucs-burn-rocm"
 path = "src/main.rs"
 required-features = ["rocm"]
@@ -41,7 +36,6 @@ required-features = ["cuda"]
 [features]
 default = ["wgpu"]
 wgpu = ["demucs-core/wgpu"]
-flex = ["burn/flex"]
 vulkan = ["demucs-core/wgpu", "burn/vulkan"]
 cpu = ["demucs-core/cpu"]
 rocm = ["demucs-core/rocm"]
@@ -53,7 +47,7 @@ autotune = ["demucs-core/autotune"]
 [dependencies]
 config-rs.workspace = true
 demucs-core = { path = "../../submodule/demucs-rs/demucs-core", default-features = false }
-burn = { version = "0.21", default-features = false }
+burn = { version = "0.20.1", default-features = false }
 clap.workspace = true
 hound = "3"
 anyhow.workspace = true

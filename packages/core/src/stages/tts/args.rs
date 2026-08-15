@@ -26,7 +26,7 @@ pub enum TtsDevice {
 ///
 /// 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),
 /// 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。
-#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TtsArgs {
     /// 运行时后端; 默认 cloud
@@ -44,6 +44,18 @@ pub struct TtsArgs {
     /// 将短参考音频 (< 2500ms) 拼接一倍再送 TTS, 帮助稳定输出音色; 默认 false
     #[serde(default)]
     pub ref_audio_x2: bool,
+}
+
+impl Default for TtsArgs {
+    fn default() -> Self {
+        Self {
+            runtime: default_runtime(),
+            device: default_device(),
+            skip_existing: default_true(),
+            only_indices: None,
+            ref_audio_x2: false,
+        }
+    }
 }
 
 fn default_true() -> bool {

@@ -191,6 +191,52 @@ pub fn probe_duration_ms(path: &str) -> u64 {
     }
 }
 
+/// 用 ffprobe 取采样率 (Hz), 失败返回 48000 (镜像 TS `probeSampleRate`)。
+pub fn probe_sample_rate(path: &str) -> u32 {
+    let bin = std::env::var("FFPROBE_PATH").unwrap_or_else(|_| "ffprobe".to_string());
+    let out = std::process::Command::new(&bin)
+        .args([
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=sample_rate",
+            "-of",
+            "csv=p=0",
+            path,
+        ])
+        .output();
+    match out {
+        Ok(o) if o.status.success() => {
+            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            s.parse().unwrap_or(48000)
+        }
+        _ => 48000,
+    }
+}
+
+/// 读取 split_audio 时序文件 `split_audio/timings.json` (镜像 TS `read_split_audio_timings`)。
+pub fn read_split_audio_timings(
+    ctx: &crate::context::TaskCtx,
+) -> anyhow::Result<serde_json::Value> {
+    let file = split_audio_timings_path(&ctx.task.task_dir);
+    let raw = std::fs::read_to_string(&file)
+        .map_err(|e| anyhow::anyhow!("读取 {} 失败: {}", file.display(), e))?;
+    serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("解析 {} 失败: {}", file.display(), e))
+}
+
+/// 读取 split_audio 结果文件 `split_audio/split_audio.json` (镜像 TS `read_split_audio`)。
+pub fn read_split_audio(ctx: &crate::context::TaskCtx) -> anyhow::Result<serde_json::Value> {
+    let file = split_audio_path(&ctx.task.task_dir);
+    let raw = std::fs::read_to_string(&file)
+        .map_err(|e| anyhow::anyhow!("读取 {} 失败: {}", file.display(), e))?;
+    serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("解析 {} 失败: {}", file.display(), e))
+}
+
+/// tts 结果文件路径 `tts/tts.json` (镜像 TS `tts_filepath`)。
+pub fn tts_filepath(task_dir: &str) -> PathBuf {
+    Path::new(task_dir).join("tts").join("tts.json")
+}
+
 /// 执行 ffmpeg (自动前置 `-y` 覆盖输出), 非零退出即报错 (含 stderr)。
 /// 参数格式与 TS `ffmpeg(args)` 一致: 传入不含 `-y` 的参数字串切片。
 pub fn ffmpeg(args: &[String]) -> anyhow::Result<()> {
