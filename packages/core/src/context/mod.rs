@@ -4,9 +4,9 @@ use std::fs;
 use std::path::PathBuf;
 use time::FrameRate;
 pub mod types;
-use types::TaskStage;
+pub use types::{StageStatus, TaskStage};
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum VideoSource {
     Youtube,
@@ -155,6 +155,15 @@ pub fn read_ctx_from_value(json: serde_json::Value) -> Result<TaskCtx, String> {
             .and_then(|v| serde_json::from_value(v.clone()).ok())
             .unwrap_or(time::FrameRate::FPS_30),
     })
+}
+
+/// 把 [`TaskCtx`] 序列化写回 `ctx.json` (镜像 TS `writeCtx`)。
+pub fn write_ctx(task_dir: &str, ctx: &TaskCtx) -> Result<(), String> {
+    let path = ctx_path(task_dir);
+    let json = serde_json::to_string_pretty(ctx)
+        .map_err(|e| format!("Failed to serialize ctx for {}: {}", task_dir, e))?;
+    fs::write(&path, json).map_err(|e| format!("Failed to write {}: {}", path.display(), e))?;
+    Ok(())
 }
 
 pub fn read_task(task_dir: &str) -> Result<Task, String> {

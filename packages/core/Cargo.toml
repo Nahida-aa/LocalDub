@@ -15,3 +15,6 @@ specta-typescript.workspace = true
 specta-serde.workspace = true
 specta-jsonschema.workspace = true
 time.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+ffmpeg-next.workspace = true
