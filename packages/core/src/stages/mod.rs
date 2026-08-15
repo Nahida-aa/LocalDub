@@ -13,3 +13,6 @@ pub mod split_audio;
 pub mod translate;
 pub mod tts;
 pub mod utils;
+
+/// 根据 pipeline / subtitleSource / 开关解析本次要执行的 stage 序列。
+pub use utils::stages::get_stages;
