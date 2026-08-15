@@ -9,7 +9,8 @@
 //!
 //! 失败打印错误并以退出码 1 退出, 成功以 0 退出。
 
-use std::process::exit;
+use std::path::PathBuf;
+use std::process::{Command, exit};
 
 use anyhow::Context;
 use ld_core::input::Input;
@@ -161,10 +162,52 @@ fn run() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// 仓库根 `assets/media/` 下的任务提示音 (镜像 TS `@repo/config/path/assets`)。
+fn task_success_wav() -> PathBuf {
+    config_rs::root::repo_root()
+        .join("assets")
+        .join("media")
+        .join("task_success.wav")
+}
+fn task_fail_wav() -> PathBuf {
+    config_rs::root::repo_root()
+        .join("assets")
+        .join("media")
+        .join("error.wav")
+}
+
+/// 用 ffplay 播放提示音 (镜像 TS `playWav`): `-nodisp -autoexit`, 失败静默不中断流程。
+/// headless / 无 ffplay 环境播放失败属正常, 忽略即可。
+fn play_wav(path: &std::path::Path) {
+    if !path.exists() {
+        return;
+    }
+    let _ = Command::new("ffplay")
+        .args(["-nodisp", "-autoexit"])
+        .arg(path)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status();
+}
+
+fn play_task_success() {
+    play_wav(&task_success_wav());
+}
+fn play_task_fail() {
+    play_wav(&task_fail_wav());
+}
+
 fn main() {
-    if let Err(e) = run() {
-        eprintln!("[cli] 错误: {e:#}");
-        exit(1);
+    match run() {
+        Ok(()) => {
+            println!("[cli] 完成");
+            play_task_success();
+        }
+        Err(e) => {
+            eprintln!("[cli] 错误: {e:#}");
+            play_task_fail();
+            exit(1);
+        }
     }
 }
 
