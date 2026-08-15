@@ -4,8 +4,7 @@
 //! 1. 默认从仓库根目录读取 `input.jsonc` (优先) 或 `input.json`。
 //! 2. 剥离 JSONC 注释 (`//` 行注释 与 `/* */` 块注释)。
 //! 3. 反序列化为 `ld_core::input::Input`。
-//! 4. 调用 `ld_core::tasks::import::download::import_video` 导入视频 → 写 ctx.json。
-//! 5. 调用 `ld_core::stages::pipeline::run_pipeline` 跑完整 pipeline。
+//! 4. 调用 `ld_core::tasks::start_task` (导入视频 → 跑完整 pipeline)。
 //!
 //! 失败打印错误并以退出码 1 退出, 成功以 0 退出。
 
@@ -14,10 +13,9 @@ use std::process::{Command, exit};
 
 use anyhow::Context;
 use ld_core::input::Input;
-use ld_core::stages::pipeline::run_pipeline;
 use ld_core::tasks::args::TaskAction;
 use ld_core::tasks::continue_pipeline;
-use ld_core::tasks::import::download::import_video;
+use ld_core::tasks::start_task;
 
 /// 剥离 JSONC 注释: `//` 行注释 与 `/* ... */` 块注释。
 ///
@@ -156,10 +154,7 @@ fn run() -> anyhow::Result<()> {
             println!("[cli] 完成: {}", task_dir);
         }
         _ => {
-            let ctx = import_video(&input).context("import_video 失败")?;
-            println!("[cli] 导入完成, task_dir = {}", ctx.task.task_dir);
-            run_pipeline(&ctx.task.task_dir).context("run_pipeline 失败")?;
-            println!("[cli] 完成: {}", ctx.task.task_dir);
+            start_task(&input).context("start_task 失败")?;
         }
     }
     Ok(())
@@ -201,6 +196,15 @@ fn play_task_fail() {
 }
 
 fn main() {
+    // 让 ld_core 内 emit_log 的 tracing::info! 落到 stdout (续跑/分段日志才可见)。
+    // 重复 init 会报错, 故仅当尚未初始化时才装 (测试/嵌套调用安全)。
+    let _ = tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
+        )
+        .try_init();
+
     match run() {
         Ok(()) => {
             println!("[cli] 完成");
