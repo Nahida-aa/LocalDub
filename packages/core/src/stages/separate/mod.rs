@@ -69,6 +69,36 @@ fn parse_progress_pct(s: &str) -> Option<i32> {
 /// 运行 demucs-burn 分离, 流式把 stdout 的 `(xx%)` 进度写入 stage。
 ///
 /// 镜像 TS `separateBurn` 的 spawn + 进度解析 (`/\((\s*\d+(?:\.\d+)?)%\)/`).
+/// 定位 LibTorch 共享库目录 (tch 后端运行时必须): 在
+/// `target/{release,debug}/build/torch-sys-*/out/libtorch/libtorch/lib` 下查找
+/// `libtorch_cpu.so`。镜像 TS `wrapper.ts` 的 `findLibtorchPath` (release 优先)。
+///
+/// 若找不到, 返回 None (调用方据此在错误信息中提示先 build tch 后端)。
+fn find_libtorch_lib_dir() -> Option<PathBuf> {
+    let repo = config_rs::root::repo_root();
+    for profile in ["release", "debug"] {
+        let build_dir = repo.join("target").join(profile).join("build");
+        let entries = std::fs::read_dir(&build_dir).ok()?;
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if !name.starts_with("torch-sys-") {
+                continue;
+            }
+            let lib = entry
+                .path()
+                .join("out")
+                .join("libtorch")
+                .join("libtorch")
+                .join("lib");
+            if lib.join("libtorch_cpu.so").exists() {
+                return Some(lib);
+            }
+        }
+    }
+    None
+}
+
 fn run_demucs(
     task_dir: &str,
     bin_path: &std::path::Path,
@@ -77,11 +107,41 @@ fn run_demucs(
 ) -> anyhow::Result<()> {
     emit_log(Some(task_dir), &format!("spawn {}", bin_path.display()));
 
-    let mut child = Command::new(bin_path)
-        .arg(audio_path)
+    // tch 后端运行时依赖 LibTorch 动态库 (libtorch_cpu.so 等), 必须注入 LD_LIBRARY_PATH,
+    // 否则 loader 找不到库 → exit 127 (镜像 TS wrapper.ts 的 env.LD_LIBRARY_PATH 注入)。
+    let mut cmd = Command::new(bin_path);
+    cmd.arg(audio_path)
         .arg(sep_dir)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    if bin_path
+        .file_name()
+        .is_some_and(|n| n.to_string_lossy().contains("tch"))
+    {
+        match find_libtorch_lib_dir() {
+            Some(lib) => {
+                let existing = std::env::var("LD_LIBRARY_PATH").unwrap_or_default();
+                let combined = if existing.is_empty() {
+                    lib.to_string_lossy().into_owned()
+                } else {
+                    format!("{}:{}", lib.to_string_lossy(), existing)
+                };
+                emit_log(
+                    Some(task_dir),
+                    &format!("tch 后端注入 LD_LIBRARY_PATH={}", lib.display()),
+                );
+                cmd.env("LD_LIBRARY_PATH", combined);
+            }
+            None => {
+                return Err(anyhow::anyhow!(
+                    "tch 后端二进制需要 LibTorch 动态库, 但未找到 libtorch_cpu.so。\
+                     请先编译 tch 后端: cargo build -p demucs-burn --bin demucs-burn-tch --features tch"
+                ));
+            }
+        }
+    }
+
+    let mut child = cmd
         .spawn()
         .map_err(|e| anyhow::anyhow!("spawn demucs-burn 失败: {}", e))?;
 
@@ -136,8 +196,20 @@ fn run_demucs(
         .wait()
         .map_err(|e| anyhow::anyhow!("等待 demucs-burn 退出失败: {}", e))?;
     if !status.success() {
+        // 捕获 stderr 以提供明确错误信息 (原先只报 exit code, 不清晰)
+        let stderr = child
+            .stderr
+            .take()
+            .map(|mut s| {
+                let mut buf = String::new();
+                let _ = s.read_to_string(&mut buf);
+                buf
+            })
+            .unwrap_or_default();
         let code = status.code().unwrap_or(-1);
-        return Err(anyhow::anyhow!("demucs-burn 失败 (exit {code})"));
+        return Err(anyhow::anyhow!(
+            "demucs-burn 失败 (exit {code})\n--- stderr ---\n{stderr}"
+        ));
     }
     Ok(())
 }
