@@ -75,14 +75,16 @@ fn pick_voxcpm_bin(device: TtsDevice, runtime: TtsRuntime) -> anyhow::Result<Str
     let first = candidates
         .first()
         .copied()
-        .ok_or_else(|| anyhow::anyhow!("无可用 voxcpm-burn 后端候选 (device={device:?})"))?;
+        .ok_or_else(|| anyhow::anyhow!("无可用 voxcpm-burn 后端候选为空 (device={device:?})"))?;
+    // 候选名 `voxcpm-burn-<feature>`, feature 即后缀
+    let first_feat = first.strip_prefix("voxcpm-burn-").unwrap_or("wgpu");
     emit_log(
         None,
-        &format!("未找到 voxcpm-burn 二进制, 尝试自动编译 {first}..."),
+        &format!("未找到 voxcpm-burn 二进制, 尝试自动编译 {first} (--features {first_feat})..."),
     );
-    let _ = cargo_build_bin("voxcpm-burn", first).map_err(|e| {
+    let _ = cargo_build_bin("voxcpm-burn", first, &[first_feat]).map_err(|e| {
         anyhow::anyhow!(
-            "{e}\n若编译失败, 请手动执行: cargo build --release -p voxcpm-burn --bin {first}"
+            "{e}\n若编译失败, 请手动执行: cargo build --release -p voxcpm-burn --bin {first} --features {first_feat}"
         )
     })?;
     if let Some(p) = find_release_bin(first) {

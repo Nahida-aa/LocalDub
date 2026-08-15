@@ -452,9 +452,10 @@ pub fn find_release_bin(name: &str) -> Option<PathBuf> {
 }
 
 /// 构造 `cargo build -p <package> --bin <bin>` 命令 (复用当前仓库根 + cargo 可执行)。
+/// `features` 非空时追加 `--features <a>,<b>` (各 burn 包按后端用不同 feature 编二进制)。
 ///
 /// 注: 不在此处 `.output()`, 交由调用方决定同步/流式, 故只返回构造好的 [`Command`]。
-fn cargo_build_cmd(package: &str, bin: &str) -> std::process::Command {
+fn cargo_build_cmd(package: &str, bin: &str, features: &[&str]) -> std::process::Command {
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
     let mut cmd = std::process::Command::new(cargo);
     cmd.arg("build")
@@ -462,20 +463,33 @@ fn cargo_build_cmd(package: &str, bin: &str) -> std::process::Command {
         .arg(package)
         .arg("--bin")
         .arg(bin);
+    if !features.is_empty() {
+        let joined = features.join(",");
+        cmd.arg("--features").arg(joined);
+    }
     cmd
 }
 
 /// 缺失时自动编译 workspace 二进制, 返回编译产物路径。
 ///
-/// 执行 `cargo build -p <package> --bin <bin>`, 成功后在 `target/release` / `target/debug`
-/// 中定位产物 (优先 release)。失败 (编译错误 / 产物缺失) 时返回错误, 由调用方决定如何上报。
+/// 执行 `cargo build -p <package> --bin <bin> [--features ...]`, 成功后在
+/// `target/release` / `target/debug` 中定位产物 (优先 release)。失败 (编译错误 / 产物缺失)
+/// 时返回错误, 由调用方决定如何上报。
+///
+/// `features` 用于指定后端 feature (如 demucs-burn 的 `tch`/`wgpu`/`cuda`...), 因为各 burn 包
+/// 用 `required-features` 把二进制绑定到对应 feature, 不显式 `--features` 会编译失败。
 ///
 /// 用于「阶段内自动编译缺失二进制」(用户选项: 阶段内自动编译), 镜像 TS 侧手动
 /// `cargo build` 的引导步骤, 减少「先去 build 再跑」的来回。
-pub fn cargo_build_bin(package: &str, bin: &str) -> anyhow::Result<PathBuf> {
-    let cmdline = format!("cargo build -p {package} --bin {bin}");
+pub fn cargo_build_bin(package: &str, bin: &str, features: &[&str]) -> anyhow::Result<PathBuf> {
+    let feat_str = if features.is_empty() {
+        String::new()
+    } else {
+        format!(" --features {}", features.join(","))
+    };
+    let cmdline = format!("cargo build -p {package} --bin {bin}{feat_str}");
     tracing::info!("[auto-build] 未找到 {bin}, 执行: {cmdline}");
-    let mut cmd = cargo_build_cmd(package, bin);
+    let mut cmd = cargo_build_cmd(package, bin, features);
     let out = cmd
         .output()
         .map_err(|e| anyhow::anyhow!("无法执行 `{cmdline}` (cargo 未安装/未找到?): {e}"))?;

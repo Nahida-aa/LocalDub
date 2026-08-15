@@ -204,9 +204,9 @@ pub fn stage_separate(ctx: &TaskCtx) -> anyhow::Result<()> {
                 Some(&task_dir),
                 &format!("未找到 {bin_name}, 尝试自动编译..."),
             );
-            cargo_build_bin("demucs-burn", &bin_name).map_err(|e| {
+            cargo_build_bin("demucs-burn", &bin_name, &[backend]).map_err(|e| {
                 anyhow::anyhow!(
-                    "{e}\n若编译失败, 请手动执行: cargo build -p demucs-burn --bin {bin_name}"
+                    "{e}\n若编译失败, 请手动执行: cargo build -p demucs-burn --bin {bin_name} --features {backend}"
                 )
             })?
         }
