@@ -136,28 +136,31 @@ fn run() -> anyhow::Result<()> {
     println!("[cli] 读取 input: {}", input_path.display());
 
     let task = input.task.clone().unwrap_or_default();
-    let is_continue = matches!(task.action, Some(TaskAction::Continue)) || task.task_dir.is_some();
 
-    if is_continue {
-        // 续跑: 跳过 import_video (TS continuePipeline 也不调), 直接 continue
-        let task_dir = task
-            .task_dir
-            .clone()
-            .ok_or_else(|| anyhow::anyhow!("continue 模式需要 task.taskDir 指定已有任务目录"))?;
-        if !std::path::Path::new(&task_dir).join("ctx.json").exists() {
-            return Err(anyhow::anyhow!(
-                "continue 模式找不到 {}/ctx.json, 确认 taskDir 正确",
-                task_dir
-            ));
+    // 分派只看 action 字段 (对齐 TS cmdTask): action=continue → 续跑(跳过 import,
+    // 需要 taskDir); 否则 (start / 缺省 / 其他) → 重新 import_video 再跑全 pipeline。
+    // 注意: start 带 taskDir 时 TS 会忽略 taskDir、按 url 重新导入, 不会续跑已有任务。
+    match task.action {
+        Some(TaskAction::Continue) => {
+            let task_dir = task.task_dir.clone().ok_or_else(|| {
+                anyhow::anyhow!("continue 模式需要 task.taskDir 指定已有任务目录")
+            })?;
+            if !std::path::Path::new(&task_dir).join("ctx.json").exists() {
+                return Err(anyhow::anyhow!(
+                    "continue 模式找不到 {}/ctx.json, 确认 taskDir 正确",
+                    task_dir
+                ));
+            }
+            println!("[cli] 续跑模式, task_dir = {}", task_dir);
+            continue_pipeline(&task_dir).context("continue_pipeline 失败")?;
+            println!("[cli] 完成: {}", task_dir);
         }
-        println!("[cli] 续跑模式, task_dir = {}", task_dir);
-        continue_pipeline(&task_dir).context("continue_pipeline 失败")?;
-        println!("[cli] 完成: {}", task_dir);
-    } else {
-        let ctx = import_video(&input).context("import_video 失败")?;
-        println!("[cli] 导入完成, task_dir = {}", ctx.task.task_dir);
-        run_pipeline(&ctx.task.task_dir).context("run_pipeline 失败")?;
-        println!("[cli] 完成: {}", ctx.task.task_dir);
+        _ => {
+            let ctx = import_video(&input).context("import_video 失败")?;
+            println!("[cli] 导入完成, task_dir = {}", ctx.task.task_dir);
+            run_pipeline(&ctx.task.task_dir).context("run_pipeline 失败")?;
+            println!("[cli] 完成: {}", ctx.task.task_dir);
+        }
     }
     Ok(())
 }
