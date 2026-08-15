@@ -206,54 +206,30 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
         let out_path = tts_wav_dir.join(format!("{idx}.wav"));
         let out_path = out_path.to_string_lossy().into_owned();
 
-        // regenIndices: 列表外的段保留旧结果 (复用 tts.json 或写静音占位), 不重合成。
+        // regenIndices 语义 (continue 模式精准重跑):
+        // - 仅作用于「存在有效旧结果」的段: 列表内 -> 强制重合成, 列表外 -> 保留旧结果。
+        // - 「没有有效旧结果」的段 (无记录 / wav 缺失 / wav 零时长损坏): 无论是否
+        //   在列表里, 都必须正常生成, 不能因为不在 regenIndices 中就被跳过复用坏结果。
         if let Some(regen) = &regen_indices {
             if !regen.is_empty() && !regen.contains(&seg_idx) {
+                // 列表外: 仅在旧结果有效时复用; 否则 fall through 到下方正常生成。
+                let old_valid = existing_segments
+                    .get(&seg_idx)
+                    .map(|_| Path::new(&out_path).exists() && probe_duration_ms(&out_path) > 0)
+                    .unwrap_or(false);
+                if old_valid {
+                    emit_log(
+                        Some(&task_dir),
+                        &format!("[TTS] 段 {idx} 不在 regenIndices 中, 复用有效旧结果"),
+                    );
+                    tts_segments.push(existing_segments.get(&seg_idx).unwrap().clone());
+                    continue;
+                }
                 emit_log(
                     Some(&task_dir),
-                    &format!("[TTS] 段 {idx} 不在 regenIndices 中, 保留旧结果"),
+                    &format!("[TTS] 段 {idx} 无有效旧结果, 正常生成 (regenIndices 跳过不适用)"),
                 );
-                // 优先复用已有 tts.json 的真实结果 (不覆盖其它段的好结果);
-                // 没有旧记录才写合法静音 wav 占位 (绝不写损坏零头)。
-                if let Some(old) = existing_segments.get(&seg_idx) {
-                    tts_segments.push(old.clone());
-                } else {
-                    write_silent_wav(&out_path)?;
-                    tts_segments.push(TtsSegment {
-                        timing: crate::stages::split_audio::out::SplitAudioTiming {
-                            seg_idx,
-                            text: item
-                                .get("text")
-                                .and_then(|t| t.as_str())
-                                .unwrap_or("")
-                                .to_string(),
-                            start_ms: item.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0),
-                            end_ms: item.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0),
-                            dst: item
-                                .get("dst")
-                                .and_then(|t| t.as_str())
-                                .unwrap_or("")
-                                .to_string(),
-                            src_lang: item
-                                .get("src_lang")
-                                .and_then(|v| v.as_str())
-                                .map(String::from),
-                            dst_lang: item
-                                .get("dst_lang")
-                                .and_then(|v| v.as_str())
-                                .map(String::from),
-                            speaker: item
-                                .get("speaker")
-                                .and_then(|v| v.as_str())
-                                .map(String::from),
-                            text_confidence: None,
-                        },
-                        slot_end_ms: item.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0),
-                        tts_duration_ms: 0,
-                        status: "skipped".to_string(),
-                    });
-                }
-                continue;
+                // fall through: 走下方空译文/无参考音/正式合成逻辑
             }
         }
 

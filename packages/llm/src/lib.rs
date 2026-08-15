@@ -83,6 +83,16 @@ struct MessageContent {
     content: Option<String>,
 }
 
+/// 把 `localhost` 规范化为 `127.0.0.1`。
+///
+/// 原因: `reqwest`(基于 hyper) 解析 `localhost` 时可能优先尝试 IPv6 `::1`,
+/// 而 Ollama 等本地服务通常只监听 IPv4, 导致连接被拒 (error sending request),
+/// 且瞬间失败而非超时。curl / Node 对 localhost 的解析更宽容 (优先 IPv4), 故 TS 版
+/// 能连而 Rust 版不能。统一换成 127.0.0.1 与 curl/Node 行为对齐。
+fn normalize_localhost(url: &str) -> String {
+    url.replace("localhost", "127.0.0.1")
+}
+
 /// 调用 OpenAI 兼容的 chat completion, 返回 `choices[0].message.content` (已 trim)。
 ///
 /// 镜像 TS `chat_completions`: POST `{apiBase}/chat/completions`, 失败时抛错。
@@ -91,6 +101,7 @@ pub fn chat_completions(prompt: &str, opts: &ChatOptions) -> anyhow::Result<Stri
         .api_base
         .clone()
         .unwrap_or_else(|| "http://localhost:11434/v1".to_string());
+    let api_base = normalize_localhost(&api_base);
     let model = opts
         .model
         .clone()
@@ -115,17 +126,55 @@ pub fn chat_completions(prompt: &str, opts: &ChatOptions) -> anyhow::Result<Stri
         ],
     };
 
-    let mut builder = reqwest::blocking::Client::new()
+    // 本地 LLM (Ollama 等) 通常监听 127.0.0.1/localhost, 不应走系统代理
+    // (如 CodeBuddy 注入的 127.0.0.1:7897), 否则会 connect refused。
+    // 仅当 host 为回环地址时关闭代理, 远程 LLM 仍走系统代理。
+    let host = url
+        .split("://")
+        .nth(1)
+        .and_then(|r| r.split('/').next())
+        .and_then(|a| a.rsplit_once(':').map(|(h, _)| h).or(Some(a)))
+        .unwrap_or("");
+    let is_loopback = host == "127.0.0.1" || host == "localhost" || host == "::1";
+    let mut client_builder = reqwest::blocking::Client::builder();
+    if is_loopback {
+        client_builder = client_builder.no_proxy();
+    }
+    let client = client_builder
+        .build()
+        .map_err(|e| anyhow::anyhow!("构建 LLM HTTP client 失败: {e}"))?;
+
+    let mut req_builder = client
         .post(&url)
         .header("Content-Type", "application/json")
         .json(&body);
     if let Some(key) = &opts.api_key {
-        builder = builder.header("Authorization", format!("Bearer {key}"));
+        req_builder = req_builder.header("Authorization", format!("Bearer {key}"));
     }
 
-    let resp = builder
-        .send()
-        .map_err(|e| anyhow::anyhow!("LLM API 请求失败 ({url}): {e}"))?;
+    let resp = req_builder.send().map_err(|e| {
+        let kind = if e.is_connect() {
+            "connect"
+        } else if e.is_timeout() {
+            "timeout"
+        } else if e.is_request() {
+            "request"
+        } else if e.is_body() {
+            "body"
+        } else if e.is_decode() {
+            "decode"
+        } else {
+            "other"
+        };
+        let proxy = std::env::var("HTTPS_PROXY")
+            .or_else(|_| std::env::var("https_proxy"))
+            .or_else(|_| std::env::var("HTTP_PROXY"))
+            .or_else(|_| std::env::var("http_proxy"))
+            .unwrap_or_default();
+        anyhow::anyhow!(
+            "LLM API 请求失败 ({url}): kind={kind} loopback={is_loopback} proxy={proxy:?} err={e}"
+        )
+    })?;
     if !resp.status().is_success() {
         let status = resp.status().as_u16();
         let text = resp.text().unwrap_or_default();

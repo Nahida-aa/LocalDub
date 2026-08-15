@@ -120,24 +120,18 @@ export async function stageTts(ctx: TaskCtx) {
     const outPath = resolve(ttsWavDir, `${idx}.wav`);
 
     if (regenIndices?.length && !regenIndices.includes(i + 1)) {
+      // regenIndices 仅作用于「存在有效旧结果」的段: 列表外且旧结果有效才复用并跳过。
+      // 没有有效旧结果 (无记录 / wav 缺失 / wav 零时长损坏) 的段, 无论是否在列表里
+      // 都必须正常生成, 不能因为不在 regenIndices 中就被跳过复用坏结果。
       const existing = existingSegments?.get(i + 1);
-      if (existing) {
-        ttsSegments.push(existing);
-      } else {
-        ttsSegments.push({
-          seg_idx: i + 1,
-          text: item.text,
-          dst: item.dst,
-          start_ms: item.start_ms,
-          end_ms: item.start_ms,
-          slot_end_ms: item.end_ms,
-          tts_duration_ms: 0,
-          status: "skipped",
-        });
+      const oldValid = !!existing && existsSync(outPath) && probeDurationMs(outPath) > 0;
+      if (oldValid) {
+        ttsSegments.push(existing!);
+        skipped += 1;
+        renderProgress(i + 1, segments.length, tqdmStart);
+        continue;
       }
-      skipped += 1;
-      renderProgress(i + 1, segments.length, tqdmStart);
-      continue;
+      // fall through: 走下方空译文/无参考音/正式合成逻辑
     }
 
     if (regenIndices?.length && existsSync(outPath)) {
