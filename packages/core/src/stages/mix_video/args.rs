@@ -74,6 +74,13 @@ pub struct MixVideoArgs {
     /// 配音增益(dB), 补偿合成语音偏小的听感差; 默认 3
     #[serde(default = "default_dub_gain")]
     pub dub_gain: f64,
+    /// 是否启用本阶段 (缺省 true; 设为 false 可跳过 mix_video)
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
+}
+
+fn default_enabled() -> bool {
+    true
 }
 
 impl Default for MixVideoArgs {
@@ -89,6 +96,7 @@ impl Default for MixVideoArgs {
             bgm_path: None,
             bgm_gain: default_bgm_gain(),
             dub_gain: default_dub_gain(),
+            enabled: default_enabled(),
         }
     }
 }

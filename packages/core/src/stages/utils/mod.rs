@@ -7,6 +7,7 @@
 //! - [`emit_log`] — tracing + 追加 `<tid>.log`
 //! - [`stages`] 模块: pipeline 阶段序列 ([`stages::get_stages`])
 
+pub mod srt;
 pub mod stages;
 
 use std::{
@@ -256,6 +257,129 @@ pub fn ffmpeg(args: &[String]) -> anyhow::Result<()> {
         ));
     }
     Ok(())
+}
+
+/// 带超时的 ffmpeg 执行 (毫秒)。用于 mix_video 等长编码 (镜像 TS `ffmpeg(args, 300_000)`)。
+pub fn ffmpeg_timeout(args: &[String], timeout_ms: u64) -> anyhow::Result<()> {
+    use std::process::Stdio;
+    let bin = ffmpeg_bin();
+    let mut child = std::process::Command::new(&bin)
+        .arg("-y")
+        .args(args)
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| anyhow::anyhow!("无法执行 {bin} (PATH 中未找到? 需安装): {e}"))?;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                if !status.success() {
+                    let mut stderr = String::new();
+                    if let Some(mut out) = child.stderr.take() {
+                        use std::io::Read;
+                        let _ = out.read_to_string(&mut stderr);
+                    }
+                    return Err(anyhow::anyhow!(
+                        "{bin} 退出码 {:?}: {}",
+                        status.code(),
+                        stderr
+                    ));
+                }
+                return Ok(());
+            }
+            Ok(None) => {
+                if std::time::Instant::now() >= deadline {
+                    let _ = child.kill();
+                    return Err(anyhow::anyhow!("{bin} 超时 (>{timeout_ms}ms), 已终止"));
+                }
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            }
+            Err(e) => return Err(anyhow::anyhow!("{bin} 等待失败: {e}")),
+        }
+    }
+}
+fn ffprobe_bin() -> String {
+    std::env::var("FFPROBE_PATH").unwrap_or_else(|_| "ffprobe".to_string())
+}
+
+/// 用 ffprobe 取视频分辨率 (宽, 高), 失败返回 (0,0) (镜像 TS `probeVideoResolution`)。
+pub fn probe_video_resolution(path: &str) -> (u32, u32) {
+    let bin = ffprobe_bin();
+    let out = std::process::Command::new(&bin)
+        .args([
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=width,height",
+            "-of",
+            "csv=p=0",
+            path,
+        ])
+        .output();
+    match out {
+        Ok(o) if o.status.success() => {
+            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            let mut it = s.split(',').map(|x| x.trim().parse::<u32>().unwrap_or(0));
+            let w = it.next().unwrap_or(0);
+            let h = it.next().unwrap_or(0);
+            (w, h)
+        }
+        _ => (0, 0),
+    }
+}
+
+/// 最终视频目录名 (镜像 TS `finalVideoDir`)。
+pub fn final_video_dir(pipeline: &str, subtitle_source: &str, no_translate: bool) -> String {
+    let suffix = if subtitle_source == "asr_ocr" {
+        "_asr_ocr"
+    } else if subtitle_source == "sf_ocr" {
+        "_sf_ocr"
+    } else {
+        ""
+    };
+    let ntl_suffix = if no_translate { "_ntl" } else { "" };
+    let mode = if pipeline == "subtitle" {
+        "subtitle"
+    } else {
+        "dub"
+    };
+    format!("{mode}{suffix}{ntl_suffix}")
+}
+
+/// 默认字幕字体 (镜像 TS `defaultFont`)。仅 Linux 实现完整, 其他平台回退通用名。
+pub fn default_font(dst_lang: &str) -> String {
+    if dst_lang != "zh" {
+        return "Arial".to_string();
+    }
+    // 与 TS 对齐: win32=Microsoft YaHei, darwin=PingFang SC, default=Noto Sans CJK SC
+    match std::env::consts::OS {
+        "windows" => "Microsoft YaHei".to_string(),
+        "macos" => "PingFang SC".to_string(),
+        _ => "Noto Sans CJK SC".to_string(),
+    }
+}
+
+/// 最终视频音频混流后的中间音频路径 (dub 分支) helper。
+pub fn dubbing_path(task_dir: &str) -> PathBuf {
+    Path::new(task_dir)
+        .join("mix_audio")
+        .join("audio_dubbing.wav")
+}
+
+/// `mix_audio/timings.json` 路径 (镜像 TS `timings_filepath`)。
+pub fn mix_audio_timings_path(task_dir: &str) -> PathBuf {
+    Path::new(task_dir).join("mix_audio").join("timings.json")
+}
+
+/// 读取 `mix_audio/timings.json` (镜像 TS `read_timings`)。
+pub fn read_timings(task_dir: &str) -> anyhow::Result<crate::stages::mix_audio::out::TimingsFile> {
+    let p = mix_audio_timings_path(task_dir);
+    let raw = std::fs::read_to_string(&p)
+        .map_err(|e| anyhow::anyhow!("读取 {} 失败: {e}", p.display()))?;
+    serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("解析 {} 失败: {e}", p.display()))
 }
 
 // ---------------------------------------------------------------------------

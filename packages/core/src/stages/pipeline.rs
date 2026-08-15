@@ -4,13 +4,14 @@
 //! 跑完写回) → 每阶段前后用 `set_stage` / `set_task` 标状态, 失败即中断。
 //!
 //! 目前 `run_stage` 已注册 separate / separate_after / sf_ocr* / translate / split_audio /
-//! asr / asr_fix / tts / mix_audio; 后续阶段 (asr_ocr* / mix_video) 移植后在此登记即可。
+//! asr / asr_fix / tts / mix_audio / mix_video; 后续阶段 (asr_ocr*) 移植后在此登记即可。
 
 use crate::context::read_ctx;
 use crate::stages::asr::fix::stage_asr_fix;
 use crate::stages::asr::stage_asr;
 use crate::stages::get_stages;
 use crate::stages::mix_audio::stage_mix_audio;
+use crate::stages::mix_video::stage_mix_video;
 use crate::stages::separate::{stage_separate, stage_separate_after};
 use crate::stages::sf_ocr::{stage_sf_ocr, stage_sf_ocr_fix, stage_sf_ocr_pre};
 use crate::stages::split_audio::stage_split_audio;
@@ -151,6 +152,7 @@ fn has_handler(stage: &str) -> bool {
             | "asr_fix"
             | "tts"
             | "mix_audio"
+            | "mix_video"
     )
 }
 
@@ -171,6 +173,7 @@ fn run_stage(stage: &str, task_dir: &str) -> anyhow::Result<()> {
         "asr" => stage_asr(&ctx),
         "asr_fix" => stage_asr_fix(&ctx),
         "tts" => stage_tts(&ctx),
+        "mix_video" => stage_mix_video(&ctx),
         "mix_audio" => stage_mix_audio(&ctx),
         // 后续阶段在此登记, 例如:
         // "asr" => stage_asr(&ctx),
@@ -207,7 +210,7 @@ mod tests {
             json!({
                 "task": {"id":"t","task_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"stages": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}}},
+                "input": {"stages": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
                 "pipeline": "subtitle"
             }),
             "subtitle",
@@ -241,7 +244,7 @@ mod tests {
             json!({
                 "task": {"id":"t","task_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"targetStage": "separate", "stages": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}}},
+                "input": {"targetStage": "separate", "stages": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
                 "pipeline": "subtitle"
             }),
             "subtitle",
