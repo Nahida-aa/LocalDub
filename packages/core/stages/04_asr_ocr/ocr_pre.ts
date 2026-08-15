@@ -1,12 +1,10 @@
-import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { readJson } from "@repo/core/utils/fileOps";
 import { writeJson, ensureDir } from "@repo/util/file_op";
-import { emitLog, nowISO, video_source_path } from "@repo/core/stages/utils/utils.ts";
+import { nowISO, video_source_path } from "@repo/core/stages/utils/utils.ts";
 import { TaskCtx, setStage, setTask } from "@repo/core/context/context.ts";
-import { srtTime } from "@repo/core/utils/utils";
-import { extract_frame, extract_frames } from "@repo/subtitle-ocr/ffmpeg_util";
+import { extract_frames } from "@repo/subtitle-ocr/ffmpeg_util";
 import { to } from "@repo/shared/lib/utils/try";
 import { SubtitleSegment } from "@repo/subtitle/types";
 import { log } from "@repo/util/log";

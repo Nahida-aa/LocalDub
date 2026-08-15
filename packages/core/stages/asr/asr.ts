@@ -6,7 +6,6 @@ import { delimiter, join, resolve, basename } from "node:path";
 import { homedir } from "node:os";
 
 import {
-  emitLog,
   ffmpeg,
   nowISO,
   readTaskLanguages,
@@ -47,18 +46,18 @@ export async function stageAsr(ctx: TaskCtx) {
         : null;
     if (mixedOrGated) {
       audioPath = mixedOrGated;
-      emitLog(taskDir, `[ASR] Using pre-mixed audio: ${mixedOrGated}`);
+      log(`Using pre-mixed audio: ${mixedOrGated}`);
     } else {
-      emitLog(taskDir, `[ASR] No mixed audio found, using vocals-only`);
+      log(`No mixed audio found, using vocals-only`);
     }
   }
 
   const asrCfg = ctx.input?.stages?.asr;
   const runtime = asrCfg?.runtime ?? "pytorch";
   const device = asrCfg?.device ?? "cuda";
-  emitLog(taskDir, `[ASR] runtime=${runtime} device=${device}`);
+  log(`runtime=${runtime} device=${device}`);
 
-  const pyBin = pythonBin();
+  // const pyBin = pythonBin();
   ctx.input.task.sourceLang;
 
   // if (runtime === "pytorch") {

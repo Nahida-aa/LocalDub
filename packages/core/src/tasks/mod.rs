@@ -3,5 +3,7 @@
 pub mod args;
 pub mod continue_pipeline;
 pub mod import;
+pub mod pipeline;
 
 pub use continue_pipeline::continue_pipeline;
+pub use pipeline::run_pipeline;

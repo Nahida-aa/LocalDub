@@ -2,41 +2,17 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { readJson } from "@repo/core/utils/fileOps";
-import {
-  emitLog,
-  nowISO,
-  probeVideoResolution,
-  video_source_path,
-} from "@repo/core/stages/utils/utils.ts";
-import { fixOverlap, mergeFrames } from "@repo/subtitle-ocr/ocr_fix/merge_frames";
-import { computeBoxYStats, YStats } from "@repo/subtitle-ocr/ocr_fix/stats";
-import { ocr_segment_adjust } from "@repo/subtitle-ocr/ocr_fix/segment_adjust";
-import { ocr_frames_adjust_box } from "@repo/subtitle-ocr/ocr_fix/box_adjust";
+import { nowISO, video_source_path } from "@repo/core/stages/utils/utils.ts";
+import { fixOverlap } from "@repo/subtitle-ocr/ocr_fix/merge_frames";
 import { TaskCtx, setStage } from "@repo/core/context/context.ts";
-import { t } from "@repo/shared/i18n/server";
-import { buildOcrFixSystemPrompt, ocrSegmentsToPrompt } from "@repo/core/ml/llm/ocr_llm_fix";
-import { chat_completions } from "@repo/core/ml/llm/openai";
-import { parseLines } from "@repo/core/ml/llm/srt_shared";
-import { LlmArgs, LlmFixArgs } from "@repo/llm/llm_fix_args";
-import { FrameResult, OcrFramesResult, OCRRuntime, OcrSegment } from "@repo/subtitle-ocr/types";
+import { OcrFramesResult, OcrSegment } from "@repo/subtitle-ocr/types";
 import { writeJson, ensureDir } from "@repo/util/file_op";
-import {
-  collect_resample_candidate_ms,
-  hasNearbySameText,
-  resample_candidate_to_ocr_frames,
-  resample_to_ocr_frames,
-} from "@repo/subtitle-ocr/ocr_fix/resample";
+import { resample_to_ocr_frames } from "@repo/subtitle-ocr/ocr_fix/resample";
 
-import { extract_frames } from "@repo/subtitle-ocr/ffmpeg_util";
 import { to } from "@repo/shared/lib/utils/try";
 import { log } from "@repo/util/log";
-import { ocrSegmentFilterWithMeta } from "@repo/subtitle-ocr/ocr_fix/segment_filter";
-import {
-  ocr_frames_filter_box,
-  OcrFramesBoxFilteredResult,
-} from "@repo/subtitle-ocr/ocr_fix/box_filter";
+import { OcrFramesBoxFilteredResult } from "@repo/subtitle-ocr/ocr_fix/box_filter";
 import { AsrSplitResult } from "./ocr_pre.ts";
-import { TargetLang } from "../../const/lang";
 import { ocrLlmFix } from "../sf_ocr/llm_fix.ts";
 import { AsrResult } from "@repo/subtitle-asr/types";
 import { cellOcrPost } from "../sf_ocr/util.ts";

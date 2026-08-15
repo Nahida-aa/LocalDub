@@ -42,7 +42,7 @@ export async function stageAsrFix(ctx: TaskCtx) {
     const llmApiBase = args.llmApiBase;
     const domainHint = args.domainHint;
 
-    if (domainHint) emitLog(taskDir, `[ASR Fix] domainHint: ${domainHint}`);
+    if (domainHint) log(`domainHint: ${domainHint}`);
 
     await setStage(taskDir, "asr_fix", {
       last_message: `LLM fixing ${segments.length} segments...`,
@@ -78,7 +78,7 @@ export async function stageAsrFix(ctx: TaskCtx) {
     },
   });
 
-  emitLog(taskDir, `[ASR Fix] Written ${segments.length} segs to asr_fix.json`);
+  log(`Written ${segments.length} segs to asr_fix.json`);
 
   await setStage(taskDir, "asr_fix", {
     status: "success",

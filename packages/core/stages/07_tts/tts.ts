@@ -6,7 +6,6 @@ import { writeWav } from "@repo/voxlab";
 import type { TtsFile, TtsSegment } from "./out.ts";
 
 import {
-  emitLog,
   ffmpeg,
   nowISO,
   read_split_audio_timings,
@@ -105,10 +104,10 @@ export async function stageTts(ctx: TaskCtx) {
   const fallbackRef = i !== -1 ? join(vocalsDir, `${String(i + 1).padStart(4, "0")}.wav`) : "";
 
   const isStart = ctx.input?.task.action === "start";
-  const onlyIndices = isStart ? undefined : ttsArgs.onlyIndices;
+  const regenIndices = isStart ? undefined : ttsArgs.regenIndices;
 
   let existingSegments: Map<number, TtsSegment> | undefined;
-  if (onlyIndices?.length) {
+  if (regenIndices?.length) {
     const existingPath = tts_filepath(taskDir);
     if (existsSync(existingPath)) {
       const existing = await readJson<TtsFile>(existingPath);
@@ -120,7 +119,7 @@ export async function stageTts(ctx: TaskCtx) {
     const idx = String(i + 1).padStart(4, "0");
     const outPath = resolve(ttsWavDir, `${idx}.wav`);
 
-    if (onlyIndices?.length && !onlyIndices.includes(i + 1)) {
+    if (regenIndices?.length && !regenIndices.includes(i + 1)) {
       const existing = existingSegments?.get(i + 1);
       if (existing) {
         ttsSegments.push(existing);
@@ -141,7 +140,7 @@ export async function stageTts(ctx: TaskCtx) {
       continue;
     }
 
-    if (onlyIndices?.length && existsSync(outPath)) {
+    if (regenIndices?.length && existsSync(outPath)) {
       rmSync(outPath, { force: true });
     }
 
@@ -187,7 +186,7 @@ export async function stageTts(ctx: TaskCtx) {
     }
 
     if (!refWav || !existsSync(refWav)) {
-      emitLog(taskDir, `[WARN] [TTS] No reference for segment ${idx}, skipping`);
+      log(`[WARN] No reference for segment ${idx}, skipping`);
       writeFile(outPath, Buffer.alloc(44), ctx);
       ttsSegments.push({
         seg_idx: i + 1,

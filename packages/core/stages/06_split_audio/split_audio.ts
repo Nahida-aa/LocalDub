@@ -23,7 +23,6 @@ import { join } from "node:path";
 import {
   translationFilePath,
   nowISO,
-  emitLog,
   subtitleFilePath,
   split_audio_path,
   video_source_path,

@@ -1603,6 +1603,8 @@ dependencies = [
  "jsonc-parser",
  "ld-core",
  "serde_json",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

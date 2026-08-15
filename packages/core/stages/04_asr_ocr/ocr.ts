@@ -1,7 +1,7 @@
 import { existsSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { ensureDir } from "@repo/util/file_op";
-import { emitLog, nowISO } from "@repo/core/stages/utils/utils.ts";
+import { nowISO } from "@repo/core/stages/utils/utils.ts";
 import { TaskCtx, setStage } from "@repo/core/context/context.ts";
 import { startLog } from "../utils/log.ts";
 import { log } from "@repo/util/log";

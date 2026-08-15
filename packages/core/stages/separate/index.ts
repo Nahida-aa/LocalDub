@@ -1,12 +1,8 @@
-import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync } from "node:fs";
-import { join, resolve } from "node:path";
-import { homedir } from "node:os";
 import { nowISO, separateDir, video_source_path } from "@repo/core/stages/utils/utils.ts";
 import { TaskCtx, setStage } from "@repo/core/context/context.ts";
 import { startLog } from "../utils/log.ts";
 import { separateBurn } from "../../ml/demucs/cli/burn_cli.ts";
-import { REPO_ROOT } from "@repo/config/root";
 import { log } from "@repo/util/log";
 
 export async function stageSeparate(ctx: TaskCtx) {

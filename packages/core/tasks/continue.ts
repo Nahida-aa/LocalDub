@@ -20,7 +20,6 @@ import {
   _writeCtx,
 } from "@repo/core/context/context.ts";
 import {
-  emitLog,
   setLogContext,
   setCurrentStage,
   getStageStatuses,

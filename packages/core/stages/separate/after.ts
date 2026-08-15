@@ -8,6 +8,7 @@ import {
   separateAfterDir,
 } from "@repo/core/stages/utils/utils.ts";
 import { TaskCtx, setStage } from "@repo/core/context/context.ts";
+import { log } from "@repo/util/log";
 
 export async function stageSeparateAfter(ctx: TaskCtx) {
   const taskDir = ctx.task.task_dir;
@@ -33,7 +34,7 @@ export async function stageSeparateAfter(ctx: TaskCtx) {
   // 1. Regenerate target_bgm.wav from stems (fixes amix normalize bug)
   const allStemsExist = [stems.drums, stems.bass, stems.other].every(existsSync);
   if (allStemsExist) {
-    emitLog(taskDir, `[SeparateAfter] Generating target_bgm.wav (amix normalize=0)...`);
+    log(`Generating target_bgm.wav (amix normalize=0)...`);
     ffmpeg([
       "-i",
       stems.drums,
@@ -49,9 +50,9 @@ export async function stageSeparateAfter(ctx: TaskCtx) {
       bgmDst,
     ]);
   } else if (existsSync(bgmDst)) {
-    emitLog(taskDir, `[SeparateAfter] target_bgm.wav exists, reusing (stems not all found)`);
+    log(`target_bgm.wav exists, reusing (stems not all found)`);
   } else {
-    emitLog(taskDir, `[SeparateAfter] No stems or BGM found, skipping BGM generation`);
+    log(`No stems or BGM found, skipping BGM generation`);
   }
 
   // 2. Generate sidechain-mixed audio if configured
@@ -72,7 +73,7 @@ export async function stageSeparateAfter(ctx: TaskCtx) {
       throw new Error(`[SeparateAfter] BGM not found: ${bgmPath}`);
     }
     if (mixMode === "raw-sum") {
-      emitLog(taskDir, `[SeparateAfter] raw-sum: mixing vocals + BGM at ${reduceBgm}dB...`);
+      log(`raw-sum: mixing vocals + BGM at ${reduceBgm}dB...`);
       ffmpeg([
         "-i",
         vocalsPath,
@@ -88,7 +89,7 @@ export async function stageSeparateAfter(ctx: TaskCtx) {
     } else if (mixMode === "sidechain") {
       const scParams = `threshold=${sc?.threshold ?? 0.1}:ratio=${sc?.ratio ?? 20}:attack=${sc?.attack ?? 1}:release=${sc?.release ?? 200}`;
       const bgmVol = reduceBgm !== 0 ? `[bgm_sc]volume=${reduceBgm}dB[bgm_final]` : null;
-      emitLog(taskDir, `[SeparateAfter] sidechain: ${scParams}, bgmReduce=${reduceBgm}dB`);
+      log(`sidechain: ${scParams}, bgmReduce=${reduceBgm}dB`);
       ffmpeg([
         "-i",
         vocalsPath,
@@ -106,7 +107,7 @@ export async function stageSeparateAfter(ctx: TaskCtx) {
 
   if (useGate && existsSync(mixedDst)) {
     const gatedPath = join(outDir, "target_3_vocals_gated.wav");
-    emitLog(taskDir, "[SeparateAfter] Applying silence gate...");
+    log("Applying silence gate...");
     ffmpeg([
       "-i",
       mixedDst,
