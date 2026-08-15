@@ -84,7 +84,7 @@ fn pick_voxcpm_bin(device: TtsDevice, runtime: TtsRuntime) -> anyhow::Result<Str
     );
     let _ = cargo_build_bin("voxcpm-burn", first, &[first_feat]).map_err(|e| {
         anyhow::anyhow!(
-            "{e}\n若编译失败, 请手动执行: cargo build --release -p voxcpm-burn --bin {first} --features {first_feat}"
+            "{e}\n若编译失败, 请手动执行: cargo build --release -p voxcpm-burn --bin {first} --no-default-features --features {first_feat}"
         )
     })?;
     if let Some(p) = find_release_bin(first) {

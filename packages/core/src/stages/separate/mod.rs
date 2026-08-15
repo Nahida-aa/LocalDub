@@ -206,7 +206,7 @@ pub fn stage_separate(ctx: &TaskCtx) -> anyhow::Result<()> {
             );
             cargo_build_bin("demucs-burn", &bin_name, &[backend]).map_err(|e| {
                 anyhow::anyhow!(
-                    "{e}\n若编译失败, 请手动执行: cargo build -p demucs-burn --bin {bin_name} --features {backend}"
+                    "{e}\n若编译失败, 请手动执行: cargo build -p demucs-burn --bin {bin_name} --no-default-features --features {backend}"
                 )
             })?
         }

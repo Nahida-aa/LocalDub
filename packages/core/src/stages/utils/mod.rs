@@ -452,7 +452,9 @@ pub fn find_release_bin(name: &str) -> Option<PathBuf> {
 }
 
 /// 构造 `cargo build -p <package> --bin <bin>` 命令 (复用当前仓库根 + cargo 可执行)。
-/// `features` 非空时追加 `--features <a>,<b>` (各 burn 包按后端用不同 feature 编二进制)。
+/// `features` 非空时追加 `--no-default-features --features <a>,<b>`, 确保只启用目标后端
+/// (各 burn 包 `default = ["wgpu"]`, 不关 default 会让 wgpu 与指定后端同时编译,
+/// 触发 `main.rs` 中 `type B` 重复定义冲突)。
 ///
 /// 注: 不在此处 `.output()`, 交由调用方决定同步/流式, 故只返回构造好的 [`Command`]。
 fn cargo_build_cmd(package: &str, bin: &str, features: &[&str]) -> std::process::Command {
@@ -464,6 +466,8 @@ fn cargo_build_cmd(package: &str, bin: &str, features: &[&str]) -> std::process:
         .arg("--bin")
         .arg(bin);
     if !features.is_empty() {
+        // 关掉 default features, 只启用目标后端, 避免多后端 type B 冲突
+        cmd.arg("--no-default-features");
         let joined = features.join(",");
         cmd.arg("--features").arg(joined);
     }
@@ -472,12 +476,13 @@ fn cargo_build_cmd(package: &str, bin: &str, features: &[&str]) -> std::process:
 
 /// 缺失时自动编译 workspace 二进制, 返回编译产物路径。
 ///
-/// 执行 `cargo build -p <package> --bin <bin> [--features ...]`, 成功后在
-/// `target/release` / `target/debug` 中定位产物 (优先 release)。失败 (编译错误 / 产物缺失)
-/// 时返回错误, 由调用方决定如何上报。
+/// 执行 `cargo build -p <package> --bin <bin> [--no-default-features --features ...]`,
+/// 成功后在 `target/release` / `target/debug` 中定位产物 (优先 release)。失败 (编译错误 /
+/// 产物缺失) 时返回错误, 由调用方决定如何上报。
 ///
 /// `features` 用于指定后端 feature (如 demucs-burn 的 `tch`/`wgpu`/`cuda`...), 因为各 burn 包
-/// 用 `required-features` 把二进制绑定到对应 feature, 不显式 `--features` 会编译失败。
+/// 用 `required-features` 把二进制绑定到对应 feature, 不显式 `--features` 会编译失败; 同时会
+/// 关掉 default features (默认 wgpu), 避免多后端 `type B` 重复定义冲突。
 ///
 /// 用于「阶段内自动编译缺失二进制」(用户选项: 阶段内自动编译), 镜像 TS 侧手动
 /// `cargo build` 的引导步骤, 减少「先去 build 再跑」的来回。
@@ -485,7 +490,7 @@ pub fn cargo_build_bin(package: &str, bin: &str, features: &[&str]) -> anyhow::R
     let feat_str = if features.is_empty() {
         String::new()
     } else {
-        format!(" --features {}", features.join(","))
+        format!(" --no-default-features --features {}", features.join(","))
     };
     let cmdline = format!("cargo build -p {package} --bin {bin}{feat_str}");
     tracing::info!("[auto-build] 未找到 {bin}, 执行: {cmdline}");
