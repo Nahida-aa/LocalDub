@@ -310,7 +310,7 @@ fn usage() -> String {
   inputctl get task.taskDir
   inputctl set task.continueFrom mix_video
   inputctl set stages.tts.runtime cloud
-  inputctl set task.onlyIndices '[1,2,3]'
+  inputctl set stages.tts.regenIndices '[1,2,3]'
   inputctl validate
 "
     .to_string()

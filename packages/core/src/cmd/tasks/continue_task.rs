@@ -3,7 +3,7 @@
 //! 语义 (对齐 TS):
 //! 1. 要求 `input.task.taskDir` 指定已有任务目录, 否则报错;
 //! 2. `setCtx` — 把当前 `input` 合并写回 `ctx.json` 的 `input` 字段
-//!    (TS `setCtx(taskDir, { input })`), 这样 `continueFrom` / `onlyIndices` 等
+//!    (TS `setCtx(taskDir, { input })`), 这样 `continueFrom` / `regenIndices` 等
 //!    以当前 `input.jsonc` 为准, 而非沿用陈旧的持久化 ctx;
 //! 3. 读出合并后的 ctx, 交给 [`crate::tasks::continue_pipeline`] 续跑。
 //!

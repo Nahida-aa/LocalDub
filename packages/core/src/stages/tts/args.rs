@@ -38,9 +38,10 @@ pub struct TtsArgs {
     /// 跳过已存在的段 (按 mtime 比对参考音); 默认 true
     #[serde(default = "default_true")]
     pub skip_existing: bool,
-    /// 仅处理指定索引的 segment (其余跳过), 可用于精准重跑指定段
+    /// continue 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。
+    /// 命中段无视 skipExisting, 强制重合成 (先删旧 wav 再生成)。None/空 = 全量按 skipExisting 走。
     #[serde(default)]
-    pub only_indices: Option<Vec<u32>>,
+    pub regen_indices: Option<Vec<u32>>,
     /// 将短参考音频 (< 2500ms) 拼接一倍再送 TTS, 帮助稳定输出音色; 默认 false
     #[serde(default)]
     pub ref_audio_x2: bool,
@@ -52,7 +53,7 @@ impl Default for TtsArgs {
             runtime: default_runtime(),
             device: default_device(),
             skip_existing: default_true(),
-            only_indices: None,
+            regen_indices: None,
             ref_audio_x2: false,
         }
     }

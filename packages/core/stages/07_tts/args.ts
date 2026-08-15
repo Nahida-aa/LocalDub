@@ -5,10 +5,12 @@ export const TtsStageArgsSchema = z
     runtime: z.enum(["ggml", "cloud", "voxcpm_torch_gradio"]).default("cloud"),
     device: z.enum(["webgpu", "cuda", "rocm", "cpu", "mps"]).default("cuda"),
     skipExisting: z.boolean().default(true),
-    onlyIndices: z
+    regenIndices: z
       .array(z.number().int().positive())
       .optional()
-      .describe("仅处理指定索引的 segment（其余跳过），可用于精准重跑指定段"),
+      .describe(
+        "continue 模式下强制重新生成的 segment 索引（1-based）；列表外段保留旧结果。命中段无视 skipExisting，强制重合成",
+      ),
     refAudioX2: z
       .boolean()
       .default(false)

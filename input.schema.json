@@ -70,6 +70,10 @@
           "$ref": "#/$defs/AsrDevice",
           "description": " 推理设备, 默认 cuda"
         },
+        "enabled": {
+          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr, 与 translate.enabled 一致)",
+          "type": "boolean"
+        },
         "maxLen": {
           "description": " whisper.cpp: 最大段长(字符), 0=不限",
           "maximum": 4294967295,
@@ -157,6 +161,10 @@
           "$ref": "#/$defs/AsrDevice",
           "description": " 推理设备, 默认 cuda"
         },
+        "enabled": {
+          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr, 与 translate.enabled 一致)",
+          "type": "boolean"
+        },
         "maxLen": {
           "description": " whisper.cpp: 最大段长(字符), 0=不限",
           "maximum": 4294967295,
@@ -238,6 +246,7 @@
         "runtime",
         "device",
         "useSeparated",
+        "enabled",
         "mixMode",
         "reduceBgm",
         "wordsOutput",
@@ -328,6 +337,10 @@
           ],
           "description": " 领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\""
         },
+        "enabled": {
+          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr_fix)",
+          "type": "boolean"
+        },
         "llmApiBase": {
           "description": " LLM API 地址",
           "type": "string"
@@ -369,6 +382,10 @@
           ],
           "description": " 领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\""
         },
+        "enabled": {
+          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr_fix)",
+          "type": "boolean"
+        },
         "llmApiBase": {
           "description": " LLM API 地址",
           "type": "string"
@@ -384,6 +401,7 @@
       },
       "required": [
         "asrFilePath",
+        "enabled",
         "llmModel",
         "llmApiBase",
         "domainHint",
@@ -998,6 +1016,10 @@
           "description": " 配音增益(dB), 补偿合成语音偏小的听感差; 默认 3",
           "type": "number"
         },
+        "enabled": {
+          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 mix_video)",
+          "type": "boolean"
+        },
         "font": {
           "anyOf": [
             {
@@ -1012,40 +1034,32 @@
         "fontSize": {
           "anyOf": [
             {
-              "maximum": 4294967295,
-              "minimum": 0,
-              "type": "integer"
+              "type": "number"
             },
             {
               "type": "null"
             }
           ],
-          "description": " 字幕字号, 不填则自动: 竖屏 12(zh)/9(其他) ← 横屏 24(zh)/18(其他)"
+          "description": " 字幕字号, 不填则自动: 竖屏 12(zh)/9(其他) ← 横屏 24(zh)/18(其他)\n\n 镜像 TS `z.number()` (允许小数, 与 ASS `FontSize` 一致)。"
         },
         "marginV": {
           "anyOf": [
             {
-              "maximum": 4294967295,
-              "minimum": 0,
-              "type": "integer"
+              "type": "number"
             },
             {
               "type": "null"
             }
           ],
-          "description": " 垂直边距(像素), 不填则自动: 竖屏 70 / 横屏 5"
+          "description": " 垂直边距(像素), 不填则自动: 竖屏 70 / 横屏 5\n\n 镜像 TS `z.number().min(0)` (允许小数)。"
         },
         "outline": {
-          "description": " 描边宽度; 默认 0",
-          "maximum": 4294967295,
-          "minimum": 0,
-          "type": "integer"
+          "description": " 描边宽度; 默认 0\n\n 镜像 TS `z.number().min(0).default(0)` (允许小数)。",
+          "type": "number"
         },
         "shadow": {
-          "description": " 阴影宽度; 默认 1",
-          "maximum": 4294967295,
-          "minimum": 0,
-          "type": "integer"
+          "description": " 阴影宽度; 默认 1\n\n 镜像 TS `z.number().min(0).default(1)` (允许小数)。",
+          "type": "number"
         },
         "srtPath": {
           "anyOf": [
@@ -1095,6 +1109,10 @@
           "description": " 配音增益(dB), 补偿合成语音偏小的听感差; 默认 3",
           "type": "number"
         },
+        "enabled": {
+          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 mix_video)",
+          "type": "boolean"
+        },
         "font": {
           "anyOf": [
             {
@@ -1109,40 +1127,32 @@
         "fontSize": {
           "anyOf": [
             {
-              "maximum": 4294967295,
-              "minimum": 0,
-              "type": "integer"
+              "type": "number"
             },
             {
               "type": "null"
             }
           ],
-          "description": " 字幕字号, 不填则自动: 竖屏 12(zh)/9(其他) ← 横屏 24(zh)/18(其他)"
+          "description": " 字幕字号, 不填则自动: 竖屏 12(zh)/9(其他) ← 横屏 24(zh)/18(其他)\n\n 镜像 TS `z.number()` (允许小数, 与 ASS `FontSize` 一致)。"
         },
         "marginV": {
           "anyOf": [
             {
-              "maximum": 4294967295,
-              "minimum": 0,
-              "type": "integer"
+              "type": "number"
             },
             {
               "type": "null"
             }
           ],
-          "description": " 垂直边距(像素), 不填则自动: 竖屏 70 / 横屏 5"
+          "description": " 垂直边距(像素), 不填则自动: 竖屏 70 / 横屏 5\n\n 镜像 TS `z.number().min(0)` (允许小数)。"
         },
         "outline": {
-          "description": " 描边宽度; 默认 0",
-          "maximum": 4294967295,
-          "minimum": 0,
-          "type": "integer"
+          "description": " 描边宽度; 默认 0\n\n 镜像 TS `z.number().min(0).default(0)` (允许小数)。",
+          "type": "number"
         },
         "shadow": {
-          "description": " 阴影宽度; 默认 1",
-          "maximum": 4294967295,
-          "minimum": 0,
-          "type": "integer"
+          "description": " 阴影宽度; 默认 1\n\n 镜像 TS `z.number().min(0).default(1)` (允许小数)。",
+          "type": "number"
         },
         "srtPath": {
           "anyOf": [
@@ -1166,7 +1176,8 @@
         "srtPath",
         "bgmPath",
         "bgmGain",
-        "dubGain"
+        "dubGain",
+        "enabled"
       ],
       "title": "MixVideoArgs_Serialize",
       "type": "object"
@@ -1290,6 +1301,10 @@
         "llmModel": {
           "description": " LLM 模型名",
           "type": "string"
+        },
+        "sourceLang": {
+          "description": " 源语言代码 (供 LLM 系统提示, 镜像 TS `ctx.input.task.sourceLang`); 默认 \"zh\"",
+          "type": "string"
         }
       },
       "title": "OcrFixArgs_Deserialize",
@@ -1354,6 +1369,10 @@
         "llmModel": {
           "description": " LLM 模型名",
           "type": "string"
+        },
+        "sourceLang": {
+          "description": " 源语言代码 (供 LLM 系统提示, 镜像 TS `ctx.input.task.sourceLang`); 默认 \"zh\"",
+          "type": "string"
         }
       },
       "required": [
@@ -1365,6 +1384,7 @@
         "boxAdjustedThreshold",
         "isMergeSubstring",
         "dedupEditDistance",
+        "sourceLang",
         "llmModel",
         "llmApiBase",
         "domainHint",
@@ -2578,7 +2598,11 @@
           "$ref": "#/$defs/TtsDevice",
           "description": " 计算设备; 默认 cuda"
         },
-        "onlyIndices": {
+        "refAudioX2": {
+          "description": " 将短参考音频 (< 2500ms) 拼接一倍再送 TTS, 帮助稳定输出音色; 默认 false",
+          "type": "boolean"
+        },
+        "regenIndices": {
           "anyOf": [
             {
               "items": {
@@ -2592,11 +2616,7 @@
               "type": "null"
             }
           ],
-          "description": " 仅处理指定索引的 segment (其余跳过), 可用于精准重跑指定段"
-        },
-        "refAudioX2": {
-          "description": " 将短参考音频 (< 2500ms) 拼接一倍再送 TTS, 帮助稳定输出音色; 默认 false",
-          "type": "boolean"
+          "description": " continue 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。\n 命中段无视 skipExisting, 强制重合成 (先删旧 wav 再生成)。None/空 = 全量按 skipExisting 走。"
         },
         "runtime": {
           "$ref": "#/$defs/TtsRuntime",
@@ -2617,7 +2637,11 @@
           "$ref": "#/$defs/TtsDevice",
           "description": " 计算设备; 默认 cuda"
         },
-        "onlyIndices": {
+        "refAudioX2": {
+          "description": " 将短参考音频 (< 2500ms) 拼接一倍再送 TTS, 帮助稳定输出音色; 默认 false",
+          "type": "boolean"
+        },
+        "regenIndices": {
           "anyOf": [
             {
               "items": {
@@ -2631,11 +2655,7 @@
               "type": "null"
             }
           ],
-          "description": " 仅处理指定索引的 segment (其余跳过), 可用于精准重跑指定段"
-        },
-        "refAudioX2": {
-          "description": " 将短参考音频 (< 2500ms) 拼接一倍再送 TTS, 帮助稳定输出音色; 默认 false",
-          "type": "boolean"
+          "description": " continue 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。\n 命中段无视 skipExisting, 强制重合成 (先删旧 wav 再生成)。None/空 = 全量按 skipExisting 走。"
         },
         "runtime": {
           "$ref": "#/$defs/TtsRuntime",
@@ -2650,7 +2670,7 @@
         "runtime",
         "device",
         "skipExisting",
-        "onlyIndices",
+        "regenIndices",
         "refAudioX2"
       ],
       "title": "TtsArgs_Serialize",

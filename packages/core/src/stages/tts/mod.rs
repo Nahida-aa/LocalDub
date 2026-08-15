@@ -34,7 +34,7 @@ const SILENT_SAMPLE_RATE: u32 = 48000;
 
 /// 写一段合法的静音 wav (47000Hz 单声道, 无采样数据)。
 ///
-/// 用于「有意跳过」的段 (onlyIndices 排除 / 空译文 / 无参考音),
+/// 用于「有意不合成」的段 (regenIndices 排除 / 空译文 / 无参考音),
 /// 取代原先 `fs::write(vec![0u8;44])` 写的*非法零头* wav —— 后者无 RIFF 标记,
 /// 会让后续 mix_audio 的 ffprobe/trim 步骤读取失败 (exit 183 "Invalid data")。
 ///
@@ -131,21 +131,22 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
         ),
     );
 
-    // onlyIndices 语义 (镜像 TS):
-    // - 首次 start 时强制忽略 (isStart ? undefined), 全量跑; 仅 continue 精准重跑时用。
-    // - 生效时跳过段优先复用已有 tts.json 的结果 (不覆盖其它段的好结果)。
+    // regenIndices 语义 (continue 模式精准重跑):
+    // - 首次 start 时强制忽略, 全量跑; 仅 continue 重跑时用。
+    // - 列表内的段: 无视 skipExisting, 强制重新合成 (先删旧 wav 再生成)。
+    // - 列表外的段: 保留旧结果 —— 优先复用 tts.json 已有记录, 无旧记录才写合法静音占位。
     let is_start = ctx
         .input
         .get("task")
         .and_then(|t| t.get("action"))
         .and_then(|a| a.as_str())
         == Some("start");
-    let only_indices: Option<Vec<u32>> = if is_start {
+    let regen_indices: Option<Vec<u32>> = if is_start {
         None
     } else {
-        args.only_indices.clone()
+        args.regen_indices.clone()
     };
-    let only_active = only_indices
+    let regen_active = regen_indices
         .as_ref()
         .map(|o| !o.is_empty())
         .unwrap_or(false);
@@ -156,8 +157,8 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
         .find(|p| p.exists() && fs::metadata(p).map(|m| m.len()).unwrap_or(0) > MIN_REF_BYTES)
         .map(|p| p.to_string_lossy().into_owned());
 
-    // onlyIndices 生效时载入已有 tts.json, 供跳过段复用旧结果 (避免重跑时覆盖其它段)。
-    let existing_segments: std::collections::HashMap<u32, TtsSegment> = if only_active {
+    // regenIndices 生效时载入已有 tts.json, 供列表外段复用旧结果 (避免重跑时覆盖其它段)。
+    let existing_segments: std::collections::HashMap<u32, TtsSegment> = if regen_active {
         let p = tts_filepath(&task_dir);
         if p.exists() {
             match std::fs::read_to_string(&p) {
@@ -186,12 +187,12 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
         let out_path = tts_wav_dir.join(format!("{idx}.wav"));
         let out_path = out_path.to_string_lossy().into_owned();
 
-        // onlyIndices: 仅处理指定 1-based 索引 (None / 空 = 全量)
-        if let Some(only) = &only_indices {
-            if !only.is_empty() && !only.contains(&seg_idx) {
+        // regenIndices: 列表外的段保留旧结果 (复用 tts.json 或写静音占位), 不重合成。
+        if let Some(regen) = &regen_indices {
+            if !regen.is_empty() && !regen.contains(&seg_idx) {
                 emit_log(
                     Some(&task_dir),
-                    &format!("[TTS] 段 {idx} 不在 onlyIndices 中, 跳过"),
+                    &format!("[TTS] 段 {idx} 不在 regenIndices 中, 保留旧结果"),
                 );
                 // 优先复用已有 tts.json 的真实结果 (不覆盖其它段的好结果);
                 // 没有旧记录才写合法静音 wav 占位 (绝不写损坏零头)。
@@ -276,7 +277,8 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
         // skipExisting: 输出比参考新且可被正常探测 (时长>0) 才跳过。
         // 加 probe_duration_ms>0 兜底: 历史损坏/零头 wav 即使 mtime 较新也不复用,
         // 否则会带着坏文件进 mix_audio (exit 183 Invalid data)。
-        if args.skip_existing && Path::new(&out_path).exists() {
+        // regenIndices 命中的段无视 skipExisting, 强制重合成 (下方 rmSync 后重新生成)。
+        if args.skip_existing && !regen_active && Path::new(&out_path).exists() {
             let out_mtime = fs::metadata(&out_path)
                 .and_then(|m| {
                     m.modified().map(|t| {
@@ -318,9 +320,9 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
             }
         }
 
-        // onlyIndices 命中段: 先删旧 wav 再合成 (镜像 TS rmSync(outPath)),
-        // 避免残留坏文件 / 旧结果干扰本次合成。
-        if only_active && Path::new(&out_path).exists() {
+        // regenIndices 命中段: 先删旧 wav 再合成 (镜像 TS rmSync(outPath)),
+        // 无视 skipExisting, 强制重新生成, 避免残留坏文件 / 旧结果干扰本次合成。
+        if regen_active && Path::new(&out_path).exists() {
             let _ = fs::remove_file(&out_path);
         }
 
@@ -534,20 +536,20 @@ mod tests {
         let cfg = read_args(&ctx);
         assert!(cfg.skip_existing);
         assert!(!cfg.ref_audio_x2);
-        assert_eq!(cfg.only_indices, None);
+        assert_eq!(cfg.regen_indices, None);
 
         let ctx2 = ctx_at(
             "/x",
             json!({
                 "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"stages": {"tts": {"skipExisting": false, "refAudioX2": true, "onlyIndices": [1,2,3]}}}
+                "input": {"stages": {"tts": {"skipExisting": false, "refAudioX2": true, "regenIndices": [1,2,3]}}}
             }),
         );
         let cfg2 = read_args(&ctx2);
         assert!(!cfg2.skip_existing);
         assert!(cfg2.ref_audio_x2);
-        assert_eq!(cfg2.only_indices, Some(vec![1, 2, 3]));
+        assert_eq!(cfg2.regen_indices, Some(vec![1, 2, 3]));
     }
 
     #[test]

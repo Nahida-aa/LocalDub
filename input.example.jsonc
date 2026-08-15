@@ -1,0 +1,82 @@
+{
+  "$schema": "./input.schema.json",
+  "command": "task",
+  "task": {
+    "action": "start",
+    "url": "/home/aa/下载/大/38.mp4",
+    "taskDir": "/home/aa/repos/env_ls/LocalDub/workfolder/大/37",
+    "continueFrom": "mix_video",
+    "targetStage": "mix_video",
+    "pipeline": "dub",
+    "subtitleSource": "sf_ocr",
+  },
+  "check": {
+    "type": "font",
+  },
+  "env": {
+    "action": "check",
+    "targets": ["ffmpeg"],
+  },
+  "servers": {
+    "action": "discovery",
+    "name": "voxcpm_torch_gradio",
+  },
+  "stages": {
+    "separate": {
+      "runtime": "burn-tch",
+      "device": "cpu",
+      "always": true,
+    },
+    "asr": {
+      "runtime": "ggml",
+      "device": "vulkan",
+      "useSeparated": true,
+      "mixMode": "sidechain",
+      "vad": true,
+      "vadModel": "silero-v6",
+      "wordsOutput": true,
+    },
+    "asr_ocr": {
+      "runtime": "ort-rust",
+      "textScore": 0.45,
+    },
+    "asr_ocr_fix": {
+      "is_resample": false,
+      "llmFix": true,
+    },
+    "asr_fix": {
+      "llmFix": true,
+    },
+    "sf_ocr_fix": {
+      "llmFix": true,
+    },
+    "translate": {
+      "enabled": true,
+      "targetLang": "vi",
+      "apiBase": "http://localhost:11434/v1",
+      "model": "gemma4:31b-cloud",
+    },
+    "split_audio": {
+      "startPadMs": 100,
+      "endPadMs": 0,
+      "vadAlign": false,
+    },
+    "tts": {
+      "runtime": "cloud",
+      "device": "cpu",
+      "regenIndices": [],
+    },
+    "mix_audio": {
+      "maxSpeed": 1.55,
+      "maxAdvanceMs": 300,
+      "maxDelayMs": 300,
+    },
+    "mix_video": {
+      "fontSize": 21.4,
+      "marginV": 45,
+      "font": "Noto Sans CJK SC Medium",
+      "shadow": 1.1,
+      "bgmGain": -9,
+    },
+  },
+}
