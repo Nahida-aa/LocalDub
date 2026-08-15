@@ -661,6 +661,88 @@
       "description": " 推理设备",
       "title": "Device"
     },
+    "EnvAction": {
+      "anyOf": [
+        {
+          "const": "check"
+        },
+        {
+          "const": "ensure"
+        }
+      ],
+      "description": " env 动作",
+      "title": "EnvAction"
+    },
+    "EnvArgs": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/EnvArgs_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/EnvArgs_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " `env` 命令参数 (镜像 TS `packages/core/cmd/env/input.ts` 的 EnvArgsSchema)。\n\n `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 stages 配置推断)。",
+      "title": "EnvArgs"
+    },
+    "EnvArgs_Deserialize": {
+      "description": " `env` 命令参数 (镜像 TS `packages/core/cmd/env/input.ts` 的 EnvArgsSchema)。\n\n `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 stages 配置推断)。",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/EnvAction",
+          "description": " 动作: check (默认) / ensure"
+        },
+        "targets": {
+          "description": " 要检查/ensure 的环境项; 空数组 → 按 input.jsonc 的 stages 配置推断所需项",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "title": "EnvArgs_Deserialize",
+      "type": "object"
+    },
+    "EnvArgs_Serialize": {
+      "description": " `env` 命令参数 (镜像 TS `packages/core/cmd/env/input.ts` 的 EnvArgsSchema)。\n\n `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 stages 配置推断)。",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/EnvAction",
+          "description": " 动作: check (默认) / ensure"
+        },
+        "targets": {
+          "description": " 要检查/ensure 的环境项; 空数组 → 按 input.jsonc 的 stages 配置推断所需项",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "action",
+        "targets"
+      ],
+      "title": "EnvArgs_Serialize",
+      "type": "object"
+    },
     "Input": {
       "anyOf": [
         {
@@ -698,6 +780,17 @@
           "$ref": "#/$defs/Command",
           "description": " 执行命令 (默认 env)"
         },
+        "env": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EnvArgs_Deserialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " env 命令参数 (镜像 env/input.ts); targets 为空时按 stages 配置推断所需环境项"
+        },
         "servers": {
           "anyOf": [
             {
@@ -734,6 +827,17 @@
           "$ref": "#/$defs/Command",
           "description": " 执行命令 (默认 env)"
         },
+        "env": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EnvArgs_Serialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " env 命令参数 (镜像 env/input.ts); targets 为空时按 stages 配置推断所需环境项"
+        },
         "servers": {
           "anyOf": [
             {
@@ -764,6 +868,7 @@
         "task",
         "command",
         "servers",
+        "env",
         "stages"
       ],
       "title": "Input_Serialize",

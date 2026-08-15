@@ -2,10 +2,10 @@
 # import/continue → 跑 pipeline), 尚未覆盖 check / servers / env。
 # 若需要 check / servers / env, 暂回退到 TS 实现:
 #     bun --cwd packages/cli run-task.ts
-run-cli:
+dev-cli:
     cargo run -p cli
 
-run-cli-ts:
+dev-cli-ts:
     cd packages/cli && bun run tauri dev
 
 # 启动桌面端 (Tauri + Solid 前端)。等价于 packages/app 的 `dev:desktop`:
