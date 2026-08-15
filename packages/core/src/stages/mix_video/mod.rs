@@ -14,9 +14,9 @@ use crate::context::TaskCtx;
 use crate::stages::mix_video::args::{Alignment, MixVideoArgs};
 use crate::stages::utils::srt::{SrtSeg, write_srt};
 use crate::stages::utils::{
-    StagePatch, StageStatus, bgm_path, default_font, dubbing_path, emit_log, ensure_dir,
+    StagePatch, StageStatus, TaskPatch, bgm_path, default_font, dubbing_path, emit_log, ensure_dir,
     ffmpeg_timeout, final_video_dir, probe_video_resolution, read_timings, read_translation_result,
-    resolve_language, set_stage_anyhow, subtitle_file_path, video_source_path,
+    resolve_language, set_stage_anyhow, set_task_anyhow, subtitle_file_path, video_source_path,
 };
 
 /// 读取 mix_video 配置 (缺省用 MixVideoArgs::default)。
@@ -204,6 +204,15 @@ pub fn stage_mix_video(ctx: &TaskCtx) -> anyhow::Result<()> {
         Some(&task_dir),
         &format!("Wrote final video: {}", final_video.display()),
     );
+
+    // 写回 ctx.task.final_video_path (镜像 TS mix_video 设置 finalVideoPath)
+    set_task_anyhow(
+        &task_dir,
+        TaskPatch {
+            final_video_path: Some(Some(final_video.to_string_lossy().into_owned())),
+            ..Default::default()
+        },
+    )?;
 
     set_stage_anyhow(
         &task_dir,

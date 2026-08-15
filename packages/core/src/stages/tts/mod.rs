@@ -124,9 +124,55 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
     let mut tts_segments: Vec<TtsSegment> = Vec::with_capacity(segments.len());
 
     for (i, item) in segments.iter().enumerate() {
-        let idx = format!("{:04}", i + 1);
+        let seg_idx = (i + 1) as u32;
+        let idx = format!("{:04}", seg_idx);
         let out_path = tts_wav_dir.join(format!("{idx}.wav"));
         let out_path = out_path.to_string_lossy().into_owned();
+
+        // onlyIndices: 仅处理指定 1-based 索引 (None / 空 = 全量)
+        if let Some(only) = &args.only_indices {
+            if !only.is_empty() && !only.contains(&seg_idx) {
+                emit_log(
+                    Some(&task_dir),
+                    &format!("[TTS] 段 {idx} 不在 onlyIndices 中, 跳过"),
+                );
+                fs::write(&out_path, vec![0u8; 44]).ok();
+                tts_segments.push(TtsSegment {
+                    timing: crate::stages::split_audio::out::SplitAudioTiming {
+                        seg_idx,
+                        text: item
+                            .get("text")
+                            .and_then(|t| t.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        start_ms: item.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0),
+                        end_ms: item.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0),
+                        dst: item
+                            .get("dst")
+                            .and_then(|t| t.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        src_lang: item
+                            .get("src_lang")
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
+                        dst_lang: item
+                            .get("dst_lang")
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
+                        speaker: item
+                            .get("speaker")
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
+                        text_confidence: None,
+                    },
+                    slot_end_ms: item.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0),
+                    tts_duration_ms: 0,
+                    status: "skipped".to_string(),
+                });
+                continue;
+            }
+        }
 
         let start_ms = item.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0);
         let end_ms = item.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0);
