@@ -1,23 +1,28 @@
 //! continue 派发器 (镜像 TS `packages/core/tasks/continue.ts` 的 `continuePipeline`)。
 //!
-//! 与 [`crate::stages::pipeline::run_pipeline`] 的区别: 不是从序列头跑全部, 而是:
+//! 与 [`crate::tasks::pipeline::run_pipeline`] 的区别: 不是从序列头跑全部, 而是:
 //! - `task.continueFrom` 存在 → 从该 stage 起把后续全部重置为 `pending` 再续跑;
 //! - 否则 → 跳过已 `success` 的前缀 stage, 从第一个未完成 stage 续跑;
 //! - `task.targetStage` 命中即停 (truncate 序列)。
 //!
+//! ctx 由调用者传入 (而非内部从磁盘 `read_ctx`), 以保证续跑使用的是调用者选定的
+//! 那份 ctx (例如 cli 从 `input.jsonc` 解析后写入的 ctx), 而不是可能陈旧的持久化 ctx。
 //! 不调用 `import_video` (TS `continuePipeline` 也不调), caller 应已保证 task 目录存在。
 
-use crate::context::read_ctx;
-use crate::stages::pipeline::{has_handler, run_stage};
+use crate::context::TaskCtx;
 use crate::stages::utils::{
     StagePatch, StageStatus, emit_log, now_iso, set_stage_anyhow, set_task_anyhow,
 };
+use crate::tasks::pipeline::{has_handler, run_stage};
 
 /// 续跑 pipeline (镜像 TS `continuePipeline`)。
-pub fn continue_pipeline(task_dir: &str) -> anyhow::Result<()> {
+///
+/// `ctx` 必须由调用者先 `read_ctx(task_dir)` (或自行构造) 后传入; 内部不再读磁盘,
+/// 避免续跑基于陈旧 ctx。
+pub fn continue_pipeline(ctx: &TaskCtx) -> anyhow::Result<()> {
+    let task_dir = ctx.task.task_dir.as_str();
     emit_log(Some(task_dir), "continue_pipeline: start");
 
-    let ctx = read_ctx(task_dir).map_err(anyhow::Error::msg)?;
     let pipeline = ctx.pipeline.clone();
     let task_id = ctx.task.id.clone();
     let stages = crate::stages::get_stages(&ctx);

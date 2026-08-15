@@ -150,7 +150,9 @@ fn run() -> anyhow::Result<()> {
                 ));
             }
             println!("[cli] 续跑模式, task_dir = {}", task_dir);
-            continue_pipeline(&task_dir).context("continue_pipeline 失败")?;
+            let ctx = ld_core::context::read_ctx(&task_dir)
+                .map_err(|e| anyhow::anyhow!("读取 {}/ctx.json 失败: {e}", task_dir))?;
+            continue_pipeline(&ctx).context("continue_pipeline 失败")?;
             println!("[cli] 完成: {}", task_dir);
         }
         _ => {
