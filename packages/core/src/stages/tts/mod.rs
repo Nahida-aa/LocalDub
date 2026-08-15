@@ -131,11 +131,52 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
         ),
     );
 
+    // onlyIndices 语义 (镜像 TS):
+    // - 首次 start 时强制忽略 (isStart ? undefined), 全量跑; 仅 continue 精准重跑时用。
+    // - 生效时跳过段优先复用已有 tts.json 的结果 (不覆盖其它段的好结果)。
+    let is_start = ctx
+        .input
+        .get("task")
+        .and_then(|t| t.get("action"))
+        .and_then(|a| a.as_str())
+        == Some("start");
+    let only_indices: Option<Vec<u32>> = if is_start {
+        None
+    } else {
+        args.only_indices.clone()
+    };
+    let only_active = only_indices
+        .as_ref()
+        .map(|o| !o.is_empty())
+        .unwrap_or(false);
+
     // 找第一个非静音 vocals 作为 fallback 参考音
     let fallback_ref: Option<String> = (0..segments.len())
         .map(|i| vocals_dir.join(format!("{:04}.wav", i + 1)))
         .find(|p| p.exists() && fs::metadata(p).map(|m| m.len()).unwrap_or(0) > MIN_REF_BYTES)
         .map(|p| p.to_string_lossy().into_owned());
+
+    // onlyIndices 生效时载入已有 tts.json, 供跳过段复用旧结果 (避免重跑时覆盖其它段)。
+    let existing_segments: std::collections::HashMap<u32, TtsSegment> = if only_active {
+        let p = tts_filepath(&task_dir);
+        if p.exists() {
+            match std::fs::read_to_string(&p) {
+                Ok(raw) => serde_json::from_str::<TtsFile>(&raw)
+                    .map(|f| {
+                        f.segments
+                            .into_iter()
+                            .map(|s| (s.timing.seg_idx, s))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                Err(_) => std::collections::HashMap::new(),
+            }
+        } else {
+            std::collections::HashMap::new()
+        }
+    } else {
+        std::collections::HashMap::new()
+    };
 
     let mut tts_segments: Vec<TtsSegment> = Vec::with_capacity(segments.len());
 
@@ -146,46 +187,52 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
         let out_path = out_path.to_string_lossy().into_owned();
 
         // onlyIndices: 仅处理指定 1-based 索引 (None / 空 = 全量)
-        if let Some(only) = &args.only_indices {
+        if let Some(only) = &only_indices {
             if !only.is_empty() && !only.contains(&seg_idx) {
                 emit_log(
                     Some(&task_dir),
                     &format!("[TTS] 段 {idx} 不在 onlyIndices 中, 跳过"),
                 );
-                write_silent_wav(&out_path)?;
-                tts_segments.push(TtsSegment {
-                    timing: crate::stages::split_audio::out::SplitAudioTiming {
-                        seg_idx,
-                        text: item
-                            .get("text")
-                            .and_then(|t| t.as_str())
-                            .unwrap_or("")
-                            .to_string(),
-                        start_ms: item.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0),
-                        end_ms: item.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0),
-                        dst: item
-                            .get("dst")
-                            .and_then(|t| t.as_str())
-                            .unwrap_or("")
-                            .to_string(),
-                        src_lang: item
-                            .get("src_lang")
-                            .and_then(|v| v.as_str())
-                            .map(String::from),
-                        dst_lang: item
-                            .get("dst_lang")
-                            .and_then(|v| v.as_str())
-                            .map(String::from),
-                        speaker: item
-                            .get("speaker")
-                            .and_then(|v| v.as_str())
-                            .map(String::from),
-                        text_confidence: None,
-                    },
-                    slot_end_ms: item.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0),
-                    tts_duration_ms: 0,
-                    status: "skipped".to_string(),
-                });
+                // 优先复用已有 tts.json 的真实结果 (不覆盖其它段的好结果);
+                // 没有旧记录才写合法静音 wav 占位 (绝不写损坏零头)。
+                if let Some(old) = existing_segments.get(&seg_idx) {
+                    tts_segments.push(old.clone());
+                } else {
+                    write_silent_wav(&out_path)?;
+                    tts_segments.push(TtsSegment {
+                        timing: crate::stages::split_audio::out::SplitAudioTiming {
+                            seg_idx,
+                            text: item
+                                .get("text")
+                                .and_then(|t| t.as_str())
+                                .unwrap_or("")
+                                .to_string(),
+                            start_ms: item.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0),
+                            end_ms: item.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0),
+                            dst: item
+                                .get("dst")
+                                .and_then(|t| t.as_str())
+                                .unwrap_or("")
+                                .to_string(),
+                            src_lang: item
+                                .get("src_lang")
+                                .and_then(|v| v.as_str())
+                                .map(String::from),
+                            dst_lang: item
+                                .get("dst_lang")
+                                .and_then(|v| v.as_str())
+                                .map(String::from),
+                            speaker: item
+                                .get("speaker")
+                                .and_then(|v| v.as_str())
+                                .map(String::from),
+                            text_confidence: None,
+                        },
+                        slot_end_ms: item.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0),
+                        tts_duration_ms: 0,
+                        status: "skipped".to_string(),
+                    });
+                }
                 continue;
             }
         }
@@ -226,7 +273,9 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
             0
         };
 
-        // skipExisting: 输出比参考新则跳过
+        // skipExisting: 输出比参考新且可被正常探测 (时长>0) 才跳过。
+        // 加 probe_duration_ms>0 兜底: 历史损坏/零头 wav 即使 mtime 较新也不复用,
+        // 否则会带着坏文件进 mix_audio (exit 183 Invalid data)。
         if args.skip_existing && Path::new(&out_path).exists() {
             let out_mtime = fs::metadata(&out_path)
                 .and_then(|m| {
@@ -237,7 +286,8 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
                     })
                 })
                 .unwrap_or(0);
-            if out_mtime > ref_mtime {
+            let out_dur = probe_duration_ms(&out_path);
+            if out_mtime > ref_mtime && out_dur > 0 {
                 let dur = probe_duration_ms(&out_path);
                 tts_segments.push(TtsSegment {
                     timing: crate::stages::split_audio::out::SplitAudioTiming {
@@ -266,6 +316,12 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
                 });
                 continue;
             }
+        }
+
+        // onlyIndices 命中段: 先删旧 wav 再合成 (镜像 TS rmSync(outPath)),
+        // 避免残留坏文件 / 旧结果干扰本次合成。
+        if only_active && Path::new(&out_path).exists() {
+            let _ = fs::remove_file(&out_path);
         }
 
         // 空译文 -> 合法静音 wav
