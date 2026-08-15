@@ -9,6 +9,8 @@ use crate::context::read_ctx;
 use crate::stages::get_stages;
 use crate::stages::separate::{stage_separate, stage_separate_after};
 use crate::stages::sf_ocr::{stage_sf_ocr, stage_sf_ocr_fix, stage_sf_ocr_pre};
+use crate::stages::split_audio::stage_split_audio;
+use crate::stages::translate::stage_translate;
 use crate::stages::utils::{
     StagePatch, StageStatus, emit_log, now_iso, set_stage_anyhow, set_task_anyhow,
 };
@@ -133,7 +135,13 @@ pub fn run_pipeline(task_dir: &str) -> anyhow::Result<()> {
 fn has_handler(stage: &str) -> bool {
     matches!(
         stage,
-        "separate" | "separate_after" | "sf_ocr_pre" | "sf_ocr" | "sf_ocr_fix"
+        "separate"
+            | "separate_after"
+            | "sf_ocr_pre"
+            | "sf_ocr"
+            | "sf_ocr_fix"
+            | "translate"
+            | "split_audio"
     )
 }
 
@@ -149,6 +157,8 @@ fn run_stage(stage: &str, task_dir: &str) -> anyhow::Result<()> {
         "sf_ocr_pre" => stage_sf_ocr_pre(&ctx),
         "sf_ocr" => stage_sf_ocr(&ctx),
         "sf_ocr_fix" => stage_sf_ocr_fix(&ctx),
+        "translate" => stage_translate(&ctx),
+        "split_audio" => stage_split_audio(&ctx),
         // 后续阶段在此登记, 例如:
         // "asr" => stage_asr(&ctx),
         _ => Ok(()),
@@ -184,7 +194,7 @@ mod tests {
             json!({
                 "task": {"id":"t","task_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"stages": {"separate": {"always": false}}},
+                "input": {"stages": {"separate": {"always": false}, "translate": {"enabled": false}}},
                 "pipeline": "subtitle"
             }),
             "subtitle",
@@ -218,7 +228,7 @@ mod tests {
             json!({
                 "task": {"id":"t","task_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"targetStage": "separate", "stages": {"separate": {"always": false}}},
+                "input": {"targetStage": "separate", "stages": {"separate": {"always": false}, "translate": {"enabled": false}}},
                 "pipeline": "subtitle"
             }),
             "subtitle",

@@ -39,3 +39,7 @@ pub fn openai_base_url() -> String {
 pub fn openai_model() -> String {
     var_or("OPENAI_MODEL", "gemma4:31b-cloud")
 }
+
+pub fn openai_api_key() -> Option<String> {
+    var("OPENAI_API_KEY").filter(|v| !v.is_empty())
+}

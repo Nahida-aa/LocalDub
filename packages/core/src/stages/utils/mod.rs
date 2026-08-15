@@ -167,6 +167,30 @@ pub(crate) fn ffmpeg_bin() -> String {
     std::env::var("FFMPEG_PATH").unwrap_or_else(|_| "ffmpeg".to_string())
 }
 
+/// 用 ffprobe 取媒体时长 (毫秒), 失败返回 0 (镜像 TS `probeDurationMs`)。
+pub fn probe_duration_ms(path: &str) -> u64 {
+    let bin = std::env::var("FFPROBE_PATH").unwrap_or_else(|_| "ffprobe".to_string());
+    let out = std::process::Command::new(&bin)
+        .args([
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "csv=p=0",
+            path,
+        ])
+        .output();
+    match out {
+        Ok(o) if o.status.success() => {
+            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            let secs: f64 = s.parse().unwrap_or(0.0);
+            (secs * 1000.0).round() as u64
+        }
+        _ => 0,
+    }
+}
+
 /// 执行 ffmpeg (自动前置 `-y` 覆盖输出), 非零退出即报错 (含 stderr)。
 /// 参数格式与 TS `ffmpeg(args)` 一致: 传入不含 `-y` 的参数字串切片。
 pub fn ffmpeg(args: &[String]) -> anyhow::Result<()> {
@@ -255,6 +279,178 @@ pub fn find_release_bin(name: &str) -> Option<PathBuf> {
         }
     }
     None
+}
+
+// ---------------------------------------------------------------------------
+// 字幕/翻译/切分 路径 helper (镜像 TS stages/utils/utils.ts)
+// ---------------------------------------------------------------------------
+
+/// 语言码 -> 展示名 (镜像 TS `LANG_NAMES`)。未命中也返回原码。
+pub fn lang_name(code: &str) -> String {
+    let m: &[(&str, &str)] = &[
+        ("en", "English"),
+        ("zh", "Chinese"),
+        ("vi", "Vietnamese"),
+        ("ja", "Japanese"),
+        ("ko", "Korean"),
+        ("fr", "French"),
+        ("de", "German"),
+        ("es", "Spanish"),
+        ("pt", "Portuguese"),
+        ("ru", "Russian"),
+        ("ar", "Arabic"),
+        ("hi", "Hindi"),
+        ("th", "Thai"),
+        ("id", "Indonesian"),
+        ("ms", "Malay"),
+        ("tl", "Tagalog"),
+        ("my", "Burmese"),
+        ("km", "Khmer"),
+        ("lo", "Lao"),
+        ("mn", "Mongolian"),
+        ("ne", "Nepali"),
+        ("ur", "Urdu"),
+        ("bn", "Bengali"),
+    ];
+    m.iter()
+        .find(|(c, _)| *c == code)
+        .map(|(_, n)| n.to_string())
+        .unwrap_or_else(|| code.to_string())
+}
+
+/// 解析 subtitleSource (缺省 "asr")
+fn subtitle_source(input: &serde_json::Value) -> String {
+    input
+        .get("task")
+        .and_then(|v| v.get("subtitleSource"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("asr")
+        .to_string()
+}
+
+/// 权威字幕文件路径 (asr_fix / sf_ocr_fix / asr_ocr_fix 按 subtitleSource 决定)。
+/// 镜像 TS `subtitleFilePath`。
+pub fn subtitle_file_path(ctx: &crate::context::TaskCtx) -> String {
+    let src = subtitle_source(&ctx.input);
+    if src == "sf_ocr" {
+        let llm_fix = ctx
+            .input
+            .get("stages")
+            .and_then(|v| v.get("sf_ocr_fix"))
+            .and_then(|v| v.get("llmFix"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let filename = if llm_fix {
+            "segment_filter_llm_fix.json"
+        } else {
+            "segment_filter.json"
+        };
+        return sf_ocr_fix_dir(&ctx.task.task_dir)
+            .join(filename)
+            .to_string_lossy()
+            .into_owned();
+    }
+    if src == "asr_ocr" {
+        let llm_fix = ctx
+            .input
+            .get("stages")
+            .and_then(|v| v.get("asr_ocr_fix"))
+            .and_then(|v| v.get("llmFix"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let filename = if llm_fix {
+            "asr_ocr_fused_llm_fix.json"
+        } else {
+            "asr_ocr_fused.json"
+        };
+        return Path::new(&ctx.task.task_dir)
+            .join("asr_ocr_fix")
+            .join(filename)
+            .to_string_lossy()
+            .into_owned();
+    }
+    Path::new(&ctx.task.task_dir)
+        .join("asr_fix")
+        .join("asr_fix.json")
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// 翻译文件路径 `translate/translation.{lang}.json`。
+pub fn translation_file_path(task_dir: &str, lang: &str) -> PathBuf {
+    Path::new(task_dir)
+        .join("translate")
+        .join(format!("translation.{lang}.json"))
+}
+
+/// split_audio 结果路径 `split_audio/split_audio.json` (padding 后时序)。
+pub fn split_audio_path(task_dir: &str) -> PathBuf {
+    Path::new(task_dir)
+        .join("split_audio")
+        .join("split_audio.json")
+}
+
+/// split_audio 意图时序路径 `split_audio/timings.json`。
+pub fn split_audio_timings_path(task_dir: &str) -> PathBuf {
+    Path::new(task_dir).join("split_audio").join("timings.json")
+}
+
+/// 读取翻译结果 (镜像 TS `readTranslationResult`), 须已解析 target_language。
+pub fn read_translation_result(ctx: &crate::context::TaskCtx) -> anyhow::Result<serde_json::Value> {
+    let lang = ctx
+        .target_language
+        .clone()
+        .ok_or_else(|| anyhow::anyhow!("ctx.target_language 未设置, 无法读取翻译结果"))?;
+    let file = translation_file_path(&ctx.task.task_dir, &lang);
+    let raw = std::fs::read_to_string(&file)
+        .map_err(|e| anyhow::anyhow!("读取翻译文件 {} 失败: {}", file.display(), e))?;
+    serde_json::from_str(&raw)
+        .map_err(|e| anyhow::anyhow!("解析翻译文件 {} 失败: {}", file.display(), e))
+}
+
+/// 解析目标语言: input > auto 推断 (源语言 zh -> en, 否则 any -> zh)。
+/// 与 TS `resolveLanguage` 一致: 若解析出的目标语言与 ctx.target_language 不同, 写回
+/// ctx.json 的 target_language (通过 [`set_task`])。返回 (srcLang, targetLang)。
+pub fn resolve_language(ctx: &crate::context::TaskCtx) -> anyhow::Result<(String, String)> {
+    let input_target = ctx
+        .input
+        .get("stages")
+        .and_then(|v| v.get("translate"))
+        .and_then(|v| v.get("targetLang"))
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let src_lang = ctx.asr_language.clone().unwrap_or_else(|| "zh".to_string());
+    let existing_dst = ctx
+        .target_language
+        .clone()
+        .unwrap_or_else(|| "zh".to_string());
+    let resolved = input_target
+        .or_else(|| {
+            if src_lang == "zh" {
+                Some("en".to_string())
+            } else {
+                Some("zh".to_string())
+            }
+        })
+        .unwrap();
+    if resolved != existing_dst {
+        // 写回 ctx.target_language, 供后续翻译文件命名 / split_audio 读取 (best-effort:
+        // ctx.json 不存在时仅告警, 不影响当前 stage 返回解析结果)
+        if let Err(e) = write_target_language(&ctx.task.task_dir, &resolved) {
+            emit_log(
+                Some(&ctx.task.task_dir),
+                &format!("[WARN] 写回 target_language 失败: {e}"),
+            );
+        }
+    }
+    Ok((src_lang, resolved))
+}
+
+/// 单独写回 ctx.json 的 target_language 字段 (resolve_language 内部用)。
+fn write_target_language(task_dir: &str, lang: &str) -> Result<(), String> {
+    let mut ctx = read_ctx(task_dir)?;
+    ctx.target_language = Some(lang.to_string());
+    write_ctx(task_dir, &ctx)
 }
 
 // ---------------------------------------------------------------------------
