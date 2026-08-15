@@ -11,23 +11,42 @@ use demucs_core::provider::ModelProvider;
 use demucs_core::provider::fs::FsProvider;
 use demucs_core::{Demucs, ModelOptions};
 
-#[cfg(feature = "cpu")]
-type B = burn::backend::Cpu;
-
-#[cfg(feature = "wgpu")]
-type B = burn::backend::wgpu::Wgpu;
-
-#[cfg(all(feature = "vulkan", not(feature = "wgpu")))]
-type B = burn::backend::wgpu::Wgpu;
-
-#[cfg(feature = "rocm")]
-type B = burn::backend::Rocm;
-
-#[cfg(feature = "cuda")]
-type B = burn::backend::Cuda;
-
+// 后端类型别名。各二进制通过 `required-features` 绑定唯一 feature, 但 `default = ["wgpu"]`
+// 会让 wgpu 在仅 `--features <x>` 时仍生效, 触发 `type B` 重复定义 (E0428)。
+// 这里用互斥 cfg 链 (优先级 tch > rocm > cuda > vulkan > wgpu > cpu) 保证仅一个 `B` 存活,
+// 使「手动 `cargo build --bin demucs-burn-tch`」(不带 --no-default-features) 也能编译。
 #[cfg(feature = "tch")]
 type B = burn::backend::LibTorch;
+#[cfg(all(feature = "rocm", not(feature = "tch")))]
+type B = burn::backend::Rocm;
+#[cfg(all(feature = "cuda", not(any(feature = "tch", feature = "rocm"))))]
+type B = burn::backend::Cuda;
+#[cfg(all(
+    feature = "vulkan",
+    not(any(feature = "tch", feature = "rocm", feature = "cuda"))
+))]
+type B = burn::backend::wgpu::Wgpu;
+#[cfg(all(
+    feature = "wgpu",
+    not(any(
+        feature = "tch",
+        feature = "rocm",
+        feature = "cuda",
+        feature = "vulkan"
+    ))
+))]
+type B = burn::backend::wgpu::Wgpu;
+#[cfg(all(
+    feature = "cpu",
+    not(any(
+        feature = "tch",
+        feature = "rocm",
+        feature = "cuda",
+        feature = "vulkan",
+        feature = "wgpu"
+    ))
+))]
+type B = burn::backend::Cpu;
 
 #[derive(Parser)]
 #[command(name = "demucs-burn")]
@@ -116,7 +135,11 @@ fn run() -> Result<()> {
         );
     };
 
-    #[cfg(any(feature = "wgpu", feature = "vulkan"))]
+    // device 必须与 `type B` 的互斥链一致: 仅当 tch/cpu/rocm/cuda 均未命中 (即 B 为
+    // wgpu 或 vulkan backend) 时才走 GPU 初始化分支; 否则用 `B::Device::default()`。
+    // 直接沿用 `any(feature="wgpu"|"vulkan")` 会在「wgpu 默认开启 + tch」时把 device 钉成
+    // WgpuDevice, 与 Demucs::<LibTorch> 的 LibTorchDevice 类型冲突 (E0308)。
+    #[cfg(not(any(feature = "tch", feature = "cpu", feature = "rocm", feature = "cuda")))]
     let device = {
         use burn::backend::wgpu::{RuntimeOptions, graphics::AutoGraphicsApi, init_setup};
         let d = Default::default();
@@ -128,7 +151,7 @@ fn run() -> Result<()> {
         d
     };
 
-    #[cfg(not(any(feature = "wgpu", feature = "vulkan")))]
+    #[cfg(any(feature = "tch", feature = "cpu", feature = "rocm", feature = "cuda"))]
     let device = Default::default();
 
     let load_start = Instant::now();
@@ -139,7 +162,7 @@ fn run() -> Result<()> {
     println!("Benchmark-Load-Time: {:.3}", load_time.as_secs_f64());
 
     if cli.warmup {
-        #[cfg(any(feature = "wgpu", feature = "vulkan"))]
+        #[cfg(not(any(feature = "tch", feature = "cpu", feature = "rocm", feature = "cuda")))]
         {
             eprintln!("Pre-compiling GPU shaders (first run only)...");
             let warmup_start = Instant::now();
@@ -148,8 +171,8 @@ fn run() -> Result<()> {
             eprintln!("Warmup done in {:.1}s", t.as_secs_f64());
             println!("Benchmark-Warmup-Time: {:.3}", t.as_secs_f64());
         }
-        #[cfg(not(feature = "wgpu"))]
-        eprintln!("Skipping GPU warmup (not wgpu backend)");
+        #[cfg(any(feature = "tch", feature = "cpu", feature = "rocm", feature = "cuda"))]
+        eprintln!("Skipping GPU warmup (non-GPU backend)");
     }
 
     if cli.benchmark_load {

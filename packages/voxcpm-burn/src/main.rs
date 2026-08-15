@@ -7,14 +7,21 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use voxcpm_rs::{GenerateOptions, VoxCPM, audio};
 
-#[cfg(all(feature = "vulkan", not(feature = "wgpu")))]
-type B = burn::backend::Vulkan<half::bf16, i32>;
-#[cfg(all(feature = "wgpu", not(feature = "vulkan")))]
-type B = burn::backend::Wgpu<f32, i32>;
-#[cfg(feature = "cpu")]
-type B = burn::backend::NdArray<f32>;
+// 后端类型别名。各二进制通过 `required-features` 绑定唯一 feature, 但 `default = ["wgpu"]`
+// 会让 wgpu 在仅 `--features <x>` 时仍生效, 触发 `type B` 重复定义 (E0428)。
+// 这里用互斥 cfg 链 (优先级 tch > vulkan > wgpu > cpu) 保证仅一个 `B` 存活,
+// 使「手动 `cargo build --bin voxcpm-burn-tch`」(不带 --no-default-features) 也能编译。
 #[cfg(feature = "tch")]
 type B = burn::backend::LibTorch<half::bf16>;
+#[cfg(all(feature = "vulkan", not(feature = "tch")))]
+type B = burn::backend::Vulkan<half::bf16, i32>;
+#[cfg(all(feature = "wgpu", not(any(feature = "tch", feature = "vulkan"))))]
+type B = burn::backend::Wgpu<f32, i32>;
+#[cfg(all(
+    feature = "cpu",
+    not(any(feature = "tch", feature = "vulkan", feature = "wgpu"))
+))]
+type B = burn::backend::NdArray<f32>;
 
 #[derive(Parser)]
 #[command(name = "voxcpm-burn")]
