@@ -78,7 +78,11 @@ fn find_libtorch_lib_dir() -> Option<PathBuf> {
     let repo = config_rs::root::repo_root();
     for profile in ["release", "debug"] {
         let build_dir = repo.join("target").join(profile).join("build");
-        let entries = std::fs::read_dir(&build_dir).ok()?;
+        // 该 profile 无 build 目录 (如只编过 debug) → 跳过, 不因此中断整个查找
+        let entries = match std::fs::read_dir(&build_dir) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
         for entry in entries.flatten() {
             let name = entry.file_name();
             let name = name.to_string_lossy();
