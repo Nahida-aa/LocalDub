@@ -7,9 +7,11 @@ pub mod input;
 pub mod items;
 
 use serde::Serialize;
+use std::collections::HashSet;
 
 use crate::cmd::env::input::{env_names, zh_desc};
 use crate::cmd::env::items::{all_checks, ensure_fns};
+use crate::input::Input;
 
 /// 检查状态 (serde 小写对齐 TS 字符串 "pass"/"warn"/"fail"/"skip")。
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
@@ -34,6 +36,108 @@ pub struct CheckResult {
 /// 全部环境项 key 集合 (镜像 TS `envList`)。
 pub fn env_list() -> Vec<&'static str> {
     env_names()
+}
+
+/// 按 `input.jsonc` 的 stages 配置推断本次任务所需的环境项 (targets 为空时使用)。
+///
+/// 设计: 从「核心工具链 + 配置」基础集出发, 按各 stage 的 runtime/device 追加依赖。
+/// 这是启发式推断 (非精确依赖图), 目标是给出「跟当前配置相关」的检查项, 避免每次扫全 31 项。
+pub fn infer_targets(input: &Input) -> Vec<String> {
+    use crate::stages::asr::args::{AsrDevice, Runtime as AsrRuntime};
+    use crate::stages::separate::args::Device as SepDevice;
+    use crate::stages::tts::args::{TtsDevice, TtsRuntime};
+    use crate::tasks::args::SubtitleSource;
+
+    let mut set: HashSet<String> = HashSet::new();
+    let add = |s: &str, set: &mut HashSet<String>| {
+        set.insert(s.to_string());
+    };
+
+    // 基础: 任何任务都需要的工具链与配置
+    for k in ["bun", "python", "uv", "ffmpeg", "git", "cmake", "dotenv"] {
+        add(k, &mut set);
+    }
+
+    let stages = &input.stages;
+    let subtitle_source = input
+        .task
+        .as_ref()
+        .map(|t| t.subtitle_source)
+        .unwrap_or(SubtitleSource::Asr);
+
+    // --- sf_ocr / asr_ocr: OCR 阶段需要 ocr_cpp_bin (cmake 已在基础集) ---
+    if subtitle_source == SubtitleSource::SfOcr {
+        add("ocr_cpp_bin", &mut set);
+    }
+    // asr_ocr 阶段 (flatten 复用 SfOcrArgs, 无 enabled 开关) → 同样需要 ocr_cpp_bin
+    // 仅当 subtitle_source 非纯 asr 时纳入 (asr 流程也会跑 asr_ocr 做校正)
+    if subtitle_source != SubtitleSource::Asr {
+        add("ocr_cpp_bin", &mut set);
+    }
+
+    // --- asr ---
+    match stages.asr.runtime {
+        AsrRuntime::Ggml => add("whisper_ggml", &mut set),
+        // faster-whisper / pytorch 仍依赖 whisper 模型 (pth 形态, 这里用 ggml 占位检查)
+        AsrRuntime::FasterWhisper | AsrRuntime::Pytorch => add("whisper_ggml", &mut set),
+    }
+    if stages.asr.vad {
+        add("whisper_vad", &mut set);
+    }
+    if stages.asr.device == AsrDevice::Vulkan {
+        add("whisper_bin", &mut set);
+        add("vulkan", &mut set);
+    }
+    if stages.asr.device == AsrDevice::Cuda {
+        add("cuda", &mut set);
+    }
+    if stages.asr.device == AsrDevice::Mps {
+        add("cuda", &mut set); // mps 复用 apple 驱动检查 (无独立项)
+    }
+
+    // --- separate / demucs ---
+    // asr.useSeparated 或 separate.always 表示需要人声分离
+    if stages.asr.use_separated || stages.separate.always {
+        add("demucs_pth", &mut set);
+        add("demucs_burn_bin", &mut set);
+        match stages.separate.device {
+            SepDevice::Vulkan => add("vulkan", &mut set),
+            SepDevice::Cuda => add("cuda", &mut set),
+            SepDevice::Webgpu => add("vulkan", &mut set), // webgpu 走 vulkan 驱动
+            SepDevice::Cpu | SepDevice::Mps => {}
+        }
+    }
+
+    // --- translate: 启用则依赖 openai 兼容 API ---
+    if stages.translate.enabled {
+        add("openai", &mut set);
+    }
+
+    // --- tts ---
+    match stages.tts.runtime {
+        TtsRuntime::Cloud => add("openai", &mut set), // 云端 TTS 走 OpenAI 兼容 API
+        TtsRuntime::Ggml => {
+            add("voxcpm2_onnx", &mut set);
+            add("voxcpm_burn_bin", &mut set);
+        }
+        TtsRuntime::VoxcpmTorchGradio => {
+            add("voxcpm2_pth", &mut set);
+            add("voxcpm_burn_bin", &mut set);
+        }
+    }
+    match stages.tts.device {
+        TtsDevice::Webgpu => add("vulkan", &mut set),
+        TtsDevice::Cuda => add("cuda", &mut set),
+        TtsDevice::Rocm => add("rocm", &mut set),
+        TtsDevice::Cpu | TtsDevice::Mps => {}
+    }
+
+    // 按 env_names 稳定顺序输出 (与 run_check 全量顺序一致)
+    env_names()
+        .into_iter()
+        .filter(|n| set.contains(*n))
+        .map(|s| s.to_string())
+        .collect()
 }
 
 /// 解析目标: 空 → 全部; 过滤到 all_checks 中存在的 key; 过滤后空 → 全部。

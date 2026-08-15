@@ -207,23 +207,89 @@ fn main() {
 }
 
 /// 处理 `cli env` 子命令: 默认 `check`, 支持 `check`/`ensure` 动作与 targets 过滤。
+///
+/// targets 解析优先级:
+/// 1. CLI 显式传入 (`cli env check ffmpeg python`) → 直接用;
+/// 2. 否则读 `input.jsonc` 的 `env.targets` (非空时用);
+/// 3. 仍为空 → 按 `input.jsonc` 的 stages 配置推断本次任务所需环境项 (`infer_targets`)。
+///
+/// action 同理: CLI `check`/`ensure` > `input.env.action` > 默认 `check`。
 fn run_env(args: &[String]) -> anyhow::Result<()> {
-    let (action, targets) = match args.first().map(|s| s.as_str()) {
-        Some("check") => ("check", &args[1..]),
-        Some("ensure") => ("ensure", &args[1..]),
+    let (cli_action, cli_targets) = match args.first().map(|s| s.as_str()) {
+        Some("check") => (Some("check"), &args[1..]),
+        Some("ensure") => (Some("ensure"), &args[1..]),
         // 无动作 / 未知首参 → 当作 targets, 走默认 check
-        _ => ("check", args),
+        _ => (None, args),
     };
-    let results = if action == "ensure" {
-        ld_core::cmd::env::run_ensure(targets)
+
+    // 读 input.jsonc (用于 targets/action 回退与推断); 读不到则回退到全量。
+    let input = parse_repo_input().ok();
+
+    let action = cli_action
+        .map(|s| s.to_string())
+        .or_else(|| {
+            input.as_ref().and_then(|i| i.env.as_ref()).map(|e| {
+                match e.action {
+                    ld_core::input::EnvAction::Ensure => "ensure",
+                    _ => "check",
+                }
+                .to_string()
+            })
+        })
+        .unwrap_or_else(|| "check".to_string());
+
+    // targets: CLI 显式 > input.env.targets > 推断
+    let targets: Vec<String> = if !cli_targets.is_empty() {
+        cli_targets.to_vec()
+    } else if let Some(env_args) = input.as_ref().and_then(|i| i.env.as_ref()) {
+        if env_args.targets.is_empty() {
+            ld_core::cmd::env::infer_targets(input.as_ref().unwrap())
+        } else {
+            env_args.targets.clone()
+        }
     } else {
-        ld_core::cmd::env::run_check(targets)
+        Vec::new() // 回退: run_check 全量
+    };
+
+    let infer_note = if cli_targets.is_empty()
+        && input
+            .as_ref()
+            .and_then(|i| i.env.as_ref())
+            .map(|e| e.targets.is_empty())
+            .unwrap_or(false)
+    {
+        " (按 input.jsonc 推断)"
+    } else {
+        ""
+    };
+
+    let results = if action == "ensure" {
+        ld_core::cmd::env::run_ensure(&targets)
+    } else {
+        ld_core::cmd::env::run_check(&targets)
     };
     for r in &results {
         println!("{}", ld_core::cmd::env::format_result(r));
     }
-    println!("[cli] env {} 完成: {} 项", action, results.len());
+    println!(
+        "[cli] env {}{} 完成: {} 项",
+        action,
+        infer_note,
+        results.len()
+    );
     Ok(())
+}
+
+/// 解析仓库根 `input.jsonc`/`input.json` 为 `ld_core::input::Input` (复用 `run` 的解析逻辑)。
+/// 解析失败返回 None (调用方回退到全量检查), 不中断流程。
+fn parse_repo_input() -> anyhow::Result<ld_core::input::Input> {
+    let path = resolve_input_path()?;
+    let raw = std::fs::read_to_string(&path)
+        .with_context(|| format!("读取 input 失败: {}", path.display()))?;
+    let cleaned = strip_jsonc_comments(&raw);
+    let input: ld_core::input::Input = serde_json::from_str(&cleaned)
+        .with_context(|| format!("解析 input JSON 失败: {}", path.display()))?;
+    Ok(input)
 }
 
 #[cfg(test)]
