@@ -4,7 +4,8 @@
 //! 1. 默认从仓库根目录读取 `input.jsonc` (优先) 或 `input.json`。
 //! 2. 剥离 JSONC 注释 (`//` 行注释 与 `/* */` 块注释)。
 //! 3. 反序列化为 `ld_core::input::Input`。
-//! 4. 调用 `ld_core::tasks::start_task` (导入视频 → 跑完整 pipeline)。
+//! 4. 调 `ld_core::cmd::tasks::task::cmd_task` 总派发 (镜像 TS `cmdTask`):
+//!    start / continue / status / get_group_list / get_task_ctx。
 //!
 //! 失败打印错误并以退出码 1 退出, 成功以 0 退出。
 
@@ -12,10 +13,8 @@ use std::path::PathBuf;
 use std::process::{Command, exit};
 
 use anyhow::Context;
+use ld_core::cmd::tasks::task::cmd_task;
 use ld_core::input::Input;
-use ld_core::tasks::args::TaskAction;
-use ld_core::tasks::continue_pipeline;
-use ld_core::tasks::start_task;
 
 /// 剥离 JSONC 注释: `//` 行注释 与 `/* ... */` 块注释。
 ///
@@ -133,32 +132,9 @@ fn run() -> anyhow::Result<()> {
 
     println!("[cli] 读取 input: {}", input_path.display());
 
-    let task = input.task.clone().unwrap_or_default();
-
-    // 分派只看 action 字段 (对齐 TS cmdTask): action=continue → 续跑(跳过 import,
-    // 需要 taskDir); 否则 (start / 缺省 / 其他) → 重新 import_video 再跑全 pipeline。
-    // 注意: start 带 taskDir 时 TS 会忽略 taskDir、按 url 重新导入, 不会续跑已有任务。
-    match task.action {
-        Some(TaskAction::Continue) => {
-            let task_dir = task.task_dir.clone().ok_or_else(|| {
-                anyhow::anyhow!("continue 模式需要 task.taskDir 指定已有任务目录")
-            })?;
-            if !std::path::Path::new(&task_dir).join("ctx.json").exists() {
-                return Err(anyhow::anyhow!(
-                    "continue 模式找不到 {}/ctx.json, 确认 taskDir 正确",
-                    task_dir
-                ));
-            }
-            println!("[cli] 续跑模式, task_dir = {}", task_dir);
-            let ctx = ld_core::context::read_ctx(&task_dir)
-                .map_err(|e| anyhow::anyhow!("读取 {}/ctx.json 失败: {e}", task_dir))?;
-            continue_pipeline(&ctx).context("continue_pipeline 失败")?;
-            println!("[cli] 完成: {}", task_dir);
-        }
-        _ => {
-            start_task(&input).context("start_task 失败")?;
-        }
-    }
+    // 总派发交给 cmd_task (镜像 TS cmdTask): 按 input.task.action 分派
+    // start / continue / status / get_group_list / get_task_ctx。
+    cmd_task(&input).context("cmd_task 失败")?;
     Ok(())
 }
 

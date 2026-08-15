@@ -28,6 +28,22 @@ const MIN_REF_BYTES: u64 = 1200 * 16 * 2;
 /// refAudioX2 触发阈值: 参考音短于此则拼接自身翻倍。
 const MIN_REF_DURATION_MS: u64 = 2500;
 
+/// TTS 静音段统一采样率。VoxCPM cloud 归一化到 48000Hz (`voxlab::TARGET_SAMPLE_RATE`),
+/// 本地二进制输出也为 48k, 故静音占位统一用 48000Hz 以保证与合成段、mix_audio 探测一致。
+const SILENT_SAMPLE_RATE: u32 = 48000;
+
+/// 写一段合法的静音 wav (47000Hz 单声道, 无采样数据)。
+///
+/// 用于「有意跳过」的段 (onlyIndices 排除 / 空译文 / 无参考音),
+/// 取代原先 `fs::write(vec![0u8;44])` 写的*非法零头* wav —— 后者无 RIFF 标记,
+/// 会让后续 mix_audio 的 ffprobe/trim 步骤读取失败 (exit 183 "Invalid data")。
+///
+/// 合法静音 wav 可被 ffprobe 正常探测到 48000Hz, 且时长 0ms, mix_audio 会自然跳过该段。
+fn write_silent_wav(out_path: &str) -> anyhow::Result<()> {
+    voxlab::write_wav(&[], SILENT_SAMPLE_RATE, out_path)
+        .map_err(|e| anyhow::anyhow!("写静音 wav {} 失败: {e}", out_path))
+}
+
 /// 从 `ctx.input.stages.tts` 解析配置 (镜像 TS `ctx.input.stages.tts`)。
 fn read_args(ctx: &TaskCtx) -> TtsArgs {
     ctx.input
@@ -136,7 +152,7 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
                     Some(&task_dir),
                     &format!("[TTS] 段 {idx} 不在 onlyIndices 中, 跳过"),
                 );
-                fs::write(&out_path, vec![0u8; 44]).ok();
+                write_silent_wav(&out_path)?;
                 tts_segments.push(TtsSegment {
                     timing: crate::stages::split_audio::out::SplitAudioTiming {
                         seg_idx,
@@ -252,9 +268,9 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
             }
         }
 
-        // 空译文 -> 空 wav
+        // 空译文 -> 合法静音 wav
         if text.trim().is_empty() {
-            fs::write(&out_path, vec![0u8; 44]).ok();
+            write_silent_wav(&out_path)?;
             tts_segments.push(TtsSegment {
                 timing: crate::stages::split_audio::out::SplitAudioTiming {
                     seg_idx: (i + 1) as u32,
@@ -289,7 +305,7 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
                 Some(&task_dir),
                 &format!("[WARN] [TTS] 段 {idx} 无参考音, 跳过"),
             );
-            fs::write(&out_path, vec![0u8; 44]).ok();
+            write_silent_wav(&out_path)?;
             tts_segments.push(TtsSegment {
                 timing: crate::stages::split_audio::out::SplitAudioTiming {
                     seg_idx: (i + 1) as u32,
