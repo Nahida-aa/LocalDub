@@ -231,19 +231,19 @@ fn probe_style(video_file: &str, dst_lang: &str, cfg: &MixVideoArgs, alignment_n
     let (width, height) = probe_video_resolution(video_file);
     let is_portrait = height > width && height > 0;
     let font_size = cfg.font_size.unwrap_or(if is_portrait {
-        if dst_lang == "zh" { 12 } else { 9 }
+        if dst_lang == "zh" { 12.0 } else { 9.0 }
     } else if dst_lang == "zh" {
-        24
+        24.0
     } else {
-        18
+        18.0
     });
-    let margin_v = cfg.margin_v.unwrap_or(if is_portrait { 70 } else { 5 });
+    let margin_v = cfg.margin_v.unwrap_or(if is_portrait { 70.0 } else { 5.0 });
     let outline = cfg.outline;
     let shadow = cfg.shadow;
     let font = cfg.font.clone().unwrap_or_else(|| default_font(dst_lang));
     format!(
         "FontName={font},FontSize={font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle={},Outline={outline},Shadow={shadow},Alignment={alignment_num},MarginV={margin_v}",
-        if outline > 0 { 1 } else { 0 }
+        if outline > 0.0 { 1 } else { 0 }
     )
 }
 
@@ -390,8 +390,8 @@ mod tests {
     #[test]
     fn mix_video_args_defaults() {
         let a = MixVideoArgs::default();
-        assert_eq!(a.outline, 0);
-        assert_eq!(a.shadow, 1);
+        assert_eq!(a.outline, 0.0);
+        assert_eq!(a.shadow, 1.0);
         assert_eq!(a.bgm_gain, -6.0);
         assert_eq!(a.dub_gain, 3.0);
         assert_eq!(a.alignment, None);
@@ -435,5 +435,23 @@ mod tests {
         assert!(f.starts_with("subtitles=filename='"));
         assert!(!f.contains("'sub.srt")); // 单引号被转义
         assert!(f.contains("\\'"));
+    }
+
+    #[test]
+    fn mix_video_args_accepts_decimals() {
+        // 镜像 TS z.number(): fontSize/shadow/marginV/outline 支持小数
+        let cfg: MixVideoArgs =
+            serde_json::from_str(r#"{"fontSize":21.4,"shadow":1.1,"marginV":45.5,"outline":0.5}"#)
+                .expect("小数应可解析");
+        assert_eq!(cfg.font_size, Some(21.4));
+        assert_eq!(cfg.shadow, 1.1);
+        assert_eq!(cfg.margin_v, Some(45.5));
+        assert_eq!(cfg.outline, 0.5);
+
+        let style = probe_style("/nonexistent.mp4", "zh", &cfg, 2);
+        assert!(style.contains("FontSize=21.4"));
+        assert!(style.contains("MarginV=45.5"));
+        assert!(style.contains("Shadow=1.1"));
+        assert!(style.contains("Outline=0.5"));
     }
 }

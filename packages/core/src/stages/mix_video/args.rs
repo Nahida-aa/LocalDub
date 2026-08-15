@@ -45,20 +45,28 @@ pub fn alignment_to_ffmpeg(alignment: Alignment) -> u8 {
 #[serde(rename_all = "camelCase")]
 pub struct MixVideoArgs {
     /// 字幕字号, 不填则自动: 竖屏 12(zh)/9(其他) ← 横屏 24(zh)/18(其他)
+    ///
+    /// 镜像 TS `z.number()` (允许小数, 与 ASS `FontSize` 一致)。
     #[serde(default)]
-    pub font_size: Option<u32>,
+    pub font_size: Option<f64>,
     /// 垂直边距(像素), 不填则自动: 竖屏 70 / 横屏 5
+    ///
+    /// 镜像 TS `z.number().min(0)` (允许小数)。
     #[serde(default)]
-    pub margin_v: Option<u32>,
+    pub margin_v: Option<f64>,
     /// 对齐位置; 默认 bottom-center
     #[serde(default)]
     pub alignment: Option<Alignment>,
     /// 描边宽度; 默认 0
+    ///
+    /// 镜像 TS `z.number().min(0).default(0)` (允许小数)。
     #[serde(default = "default_outline")]
-    pub outline: u32,
+    pub outline: f64,
     /// 阴影宽度; 默认 1
+    ///
+    /// 镜像 TS `z.number().min(0).default(1)` (允许小数)。
     #[serde(default = "default_shadow")]
-    pub shadow: u32,
+    pub shadow: f64,
     /// ASS 字幕字体名 (须系统已安装), 默认 Noto Sans CJK SC
     #[serde(default)]
     pub font: Option<String>,
@@ -101,12 +109,12 @@ impl Default for MixVideoArgs {
     }
 }
 
-fn default_outline() -> u32 {
-    0
+fn default_outline() -> f64 {
+    0.0
 }
 
-fn default_shadow() -> u32 {
-    1
+fn default_shadow() -> f64 {
+    1.0
 }
 
 fn default_bgm_gain() -> f64 {
