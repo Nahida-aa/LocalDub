@@ -3,6 +3,7 @@
 //! 镜像 TS `packages/core/stages/separate/`。逻辑编排: 校验输入 → 选择 demucs-burn 后端
 //! → spawn 二进制 → 流式解析 `(xx%)` 进度 → 标记 stage 完成。
 
+pub mod after;
 pub mod args;
 
 use std::path::PathBuf;
@@ -13,6 +14,7 @@ use crate::stages::utils::{
     StagePatch, StageStatus, emit_log, now_iso, separate_dir, set_stage, set_stage_anyhow,
 };
 
+pub use after::stage_separate_after;
 pub use args::SeparateArgs;
 
 /// 从 `ctx.input.stages.separate` 解析配置 (与 TS default 对齐)

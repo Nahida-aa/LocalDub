@@ -159,6 +159,36 @@ pub fn set_task_anyhow(task_dir: &str, patch: TaskPatch) -> anyhow::Result<()> {
 }
 
 // ---------------------------------------------------------------------------
+// ffmpeg 执行 (镜像 TS utils.ts 的 ffmpeg())
+// ---------------------------------------------------------------------------
+
+/// 取 ffmpeg 二进制路径: 优先 `FFMPEG_PATH` 环境变量, 回退 PATH 中的 `ffmpeg`。
+pub(crate) fn ffmpeg_bin() -> String {
+    std::env::var("FFMPEG_PATH").unwrap_or_else(|_| "ffmpeg".to_string())
+}
+
+/// 执行 ffmpeg (自动前置 `-y` 覆盖输出), 非零退出即报错 (含 stderr)。
+/// 参数格式与 TS `ffmpeg(args)` 一致: 传入不含 `-y` 的参数字串切片。
+pub fn ffmpeg(args: &[String]) -> anyhow::Result<()> {
+    let bin = ffmpeg_bin();
+    let mut cmd = std::process::Command::new(&bin);
+    cmd.arg("-y");
+    cmd.args(args);
+    let out = cmd
+        .output()
+        .map_err(|e| anyhow::anyhow!("无法执行 {bin} (PATH 中未找到? 需安装): {e}"))?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        return Err(anyhow::anyhow!(
+            "{bin} 退出码 {:?}: {}",
+            out.status.code(),
+            stderr
+        ));
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // 输出目录 / 路径 helper (镜像 TS utils.ts 的 *_dir / *_path)
 // ---------------------------------------------------------------------------
 

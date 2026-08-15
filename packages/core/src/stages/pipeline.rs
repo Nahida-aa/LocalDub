@@ -7,7 +7,7 @@
 
 use crate::context::read_ctx;
 use crate::stages::get_stages;
-use crate::stages::separate::stage_separate;
+use crate::stages::separate::{stage_separate, stage_separate_after};
 use crate::stages::utils::{
     StagePatch, StageStatus, emit_log, now_iso, set_stage_anyhow, set_task_anyhow,
 };
@@ -130,7 +130,7 @@ pub fn run_pipeline(task_dir: &str) -> anyhow::Result<()> {
 
 /// 是否存在已注册的 handler (镜像 TS `STAGE_HANDLERS[stage]` 是否存在)。
 fn has_handler(stage: &str) -> bool {
-    matches!(stage, "separate")
+    matches!(stage, "separate" | "separate_after")
 }
 
 /// 按 stage 名分派到具体 handler (镜像 TS `STAGE_HANDLERS`)。
@@ -138,14 +138,12 @@ fn has_handler(stage: &str) -> bool {
 /// 每个 handler 自行 `read_ctx` 获取最新 ctx (与 TS `readCtx(sp)` 一致)。
 /// 调用方已通过 [`has_handler`] 过滤, 此处仅处理已知 stage。
 fn run_stage(stage: &str, task_dir: &str) -> anyhow::Result<()> {
+    let ctx = read_ctx(task_dir).map_err(anyhow::Error::msg)?;
     match stage {
-        "separate" => {
-            let ctx = read_ctx(task_dir).map_err(anyhow::Error::msg)?;
-            stage_separate(&ctx)
-        }
+        "separate" => stage_separate(&ctx),
+        "separate_after" => stage_separate_after(&ctx),
         // 后续阶段在此登记, 例如:
-        // "separate_after" => stage_separate_after(&read_ctx(task_dir).map_err(anyhow::Error::msg)?),
-        // "asr" => stage_asr(&read_ctx(task_dir).map_err(anyhow::Error::msg)?),
+        // "asr" => stage_asr(&ctx),
         _ => Ok(()),
     }
 }
@@ -191,9 +189,11 @@ mod tests {
         let reread = crate::context::read_ctx(&dir).unwrap();
         assert_eq!(reread.task.status, "success");
         let st = reread.stages.unwrap();
-        assert_eq!(st.len(), 1);
-        assert_eq!(st[0].name, "separate");
-        assert_eq!(st[0].status, StageStatus::Success);
+        // subtitle 默认序列里 separate / separate_after 已注册 handler, 其余跳过
+        let by_name: std::collections::HashMap<&str, &crate::context::TaskStage> =
+            st.iter().map(|s| (s.name.as_str(), s)).collect();
+        assert_eq!(by_name["separate"].status, StageStatus::Success);
+        assert_eq!(by_name["separate_after"].status, StageStatus::Success);
         assert_eq!(reread.task.current_stage, None);
 
         let _ = std::fs::remove_dir_all(&dir);
