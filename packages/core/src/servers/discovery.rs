@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use config_rs::servers::ServerType;
-use mdns_sd::{ServiceDaemon, ServiceEvent};
 
 const MDNS_TIMEOUT: Duration = Duration::from_millis(3000);
 
@@ -62,17 +61,48 @@ pub async fn find_server(type_: ServerType) -> ServerInfo {
 /// 1. 启动 mDNS 浏览器
 /// 2. 在 timeout 内尽可能多地接收 ServiceResolved 事件
 /// 3. 超时后停止并返回结果
+///
+/// 底层用 [`mdns-sd-discovery`](https://docs.rs/mdns-sd-discovery)（走 OS 原生
+/// DNS-SD：Linux 用 avahi D-Bus，macOS/Windows 用系统 API），与 zeroconf/bonjour
+/// 互通。相比 mdns_sd 自实现的广播，原生栈在沙箱/跨库场景更可靠。
 pub async fn find_server_via_mdns_all(
     type_: ServerType,
     timeout: Option<Duration>,
 ) -> Vec<(String, u16)> {
     let timeout = timeout.unwrap_or(MDNS_TIMEOUT);
 
-    let Ok(daemon) = ServiceDaemon::new() else {
-        return vec![];
-    };
-    let Ok(receiver) = daemon.browse(type_.service_name()) else {
-        return vec![];
+    // mdns-sd-discovery 是 tokio async (avahi D-Bus)。若当前不在 tokio runtime
+    // (如同步 cli 调用), 自建一个临时 runtime 跑 browse。
+    match tokio::runtime::Handle::try_current() {
+        Ok(_) => {
+            browse_mdns(type_, timeout).await
+        }
+        Err(_) => {
+            let rt = match tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(rt) => rt,
+                Err(_) => return vec![],
+            };
+            rt.block_on(browse_mdns(type_, timeout))
+        }
+    }
+}
+
+/// 用 mdns-sd-discovery 浏览指定 service type, 在 timeout 内收集 (host, port)。
+async fn browse_mdns(type_: ServerType, timeout: Duration) -> Vec<(String, u16)> {
+    use mdns_sd_discovery::{BrowseEvent, ServiceBrowserBuilder};
+
+    // avahi service type 形如 `_ld-server._tcp` (无 `.local` 后缀)
+    let service_type = type_.service_name().trim_end_matches(".local");
+    let mut browser = match ServiceBrowserBuilder::new()
+        .service_type(service_type)
+        .browse()
+        .await
+    {
+        Ok(b) => b,
+        Err(_) => return vec![],
     };
 
     let deadline = std::time::Instant::now() + timeout;
@@ -83,21 +113,21 @@ pub async fn find_server_via_mdns_all(
         if remaining.is_zero() {
             break;
         }
-        match receiver.recv_timeout(remaining) {
-            Ok(ServiceEvent::ServiceResolved(info)) => {
-                let port = info.get_port();
-                for addr in info.get_addresses() {
-                    let entry = (addr.to_string(), port);
+        match tokio::time::timeout(remaining, browser.recv()).await {
+            Ok(Some(Ok(BrowseEvent::Found(svc)))) => {
+                for addr in svc.addresses {
+                    let entry = (addr.to_string(), svc.port);
                     if !results.contains(&entry) {
                         results.push(entry);
                     }
                 }
             }
-            _ => {}
+            Ok(Some(Ok(BrowseEvent::Removed(_)))) => {}
+            Ok(Some(Err(_))) => break, // 浏览失败
+            Ok(None) | Err(_) => break,
         }
     }
 
-    drop(daemon);
     results
 }
 

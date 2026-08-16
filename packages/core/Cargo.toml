@@ -21,3 +21,9 @@ ffmpeg-next.workspace = true
 voxlab.workspace = true
 reqwest.workspace = true
 indicatif.workspace = true
+mdns-sd-discovery.workspace = true
+# mdns-sd-discovery (avahi D-Bus) 需要 tokio runtime 跑 browse
+tokio = { version = "1", default-features = false, features = ["rt", "sync", "time"] }
+
+[dev-dependencies]
+futures = { version = "0.3", default-features = false, features = ["executor"] }

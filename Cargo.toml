@@ -47,15 +47,18 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 clap = { version = "4", features = ["derive"] }
 # 进度条（UX 层反馈，独立于 tracing 诊断日志）。
 indicatif = "0.17"
+# 原生 DNS-SD/mDNS 发现（Linux 走 avahi D-Bus，macOS/Windows 走系统 API）。
+# 相比 mdns-sd 的自实现广播，这里用 OS 原生栈，与 zeroconf/bonjour 互通。
+mdns-sd-discovery = "0.3"
 image = "0.25"
 ndarray = "0.17"
 # ocr-segment-adjust 用 ffmpeg 读视频像素高度（Y 偏移惩罚归一化分母），版本对齐 ocr-lab。
 ffmpeg-next = "9.0.0"
 # OCR 核心（从本仓库拆出的 ocr-lab）。git 源由 cargo 自动拉取/解析其内部
 # workspace 依赖与 [patch]，LocalDub 侧零镜像；版本以 ocr-lab 为准。
-subtitle-finder = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "225f74f6f980bae623c551d9c2f1439909c6e0ad" }
-subtitle-ocr = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "225f74f6f980bae623c551d9c2f1439909c6e0ad" }
-rapidocr-ort = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "225f74f6f980bae623c551d9c2f1439909c6e0ad" }
+subtitle-finder = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "81396471da2cf864d76b405bf7e98e4aa072cab1" }
+subtitle-ocr = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "81396471da2cf864d76b405bf7e98e4aa072cab1" }
+rapidocr-ort = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "81396471da2cf864d76b405bf7e98e4aa072cab1" }
 
 [profile.release]
 lto = "fat"
