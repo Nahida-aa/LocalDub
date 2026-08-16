@@ -146,6 +146,18 @@ fn run_demucs(
         .spawn()
         .map_err(|e| anyhow::anyhow!("spawn demucs-burn 失败: {}", e))?;
 
+    // 终端进度条 (对齐 sf-cli/ocr 的 indicatif UX, 走 stderr)。
+    // demucs 进度经 stdout pipe 读入, 这里解析并渲染到 cli 的 stderr;
+    // 非 TTY (重定向/后台日志) 时 indicatif 自动隐藏, 仅更新 stage.progress。
+    let pb = indicatif::ProgressBar::new(100);
+    pb.set_style(
+        indicatif::ProgressStyle::with_template(
+            "[{elapsed_precise}] 分离 [{bar:30.cyan/blue}] {pos}/{len}% ({eta})",
+        )
+        .unwrap_or_else(|_| indicatif::ProgressStyle::default_bar())
+        .progress_chars("=> "),
+    );
+
     let mut last_pct: i32 = -1;
     let stdout = child
         .stdout
@@ -168,6 +180,7 @@ fn run_demucs(
             if let Some(pct) = parse_progress_pct(&cur) {
                 if pct != last_pct {
                     last_pct = pct;
+                    pb.set_position(pct as u64);
                     let _ = set_stage(
                         task_dir,
                         "separate",
@@ -183,6 +196,7 @@ fn run_demucs(
     }
     // 处理最后一段 (无换行)
     if let Some(pct) = parse_progress_pct(&line) {
+        pb.set_position(pct as u64);
         let _ = set_stage(
             task_dir,
             "separate",
@@ -192,6 +206,7 @@ fn run_demucs(
             },
         );
     }
+    pb.finish_with_message("分离完成");
 
     let status = child
         .wait()

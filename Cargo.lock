@@ -5193,6 +5193,7 @@ dependencies = [
  "chrono",
  "config-rs",
  "ffmpeg-next",
+ "indicatif",
  "llm",
  "mdns-sd",
  "reqwest 0.12.28",
