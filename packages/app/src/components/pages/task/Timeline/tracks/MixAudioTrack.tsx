@@ -7,6 +7,8 @@ import {
   ContextMenuTrigger,
 } from "@repo/ui-solid/base/context-menu";
 import { openModal } from "@repo/ui-solid/custom/modal/renderer";
+import { AudioPlayer } from "#/components/ui/audio-player";
+import { mediaUrl } from "#/lib/utils/path.ts";
 import type { Track, TrackSegment } from "../consts";
 import { TrackEditModal } from "./comp/TrackEditModal";
 import { client } from "#/integrations/fnrpc/client.ts";
@@ -127,6 +129,23 @@ export function MixAudioTrack(props: Props) {
   });
   const filePath = () => `${taskDir}/mix_audio/timings.json`;
 
+  const handlePlay = (segIndex: number) => {
+    const seg = segments()[segIndex];
+    if (!seg) return;
+    const idx = String(segIndex + 1).padStart(4, "0");
+    const url = mediaUrl(`${taskDir}/mix_audio/stretched/${idx}.wav`);
+    const label = `#${segIndex + 1} ${seg.text}`;
+
+    openModal(
+      () => (
+        <div class="p-4 flex justify-center">
+          <AudioPlayer src={url} label={label} />
+        </div>
+      ),
+      { title: `播放合并片段 #${segIndex + 1}`, size: "sm" },
+    );
+  };
+
   const handleInsertBefore = async (segIndex: number) => {
     const newSegments = insertAt(segments(), segIndex, false);
     await client.write_app_file_text.call([filePath(), serializeSegments(newSegments)]);
@@ -206,6 +225,7 @@ export function MixAudioTrack(props: Props) {
               </div>
             </ContextMenuTrigger>
             <ContextMenuContent>
+              <ContextMenuItem onSelect={() => handlePlay(seg.index)}>播放合并音频</ContextMenuItem>
               <ContextMenuItem onSelect={() => handleInsertBefore(seg.index)}>
                 向前插入
               </ContextMenuItem>
