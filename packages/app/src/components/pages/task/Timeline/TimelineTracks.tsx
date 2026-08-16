@@ -6,6 +6,7 @@ import { MixAudioTrack } from "./tracks/MixAudioTrack";
 import { SplitAudioTrack } from "./tracks/SplitAudioTrack";
 import { TranslationTrack } from "./tracks/TranslationTrack";
 import { TtsTrack } from "./tracks/TtsTrack";
+import { trace } from "#/lib/debugLog.ts";
 
 interface Props {
   ref: (el: HTMLDivElement) => void;
@@ -64,14 +65,14 @@ function DefaultTrack(props: TrackComponentProps) {
 }
 
 export function TimelineTracks(props: Props) {
-  console.warn(
+  trace(
     `[TRACKS-ARR] len=${props.tracks.length} ids=${props.tracks.map((t) => t.id).join(",")} uniq=${new Set(props.tracks.map((t) => t.id)).size}`,
   );
   return (
     <div
       ref={(el) => {
         props.ref(el);
-        console.warn(`[REF-TRACKS] set pid=${(el as any).__pid ?? "(none)"}`);
+        trace(`[REF-TRACKS] set pid=${(el as any).__pid ?? "(none)"}`);
       }}
       class="flex-1 overflow-auto min-h-0"
       onScroll={props.onScroll}
@@ -81,7 +82,7 @@ export function TimelineTracks(props: Props) {
           {(track, i) => {
             const c = props.trackColor(i(), track);
             const Comp = trackComponents[track.id] || DefaultTrack;
-            console.warn(
+            trace(
               `[TRACK] i=${i()} id=${track.id} rawColor=${track.color ?? "(none)"} resolved=${c} segs=${track.segments.length}`,
             );
             return (

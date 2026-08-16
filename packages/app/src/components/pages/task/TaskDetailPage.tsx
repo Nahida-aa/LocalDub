@@ -20,6 +20,7 @@ import { useViewingTab } from "./TaskControlPanel/taskControlPanelStore";
 import { STAGE_TRACKS, TRACK_DEFS, type TrackDef } from "./Timeline/tracks/const";
 import { useTaskTreeEvents } from "./useTaskTreeEvents";
 import { bumpMediaVersion } from "#/components/app/FileContent/store/ContentPanel";
+import { trace } from "#/lib/debugLog.ts";
 
 interface Props {
   groupId: string;
@@ -66,7 +67,7 @@ export function TaskDetailPage(props: Props) {
   createEffect(() => {
     const st = taskCtxQ.status;
     const stages = (taskCtxQ.data?.stages ?? []).map((s) => `${s.name}:${s.status}`).join(",");
-    console.warn(`[TRACE-ctx] status=${st} stages=${stages}`);
+    trace(`[TRACE-ctx] status=${st} stages=${stages}`);
   });
 
   const onVideoReady = (ref: HTMLVideoElement) => {
