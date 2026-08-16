@@ -35,7 +35,9 @@ export function setLogLevel(level: LogLevel): void {
 }
 
 export function logEnabled(level: LogLevel): boolean {
-  return ORDER[level] <= ORDER[getLogLevel()];
+  const cur = getLogLevel();
+  if (cur === "off") return false;
+  return ORDER[level] >= ORDER[cur];
 }
 
 export function trace(...args: unknown[]): void {
