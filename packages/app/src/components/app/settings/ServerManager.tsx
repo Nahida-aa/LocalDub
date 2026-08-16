@@ -57,7 +57,6 @@ function ServerCard(props: {
   };
   return (
     <CardX
-      variant="outline"
       title={props.name}
       description={statusText()}
       Footer={
