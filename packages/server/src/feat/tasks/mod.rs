@@ -1,4 +1,5 @@
 pub mod log;
+pub mod queue;
 pub mod tree;
 
 use std::collections::HashSet;
@@ -51,6 +52,7 @@ pub async fn continue_task(task_dir: String, from_stage: String) -> Result<(), S
         .to_str()
         .ok_or_else(|| "invalid task_dir".to_string())?
         .to_string();
+    eprintln!("[continue_task] base_dir={} task_dir={task_dir} abs={abs_task_dir_str}", base_dir().display());
 
     // 读 ctx.json 的 input 字段作为续跑基准配置 (仅改写 task 相关字段, 其余原样保留)。
     let ctx_path = abs_task_dir.join("ctx.json");
@@ -236,4 +238,43 @@ pub async fn start_task(url: String) -> Result<String, String> {
         .strip_prefix(base_dir())
         .map(|p| p.to_string_lossy().into_owned())
         .map_err(|_| format!("task_dir 不在 workfolder 内: {abs_task_dir}"))
+}
+
+// --- 任务队列 (CLI 通过 fnrpc 入队, worker 串行执行) ---
+
+use crate::ctx::Ctx;
+use crate::feat::tasks::queue::QueueEntry;
+
+/// 加入一个新任务 (start): 入队完整 input (action=start), worker 串行执行
+/// (import 视频 + 完整 pipeline)。返回队列 ID。
+#[fnrpc::rpc_mutate]
+pub async fn enqueue_start(ctx: &Ctx, input: Input) -> Result<u64, String> {
+    use ld_core::tasks::args::TaskAction;
+    if input.task.as_ref().and_then(|t| t.action) != Some(TaskAction::Start) {
+        return Err("enqueue_start 需要 input.task.action = start".to_string());
+    }
+    Ok(ctx.state.queue.enqueue(input))
+}
+
+/// 加入一个续跑任务 (continue): 入队完整 input (action=continue), worker 串行执行
+/// (续跑已有任务)。返回队列 ID。
+#[fnrpc::rpc_mutate]
+pub async fn enqueue_continue(ctx: &Ctx, input: Input) -> Result<u64, String> {
+    use ld_core::tasks::args::TaskAction;
+    if input.task.as_ref().and_then(|t| t.action) != Some(TaskAction::Continue) {
+        return Err("enqueue_continue 需要 input.task.action = continue".to_string());
+    }
+    Ok(ctx.state.queue.enqueue(input))
+}
+
+/// 列出队列中的任务 (含状态)。
+#[fnrpc::rpc_query]
+pub async fn list_queue(ctx: &Ctx) -> Vec<QueueEntry> {
+    ctx.state.queue.snapshot()
+}
+
+/// 取消一个待执行任务 (仅 queued 状态可取消)。
+#[fnrpc::rpc_mutate]
+pub async fn cancel_queue(ctx: &Ctx, id: u64) -> Result<bool, String> {
+    Ok(ctx.state.queue.cancel(id))
 }

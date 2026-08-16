@@ -85,6 +85,13 @@ pub async fn start(
     let media_root = base_dir();
     // 先保存 shutdown 信号 (build_axum_router 会 move state)。
     let shutdown_signal = state.shutdown.clone();
+    // 启动任务队列 worker (串行执行入队的任务)。
+    {
+        let worker = state.queue.clone();
+        tokio::spawn(async move {
+            worker.run_worker().await;
+        });
+    }
     let app = build_axum_router(fnrpc_router, state)
         .nest_service("/media", ServeDir::new(&media_root))
         // dev 下前端在 vite(1420), 媒体在 axum(19110) 跨源.

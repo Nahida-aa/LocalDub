@@ -27,6 +27,12 @@ pub fn cmd_task(input: &Input) -> anyhow::Result<()> {
         Some(TaskAction::Start) => {
             start_task(input).context("start_task 失败")?;
         }
+        Some(TaskAction::EnqueueStart) => {
+            crate::cmd::tasks::enqueue::enqueue_task(input, true).context("enqueue_start 失败")?;
+        }
+        Some(TaskAction::EnqueueContinue) => {
+            crate::cmd::tasks::enqueue::enqueue_task(input, false).context("enqueue_continue 失败")?;
+        }
         Some(TaskAction::GetGroupList) => {
             let groups = get_group_list().map_err(|e| anyhow::anyhow!("{e}"))?;
             let json = serde_json::to_string_pretty(&groups)

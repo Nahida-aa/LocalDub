@@ -2317,6 +2317,12 @@
           "const": "continue"
         },
         {
+          "const": "enqueue_start"
+        },
+        {
+          "const": "enqueue_continue"
+        },
+        {
           "const": "status"
         },
         {

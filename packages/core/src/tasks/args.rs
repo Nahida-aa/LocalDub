@@ -9,6 +9,10 @@ pub enum TaskAction {
     Start,
     #[serde(rename = "continue")]
     Continue,
+    #[serde(rename = "enqueue_start")]
+    EnqueueStart,
+    #[serde(rename = "enqueue_continue")]
+    EnqueueContinue,
     #[serde(rename = "status")]
     Status,
     #[serde(rename = "get_group_list")]

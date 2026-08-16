@@ -4,6 +4,8 @@ use std::sync::{Arc, Mutex};
 
 use axum::http::HeaderMap;
 
+use crate::feat::tasks::queue::TaskQueue;
+
 #[derive(Clone)]
 pub struct AppState {
     pub repo_root: PathBuf,
@@ -11,6 +13,8 @@ pub struct AppState {
     pub voxcpm_proc: Arc<Mutex<Option<Child>>>,
     /// 触发主服务器优雅关闭 (`fnrpc shutdown` / 外部调用)。
     pub shutdown: Arc<tokio::sync::Notify>,
+    /// 任务队列 (CLI 通过 fnrpc 入队, worker 串行执行)。
+    pub queue: Arc<TaskQueue>,
 }
 
 impl AppState {
@@ -27,6 +31,7 @@ impl AppState {
             torch_proc: Arc::new(Mutex::new(None)),
             voxcpm_proc: Arc::new(Mutex::new(None)),
             shutdown: Arc::new(tokio::sync::Notify::new()),
+            queue: TaskQueue::new(),
         }
     }
 }
