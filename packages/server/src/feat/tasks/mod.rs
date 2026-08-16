@@ -95,6 +95,85 @@ pub async fn continue_task(task_dir: String, from_stage: String) -> Result<(), S
     }
 }
 
+/// 重新生成指定 TTS 段 (续跑模式: continueFrom=tts + stages.tts.regenIndices)。
+///
+/// `continue_run=true` 时重生成后继续跑完整个 pipeline (镜像 input.jsonc 手工改
+/// `regenIndices` 后「从 tts 继续运行」); `false` 时只重生成, 到 tts 阶段结束即停
+/// (targetStage=tts, 供先听效果再手动继续)。
+#[fnrpc::rpc_mutate]
+pub async fn regen_tts(
+    task_dir: String,
+    seg_indices: Vec<u32>,
+    continue_run: bool,
+) -> Result<(), String> {
+    let abs_task_dir = base_dir().join(&task_dir);
+    let abs_task_dir_str = abs_task_dir
+        .to_str()
+        .ok_or_else(|| "invalid task_dir".to_string())?
+        .to_string();
+
+    // 读 ctx.json 的 input 字段作为续跑基准配置 (仅改写 task / stages.tts, 其余保留)。
+    let ctx_path = abs_task_dir.join("ctx.json");
+    let ctx_raw =
+        std::fs::read_to_string(&ctx_path).map_err(|e| format!("read ctx.json failed: {}", e))?;
+    let mut ctx: serde_json::Value =
+        serde_json::from_str(&ctx_raw).map_err(|e| format!("parse ctx.json failed: {}", e))?;
+
+    let mut input_value = ctx
+        .get_mut("input")
+        .map(|v| v.take())
+        .ok_or_else(|| "ctx.json 缺少 input 字段".to_string())?;
+    let task = input_value
+        .get_mut("task")
+        .ok_or_else(|| "input 缺少 task 字段".to_string())?;
+    task["taskDir"] = serde_json::Value::String(abs_task_dir_str.clone());
+    task["action"] = serde_json::Value::String("continue".into());
+    task["continueFrom"] = serde_json::Value::String("tts".into());
+    if continue_run {
+        // 继续跑完整个 pipeline: 清掉可能残留的 targetStage, 不中途停止。
+        task["targetStage"] = serde_json::Value::Null;
+    } else {
+        // 只重生成: 跑到 tts 阶段结束即停。
+        task["targetStage"] = serde_json::Value::String("tts".into());
+    }
+
+    // 合并 regenIndices 到 stages.tts (镜像手工在 input.jsonc 里配置 regenIndices)。
+    match input_value["stages"].as_object_mut() {
+        Some(stages_obj) => {
+            let tts = stages_obj
+                .entry("tts".to_string())
+                .or_insert_with(|| serde_json::json!({}));
+            tts["regenIndices"] = serde_json::json!(seg_indices);
+        }
+        None => {
+            input_value["stages"] =
+                serde_json::json!({ "tts": { "regenIndices": seg_indices } });
+        }
+    }
+
+    let input: Input =
+        serde_json::from_value(input_value).map_err(|e| format!("parse input failed: {}", e))?;
+
+    // 与 continue_task 共用同一把 in-flight 锁, 防同一任务并发续跑。
+    let task_dir_owned = abs_task_dir_str.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let mut set = inflight_lock().lock().unwrap();
+        if !set.insert(task_dir_owned.clone()) {
+            return Err("任务已在续跑中".to_string());
+        }
+        let r = ld_core::cmd::tasks::continue_task(&input);
+        set.remove(&task_dir_owned);
+        r.map_err(|e| format!("regen_tts 失败: {e:#}"))
+    })
+    .await;
+
+    match result {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(e)) => Err(e),
+        Err(e) => Err(format!("regen_tts 任务崩溃: {e}")),
+    }
+}
+
 /// 启动新任务 (右上角「+」弹窗)。
 ///
 /// 用服务器端 base 配置构造 Input (镜像 input.jsonc 的已知可用配置), 避免

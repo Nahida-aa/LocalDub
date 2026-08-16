@@ -541,6 +541,13 @@ export type Procedures = {
     output: null;
     error: RpcErr;
   };
+  regen_tts: {
+    kind: "mutate";
+    method: "POST";
+    input: [string, number[], boolean];
+    output: null;
+    error: RpcErr;
+  };
   start_task: {
     kind: "mutate";
     method: "POST";
@@ -573,5 +580,6 @@ export const __procedureMeta = {
   stop_voxcpm: { kind: "mutate", method: "POST" },
   device_info: { kind: "query", method: "GET" },
   continue_task: { kind: "mutate", method: "POST" },
+  regen_tts: { kind: "mutate", method: "POST" },
   start_task: { kind: "mutate", method: "POST" },
 } as const;

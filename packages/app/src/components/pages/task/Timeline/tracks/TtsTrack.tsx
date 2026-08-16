@@ -6,6 +6,8 @@ import {
   ContextMenuTrigger,
 } from "@repo/ui-solid/base/context-menu";
 import { openModal } from "@repo/ui-solid/custom/modal/renderer";
+import { useMutation, useQueryClient } from "@tanstack/solid-query";
+import { client } from "#/integrations/fnrpc/client.ts";
 import { AudioPlayer } from "#/components/ui/audio-player";
 import { mediaUrl } from "#/lib/utils/path.ts";
 import type { Track, TrackSegment } from "../consts";
@@ -80,6 +82,18 @@ export function TtsTrack(props: Props) {
     }
   };
 
+  const regen = useMutation(() =>
+    client.regen_tts.mutationOptions({
+      onError: (error) => {
+        console.error("[TTS] 重新生成 失败:", error);
+      },
+    }),
+  );
+  const handleRegen = (segIndex: number, continueRun: boolean) => {
+    if (regen.isPending) return;
+    regen.mutate([taskDir, [segIndex + 1], continueRun]);
+  };
+
   return (
     <Show when={segments().length > 0}>
       <div class="h-16 border-b relative">
@@ -109,6 +123,18 @@ export function TtsTrack(props: Props) {
                   disabled={status === "error" || status === "empty"}
                 >
                   播放 TTS 音频
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onSelect={() => handleRegen(seg.index, false)}
+                  disabled={regen.isPending}
+                >
+                  重新生成
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onSelect={() => handleRegen(seg.index, true)}
+                  disabled={regen.isPending}
+                >
+                  重新生成并继续运行
                 </ContextMenuItem>
               </ContextMenuContent>
             </ContextMenu>
