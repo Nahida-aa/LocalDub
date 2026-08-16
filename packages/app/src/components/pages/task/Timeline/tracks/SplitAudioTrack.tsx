@@ -12,7 +12,7 @@ import { AudioPlayer } from "#/components/ui/audio-player";
 import { mediaUrl } from "#/lib/utils/path.ts";
 import type { Track, TrackSegment } from "../consts";
 import { client } from "#/integrations/fnrpc/client.ts";
-import type { SplitAudioTiming } from "@repo/core/stages/06_split_audio/out";
+import type { SplitAudioSegment, SplitAudioTiming } from "@repo/core/stages/06_split_audio/out";
 import { useTrackData } from "./useTrackData";
 import type { BaseTrackProps } from "./shared";
 
@@ -94,12 +94,12 @@ export function SplitAudioTrack(props: Props) {
         ? `${taskDir}/split_audio/timings.json`
         : `${taskDir}/split_audio/split_audio.json`,
     parse: (text) => {
-      const data = JSON.parse(text) as { segments?: SplitAudioTiming[] };
+      const data = JSON.parse(text) as { segments?: SplitAudioSegment[] };
       return (data.segments || []).map((item, i: number) => ({
         index: i,
         text: item.text,
-        startMs: item.start_ms,
-        endMs: item.end_ms,
+        startMs: isTimings() ? item.start_ms : item.split_start_ms,
+        endMs: isTimings() ? item.end_ms : item.split_end_ms,
         raw: item,
       }));
     },
