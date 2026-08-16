@@ -78,26 +78,6 @@ fn status(name: Option<ServerType>) -> anyhow::Result<String> {
     };
     let mut results: Vec<ServerStatus> = vec![];
     for t in types {
-        // 主服务器固定监听默认端口 (mdns_sd 注册可能不广播), 直接端口探测;
-        // 其它类型 (torch/voxcpm) 用 mDNS 发现。
-        if t == ServerType::Server {
-            let port = t.default_port();
-            results.push(if server_healthy_at("127.0.0.1", port) {
-                ServerStatus {
-                    status: "running".to_string(),
-                    host: Some("127.0.0.1".to_string()),
-                    port: Some(port),
-                }
-            } else {
-                ServerStatus {
-                    status: "stopped".to_string(),
-                    host: None,
-                    port: None,
-                }
-            });
-            continue;
-        }
-
         let list = futures_block_on(find_server_via_mdns_all(t, None));
         if list.is_empty() {
             // 没有 mDNS 发现的实例: 地址为 null
@@ -108,21 +88,26 @@ fn status(name: Option<ServerType>) -> anyhow::Result<String> {
             });
             continue;
         }
+        // 主服务器/服务可能注册了多接口地址 (IPv4/IPv6/docker 等), 逐条探测会导致
+        // 多条重复状态且大部分不可连。这里探测到第一个 running 即报告, 每类型一条:
+        // 任一地址可连 -> running; 有实例但全不可连 -> stopped; 无实例 -> not_found。
+        let mut found_any = false;
         for (host, port) in list {
-            let st = probe_status(&host, port);
-            // 只有 running 才有可连接地址; stopped/未响应时地址为 null。
-            results.push(if st == "running" {
-                ServerStatus {
-                    status: st.to_string(),
+            if probe_server_health(t, &host, port) == "running" {
+                results.push(ServerStatus {
+                    status: "running".to_string(),
                     host: Some(host),
                     port: Some(port),
-                }
-            } else {
-                ServerStatus {
-                    status: st.to_string(),
-                    host: None,
-                    port: None,
-                }
+                });
+                found_any = true;
+                break;
+            }
+        }
+        if !found_any {
+            results.push(ServerStatus {
+                status: "stopped".to_string(),
+                host: None,
+                port: None,
             });
         }
     }
@@ -130,8 +115,13 @@ fn status(name: Option<ServerType>) -> anyhow::Result<String> {
 }
 
 /// 探测 `http://{host}:{port}/status` 是否可连 (TS `fetchStatsRes` 简化)。
-fn probe_status(host: &str, port: u16) -> &'static str {
-    let url = format!("http://{host}:{port}/status");
+/// 探测服务器健康: 主服务器用 fnrpc health_check, 其它类型 (voxcpm) 用 `/status`。
+fn probe_server_health(t: ServerType, host: &str, port: u16) -> &'static str {
+    let url = if t == ServerType::Server {
+        format!("http://{host}:{port}/fnrpc/health_check")
+    } else {
+        format!("http://{host}:{port}/status")
+    };
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(2))
         .build()

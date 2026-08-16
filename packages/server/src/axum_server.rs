@@ -141,7 +141,7 @@ fn register_mdns(port: u16) -> Option<mdns_sd::ServiceDaemon> {
         None::<std::collections::HashMap<String, String>>,
     );
     let service_info = match service_info {
-        Ok(si) => si,
+        Ok(si) => si.enable_addr_auto(), // 让库自动探测本机 IP 并广播 (对齐 mdns_sd register example)
         Err(e) => {
             eprintln!("[mDNS] 构建 ServiceInfo 失败, 跳过注册: {e}");
             return None;
