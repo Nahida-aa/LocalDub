@@ -156,3 +156,27 @@ export async function restartVoxCpm(): Promise<ModelServerStatus> {
   await new Promise((r) => setTimeout(r, 1500));
   return startVoxCpm();
 }
+
+// 主服务器 (packages/server) 管理。主服务器是 fnrpc 载体, 由 app 生命周期启动,
+// 设置界面仅显示状态 (停止会导致 UI 失联, 不做启停)。
+
+const MAIN_SERVER_PORT = 19110;
+
+/** 探测主服务器状态 (GET /fnrpc/health_check, 返回 "ok" = running)。 */
+export async function checkMainServer(): Promise<ModelServerStatus> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${MAIN_SERVER_PORT}/fnrpc/health_check`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!res.ok) return { status: "stopped", port: MAIN_SERVER_PORT, uptime_s: 0, models: {} };
+    const data = (await res.json()) as { json?: string };
+    return {
+      status: data?.json === "ok" ? "running" : "stopped",
+      port: MAIN_SERVER_PORT,
+      uptime_s: 0,
+      models: {},
+    };
+  } catch {
+    return { status: "stopped", port: MAIN_SERVER_PORT, uptime_s: 0, models: {} };
+  }
+}
