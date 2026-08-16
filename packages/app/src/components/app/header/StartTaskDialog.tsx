@@ -2,20 +2,14 @@ import { isTauri } from "@tauri-apps/api/core";
 import { open as openDialog, type OpenDialogOptions } from "@tauri-apps/plugin-dialog";
 import { useNavigate } from "@tanstack/solid-router";
 import { useMutation, useQueryClient } from "@tanstack/solid-query";
-import { FolderOpen, Plus, Loader2 } from "lucide-solid";
+import { FolderOpen, Loader2, Plus } from "lucide-solid";
 import { Show, createSignal } from "solid-js";
-import { Button, buttonVariants } from "@repo/ui-solid/base/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@repo/ui-solid/base/dialog";
-import { TextField, TextFieldInput, TextFieldLabel } from "@repo/ui-solid/base/text-field";
+import { buttonVariants } from "@repo/ui-solid/base/button";
+import { Button } from "@repo/ui-solid/base/button";
+import { TextField, TextFieldInput } from "@repo/ui-solid/base/text-field";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@repo/ui-solid/base/tooltip";
 import { toastError, toastSuccess } from "@repo/ui-solid/custom/toast";
-import { TooltipX } from "@repo/ui-solid/custom/tooltip";
+import { closeModal, openModal } from "@repo/ui-solid/custom/modal/renderer";
 import { client } from "#/integrations/fnrpc/client.ts";
 
 const videoFilters = [
@@ -26,7 +20,27 @@ const videoFilters = [
 ];
 
 export const StartTaskDialog = () => {
-  const [open, setOpen] = createSignal(false);
+  return (
+    <Tooltip gutter={4}>
+      <TooltipTrigger
+        class={buttonVariants({ variant: "icon", size: "xs" })}
+        onClick={() =>
+          openModal(<StartTaskContent />, {
+            title: "开始任务",
+            description: "输入视频地址，或点击上方区域选择本地文件",
+            size: "sm",
+            showCloseButton: true,
+          })
+        }
+      >
+        <Plus size={16} />
+      </TooltipTrigger>
+      <TooltipContent>开始任务</TooltipContent>
+    </Tooltip>
+  );
+};
+
+const StartTaskContent = () => {
   const [url, setUrl] = createSignal("");
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -35,8 +49,7 @@ export const StartTaskDialog = () => {
     client.start_task.mutationOptions({
       onSuccess: (relDir) => {
         toastSuccess(`任务已创建: ${relDir}`);
-        setOpen(false);
-        setUrl("");
+        closeModal();
         qc.invalidateQueries({ queryKey: client.get_group_list.queryKey(null) });
         // relDir 形如 `workfolder/<group>/<task>`, 跳到任务页实时看 stage 徽章
         const parts = relDir.replace(/\\/g, "/").split("/").filter(Boolean);
@@ -66,45 +79,33 @@ export const StartTaskDialog = () => {
   };
 
   return (
-    <Dialog open={open()} onOpenChange={setOpen}>
-      <TooltipX content={`开始任务`} class={buttonVariants({ variant: "icon", size: "xs" })}>
-        <Plus size={16} onClick={() => setOpen(true)} />
-      </TooltipX>
-      <DialogContent class="p-4 gap-3" size="md" showCloseButton>
-        <DialogHeader>
-          <DialogTitle>开始任务</DialogTitle>
-          <DialogDescription>
-            输入本地视频路径或远程 URL，导入后运行完整 pipeline。
-          </DialogDescription>
-        </DialogHeader>
-        <TextField class="gap-1.5">
-          <TextFieldLabel>视频地址</TextFieldLabel>
-          <div class="flex items-center gap-1.5">
-            <TextFieldInput
-              class="min-w-0"
-              placeholder="/path/to/video.mp4 或远程链接"
-              value={url()}
-              onInput={(e) => setUrl(e.currentTarget.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") submit();
-              }}
-            />
-            <Show when={isTauri()}>
-              <Button variant="icon" size="icon-sm" onClick={pickFile} title="选择本地文件">
-                <FolderOpen size={16} />
-              </Button>
-            </Show>
-          </div>
-        </TextField>
-        <DialogFooter>
-          <Button onClick={submit} disabled={start_task.isPending || !url().trim()}>
-            <Show when={start_task.isPending} fallback={"开始"}>
-              <Loader2 class="size-4 animate-spin" />
-            </Show>
-            <Show when={start_task.isPending}>运行中...</Show>
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <div class="flex flex-col gap-3 pt-2">
+      <Show when={isTauri()}>
+        <button
+          type="button"
+          onClick={pickFile}
+          class="flex h-24 flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-input text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+        >
+          <FolderOpen size={20} />
+          <span class="text-sm">点击选择本地文件</span>
+        </button>
+      </Show>
+      <TextField>
+        <TextFieldInput
+          placeholder="/path/to/video.mp4 或远程链接"
+          value={url()}
+          onInput={(e) => setUrl(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit();
+          }}
+        />
+      </TextField>
+      <Button onClick={submit} disabled={start_task.isPending || !url().trim()} class="w-full">
+        <Show when={start_task.isPending} fallback={"开始"}>
+          <Loader2 class="size-4 animate-spin" />
+        </Show>
+        <Show when={start_task.isPending}>运行中...</Show>
+      </Button>
+    </div>
   );
 };
