@@ -84,10 +84,20 @@ fn status(name: Option<ServerType>) -> anyhow::Result<String> {
             continue;
         }
         for (host, port) in list {
-            results.push(ServerStatus {
-                status: probe_status(&host, port).to_string(),
-                host,
-                port,
+            let st = probe_status(&host, port);
+            // 只有 running 才有可连接地址; stopped/未响应时地址无意义, 置空。
+            results.push(if st == "running" {
+                ServerStatus {
+                    status: st.to_string(),
+                    host,
+                    port,
+                }
+            } else {
+                ServerStatus {
+                    status: st.to_string(),
+                    host: String::new(),
+                    port: 0,
+                }
             });
         }
     }
