@@ -10,10 +10,12 @@ use crate::input::Input;
 use anyhow::Context;
 
 /// 启动新任务: 导入视频 → 跑完整 pipeline (镜像 TS `cmdStartTask`)。
-pub fn start_task(input: &Input) -> anyhow::Result<()> {
+///
+/// 返回新任务的绝对 task_dir (供 RPC/CLI 层用于跳转/提示)。
+pub fn start_task(input: &Input) -> anyhow::Result<String> {
     let ctx = crate::tasks::import::download::import_video(input).context("import_video 失败")?;
     println!("[cli] 导入完成, task_dir = {}", ctx.task.task_dir);
     crate::tasks::pipeline::run_pipeline(&ctx.task.task_dir).context("run_pipeline 失败")?;
     println!("[cli] 完成: {}", ctx.task.task_dir);
-    Ok(())
+    Ok(ctx.task.task_dir)
 }

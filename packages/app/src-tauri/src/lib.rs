@@ -37,6 +37,7 @@ pub fn run() {
     // Tauri desktop
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(tauri_state)
         .invoke_handler(fnrpc_tauri::generate_handler!(server::Ctx))
         .run(tauri::generate_context!())

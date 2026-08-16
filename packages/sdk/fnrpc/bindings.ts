@@ -304,7 +304,7 @@ export type TaskStage = TaskStage_Serialize | TaskStage_Deserialize;
 export type TaskStage_Deserialize = {
   name: string;
   label: string;
-  status: StageStatus;
+  status?: StageStatus;
   progress?: number | null;
   started_at?: string | null;
   completed_at?: string | null;
@@ -401,7 +401,13 @@ export type Procedures = {
     output: null;
     error: RpcErr;
   };
-  read_app_file_json: { kind: "query"; method: "GET"; input: string; output: Value; error: RpcErr };
+  read_app_file_json: {
+    kind: "query";
+    method: "GET";
+    input: string;
+    output: Value;
+    error: RpcErr;
+  };
   write_app_file_json: {
     kind: "mutate";
     method: "POST";
@@ -437,12 +443,48 @@ export type Procedures = {
     output: PathEvent;
     error: RpcErr;
   };
-  tick: { kind: "subscribe"; method: "GET"; input: bigint; output: bigint; error: RpcErr };
-  get_group_list: { kind: "query"; method: "GET"; input: null; output: GroupInfo[]; error: RpcErr };
-  get_task_ctx: { kind: "query"; method: "GET"; input: string; output: TaskCtx; error: RpcErr };
-  health_check: { kind: "query"; method: "GET"; input: null; output: string; error: RpcErr };
-  get_count: { kind: "query"; method: "GET"; input: null; output: string; error: RpcErr };
-  reset_count: { kind: "mutate"; method: "POST"; input: null; output: null; error: RpcErr };
+  tick: {
+    kind: "subscribe";
+    method: "GET";
+    input: bigint;
+    output: bigint;
+    error: RpcErr;
+  };
+  get_group_list: {
+    kind: "query";
+    method: "GET";
+    input: null;
+    output: GroupInfo[];
+    error: RpcErr;
+  };
+  get_task_ctx: {
+    kind: "query";
+    method: "GET";
+    input: string;
+    output: TaskCtx;
+    error: RpcErr;
+  };
+  health_check: {
+    kind: "query";
+    method: "GET";
+    input: null;
+    output: string;
+    error: RpcErr;
+  };
+  get_count: {
+    kind: "query";
+    method: "GET";
+    input: null;
+    output: string;
+    error: RpcErr;
+  };
+  reset_count: {
+    kind: "mutate";
+    method: "POST";
+    input: null;
+    output: null;
+    error: RpcErr;
+  };
   find_server: {
     kind: "query";
     method: "GET";
@@ -450,17 +492,60 @@ export type Procedures = {
     output: ServerInfo;
     error: RpcErr;
   };
-  start_torch: { kind: "mutate"; method: "POST"; input: null; output: number; error: RpcErr };
-  stop_torch: { kind: "mutate"; method: "POST"; input: null; output: null; error: RpcErr };
-  check_torch: { kind: "query"; method: "GET"; input: null; output: boolean; error: RpcErr };
-  start_voxcpm: { kind: "mutate"; method: "POST"; input: null; output: number; error: RpcErr };
-  stop_voxcpm: { kind: "mutate"; method: "POST"; input: null; output: null; error: RpcErr };
-  device_info: { kind: "query"; method: "GET"; input: null; output: DeviceInfo; error: RpcErr };
+  start_torch: {
+    kind: "mutate";
+    method: "POST";
+    input: null;
+    output: number;
+    error: RpcErr;
+  };
+  stop_torch: {
+    kind: "mutate";
+    method: "POST";
+    input: null;
+    output: null;
+    error: RpcErr;
+  };
+  check_torch: {
+    kind: "query";
+    method: "GET";
+    input: null;
+    output: boolean;
+    error: RpcErr;
+  };
+  start_voxcpm: {
+    kind: "mutate";
+    method: "POST";
+    input: null;
+    output: number;
+    error: RpcErr;
+  };
+  stop_voxcpm: {
+    kind: "mutate";
+    method: "POST";
+    input: null;
+    output: null;
+    error: RpcErr;
+  };
+  device_info: {
+    kind: "query";
+    method: "GET";
+    input: null;
+    output: DeviceInfo;
+    error: RpcErr;
+  };
   continue_task: {
     kind: "mutate";
     method: "POST";
     input: [string, string];
     output: null;
+    error: RpcErr;
+  };
+  start_task: {
+    kind: "mutate";
+    method: "POST";
+    input: string;
+    output: string;
     error: RpcErr;
   };
 };
@@ -488,4 +573,5 @@ export const __procedureMeta = {
   stop_voxcpm: { kind: "mutate", method: "POST" },
   device_info: { kind: "query", method: "GET" },
   continue_task: { kind: "mutate", method: "POST" },
+  start_task: { kind: "mutate", method: "POST" },
 } as const;

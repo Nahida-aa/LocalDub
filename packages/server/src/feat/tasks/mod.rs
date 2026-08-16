@@ -94,3 +94,57 @@ pub async fn continue_task(task_dir: String, from_stage: String) -> Result<(), S
         Err(e) => Err(format!("continue_task 任务崩溃: {e}")),
     }
 }
+
+/// 启动新任务 (右上角「+」弹窗)。
+///
+/// 用服务器端 base 配置构造 Input (镜像 input.jsonc 的已知可用配置), 避免
+/// `Stages::default()` 的 pytorch/cuda 默认值在无 torch server 时失败。
+/// 返回相对 `workfolder` 的 task_dir, 供前端跳转任务页。
+#[fnrpc::rpc_mutate]
+pub async fn start_task(url: String) -> Result<String, String> {
+    let base = serde_json::json!({
+        "command": "task",
+        "task": {
+            "action": "start",
+            "url": url,
+            "pipeline": "dub",
+            "subtitleSource": "sf_ocr",
+        },
+        "stages": {
+            "separate": {"runtime": "burn-tch", "device": "cpu", "always": true},
+            "asr": {"runtime": "ggml", "device": "vulkan", "useSeparated": true,
+                    "mixMode": "sidechain", "vad": true, "vadModel": "silero-v6", "wordsOutput": true},
+            "asr_ocr": {"runtime": "ort-rust", "textScore": 0.45},
+            "asr_ocr_fix": {"is_resample": false, "llmFix": true},
+            "asr_fix": {"llmFix": true},
+            "sf_ocr_fix": {"llmFix": true},
+            "translate": {"enabled": true},
+            "split_audio": {"startPadMs": 100, "endPadMs": 0, "vadAlign": false},
+            "tts": {"runtime": "cloud", "device": "cpu"},
+            "mix_audio": {"maxSpeed": 1.55, "maxAdvanceMs": 300, "maxDelayMs": 300},
+            "mix_video": {"fontSize": 21.4, "marginV": 45,
+                          "font": "Noto Sans CJK SC Medium", "shadow": 1.1, "bgmGain": -9},
+        }
+    });
+
+    let input: Input =
+        serde_json::from_value(base).map_err(|e| format!("parse input failed: {}", e))?;
+
+    // 在 blocking 池跑完整 Rust pipeline (import_video → run_pipeline)。
+    let result = tokio::task::spawn_blocking(move || {
+        ld_core::cmd::tasks::start_task(&input).map_err(|e| format!("start_task 失败: {e:#}"))
+    })
+    .await;
+
+    let abs_task_dir = match result {
+        Ok(Ok(dir)) => dir,
+        Ok(Err(e)) => return Err(e),
+        Err(e) => return Err(format!("start_task 任务崩溃: {e}")),
+    };
+
+    // 返回相对 workfolder 的 task_dir (供前端导航 /group/<group>/<task>)。
+    std::path::Path::new(&abs_task_dir)
+        .strip_prefix(base_dir())
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(|_| format!("task_dir 不在 workfolder 内: {abs_task_dir}"))
+}
