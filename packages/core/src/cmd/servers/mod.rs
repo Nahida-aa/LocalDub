@@ -11,15 +11,15 @@ use std::time::Duration;
 
 use crate::input::Input;
 use crate::servers::args::ServerAction;
-use crate::servers::discovery::{ServerInfo, find_server, find_server_via_mdns_all};
+use crate::servers::discovery::find_server_via_mdns_all;
 use config_rs::servers::ServerType;
 
-/// 服务器状态 (镜像 TS `torchStatus` 的简化, 探测 `/status` 是否可连)。
+/// 服务器状态 (探测 `/status` 是否可连)。
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ServerStatus {
     pub host: String,
     pub port: u16,
-    /// `running` = `/status` 可连; `stopped` = 不可连
+    /// `running` = `/status` 可连; `stopped` = 可发现但探测失败; `not_found` = 未发现实例
     pub status: String,
 }
 
@@ -63,6 +63,9 @@ fn discovery(name: Option<ServerType>) -> anyhow::Result<String> {
 }
 
 /// `status` 动作: 发现服务器并探测 `/status`。
+///
+/// 只用 mDNS **真实发现**的实例 (不用 `find_server` 的默认端口 fallback),
+/// 避免「未运行却报默认端口」的误导。未发现实例时 status = "not_found"。
 fn status(name: Option<ServerType>) -> anyhow::Result<String> {
     let types: Vec<ServerType> = match name {
         Some(n) => vec![n],
@@ -70,26 +73,30 @@ fn status(name: Option<ServerType>) -> anyhow::Result<String> {
     };
     let mut results: Vec<ServerStatus> = vec![];
     for t in types {
-        let info = futures_block_on(find_server(t));
-        results.push(ServerStatus {
-            status: probe_status(&info).to_string(),
-            ..server_status_from(info)
-        });
+        let list = futures_block_on(find_server_via_mdns_all(t, None));
+        if list.is_empty() {
+            // 没有 mDNS 发现的实例: 不报默认端口
+            results.push(ServerStatus {
+                host: String::new(),
+                port: 0,
+                status: "not_found".to_string(),
+            });
+            continue;
+        }
+        for (host, port) in list {
+            results.push(ServerStatus {
+                status: probe_status(&host, port).to_string(),
+                host,
+                port,
+            });
+        }
     }
     Ok(serde_json::to_string_pretty(&results)?)
 }
 
-fn server_status_from(info: ServerInfo) -> ServerStatus {
-    ServerStatus {
-        host: info.host,
-        port: info.port,
-        status: String::new(),
-    }
-}
-
 /// 探测 `http://{host}:{port}/status` 是否可连 (TS `fetchStatsRes` 简化)。
-fn probe_status(info: &ServerInfo) -> &'static str {
-    let url = format!("http://{}:{}/status", info.host, info.port);
+fn probe_status(host: &str, port: u16) -> &'static str {
+    let url = format!("http://{host}:{port}/status");
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(2))
         .build()
