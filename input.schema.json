@@ -1624,6 +1624,10 @@
     "ServerType": {
       "anyOf": [
         {
+          "const": "server",
+          "description": " LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。"
+        },
+        {
           "const": "voxcpm_torch_gradio"
         },
         {
