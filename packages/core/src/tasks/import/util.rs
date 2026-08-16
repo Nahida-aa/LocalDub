@@ -441,7 +441,12 @@ pub fn probe_frame_rate(video: &str) -> time::FrameRate {
 
 /// spawn ffmpeg 二进制, 非零退出即报错 (含 stderr)。
 pub fn run_ffmpeg(args: &[&str]) -> anyhow::Result<()> {
-    run_binary("ffmpeg", args).map(|_| ())
+    // 统一加 `-y`: ffmpeg 默认不覆盖已存在输出文件 (非交互下会失败),
+    // 转码/抽音频都是写新产物, 覆盖旧的合理 (避免残留坏文件).
+    let mut argv = Vec::with_capacity(args.len() + 1);
+    argv.push("-y");
+    argv.extend_from_slice(args);
+    run_binary("ffmpeg", &argv).map(|_| ())
 }
 
 /// spawn yt-dlp 二进制, 返回 stdout (用于 --dump-json); 非零退出即报错 (含 stderr)。
