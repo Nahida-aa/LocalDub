@@ -1629,12 +1629,9 @@
         },
         {
           "const": "voxcpm_torch_gradio"
-        },
-        {
-          "const": "demucs_torch_server"
         }
       ],
-      "description": " Server type identifiers for mDNS discovery.\n\n 序列化为 snake_case (voxcpm_torch_gradio / demucs_torch_server), 对齐 TS 侧\n `packages/config/src/servers.ts` 的 serverTypeList。",
+      "description": " Server type identifiers for mDNS discovery.\n\n 序列化为 snake_case (voxcpm_torch_gradio), 对齐 TS 侧\n `packages/config/src/servers.ts` 的 serverTypeList。",
       "title": "ServerType"
     },
     "ServersArgs": {

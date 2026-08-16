@@ -181,7 +181,7 @@
         "name": {
           "description": "指定操作的服务器，不传则操作所有",
           "type": "string",
-          "enum": ["voxcpm_torch_gradio", "demucs_torch_server"]
+          "enum": ["server", "voxcpm_torch_gradio"]
         }
       },
       "additionalProperties": {}
@@ -769,7 +769,7 @@
               "type": "boolean"
             },
             "regenIndices": {
-              "description": "仅处理指定索引的 segment（其余跳过），可用于精准重跑指定段",
+              "description": "continue 模式下强制重新生成的 segment 索引（1-based）；列表外段保留旧结果。命中段无视 skipExisting，强制重合成",
               "type": "array",
               "items": {
                 "type": "integer",

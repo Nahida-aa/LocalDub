@@ -50,7 +50,7 @@ async function waitForVoxCpm(port: number, timeoutMs = 120_000): Promise<ModelSe
 }
 
 export async function startTorch(): Promise<ModelServerStatus> {
-  const { port } = await fnrpc.find_server("demucs_torch_server");
+  const port = 19109; // torch 服务器固定端口 (不再 mDNS 发现)
   _torchPort = port;
   if (await ping(port)) return fetchStats(port);
 
@@ -83,7 +83,7 @@ export async function restartTorch(): Promise<ModelServerStatus> {
 }
 
 export async function checkTorch(): Promise<ModelServerStatus> {
-  const { port } = await fnrpc.find_server("demucs_torch_server");
+  const port = 19109; // torch 服务器固定端口 (不再 mDNS 发现)
   _torchPort = port;
   return fetchStats(port);
 }

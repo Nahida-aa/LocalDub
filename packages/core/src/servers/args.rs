@@ -47,8 +47,8 @@ mod tests {
             serde_json::to_string(&ServersArgs::default()).unwrap(),
             r#"{"action":"status","name":null}"#
         );
-        let v: ServersArgs = serde_json::from_str(r#"{"name":"demucs_torch_server"}"#).unwrap();
+        let v: ServersArgs = serde_json::from_str(r#"{"name":"voxcpm_torch_gradio"}"#).unwrap();
         assert_eq!(v.action, ServerAction::Status);
-        assert!(matches!(v.name, Some(ServerType::DemucsTorchServer)));
+        assert!(matches!(v.name, Some(ServerType::VoxcpmTorchGradio)));
     }
 }

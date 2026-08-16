@@ -24,6 +24,7 @@ pre-commit:
       glob: "**/*.{ts,tsx,js,jsx,json,jsonc}"
       exclude:
         - "submodule/**"
+        - "packages/sdk/fnrpc/bindings.ts"
       run: bunx oxfmt --write {staged_files}
       stage_fixed: true
 #     - run: yarn eslint {staged_files}

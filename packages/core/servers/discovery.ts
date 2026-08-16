@@ -31,7 +31,6 @@ const MDNS_TIMEOUT = 3000;
 const DEFAULT_PORTS: Record<ServerType, number> = {
   server: 19110,
   voxcpm_torch_gradio: 19112,
-  demucs_torch_server: 19109,
 };
 
 /**
