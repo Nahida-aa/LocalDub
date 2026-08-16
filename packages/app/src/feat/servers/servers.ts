@@ -5,7 +5,6 @@ import { fetchStatsRes } from "@repo/core/servers/client";
 import { client, fnrpc } from "#/integrations/fnrpc/client.ts";
 // import { client } from '#/integrations/rspc/rspc.ts';
 
-let _torchPort = 19109;
 let _voxcpmPort = 19112;
 
 async function fetchStats(port: number): Promise<ModelServerStatus> {
@@ -16,22 +15,6 @@ async function fetchStats(port: number): Promise<ModelServerStatus> {
   const data = (await res.json()) as ModelServerStatus;
   console.log(`fetchStats(${port}) =>`, data);
   return data;
-}
-
-async function ping(port: number): Promise<boolean> {
-  const [res, err] = await to(fetchStatsRes(port));
-  if (err) return false;
-  return res.ok;
-}
-
-async function waitForHealth(port: number, timeoutMs = 60_000): Promise<ModelServerStatus> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 200));
-    const status = await fetchStats(port);
-    if (status.status === "running") return status;
-  }
-  throw new Error(`TorchServer startup timeout after ${timeoutMs}ms`);
 }
 
 async function waitForVoxCpm(port: number, timeoutMs = 120_000): Promise<ModelServerStatus> {
@@ -47,45 +30,6 @@ async function waitForVoxCpm(port: number, timeoutMs = 120_000): Promise<ModelSe
     uptime_s: 0,
     models: { voxcpm: { status: "error", device: "" } },
   };
-}
-
-export async function startTorch(): Promise<ModelServerStatus> {
-  const port = 19109; // torch 服务器固定端口 (不再 mDNS 发现)
-  _torchPort = port;
-  if (await ping(port)) return fetchStats(port);
-
-  _torchPort = await fnrpc.start_torch();
-  return waitForHealth(_torchPort);
-}
-
-export async function stopTorch(): Promise<ModelServerStatus> {
-  try {
-    await fetch(`http://127.0.0.1:${_torchPort}/api/shutdown`, { method: "POST" });
-  } catch {
-    // already gone
-  }
-  await fnrpc.start_torch();
-  return { status: "stopped", port: _torchPort, uptime_s: 0, models: {} };
-}
-
-export async function restartTorch(): Promise<ModelServerStatus> {
-  try {
-    await fetch(`http://127.0.0.1:${_torchPort}/api/shutdown`, { method: "POST" });
-  } catch {
-    /* ok */
-  }
-  await fnrpc.start_torch();
-
-  await new Promise((r) => setTimeout(r, 1500));
-
-  _torchPort = await fnrpc.start_torch();
-  return waitForHealth(_torchPort);
-}
-
-export async function checkTorch(): Promise<ModelServerStatus> {
-  const port = 19109; // torch 服务器固定端口 (不再 mDNS 发现)
-  _torchPort = port;
-  return fetchStats(port);
 }
 
 // VoxCPM server management

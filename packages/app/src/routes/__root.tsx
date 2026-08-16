@@ -66,10 +66,6 @@ function RootDocument({ children }: { children: JSX.Element }) {
       {/*<fnrpc.Provider client={client} queryClient={queryClient}>*/}
       {/*<ClientApiProvider value={{
     serversManagerApi: {
-      startTorch: torchApi.startTorch,
-      stopTorch: torchApi.stopTorch,
-      restartTorch: torchApi.restartTorch,
-      checkTorch: torchApi.checkTorch,
       startVoxCpm: torchApi.startVoxCpm,
       stopVoxCpm: torchApi.stopVoxCpm,
       restartVoxCpm: torchApi.restartVoxCpm,
