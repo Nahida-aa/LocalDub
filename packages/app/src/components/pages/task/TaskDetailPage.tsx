@@ -19,8 +19,20 @@ import {
 import { useViewingTab } from "./TaskControlPanel/taskControlPanelStore";
 import { STAGE_TRACKS, TRACK_DEFS, type TrackDef } from "./Timeline/tracks/const";
 import { useTaskTreeEvents } from "./useTaskTreeEvents";
-import { bumpMediaVersion } from "#/components/app/FileContent/store/ContentPanel";
+import {
+  addTab,
+  bumpMediaVersion,
+  setActivePath,
+  useActivePath,
+} from "#/components/app/FileContent/store/ContentPanel";
 import { trace } from "#/lib/debugLog.ts";
+
+/// 绝对路径(OS) → 相对 workfolder 的路径 (镜像 useTaskTreeEvents.toRelativePath)。
+function toRelPath(absOrRel: string): string {
+  if (absOrRel.startsWith("workfolder")) return absOrRel;
+  const idx = absOrRel.indexOf("workfolder");
+  return idx >= 0 ? absOrRel.slice(idx) : absOrRel;
+}
 
 interface Props {
   groupId: string;
@@ -68,6 +80,23 @@ export function TaskDetailPage(props: Props) {
     const st = taskCtxQ.status;
     const stages = (taskCtxQ.data?.stages ?? []).map((s) => `${s.name}:${s.status}`).join(",");
     trace(`[TRACE-ctx] status=${st} stages=${stages}`);
+  });
+
+  // 默认打开本任务视频: 有最终视频(已跑完 mix_video)则用它, 否则 video_source.mp4。
+  // 仅在面板空或停留在其他任务的文件时生效; 用户已在本任务打开过文件则不打扰。
+  let defaultOpened = false;
+  const activePath = useActivePath();
+  createEffect(() => {
+    const ctx = taskCtxQ.data;
+    if (!ctx || defaultOpened) return;
+    defaultOpened = true;
+    if (activePath()?.startsWith(taskDir)) return;
+
+    const finalRel = ctx.task.final_video_path ? toRelPath(ctx.task.final_video_path) : null;
+    const isFinal = !!finalRel?.startsWith(taskDir);
+    const defaultRel = isFinal ? finalRel! : `${taskDir}/video_source.mp4`;
+    addTab({ path: defaultRel, label: defaultRel.split("/").pop()! });
+    setActivePath(defaultRel);
   });
 
   const onVideoReady = (ref: HTMLVideoElement) => {
