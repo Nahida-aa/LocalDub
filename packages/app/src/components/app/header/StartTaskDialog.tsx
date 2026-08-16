@@ -24,14 +24,14 @@ export const StartTaskDialog = () => {
     <Tooltip gutter={4}>
       <TooltipTrigger
         class={buttonVariants({ variant: "icon", size: "xs" })}
-        onClick={() =>
-          openModal(<StartTaskContent />, {
+        onClick={() => {
+          openModal(StartTaskContent, {
             title: "开始任务",
             description: "输入视频地址，或点击上方区域选择本地文件",
             size: "sm",
             showCloseButton: true,
-          })
-        }
+          });
+        }}
       >
         <Plus size={16} />
       </TooltipTrigger>

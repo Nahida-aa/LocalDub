@@ -130,17 +130,27 @@ pub async fn start_task(url: String) -> Result<String, String> {
     let input: Input =
         serde_json::from_value(base).map_err(|e| format!("parse input failed: {}", e))?;
 
-    // 在 blocking 池跑完整 Rust pipeline (import_video → run_pipeline)。
-    let result = tokio::task::spawn_blocking(move || {
-        ld_core::cmd::tasks::start_task(&input).map_err(|e| format!("start_task 失败: {e:#}"))
+    // 只跑导入 (拷贝/下载 + 探测 + 写 ctx.json), 拿到 task_dir 立即返回;
+    // 完整 pipeline 在后台跑, 前端跳转任务页后由 ctx watcher 实时刷新 stage 徽章。
+    let ctx = tokio::task::spawn_blocking(move || {
+        ld_core::tasks::import::download::import_video(&input)
+            .map_err(|e| format!("import_video 失败: {e:#}"))
     })
     .await;
 
-    let abs_task_dir = match result {
-        Ok(Ok(dir)) => dir,
+    let abs_task_dir = match ctx {
+        Ok(Ok(ctx)) => ctx.task.task_dir,
         Ok(Err(e)) => return Err(e),
-        Err(e) => return Err(format!("start_task 任务崩溃: {e}")),
+        Err(e) => return Err(format!("import 任务崩溃: {e}")),
     };
+
+    // 后台跑完整 pipeline (不阻塞 RPC); 失败仅记日志, 任务页可续跑。
+    let task_dir = abs_task_dir.clone();
+    tokio::task::spawn_blocking(move || {
+        if let Err(e) = ld_core::tasks::pipeline::run_pipeline(&task_dir) {
+            tracing::error!("start_task pipeline 失败 ({task_dir}): {e:#}");
+        }
+    });
 
     // 返回相对 workfolder 的 task_dir (供前端导航 /group/<group>/<task>)。
     std::path::Path::new(&abs_task_dir)
