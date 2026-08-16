@@ -17,7 +17,7 @@ export const [modalRendererStore, setStore] = createStore<ModalState>({
 });
 
 const setOpen = (open: boolean) => {
-  if (open) {
+  if (!open) {
     return closeModal();
   }
   setStore("open", open);
@@ -35,6 +35,8 @@ export const openModal = (content: ModalProps["children"], options: OpenModalOpt
 export const closeModal = () => {
   console.log("closeModal");
   setStore((prev) => ({
+    title: undefined,
+    description: undefined,
     open: false,
   }));
 };

@@ -148,34 +148,37 @@ export function ServerManager() {
   };
 
   return (
-    <div class="space-y-4">
-      <ServerCard
-        name="Main Server"
-        data={mainServerHealth.data}
-        running={mainServerHealth.data?.status === "running"}
-        uptimeS={mainServerHealth.data?.uptime_s ?? 0}
-        port={mainServerHealth.data?.port ?? 19110}
-        models={{}}
-        busy={false}
-        hideActions
-        onStart={() => {}}
-        onStop={() => {}}
-        onRestart={() => {}}
-      />
-      <ServerCard
-        name="VoxCPM PyTorch Server"
-        data={voxcpm_torch_gradio_status.data}
-        isLoading={voxcpm_torch_gradio_status.isLoading}
-        error={voxcpm_torch_gradio_status.error}
-        running={voxcpm_torch_gradio_status.data?.status === "running"}
-        uptimeS={voxcpm_torch_gradio_status.data?.uptime_s ?? 0}
-        port={voxcpm_torch_gradio_status.data?.port ?? 19112}
-        models={vcModels()}
-        busy={startVox.isPending || stopVox.isPending || restartVox.isPending}
-        onStart={() => startVox.mutate()}
-        onStop={() => stopVox.mutate()}
-        onRestart={() => restartVox.mutate()}
-      />
+    <div>
+      <h2>服务器</h2>
+      <div class="space-y-4">
+        <ServerCard
+          name="Main Server"
+          data={mainServerHealth.data}
+          running={mainServerHealth.data?.status === "running"}
+          uptimeS={mainServerHealth.data?.uptime_s ?? 0}
+          port={mainServerHealth.data?.port ?? 19110}
+          models={{}}
+          busy={false}
+          hideActions
+          onStart={() => {}}
+          onStop={() => {}}
+          onRestart={() => {}}
+        />
+        <ServerCard
+          name="VoxCPM PyTorch Server"
+          data={voxcpm_torch_gradio_status.data}
+          isLoading={voxcpm_torch_gradio_status.isLoading}
+          error={voxcpm_torch_gradio_status.error}
+          running={voxcpm_torch_gradio_status.data?.status === "running"}
+          uptimeS={voxcpm_torch_gradio_status.data?.uptime_s ?? 0}
+          port={voxcpm_torch_gradio_status.data?.port ?? 19112}
+          models={vcModels()}
+          busy={startVox.isPending || stopVox.isPending || restartVox.isPending}
+          onStart={() => startVox.mutate()}
+          onStop={() => stopVox.mutate()}
+          onRestart={() => restartVox.mutate()}
+        />
+      </div>
     </div>
   );
 }
