@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use fnrpc::router::RpcRouter;
 // use rspc::Procedures;
@@ -101,9 +102,20 @@ pub async fn start(
         .fallback_service(ServeDir::new(&dist_dir).append_index_html_on_directories(true));
 
     let addr = format!("0.0.0.0:{}", port);
-    let listener = tokio::net::TcpListener::bind(&addr)
-        .await
-        .expect("Failed to bind HTTP server");
+    let listener = match tokio::net::TcpListener::bind(&addr).await {
+        Ok(l) => l,
+        Err(e) => {
+            // 端口被占: 探测是否已有主服务器实例在运行 (桌面端/独立 server 可能重复启动)。
+            // 已有实例 -> 优雅返回不重复启动; 否则真错误 -> panic。
+            if server_already_running(port).await {
+                eprintln!(
+                    "[Axum] 主服务器已在运行 (端口 {port}), 跳过本次启动"
+                );
+                return;
+            }
+            panic!("Failed to bind HTTP server {addr}: {e}");
+        }
+    };
 
     // 通过 mDNS 注册主服务器, 使其它设备/客户端可发现 (镜像 Python mdns_server.py
     // 对 demucs/voxcpm 的注册; 本服务器用 Rust mdns_sd, service 名 _ld-server._tcp.local)。
@@ -118,6 +130,30 @@ pub async fn start(
         })
         .await
         .expect("HTTP server error");
+}
+
+/// 探测 `{host}:{port}/fnrpc/health_check` 是否已有主服务器在运行。
+async fn server_already_running(port: u16) -> bool {
+    use tokio::io::AsyncWriteExt;
+    use tokio::net::TcpStream;
+    use tokio::time::timeout;
+    let Ok(stream) = timeout(Duration::from_millis(2000), TcpStream::connect(("127.0.0.1", port))).await else {
+        return false;
+    };
+    let Ok(mut stream) = stream else { return false; };
+    // 发一个最小 HTTP GET /fnrpc/health_check 请求; 有响应说明 server 在跑。
+    let req = format!(
+        "GET /fnrpc/health_check HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n"
+    );
+    if stream.write_all(req.as_bytes()).await.is_err() {
+        return false;
+    }
+    use tokio::io::AsyncReadExt;
+    let mut buf = [0u8; 128];
+    match timeout(Duration::from_millis(2000), stream.read(&mut buf)).await {
+        Ok(Ok(n)) if n > 0 => true,
+        _ => false,
+    }
 }
 
 /// 用 mdns_sd 注册 `_ld-server._tcp.local` 服务 (主服务器, 端口 `port`)。
