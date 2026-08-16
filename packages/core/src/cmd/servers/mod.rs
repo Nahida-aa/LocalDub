@@ -17,8 +17,10 @@ use config_rs::servers::ServerType;
 /// 服务器状态 (探测 `/status` 是否可连)。
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ServerStatus {
-    pub host: String,
-    pub port: u16,
+    /// 可连接地址; 仅 `running` 时非空, 否则 `null` (服务未跑, 地址无意义)
+    pub host: Option<String>,
+    /// 端口号; 仅 `running` 时非空, 否则 `null`
+    pub port: Option<u16>,
     /// `running` = `/status` 可连; `stopped` = 可发现但探测失败; `not_found` = 未发现实例
     pub status: String,
 }
@@ -75,28 +77,28 @@ fn status(name: Option<ServerType>) -> anyhow::Result<String> {
     for t in types {
         let list = futures_block_on(find_server_via_mdns_all(t, None));
         if list.is_empty() {
-            // 没有 mDNS 发现的实例: 不报默认端口
+            // 没有 mDNS 发现的实例: 地址为 null
             results.push(ServerStatus {
-                host: String::new(),
-                port: 0,
+                host: None,
+                port: None,
                 status: "not_found".to_string(),
             });
             continue;
         }
         for (host, port) in list {
             let st = probe_status(&host, port);
-            // 只有 running 才有可连接地址; stopped/未响应时地址无意义, 置空。
+            // 只有 running 才有可连接地址; stopped/未响应时地址为 null。
             results.push(if st == "running" {
                 ServerStatus {
                     status: st.to_string(),
-                    host,
-                    port,
+                    host: Some(host),
+                    port: Some(port),
                 }
             } else {
                 ServerStatus {
                     status: st.to_string(),
-                    host: String::new(),
-                    port: 0,
+                    host: None,
+                    port: None,
                 }
             });
         }
