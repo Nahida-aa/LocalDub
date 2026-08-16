@@ -410,6 +410,7 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
             "tts",
             StagePatch {
                 last_message: Some(format!("Generating {}/{}...", i + 1, segments.len())),
+                progress: Some((i as f64 / segments.len() as f64) * 100.0),
                 ..Default::default()
             },
         )

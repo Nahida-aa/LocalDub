@@ -97,7 +97,10 @@ export const TaskControlPanel = (p: {
                     <ContextMenuTrigger class="w-full justify-start flex items-center gap-1.5">
                       <span class="flex-1 truncate">{tab}</span>
                       <Show when={status()}>
-                        <StageStatusBadge status={status()!} />
+                        <StageStatusBadge
+                          status={status()!}
+                          progress={stage_map()[tab as StageName]?.progress}
+                        />
                       </Show>
                     </ContextMenuTrigger>
                     <ContextMenuContent>
