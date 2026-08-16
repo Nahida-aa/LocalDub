@@ -9,6 +9,8 @@ pub struct AppState {
     pub repo_root: PathBuf,
     pub torch_proc: Arc<Mutex<Option<Child>>>,
     pub voxcpm_proc: Arc<Mutex<Option<Child>>>,
+    /// 触发主服务器优雅关闭 (`fnrpc shutdown` / 外部调用)。
+    pub shutdown: Arc<tokio::sync::Notify>,
 }
 
 impl AppState {
@@ -24,6 +26,7 @@ impl AppState {
             repo_root,
             torch_proc: Arc::new(Mutex::new(None)),
             voxcpm_proc: Arc::new(Mutex::new(None)),
+            shutdown: Arc::new(tokio::sync::Notify::new()),
         }
     }
 }

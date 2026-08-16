@@ -32,6 +32,13 @@ pub async fn stop_voxcpm(ctx: &Ctx) -> Result<(), String> {
     commands::stop_voxcpm(&ctx.state)
 }
 
+/// 触发主服务器优雅关闭 (fnrpc 端点, 供 `cli servers stop` 调用)。
+#[fnrpc::rpc_mutate]
+pub async fn shutdown(ctx: &Ctx) -> &'static str {
+    ctx.state.shutdown.notify_one();
+    "shutting down"
+}
+
 // #[fnrpc::rpc_query]
 // pub async fn check_voxcpm(ctx: &Ctx) -> bool {
 //     commands::check_voxcpm(&ctx.state)

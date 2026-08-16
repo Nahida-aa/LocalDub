@@ -3,15 +3,18 @@
 //! 动作:
 //! - `discovery`: 用 mDNS/DNS-SD 列出某类型的所有服务器实例 (核心诉求)
 //! - `status`: 发现服务器并探测其 `/status` 健康端点
-//! - `start` / `stop`: 发现服务器地址 (进程启动/停止由上层 CLI/服务层负责, 此处不做进程管理)
+//! - `start`: 启动主服务器 (packages/server, Rust 二进制)
+//! - `stop`: 停止主服务器
 //!
 //! 发现走 `crate::servers::discovery` (底层用 mdns-sd-discovery, 即 OS 原生 DNS-SD/avahi)。
 
+use std::process::Command;
 use std::time::Duration;
 
 use crate::input::Input;
 use crate::servers::args::ServerAction;
 use crate::servers::discovery::find_server_via_mdns_all;
+use crate::stages::utils::find_release_bin;
 use config_rs::servers::ServerType;
 
 /// 服务器状态 (探测 `/status` 是否可连)。
@@ -31,8 +34,8 @@ pub fn cmd_servers(input: &Input) -> anyhow::Result<String> {
     match args.action {
         ServerAction::Discovery => discovery(args.name),
         ServerAction::Status => status(args.name),
-        ServerAction::Start => Ok(format!("[Servers] start: 由上层服务层负责, 已发现地址 {:?}", find_all(args.name))),
-        ServerAction::Stop => Ok(format!("[Servers] stop: 由上层服务层负责, 已发现地址 {:?}", find_all(args.name))),
+        ServerAction::Start => start(args.name),
+        ServerAction::Stop => stop(args.name),
     }
 }
 
@@ -75,6 +78,26 @@ fn status(name: Option<ServerType>) -> anyhow::Result<String> {
     };
     let mut results: Vec<ServerStatus> = vec![];
     for t in types {
+        // 主服务器固定监听默认端口 (mdns_sd 注册可能不广播), 直接端口探测;
+        // 其它类型 (torch/voxcpm) 用 mDNS 发现。
+        if t == ServerType::Server {
+            let port = t.default_port();
+            results.push(if server_healthy_at("127.0.0.1", port) {
+                ServerStatus {
+                    status: "running".to_string(),
+                    host: Some("127.0.0.1".to_string()),
+                    port: Some(port),
+                }
+            } else {
+                ServerStatus {
+                    status: "stopped".to_string(),
+                    host: None,
+                    port: None,
+                }
+            });
+            continue;
+        }
+
         let list = futures_block_on(find_server_via_mdns_all(t, None));
         if list.is_empty() {
             // 没有 mDNS 发现的实例: 地址为 null
@@ -133,5 +156,108 @@ fn futures_block_on<T>(fut: impl std::future::Future<Output = T>) -> T {
                 .expect("tokio runtime");
             rt.block_on(fut)
         }
+    }
+}
+
+/// `start` 动作: 启动主服务器 (packages/server, Rust 二进制)。
+///
+/// 只支持 `ServerType::Server` (主服务器)。已运行则直接返回; 否则 spawn
+/// `target/{release,debug}/server` 二进制并轮询健康端点直到就绪。
+fn start(name: Option<ServerType>) -> anyhow::Result<String> {
+    let t = name.unwrap_or(ServerType::Server);
+    if t != ServerType::Server {
+        return Err(anyhow::anyhow!(
+            "暂仅支持启动主服务器 (server 类型), 收到 {t:?}"
+        ));
+    }
+
+    // 已在运行?
+    if let Some((h, p)) = running_server() {
+        return Ok(format!("主服务器已在运行: http://{h}:{p}/"));
+    }
+
+    // 定位 server 二进制
+    let bin = find_release_bin("server").ok_or_else(|| {
+        anyhow::anyhow!("未找到 server 二进制 (target/release/server 或 target/debug/server)")
+    })?;
+
+    // spawn detached: 主服务器独立于 cli 进程, 不持有 cli 的 stdio 管道,
+    // 使 `cli servers start` 返回后正常退出 (而非等子进程结束)。
+    let mut cmd = Command::new(&bin);
+    cmd.stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0); // 独立进程组, 不受 cli 终端信号影响
+    }
+    cmd.spawn()
+        .map_err(|e| anyhow::anyhow!("启动主服务器 {bin:?} 失败: {e}"))?;
+
+    // 健康轮询 fnrpc health_check
+    for _ in 0..30 {
+        if server_healthy() {
+            return Ok(format!("主服务器已启动: http://127.0.0.1:{}/", ServerType::Server.default_port()));
+        }
+        std::thread::sleep(Duration::from_millis(500));
+    }
+    Err(anyhow::anyhow!(
+        "主服务器启动超时 ({}s)",
+        30 * 500 / 1000
+    ))
+}
+
+/// `stop` 动作: 停止主服务器。
+///
+/// 主服务器 (axum) 暂无 shutdown 端点, 通过 fnrpc `/fnrpc/shutdown` 优雅停止
+/// (若已实现) 或提示手动停止。
+fn stop(_name: Option<ServerType>) -> anyhow::Result<String> {
+    let port = ServerType::Server.default_port();
+    // 尝试 fnrpc shutdown (当前主服务器未提供该端点, 预留)
+    let url = format!("http://127.0.0.1:{port}/fnrpc/shutdown");
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .ok();
+    if let Some(c) = client {
+        if let Ok(resp) = c.post(&url).send() {
+            if resp.status().is_success() {
+                return Ok("主服务器已停止".to_string());
+            }
+        }
+    }
+    Ok(format!(
+        "主服务器 (端口 {port}) 未提供 shutdown 端点, 请手动停止对应进程"
+    ))
+}
+
+/// 判断主服务器是否在运行 (直接探测默认端口 fnrpc health_check)。
+///
+/// 不依赖 mDNS (mdns_sd 注册在此环境可能不广播), 主服务器固定监听 19110,
+/// 直接 HTTP 探测最可靠。
+fn running_server() -> Option<(String, u16)> {
+    let port = ServerType::Server.default_port();
+    if server_healthy_at("127.0.0.1", port) {
+        Some(("127.0.0.1".to_string(), port))
+    } else {
+        None
+    }
+}
+
+/// 探测主服务器 fnrpc health_check (`GET /fnrpc/health_check`) 是否可连。
+fn server_healthy() -> bool {
+    server_healthy_at("127.0.0.1", ServerType::Server.default_port())
+}
+
+fn server_healthy_at(host: &str, port: u16) -> bool {
+    let url = format!("http://{host}:{port}/fnrpc/health_check");
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .ok();
+    match client {
+        Some(c) => c.get(&url).send().map(|r| r.status().is_success()).unwrap_or(false),
+        None => false,
     }
 }

@@ -82,6 +82,8 @@ pub async fn start(
     //     rspc_axum::endpoint::<AppState, _, _, _>(procedures, move || state_for_rspc.clone());
 
     let media_root = base_dir();
+    // 先保存 shutdown 信号 (build_axum_router 会 move state)。
+    let shutdown_signal = state.shutdown.clone();
     let app = build_axum_router(fnrpc_router, state)
         .nest_service("/media", ServeDir::new(&media_root))
         // dev 下前端在 vite(1420), 媒体在 axum(19110) 跨源.
@@ -109,7 +111,13 @@ pub async fn start(
     let _mdns_daemon = register_mdns(port);
 
     eprintln!("[Axum] HTTP server listening on http://{}", addr);
-    axum::serve(listener, app).await.expect("HTTP server error");
+    // 优雅关闭: 收到 `fnrpc shutdown` 通知 (AppState.shutdown) 时停止。
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async move {
+            shutdown_signal.notified().await;
+        })
+        .await
+        .expect("HTTP server error");
 }
 
 /// 用 mdns_sd 注册 `_ld-server._tcp.local` 服务 (主服务器, 端口 `port`)。
