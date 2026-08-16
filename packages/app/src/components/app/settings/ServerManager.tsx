@@ -1,12 +1,6 @@
 import { createQuery, useMutation } from "@tanstack/solid-query";
 import { Button } from "@repo/ui-solid/base/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@repo/ui-solid/base/card";
+import { CardX } from "@repo/ui-solid/custom/card";
 import { toastError } from "@repo/ui-solid/custom/toast";
 import { ModelServerStatus } from "@repo/core/servers/type";
 import {
@@ -62,13 +56,14 @@ function ServerCard(props: {
     return props.data?.status ?? "unknown";
   };
   return (
-    <Card variant="outline">
-      <CardHeader>
-        <CardTitle>{props.name}</CardTitle>
-        <CardDescription>
+    <CardX
+      variant="outline"
+      title={props.name}
+      description={statusText()}
+      Footer={
+        <div class="flex w-full flex-col gap-3">
           <div class="flex items-center gap-3">
             <div class={statusDot(status())} />
-            <span>{statusText()}</span>
             <span class="text-sm text-gray-500">
               {props.busy
                 ? "working..."
@@ -77,54 +72,52 @@ function ServerCard(props: {
                   : "stopped"}
             </span>
           </div>
-        </CardDescription>
-      </CardHeader>
-      <CardContent class="space-y-3">
-        {props.running ? (
-          <div class="text-xs text-gray-400">http://127.0.0.1:{props.port}</div>
-        ) : null}
-        <div class="flex flex-wrap gap-2">
-          {Object.entries(props.models).map(([name, m]) => (
-            <span
-              class={`text-xs px-2 py-0.5 rounded ${
-                m.status === "ready"
-                  ? "bg-green-900/40 text-green-400"
-                  : "bg-gray-800 text-gray-500"
-              }`}
-            >
-              {name}: {m.status}
-              {m.device ? ` (${m.device})` : ""}
-            </span>
-          ))}
-        </div>
-        {props.hideActions ? null : (
-          <div class="flex gap-2">
-            <Button
-              variant="ghost"
-              onClick={props.onStart}
-              disabled={props.busy || props.running}
-              class="font-medium bg-green-400 disabled:opacity-40"
-            >
-              Start
-            </Button>
-            <Button
-              onClick={props.onRestart}
-              disabled={props.busy || !props.running}
-              class="font-medium bg-amber-300 disabled:opacity-40"
-            >
-              Restart
-            </Button>
-            <Button
-              onClick={props.onStop}
-              disabled={props.busy || !props.running}
-              class="font-medium bg-red-400 disabled:opacity-40"
-            >
-              Stop
-            </Button>
+          {props.running ? (
+            <div class="text-xs text-gray-400">http://127.0.0.1:{props.port}</div>
+          ) : null}
+          <div class="flex flex-wrap gap-2">
+            {Object.entries(props.models).map(([name, m]) => (
+              <span
+                class={`text-xs px-2 py-0.5 rounded ${
+                  m.status === "ready"
+                    ? "bg-green-900/40 text-green-400"
+                    : "bg-gray-800 text-gray-500"
+                }`}
+              >
+                {name}: {m.status}
+                {m.device ? ` (${m.device})` : ""}
+              </span>
+            ))}
           </div>
-        )}
-      </CardContent>
-    </Card>
+          {props.hideActions ? null : (
+            <div class="flex gap-2">
+              <Button
+                variant="ghost"
+                onClick={props.onStart}
+                disabled={props.busy || props.running}
+                class="font-medium bg-green-400 disabled:opacity-40"
+              >
+                Start
+              </Button>
+              <Button
+                onClick={props.onRestart}
+                disabled={props.busy || !props.running}
+                class="font-medium bg-amber-300 disabled:opacity-40"
+              >
+                Restart
+              </Button>
+              <Button
+                onClick={props.onStop}
+                disabled={props.busy || !props.running}
+                class="font-medium bg-red-400 disabled:opacity-40"
+              >
+                Stop
+              </Button>
+            </div>
+          )}
+        </div>
+      }
+    />
   );
 }
 
