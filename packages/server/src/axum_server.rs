@@ -103,6 +103,52 @@ pub async fn start(
         .await
         .expect("Failed to bind HTTP server");
 
+    // 通过 mDNS 注册主服务器, 使其它设备/客户端可发现 (镜像 Python mdns_server.py
+    // 对 demucs/voxcpm 的注册; 本服务器用 Rust mdns_sd, service 名 _ld-server._tcp.local)。
+    // daemon 在 serve 结束后 drop, mdns_sd 自动注销服务。
+    let _mdns_daemon = register_mdns(port);
+
     eprintln!("[Axum] HTTP server listening on http://{}", addr);
     axum::serve(listener, app).await.expect("HTTP server error");
+}
+
+/// 用 mdns_sd 注册 `_ld-server._tcp.local` 服务 (主服务器, 端口 `port`)。
+/// 返回 `ServiceDaemon` 供调用方持有 (drop 即注销)。注册失败仅告警, 不影响服务器启动。
+fn register_mdns(port: u16) -> Option<mdns_sd::ServiceDaemon> {
+    use mdns_sd::{ServiceDaemon, ServiceInfo};
+    let mdns = match ServiceDaemon::new() {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("[mDNS] 创建 daemon 失败, 跳过注册: {e}");
+            return None;
+        }
+    };
+    // ip 用空 + enable_addr_auto 让库自动探测本机地址 (镜像 mdns_sd register example)。
+    let service_info = ServiceInfo::new(
+        "_ld-server._tcp.local.",
+        "ld-server",
+        "ld-server.local.",
+        "",
+        port,
+        None::<std::collections::HashMap<String, String>>,
+    );
+    let service_info = match service_info {
+        Ok(si) => si,
+        Err(e) => {
+            eprintln!("[mDNS] 构建 ServiceInfo 失败, 跳过注册: {e}");
+            return None;
+        }
+    };
+    match mdns.register(service_info) {
+        Ok(receiver) => {
+            eprintln!("[mDNS] 已注册 _ld-server._tcp.local 端口 {port}");
+            // 消费 register 事件接收器, 避免未读
+            let _ = receiver;
+            Some(mdns)
+        }
+        Err(e) => {
+            eprintln!("[mDNS] 注册失败: {e}");
+            None
+        }
+    }
 }

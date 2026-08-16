@@ -29,3 +29,5 @@ tokio.workspace = true
 futures = { version = "0.3", default-features = false, features = ["std"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+mdns-sd.workspace = true
+mdns-sd-discovery.workspace = true
