@@ -3925,7 +3925,7 @@ dependencies = [
 [[package]]
 name = "geometry"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/ocr-lab.git?rev=2ec33b7f077f1bd446b688da269bcc37f056a5c4#2ec33b7f077f1bd446b688da269bcc37f056a5c4"
+source = "git+https://github.com/Nahida-aa/ocr-lab.git?rev=225f74f6f980bae623c551d9c2f1439909c6e0ad#225f74f6f980bae623c551d9c2f1439909c6e0ad"
 dependencies = [
  "glam",
  "wide",
@@ -7337,7 +7337,7 @@ checksum = "ca45419789ae5a7899559e9512e58ca889e41f04f1f2445e9f4b290ceccd1d08"
 [[package]]
 name = "rapidocr-ort"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/ocr-lab.git?rev=2ec33b7f077f1bd446b688da269bcc37f056a5c4#2ec33b7f077f1bd446b688da269bcc37f056a5c4"
+source = "git+https://github.com/Nahida-aa/ocr-lab.git?rev=225f74f6f980bae623c551d9c2f1439909c6e0ad#225f74f6f980bae623c551d9c2f1439909c6e0ad"
 dependencies = [
  "anyhow",
  "clap",
@@ -8749,7 +8749,7 @@ version = "0.1.0"
 [[package]]
 name = "subtitle-finder"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/ocr-lab.git?rev=2ec33b7f077f1bd446b688da269bcc37f056a5c4#2ec33b7f077f1bd446b688da269bcc37f056a5c4"
+source = "git+https://github.com/Nahida-aa/ocr-lab.git?rev=225f74f6f980bae623c551d9c2f1439909c6e0ad#225f74f6f980bae623c551d9c2f1439909c6e0ad"
 dependencies = [
  "anyhow",
  "clap",
@@ -8767,7 +8767,7 @@ dependencies = [
 [[package]]
 name = "subtitle-ocr"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/ocr-lab.git?rev=2ec33b7f077f1bd446b688da269bcc37f056a5c4#2ec33b7f077f1bd446b688da269bcc37f056a5c4"
+source = "git+https://github.com/Nahida-aa/ocr-lab.git?rev=225f74f6f980bae623c551d9c2f1439909c6e0ad#225f74f6f980bae623c551d9c2f1439909c6e0ad"
 dependencies = [
  "anyhow",
  "clap",
