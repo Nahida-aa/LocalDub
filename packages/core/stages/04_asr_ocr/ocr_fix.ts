@@ -7,7 +7,7 @@ import { fixOverlap } from "@repo/subtitle-ocr/ocr_fix/merge_frames";
 import { TaskCtx, setStage } from "@repo/core/context/context.ts";
 import { OcrFramesResult, OcrSegment } from "@repo/subtitle-ocr/types";
 import { writeJson, ensureDir } from "@repo/util/file_op";
-import { resample_to_ocr_frames } from "@repo/subtitle-ocr/ocr_fix/resample";
+// import { resample_to_ocr_frames } from "@repo/subtitle-ocr/ocr_fix/resample";
 
 import { to } from "@repo/shared/lib/utils/try";
 import { log } from "@repo/util/log";
@@ -16,6 +16,7 @@ import { AsrSplitResult } from "./ocr_pre.ts";
 import { ocrLlmFix } from "../sf_ocr/llm_fix.ts";
 import { AsrResult } from "@repo/subtitle-asr/types";
 import { cellOcrPost } from "../sf_ocr/util.ts";
+import { resample_to_ocr_frames } from "./resample.ts";
 
 export async function stageAsrOcrFix(ctx: TaskCtx) {
   const taskDir = ctx.task.task_dir;

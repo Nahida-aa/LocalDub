@@ -4,7 +4,7 @@ import {
   OcrSegmentWithAdjust,
   SegmentFrame,
 } from "@repo/subtitle-ocr/types";
-import { MergeFramesArgs } from "@repo/subtitle-ocr/args";
+// import { MergeFramesArgs } from "@repo/subtitle-ocr/args";
 import { srtTime } from "@repo/util/time";
 
 /**
@@ -89,102 +89,102 @@ function mergeSubstringSegments(segments: OcrSegment[]): OcrSegment[] {
   return segments;
 }
 
-function base_merge_frames(frames: FrameResult[], args: MergeFramesArgs) {
-  const segments: OcrSegment[] = [];
-  let currentText = "";
-  let currentStart = 0;
-  let currentBoxY: [number, number] | undefined;
-  let gapStart = 0;
-  let currentConfidences: number[] = [];
-  let currentFrames: SegmentFrame[] = [];
-  let currentEnd = 0;
+// function base_merge_frames(frames: FrameResult[], args: MergeFramesArgs) {
+//   const segments: OcrSegment[] = [];
+//   let currentText = "";
+//   let currentStart = 0;
+//   let currentBoxY: [number, number] | undefined;
+//   let gapStart = 0;
+//   let currentConfidences: number[] = [];
+//   let currentFrames: SegmentFrame[] = [];
+//   let currentEnd = 0;
 
-  for (const f of frames) {
-    // ─── A: 空帧 → 标记 gap ───
-    if (!f.text) {
-      if (currentText && !gapStart) gapStart = f.timestamp;
-      continue;
-    }
-    // ─── B: gap 恢复检查（空帧后同 text 恢复）───
-    if (gapStart > 0) {
-      const gapMs = f.timestamp - gapStart;
-      if (
-        gapMs <= 1500 &&
-        (normalize(f.text) === normalize(currentText) ||
-          isSubstringOf(f.text, currentText) ||
-          isSubstringOf(currentText, f.text))
-      ) {
-        // B1: gap 恢复成功 → 合并回当前段
-        currentConfidences.push(f.text_confidence);
-        currentEnd = f.timestamp;
-        gapStart = 0;
-        continue;
-      }
-      // B2: gap 恢复失败 → flush 当前段，重置
-      segments.push({
-        text: currentText,
-        start_ms: currentStart,
-        end_ms: gapStart,
-        y_range: currentBoxY,
-        text_confidence: avgConfidence(currentConfidences),
-        frame_count: currentConfidences.length,
-        frames: currentFrames,
-      });
-      currentText = "";
-      currentStart = 0;
-      currentBoxY = undefined;
-      gapStart = 0;
-      currentConfidences = [];
-      currentFrames = [];
-    }
-    // ─── C: text 比较 ───
-    if (!currentText || normalize(f.text) !== normalize(currentText)) {
-      // C1: 不同 text → flush 旧段，开始新段
-      if (currentText) {
-        segments.push({
-          text: currentText,
-          start_ms: currentStart,
-          end_ms: currentEnd,
-          y_range: currentBoxY,
-          text_confidence: avgConfidence(currentConfidences),
-          frame_count: currentConfidences.length,
-          frames: currentFrames,
-        });
-      }
-      currentText = f.text;
-      currentStart = f.timestamp;
-      currentEnd = f.timestamp;
-      currentBoxY = f.y_range;
-      currentConfidences = [f.text_confidence];
-      currentFrames = [
-        { timestamp: f.timestamp, text: f.text, text_confidence: f.text_confidence },
-      ];
-    } else {
-      // C2: 同 text → 延续当前段
-      currentConfidences.push(f.text_confidence);
-      currentEnd = f.timestamp;
-      currentFrames.push({
-        timestamp: f.timestamp,
-        text: f.text,
-        text_confidence: f.text_confidence,
-      });
-    }
-  }
-  // ─── D: 循环结束 flush 最后一段 ───
-  if (currentText) {
-    const lastTs = gapStart > 0 ? gapStart : currentEnd;
-    segments.push({
-      text: currentText,
-      start_ms: currentStart,
-      end_ms: lastTs,
-      y_range: currentBoxY,
-      text_confidence: avgConfidence(currentConfidences),
-      frame_count: currentConfidences.length,
-      frames: currentFrames,
-    });
-  }
-  return segments;
-}
+//   for (const f of frames) {
+//     // ─── A: 空帧 → 标记 gap ───
+//     if (!f.text) {
+//       if (currentText && !gapStart) gapStart = f.timestamp;
+//       continue;
+//     }
+//     // ─── B: gap 恢复检查（空帧后同 text 恢复）───
+//     if (gapStart > 0) {
+//       const gapMs = f.timestamp - gapStart;
+//       if (
+//         gapMs <= 1500 &&
+//         (normalize(f.text) === normalize(currentText) ||
+//           isSubstringOf(f.text, currentText) ||
+//           isSubstringOf(currentText, f.text))
+//       ) {
+//         // B1: gap 恢复成功 → 合并回当前段
+//         currentConfidences.push(f.text_confidence);
+//         currentEnd = f.timestamp;
+//         gapStart = 0;
+//         continue;
+//       }
+//       // B2: gap 恢复失败 → flush 当前段，重置
+//       segments.push({
+//         text: currentText,
+//         start_ms: currentStart,
+//         end_ms: gapStart,
+//         y_range: currentBoxY,
+//         text_confidence: avgConfidence(currentConfidences),
+//         frame_count: currentConfidences.length,
+//         frames: currentFrames,
+//       });
+//       currentText = "";
+//       currentStart = 0;
+//       currentBoxY = undefined;
+//       gapStart = 0;
+//       currentConfidences = [];
+//       currentFrames = [];
+//     }
+//     // ─── C: text 比较 ───
+//     if (!currentText || normalize(f.text) !== normalize(currentText)) {
+//       // C1: 不同 text → flush 旧段，开始新段
+//       if (currentText) {
+//         segments.push({
+//           text: currentText,
+//           start_ms: currentStart,
+//           end_ms: currentEnd,
+//           y_range: currentBoxY,
+//           text_confidence: avgConfidence(currentConfidences),
+//           frame_count: currentConfidences.length,
+//           frames: currentFrames,
+//         });
+//       }
+//       currentText = f.text;
+//       currentStart = f.timestamp;
+//       currentEnd = f.timestamp;
+//       currentBoxY = f.y_range;
+//       currentConfidences = [f.text_confidence];
+//       currentFrames = [
+//         { timestamp: f.timestamp, text: f.text, text_confidence: f.text_confidence },
+//       ];
+//     } else {
+//       // C2: 同 text → 延续当前段
+//       currentConfidences.push(f.text_confidence);
+//       currentEnd = f.timestamp;
+//       currentFrames.push({
+//         timestamp: f.timestamp,
+//         text: f.text,
+//         text_confidence: f.text_confidence,
+//       });
+//     }
+//   }
+//   // ─── D: 循环结束 flush 最后一段 ───
+//   if (currentText) {
+//     const lastTs = gapStart > 0 ? gapStart : currentEnd;
+//     segments.push({
+//       text: currentText,
+//       start_ms: currentStart,
+//       end_ms: lastTs,
+//       y_range: currentBoxY,
+//       text_confidence: avgConfidence(currentConfidences),
+//       frame_count: currentConfidences.length,
+//       frames: currentFrames,
+//     });
+//   }
+//   return segments;
+// }
 
 // Pass 2: 消除夹在两段相同真实字幕之间的短噪声段 (A-B-C → A+C)
 //  A-B-C triplet 噪声消除
@@ -259,38 +259,38 @@ type MergeFramesResult = {
   segments: OcrSegment[];
 };
 
-export function mergeFrames(frames: FrameResult[], args: MergeFramesArgs): MergeFramesResult {
-  const segments = base_merge_frames(frames, args);
+// export function mergeFrames(frames: FrameResult[], args: MergeFramesArgs): MergeFramesResult {
+//   const segments = base_merge_frames(frames, args);
 
-  // ─── Pass 1: substring merge ───
-  if (args.is_merge_substring) {
-    mergeSubstringSegments(segments);
-  }
+//   // ─── Pass 1: substring merge ───
+//   if (args.is_merge_substring) {
+//     mergeSubstringSegments(segments);
+//   }
 
-  // ─── Pass 2: A-B-C triplet 噪声消除 ───
-  // third pass: A-B-C triplet where A.text == C.text and B is a short hallucination
-  // (handles patterns like "嗯发财了" → "菌" → "嗯发财了", or same-text segments
-  // split by a one-word noise like "娘带着我们门爬了七座山才到")
-  removeTripletNoise(segments);
+//   // ─── Pass 2: A-B-C triplet 噪声消除 ───
+//   // third pass: A-B-C triplet where A.text == C.text and B is a short hallucination
+//   // (handles patterns like "嗯发财了" → "菌" → "嗯发财了", or same-text segments
+//   // split by a one-word noise like "娘带着我们门爬了七座山才到")
+//   removeTripletNoise(segments);
 
-  // ─── Pass 3: overlapping dedup ───
-  // fourth pass: remove overlapping segments with similar text
-  // (handles ASR segment overlap where end2fps scans produce duplicate
-  // segments with lev-distant text like 干嘛/于嘛 in the same time window)
-  dedupOverlap(segments, args.dedup_edit_distance);
+//   // ─── Pass 3: overlapping dedup ───
+//   // fourth pass: remove overlapping segments with similar text
+//   // (handles ASR segment overlap where end2fps scans produce duplicate
+//   // segments with lev-distant text like 干嘛/于嘛 in the same time window)
+//   dedupOverlap(segments, args.dedup_edit_distance);
 
-  // ─── Pass 4: 同 text 相邻合并 ───
-  // fifth pass: merge adjacent segments with the same normalized text
-  // (handles A → noise → A cut by a frame gap where the triplet didn't fire
-  // because noise was a single long segment, e.g. same subtitle resumed after
-  // a punctuation/breath pause split the ASR slice)
-  mergeAdjacentSameText(segments);
+//   // ─── Pass 4: 同 text 相邻合并 ───
+//   // fifth pass: merge adjacent segments with the same normalized text
+//   // (handles A → noise → A cut by a frame gap where the triplet didn't fire
+//   // because noise was a single long segment, e.g. same subtitle resumed after
+//   // a punctuation/breath pause split the ASR slice)
+//   mergeAdjacentSameText(segments);
 
-  return {
-    text: segments.map((s) => s.text).join(" "),
-    segments: segments,
-  };
-}
+//   return {
+//     text: segments.map((s) => s.text).join(" "),
+//     segments: segments,
+//   };
+// }
 
 export function dedupOverlap(segments: OcrSegment[], dedup_edit_distance = 1): OcrSegment[] {
   const TOUCH_GAP_MS = 500;

@@ -11,3 +11,7 @@
 ## query
 
 - /home/aa/repos/env_ls/fnrpc
+
+## server
+
+- /home/aa/repos/server_ls/learn_ls/mdns-sd
