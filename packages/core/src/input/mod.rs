@@ -9,33 +9,12 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::cmd::cookie::CookieArgs;
+use crate::cmd::env::args::EnvArgs;
 use crate::servers::args::ServersArgs;
 use crate::tasks::args;
 
 pub mod stages;
-
-/// `env` 命令参数 (镜像 TS `packages/core/cmd/env/input.ts` 的 EnvArgsSchema)。
-///
-/// `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 stages 配置推断)。
-#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct EnvArgs {
-    /// 动作: check (默认) / ensure
-    #[serde(default)]
-    pub action: EnvAction,
-    /// 要检查/ensure 的环境项; 空数组 → 按 input.jsonc 的 stages 配置推断所需项
-    #[serde(default)]
-    pub targets: Vec<String>,
-}
-
-/// env 动作
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "lowercase")]
-pub enum EnvAction {
-    #[default]
-    Check,
-    Ensure,
-}
 
 /// 命令
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
@@ -44,6 +23,10 @@ pub enum Command {
     Task,
     Env,
     Servers,
+    Cookie,
+    Check,
+    DeviceInfo,
+    ListModels,
 }
 
 impl Default for Command {
@@ -66,6 +49,9 @@ pub struct Input {
     /// env 命令参数 (镜像 env/input.ts); targets 为空时按 stages 配置推断所需环境项
     #[serde(default)]
     pub env: Option<EnvArgs>,
+    /// cookie 命令参数 (镜像 cmd/cookie/args.ts), 仅 command=cookie 时使用
+    #[serde(default)]
+    pub cookie: Option<CookieArgs>,
     #[serde(default)]
     pub stages: stages::Stages,
 }
@@ -77,6 +63,7 @@ impl Default for Input {
             command: Command::default(),
             servers: None,
             env: None,
+            cookie: None,
             stages: stages::Stages::default(),
         }
     }
@@ -172,5 +159,21 @@ mod tests {
 
         let empty: Input = serde_json::from_str(r#"{"command":"servers"}"#).unwrap();
         assert!(empty.servers.is_none());
+    }
+
+    #[test]
+    fn cookie_field_wires_cookie_args() {
+        let input: Input = serde_json::from_str(
+            r#"{"command":"cookie","cookie":{"content":"abc","service":"youtube","action":"set"}}"#,
+        )
+        .unwrap();
+        assert_eq!(input.command, Command::Cookie);
+        let cookie = input.cookie.unwrap();
+        assert_eq!(cookie.action, crate::cmd::cookie::CookieAction::Set);
+        assert_eq!(cookie.service, crate::cmd::cookie::CookieService::Youtube);
+        assert_eq!(cookie.content.as_deref(), Some("abc"));
+
+        let empty: Input = serde_json::from_str(r#"{"command":"cookie"}"#).unwrap();
+        assert!(empty.cookie.is_none());
     }
 }

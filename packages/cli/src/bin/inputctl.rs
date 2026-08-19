@@ -12,83 +12,12 @@
 use std::process::exit;
 
 use anyhow::{Context, anyhow};
+use cli::strip_jsonc_comments as strip_jsonc;
 use jsonc_parser::CollectOptions;
 use jsonc_parser::ParseOptions;
 use jsonc_parser::ast::Value as JsoncValue;
 use jsonc_parser::common::Ranged;
 use jsonc_parser::parse_to_ast;
-
-/// 剥离 JSONC 注释 + 尾随逗号, 转成合法 JSON 文本 (供 serde_json 解析)。
-///
-/// 与 cli/main.rs 的 `strip_jsonc_comments` 同源, 这里独立复制一份 (工具二进制,
-/// 不耦合 cli 私有符号)。按 `char` 迭代以正确处理多字节 UTF-8 (中文路径)。
-fn strip_jsonc(src: &str) -> String {
-    let mut out = String::with_capacity(src.len());
-    let mut in_line = false;
-    let mut in_block = false;
-    let mut in_str: char = '\0';
-
-    let mut chars = src.chars().peekable();
-    while let Some(c) = chars.next() {
-        if in_str != '\0' {
-            out.push(c);
-            if c == '\\' {
-                if let Some(&n) = chars.peek() {
-                    out.push(n);
-                    chars.next();
-                }
-            } else if c == in_str {
-                in_str = '\0';
-            }
-            continue;
-        }
-        if in_block {
-            if c == '*' && chars.peek() == Some(&'/') {
-                chars.next();
-                in_block = false;
-            }
-            continue;
-        }
-        if in_line {
-            if c == '\n' {
-                in_line = false;
-                out.push('\n');
-            }
-            continue;
-        }
-        if c == '"' || c == '\'' {
-            in_str = c;
-            out.push(c);
-            continue;
-        }
-        if c == '/' {
-            match chars.peek() {
-                Some('/') => {
-                    chars.next();
-                    in_line = true;
-                    continue;
-                }
-                Some('*') => {
-                    chars.next();
-                    in_block = true;
-                    continue;
-                }
-                _ => {}
-            }
-        }
-        if c == '}' || c == ']' {
-            let mut j = out.len();
-            while j > 0 && out.as_bytes()[j - 1].is_ascii_whitespace() {
-                j -= 1;
-            }
-            if j > 0 && out.as_bytes()[j - 1] == b',' {
-                out.truncate(j - 1);
-            }
-        }
-        out.push(c);
-    }
-    out
-}
 
 /// 定位 input 文件: 优先仓库根 `input.jsonc`, 其次 `input.json`。
 fn resolve_input_path() -> anyhow::Result<std::path::PathBuf> {

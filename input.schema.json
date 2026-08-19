@@ -635,10 +635,119 @@
         },
         {
           "const": "servers"
+        },
+        {
+          "const": "cookie"
+        },
+        {
+          "const": "check"
+        },
+        {
+          "const": "deviceinfo"
+        },
+        {
+          "const": "listmodels"
         }
       ],
       "description": " 命令",
       "title": "Command"
+    },
+    "CookieAction": {
+      "const": "set",
+      "description": " cookie 动作",
+      "title": "CookieAction"
+    },
+    "CookieArgs": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/CookieArgs_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/CookieArgs_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " cookie 命令参数 (镜像 TS `CookieArgsSchema`: action=set + service=youtube + content 可选)。",
+      "title": "CookieArgs"
+    },
+    "CookieArgs_Deserialize": {
+      "description": " cookie 命令参数 (镜像 TS `CookieArgsSchema`: action=set + service=youtube + content 可选)。",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/CookieAction",
+          "description": " 动作: set (当前仅支持)"
+        },
+        "content": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " Netscape cookie 内容; 为空则从 stdin 读取"
+        },
+        "service": {
+          "$ref": "#/$defs/CookieService",
+          "description": " 服务: youtube (当前仅支持)"
+        }
+      },
+      "title": "CookieArgs_Deserialize",
+      "type": "object"
+    },
+    "CookieArgs_Serialize": {
+      "description": " cookie 命令参数 (镜像 TS `CookieArgsSchema`: action=set + service=youtube + content 可选)。",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/CookieAction",
+          "description": " 动作: set (当前仅支持)"
+        },
+        "content": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " Netscape cookie 内容; 为空则从 stdin 读取"
+        },
+        "service": {
+          "$ref": "#/$defs/CookieService",
+          "description": " 服务: youtube (当前仅支持)"
+        }
+      },
+      "required": [
+        "action",
+        "service",
+        "content"
+      ],
+      "title": "CookieArgs_Serialize",
+      "type": "object"
+    },
+    "CookieService": {
+      "const": "youtube",
+      "description": " cookie 所属服务",
+      "title": "CookieService"
     },
     "Device": {
       "anyOf": [
@@ -700,11 +809,11 @@
           "type": "object"
         }
       ],
-      "description": " `env` 命令参数 (镜像 TS `packages/core/cmd/env/input.ts` 的 EnvArgsSchema)。\n\n `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 stages 配置推断)。",
+      "description": " `env` 命令参数。\n\n `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 stages 配置推断)。",
       "title": "EnvArgs"
     },
     "EnvArgs_Deserialize": {
-      "description": " `env` 命令参数 (镜像 TS `packages/core/cmd/env/input.ts` 的 EnvArgsSchema)。\n\n `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 stages 配置推断)。",
+      "description": " `env` 命令参数。\n\n `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 stages 配置推断)。",
       "properties": {
         "action": {
           "$ref": "#/$defs/EnvAction",
@@ -722,7 +831,7 @@
       "type": "object"
     },
     "EnvArgs_Serialize": {
-      "description": " `env` 命令参数 (镜像 TS `packages/core/cmd/env/input.ts` 的 EnvArgsSchema)。\n\n `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 stages 配置推断)。",
+      "description": " `env` 命令参数。\n\n `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 stages 配置推断)。",
       "properties": {
         "action": {
           "$ref": "#/$defs/EnvAction",
@@ -780,6 +889,17 @@
           "$ref": "#/$defs/Command",
           "description": " 执行命令 (默认 env)"
         },
+        "cookie": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CookieArgs_Deserialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " cookie 命令参数 (镜像 cmd/cookie/args.ts), 仅 command=cookie 时使用"
+        },
         "env": {
           "anyOf": [
             {
@@ -827,6 +947,17 @@
           "$ref": "#/$defs/Command",
           "description": " 执行命令 (默认 env)"
         },
+        "cookie": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CookieArgs_Serialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " cookie 命令参数 (镜像 cmd/cookie/args.ts), 仅 command=cookie 时使用"
+        },
         "env": {
           "anyOf": [
             {
@@ -869,6 +1000,7 @@
         "command",
         "servers",
         "env",
+        "cookie",
         "stages"
       ],
       "title": "Input_Serialize",

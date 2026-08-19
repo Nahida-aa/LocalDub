@@ -3,6 +3,8 @@
 //! 镜像 TS `packages/core/cmd/env/index.ts`: `runCheck` / `runEnsure` /
 //! `formatResult` + `resolveTargets`。检查逻辑见 `items.rs`, 元信息见 `input.rs`。
 
+pub mod args;
+pub mod handler;
 pub mod input;
 pub mod items;
 

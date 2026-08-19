@@ -1600,6 +1600,7 @@ name = "cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "clap",
  "config-rs",
  "jsonc-parser",
  "ld-core",
@@ -5192,6 +5193,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "clap",
  "config-rs",
  "ffmpeg-next",
  "futures",

@@ -9,96 +9,49 @@
 //!
 //! 失败打印错误并以退出码 1 退出, 成功以 0 退出。
 
-use std::path::PathBuf;
-use std::process::{Command, exit};
+use std::process::exit;
 
 use anyhow::Context;
+use clap::{Parser, Subcommand};
+use cli::strip_jsonc_comments;
+use ld_core::cmd::env::args::EnvAction;
 use ld_core::cmd::tasks::task::cmd_task;
-use ld_core::input::{Command as InputCommand, Input};
+use ld_core::input::Command as InputCommand;
 
-/// 剥离 JSONC 注释: `//` 行注释 与 `/* ... */` 块注释。
+/// LocalDub CLI。
 ///
-/// 同时移除尾随逗号 (JSONC 允许, 但 `serde_json` 不允许), 例如
-/// `{ "a": 1, }` → `{ "a": 1 }`。不依赖正则 (遵循 AGENTS.md "no regex dep"
-/// 约定), 逐字符状态机处理。字符串内 (单/双引号) 的注释符号 / 逗号原样保留。
+/// 无子命令时读取仓库根 `input.jsonc` 的 `command` 字段派发 (task/env/servers/cookie 等);
+/// `env` 子命令直接做环境检查/修复。
 ///
-/// 注意: 必须按 `char` (而非 `u8`) 迭代, 否则多字节 UTF-8 (中文路径等) 会被
-/// `as char` 当成 Latin-1 码点而双重编码, 导致路径/模型名损坏。
-fn strip_jsonc_comments(src: &str) -> String {
-    let mut out = String::with_capacity(src.len());
-    let mut in_line = false;
-    let mut in_block = false;
-    let mut in_str: char = '\0'; // '\0' = 否, '"' / '\'' = 字符串定界符
+/// 设计意图:
+/// - `env` 做成 clap 子命令: 因其参数简单 (`--action`/`--targets`), 适合命令行交互;
+/// - 其余命令 (task/servers/cookie 等) 输入复杂 (task 含完整 stages 结构), 靠
+///   input.jsonc 的 `command` 字段派发, 不做命令行子命令。
+/// - 因此「env 能从命令行触发、其他命令只能靠 input.jsonc」是不对称的, 是有意设计。
+///
+/// 混合策略: 每个子命令的显式参数优先, 缺失参数回退 input.jsonc, 再回退默认。
+#[derive(Parser)]
+#[command(name = "cli", version, about)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Command>,
+}
 
-    let mut chars = src.chars().peekable();
-    while let Some(c) = chars.next() {
-        // 字符串状态优先
-        if in_str != '\0' {
-            out.push(c);
-            if c == '\\' {
-                // 转义下一个字符 (含转义的引号)
-                if let Some(&n) = chars.peek() {
-                    out.push(n);
-                    chars.next();
-                }
-            } else if c == in_str {
-                in_str = '\0';
-            }
-            continue;
-        }
-
-        if in_block {
-            if c == '*' && chars.peek() == Some(&'/') {
-                chars.next();
-                in_block = false;
-                continue;
-            }
-            continue;
-        }
-
-        if in_line {
-            if c == '\n' {
-                in_line = false;
-                out.push('\n');
-            }
-            continue;
-        }
-
-        // 普通状态
-        if c == '"' || c == '\'' {
-            in_str = c;
-            out.push(c);
-            continue;
-        }
-        if c == '/' {
-            match chars.peek() {
-                Some(&'/') => {
-                    chars.next();
-                    in_line = true;
-                    continue;
-                }
-                Some(&'*') => {
-                    chars.next();
-                    in_block = true;
-                    continue;
-                }
-                _ => {}
-            }
-        }
-        // 遇到 `}` / `]` 时, 先吃掉前面可能存在的尾随逗号 (JSONC 特性)
-        if c == '}' || c == ']' {
-            // 回退跳过尾随空白, 若前一非空白字符是逗号则移除之
-            let mut j = out.len();
-            while j > 0 && out.as_bytes()[j - 1].is_ascii_whitespace() {
-                j -= 1;
-            }
-            if j > 0 && out.as_bytes()[j - 1] == b',' {
-                out.truncate(j - 1);
-            }
-        }
-        out.push(c);
-    }
-    out
+/// 子命令。
+///
+/// 每个子命令有自己的专属参数 (如 `env` 的 `--action`/`--targets`);
+/// 其他子命令 (若后续加入) 各自定义自己的选项, 不共用这套。
+#[derive(Subcommand)]
+enum Command {
+    /// 环境检查/修复 (等价 input.jsonc command=env)。
+    Env {
+        /// 动作: check (默认) / ensure。未传时回退 input.jsonc 的 env.action。
+        #[arg(long, value_enum)]
+        action: Option<EnvAction>,
+        /// 要检查的环境项 key (可多个; 空 → 按 input.jsonc 推断)。
+        #[arg(long, num_args = 1..)]
+        targets: Vec<String>,
+    },
 }
 
 /// 定位 input 文件: 仓库根目录优先 `input.jsonc`, 其次 `input.json`。
@@ -117,62 +70,6 @@ fn resolve_input_path() -> anyhow::Result<std::path::PathBuf> {
     ))
 }
 
-fn run() -> anyhow::Result<()> {
-    let input_path = resolve_input_path()?;
-    let raw = std::fs::read_to_string(&input_path)
-        .with_context(|| format!("读取 input 失败: {}", input_path.display()))?;
-
-    let cleaned = strip_jsonc_comments(&raw);
-    let input: Input = serde_json::from_str(&cleaned)
-        .with_context(|| format!("解析 input JSON 失败: {}", input_path.display()))?;
-
-    input
-        .validate()
-        .map_err(|e| anyhow::anyhow!("input 校验失败: {e}"))?;
-
-    println!("[cli] 读取 input: {}", input_path.display());
-
-    // 总派发交给 cmd_task (镜像 TS cmdTask): 按 input.task.action 分派
-    // start / continue / status / get_group_list / get_task_ctx。
-    cmd_task(&input).context("cmd_task 失败")?;
-    Ok(())
-}
-
-/// 仓库根 `assets/media/` 下的任务提示音 (镜像 TS `@repo/config/path/assets`)。
-fn task_success_wav() -> PathBuf {
-    config_rs::root::repo_root()
-        .join("assets")
-        .join("media")
-        .join("task_success.wav")
-}
-fn task_fail_wav() -> PathBuf {
-    config_rs::root::repo_root()
-        .join("assets")
-        .join("media")
-        .join("error.wav")
-}
-
-/// 用 ffplay 播放提示音 (镜像 TS `playWav`): `-nodisp -autoexit`, 失败静默不中断流程。
-/// headless / 无 ffplay 环境播放失败属正常, 忽略即可。
-fn play_wav(path: &std::path::Path) {
-    if !path.exists() {
-        return;
-    }
-    let _ = Command::new("ffplay")
-        .args(["-nodisp", "-autoexit"])
-        .arg(path)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status();
-}
-
-fn play_task_success() {
-    play_wav(&task_success_wav());
-}
-fn play_task_fail() {
-    play_wav(&task_fail_wav());
-}
-
 fn main() {
     // 让 ld_core 内 emit_log 的 tracing::info! 落到 stdout (续跑/分段日志才可见)。
     // 重复 init 会报错, 故仅当尚未初始化时才装 (测试/嵌套调用安全)。
@@ -183,84 +80,80 @@ fn main() {
         )
         .try_init();
 
-    // 分发 (镜像 TS `cmdTask` 的 command 分派):
-    // 1. 显式 `cli env [check|ensure] [targets...]` 子命令优先;
-    // 2. 否则读 input.jsonc 的 `command` 字段 (默认 "env") —— command=env 走 env 检查;
-    // 3. command=servers 走服务器发现/状态命令;
-    // 4. 其余 (command=task / 解析失败 / 无 command) 走现有 task 路径。
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    if args.first().map(|s| s.as_str()) == Some("env") {
-        if let Err(e) = run_env(&args[1..]) {
+    // 分发 (镜像 TS run-task.ts 的 switch(cmd)):
+    // 1. 显式 `cli env [--action check|ensure] [--targets key...]` 子命令优先;
+    // 2. 否则读 input.jsonc 的 command 字段, 对 input.command 直接模式匹配:
+    //    env/servers/cookie 各走各的; task 走 cmd_task;
+    //    check/deviceInfo/listModels 未移植到 Rust, no-op (对应 TS default 空分支);
+    //    input 解析失败直接报错退出。
+    let cli = Cli::parse();
+    if let Some(Command::Env { action, targets }) = cli.command {
+        if let Err(e) = run_env(action, &targets) {
             eprintln!("[cli] env 错误: {e:#}");
             exit(1);
         }
         return;
     }
-    match parse_repo_input() {
-        Ok(input) if input.command == InputCommand::Env => {
-            if let Err(e) = run_env(&[]) {
-                eprintln!("[cli] env 错误: {e:#}");
-                exit(1);
-            }
-            return;
-        }
-        Ok(input) if input.command == InputCommand::Servers => {
-            match ld_core::cmd::servers::cmd_servers(&input) {
-                Ok(out) => println!("{out}"),
-                Err(e) => {
-                    eprintln!("[cli] servers 错误: {e:#}");
-                    exit(1);
-                }
-            }
-            return;
-        }
-        _ => {}
-    }
 
-    match run() {
+    let input = match parse_repo_input() {
+        Ok(input) => input,
+        Err(e) => {
+            eprintln!("[cli] 读取 input 失败: {e:#}");
+            exit(1);
+        }
+    };
+    if let Err(e) = input.validate() {
+        eprintln!("[cli] input 校验失败: {e}");
+        exit(1);
+    }
+    println!("[cli] 读取 input");
+
+    let run_result: anyhow::Result<()> = match input.command {
+        InputCommand::Task => cmd_task(&input).context("cmd_task 失败"),
+        InputCommand::Env => ld_core::cmd::env::handler::cmd_env(&input).context("cmd_env 失败"),
+        InputCommand::Servers => ld_core::cmd::servers::cmd_servers(&input)
+            .context("servers 命令失败")
+            .map(|s| println!("{s}")),
+        InputCommand::Cookie => {
+            let args = input.cookie.clone().unwrap_or_default();
+            ld_core::cmd::cookie::cmd_cookie(&args).context("cookie 命令失败")
+        }
+        InputCommand::Check | InputCommand::DeviceInfo | InputCommand::ListModels => {
+            // 未移植到 Rust, 与 TS default 空分支一致 (no-op)。
+            Ok(())
+        }
+    };
+
+    match run_result {
         Ok(()) => {
             println!("[cli] 完成");
-            play_task_success();
+            ld_core::cmd::sound::play_task_success();
         }
         Err(e) => {
             eprintln!("[cli] 错误: {e:#}");
-            play_task_fail();
+            ld_core::cmd::sound::play_task_fail();
             exit(1);
         }
     }
 }
 
-/// 处理 `cli env` 子命令: 默认 `check`, 支持 `check`/`ensure` 动作与 targets 过滤。
+/// 处理 `cli env` 子命令 (混合策略: CLI 显式 > input.jsonc > 默认)。
 ///
-/// targets 解析优先级:
-/// 1. CLI 显式传入 (`cli env check ffmpeg python`) → 直接用;
-/// 2. 否则读 `input.jsonc` 的 `env.targets` (非空时用);
-/// 3. 仍为空 → 按 `input.jsonc` 的 stages 配置推断本次任务所需环境项 (`infer_targets`)。
-///
-/// action 同理: CLI `check`/`ensure` > `input.env.action` > 默认 `check`。
-fn run_env(args: &[String]) -> anyhow::Result<()> {
-    let (cli_action, cli_targets) = match args.first().map(|s| s.as_str()) {
-        Some("check") => (Some("check"), &args[1..]),
-        Some("ensure") => (Some("ensure"), &args[1..]),
-        // 无动作 / 未知首参 → 当作 targets, 走默认 check
-        _ => (None, args),
-    };
-
+/// - `action`: 显式传 `--action` 用之; 否则回退 `input.jsonc` 的 `env.action`; 再回退 `check`。
+/// - `targets`: 显式传 `--targets` 用之; 否则回退 `input.jsonc` 的 `env.targets`; 仍为空 → 按 stages 推断。
+fn run_env(action: Option<EnvAction>, cli_targets: &[String]) -> anyhow::Result<()> {
     // 读 input.jsonc (用于 targets/action 回退与推断); 读不到则回退到全量。
     let input = parse_repo_input().ok();
 
-    let action = cli_action
-        .map(|s| s.to_string())
-        .or_else(|| {
-            input.as_ref().and_then(|i| i.env.as_ref()).map(|e| {
-                match e.action {
-                    ld_core::input::EnvAction::Ensure => "ensure",
-                    _ => "check",
-                }
-                .to_string()
-            })
-        })
-        .unwrap_or_else(|| "check".to_string());
+    let action = match action {
+        Some(EnvAction::Ensure) => "ensure",
+        Some(EnvAction::Check) => "check",
+        // 未显式传 --action → 回退 input.jsonc 的 env.action (默认 check)
+        None => match input.as_ref().and_then(|i| i.env.as_ref()) {
+            Some(e) if e.action == EnvAction::Ensure => "ensure",
+            _ => "check",
+        },
+    };
 
     // targets: CLI 显式 > input.env.targets > 推断 (推断时附带 precise 后端映射)
     let (targets, desired) = if !cli_targets.is_empty() {
@@ -321,71 +214,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn strip_line_comments() {
-        let src = r#"{
-            "task": { "url": "x" } // 行尾注释
-            // 整行注释
-        }"#;
-        let out = strip_jsonc_comments(src);
-        assert!(out.contains("\"url\": \"x\""));
-        assert!(!out.contains("// 行尾注释"));
-        assert!(!out.contains("// 整行注释"));
-    }
-
-    #[test]
-    fn strip_block_comments() {
-        let src = r#"{
-            /* 块注释
-               跨行 */
-            "task": { "url": "x" }
-        }"#;
-        let out = strip_jsonc_comments(src);
-        assert!(out.contains("\"url\": \"x\""));
-        assert!(!out.contains("块注释"));
-        // 块注释被整段移除, 不应残留 /* 或 */
-        assert!(!out.contains("/*"));
-        assert!(!out.contains("*/"));
-    }
-
-    #[test]
-    fn strips_trailing_commas() {
-        // JSONC 允许尾随逗号, serde_json 不允许 → 必须移除
-        let src = r#"{
-            "a": 1,
-            "b": [1, 2,],
-        }"#;
-        let out = strip_jsonc_comments(src);
-        // 去掉空白后应为合法 JSON: {"a":1,"b":[1,2]}
-        let compact: String = out.chars().filter(|c| !c.is_whitespace()).collect();
-        assert_eq!(compact, r#"{"a":1,"b":[1,2]}"#);
-        // 确保反序列化成功 (无 trailing comma 错误)
-        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
-        assert_eq!(v["a"], 1);
-        assert_eq!(v["b"][1], 2);
-    }
-
-    #[test]
-    fn preserves_comment_like_inside_string() {
-        // 字符串里的 // 与 /* */ 不能当注释处理
-        let src = r#"{ "path": "a//b", "note": "c /* d */ e" }"#;
-        let out = strip_jsonc_comments(src);
-        assert!(out.contains("a//b"));
-        assert!(out.contains("c /* d */ e"));
-    }
-
-    #[test]
-    fn preserves_multibyte_utf8() {
-        // 回归: 多字节 UTF-8 (中文路径) 不能被 as char 双重编码损坏
-        let src = r#"{ "url": "/home/aa/下载/大/37.mp4", "name": "测试" }"#;
-        let out = strip_jsonc_comments(src);
-        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
-        assert_eq!(v["url"], "/home/aa/下载/大/37.mp4");
-        assert_eq!(v["name"], "测试");
-        // 字节层面应为正确 UTF-8 (非 mojibake)
-        assert!(std::str::from_utf8(v["url"].as_str().unwrap().as_bytes()).is_ok());
-    }
-
-    #[test]
     fn resolves_jsonc_before_json() {
         // resolve_input_path 依赖磁盘, 这里只验证两个候选的命名顺序语义
         let root = config_rs::root::repo_root();
@@ -395,16 +223,31 @@ mod tests {
         assert!(b.to_string_lossy().ends_with("input.json"));
     }
 
-    /// 解析仓库根 input.jsonc, 验证 JSONC 剥离 + Input 反序列化 + mix_video 小数生效。
+    /// 解析一段 JSONC, 验证 JSONC 剥离 + Input 反序列化 + mix_video/mix_audio 小数生效。
     ///
-    /// 不触发 import_video / run_pipeline, 仅做配置读取层面的端到端校验。
+    /// 用独立的 JSONC 字符串而非仓库根 input.jsonc, 避免与用户真实配置耦合
+    /// (用户改 input.jsonc 不影响本测试)。不触发 import_video / run_pipeline。
     #[test]
     fn parses_repo_input_jsonc_and_mix_video_decimals() {
-        let path = resolve_input_path().expect("应能在仓库根找到 input.jsonc/json");
-        let raw = std::fs::read_to_string(&path).expect("读取 input 失败");
-        let cleaned = strip_jsonc_comments(&raw);
-        let input: Input =
-            serde_json::from_str(&cleaned).expect("解析 input.jsonc 失败 (JSONC 应已剥离)");
+        let raw = r#"{
+            // 行注释: subtitle_source 走 sf_ocr
+            "task": { "action": "start", "pipeline": "dub", "subtitleSource": "sf_ocr" },
+            "stages": {
+                "mix_video": {
+                    "fontSize": 21.4,
+                    "marginV": 45.0,
+                    "font": "Noto Sans CJK SC Medium",
+                    "shadow": 1.1,
+                    "bgmGain": -9,
+                },
+                "mix_audio": {
+                    "maxSpeed": 1.55,
+                },
+            },
+        }"#;
+        let cleaned = strip_jsonc_comments(raw);
+        let input: ld_core::input::Input =
+            serde_json::from_str(&cleaned).expect("解析 JSONC 失败 (注释/尾随逗号应已剥离)");
         assert!(input.validate().is_ok());
 
         // subtitleSource=sf_ocr → sf_ocr 全链路, 不经过 asr

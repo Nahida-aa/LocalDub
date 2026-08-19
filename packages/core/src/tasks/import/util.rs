@@ -487,8 +487,8 @@ fn sanitize_text(s: &str) -> String {
 }
 
 fn youtube_cookie_path() -> Option<PathBuf> {
-    // 与 TS YOUTUBE_COOKIE_PATH 对齐: <workfolder>/cookies/youtube.txt
-    Some(workfolder().join("cookies").join("youtube.txt"))
+    // 与 TS YOUTUBE_COOKIE_PATH 对齐: <repo>/data/cookies/youtube.txt
+    Some(config_rs::path::models::youtube_cookie_path())
 }
 
 fn workfolder() -> PathBuf {

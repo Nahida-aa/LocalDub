@@ -7,7 +7,7 @@ import { SeparateArgsSchema } from "../stages/separate/args";
 import { LlmFixArgsSchema } from "@repo/llm/llm_fix_args";
 import { taskArgsSchema } from "../tasks/args";
 import { langList } from "../const/lang";
-import { CookieArgsSchema } from "@repo/core/cmd/cookie/input";
+import { CookieArgsSchema } from "../cmd/cookie/args";
 
 import { AsrArgsSchema } from "@repo/subtitle-asr/args";
 import { SplitAudioArgsSchema } from "../stages/06_split_audio/args";
