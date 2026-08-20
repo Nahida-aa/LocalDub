@@ -27,7 +27,9 @@ pub fn stage_asr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
         emit_log("[ASR Fix] disabled (asr_fix.enabled=false), skipping");
         return Ok(());
     }
-    let asr_fix_dir = asr_dir(&task_dir).join("asr_fix");
+    // asr_fix 目录平级于 task_dir (镜像 TS `join(taskDir, "asr_fix")`),
+    // 与权威字幕路径 (utils::subtitle_path 的 taskDir/asr_fix) 保持一致。
+    let asr_fix_dir = std::path::Path::new(&task_dir).join("asr_fix");
     let asr_file = args.asr_file_path.clone().unwrap_or_else(|| {
         asr_dir(&task_dir)
             .join("asr.json")
