@@ -14,6 +14,8 @@ pub mod out;
 use std::fs;
 use std::path::Path;
 
+use indicatif::{ProgressBar, ProgressStyle};
+
 use crate::context::TaskCtx;
 use crate::stages::tts::args::{TtsArgs, TtsDevice, TtsRuntime};
 use crate::stages::tts::out::{TtsFile, TtsSegment};
@@ -196,7 +198,18 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
 
     let mut tts_segments: Vec<TtsSegment> = Vec::with_capacity(segments.len());
 
+    // 逐段合成进度条 (对齐 OCR/sf-cli 的 indicatif UX, 走 stderr, 非 TTY 自动隐藏)。
+    let pb = ProgressBar::new(segments.len() as u64);
+    pb.set_style(
+        ProgressStyle::with_template(
+            "[{elapsed_precise}] TTS 合成 [{bar:30.cyan/blue}] {pos}/{len} ({eta})",
+        )
+        .unwrap_or_else(|_| ProgressStyle::default_bar())
+        .progress_chars("=> "),
+    );
+
     for (i, item) in segments.iter().enumerate() {
+        pb.inc(1);
         let seg_idx = (i + 1) as u32;
         let idx = format!("{:04}", seg_idx);
         let out_path = tts_wav_dir.join(format!("{idx}.wav"));
@@ -471,6 +484,7 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
             status: "success".to_string(),
         });
     }
+    pb.finish();
 
     let tts_file = tts_filepath(&task_dir);
     ensure_dir(Path::new(&tts_file).parent().unwrap())?;
