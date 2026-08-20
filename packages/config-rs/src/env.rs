@@ -43,3 +43,8 @@ pub fn openai_model() -> String {
 pub fn openai_api_key() -> Option<String> {
     var("OPENAI_API_KEY").filter(|v| !v.is_empty())
 }
+
+/// yt-dlp 代理端口 (镜像 TS `YTDLP_PROXY_PORT`)。未配置或为空返回 None。
+pub fn proxy_port() -> Option<String> {
+    var("YTDLP_PROXY_PORT").filter(|v| !v.is_empty())
+}

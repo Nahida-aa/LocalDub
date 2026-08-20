@@ -186,7 +186,7 @@ pub fn download_video(
     yt_dlp_ext_args: &[String],
 ) -> anyhow::Result<Downloaded> {
     let task_dir = workfolder().join(group_id).join(task_id);
-    let downloaded_video_path = task_dir.join(format!("{task_id}.mp4"));
+    let mut downloaded_video_path = task_dir.join(format!("{task_id}.mp4"));
     let video_path = task_dir.join("video_source.mp4");
     let audio_path = task_dir.join("audio_source.wav");
 
@@ -220,18 +220,26 @@ pub fn download_video(
                 "mp4".into(),
                 "-o".into(),
                 task_dir
-                    .join("video_source.%(ext)s")
+                    .join(format!("{task_id}.%(ext)s"))
                     .to_string_lossy()
                     .into(),
             ];
             yt_args.extend(yt_dlp_ext_args.iter().cloned());
             yt_args.push(url.to_string());
 
-            crate::tasks::import::util::run_yt_dlp(&yt_args).context("yt-dlp 下载失败")?;
+            crate::tasks::import::util::run_yt_dlp_download(&yt_args).context("yt-dlp 下载失败")?;
 
-            if !video_path.exists() {
-                return Err(anyhow::anyhow!("yt-dlp 未产出 video_source.mp4"));
-            }
+            // 定位实际产物: yt-dlp 输出 `{task_id}.%(ext)s`, 产物即 `{task_id}.<ext>` (mp4/webm 等)。
+            // 不重命名, 直接用实际文件 (ext 由 yt-dlp 决定, 程序可判断)。
+            downloaded_video_path = find_task_video(&task_dir, task_id)
+                .ok_or_else(|| anyhow::anyhow!("yt-dlp 未产出 {task_id}.<ext>"))?;
+
+            // 转码成标准 mp4 (video_source.mp4), 与本地分支命名一致
+            encode_to_mp4(
+                downloaded_video_path.to_str().unwrap(),
+                video_path.to_str().unwrap(),
+            )
+            .context("转码失败")?;
             extract_audio(video_path.to_str().unwrap(), audio_path.to_str().unwrap())
                 .context("抽取音频失败")?;
         }
@@ -249,6 +257,18 @@ pub fn download_video(
 
 fn workfolder() -> PathBuf {
     config_rs::path::paths::workfolder()
+}
+
+/// 在 task_dir 里找 `{task_id}.<ext>` 的实际下载产物 (yt-dlp 输出 `{task_id}.%(ext)s`)。
+fn find_task_video(task_dir: &std::path::Path, task_id: &str) -> Option<PathBuf> {
+    let prefix = format!("{task_id}.");
+    std::fs::read_dir(task_dir)
+        .ok()?
+        .find_map(|e| {
+            let p = e.ok()?.path();
+            let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
+            (name.starts_with(&prefix) && p.is_file()).then_some(p)
+        })
 }
 
 /// 从 ctx.json 读回 (方便下游阶段复用, 镜像 TS `readCtx`)。

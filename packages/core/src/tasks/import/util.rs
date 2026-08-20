@@ -6,10 +6,12 @@
 //! 仓库现有用法)。
 
 use std::collections::HashSet;
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use anyhow::{Context, anyhow};
+use indicatif::{ProgressBar, ProgressStyle};
 use tracing::{info, warn};
 
 use crate::context::VideoSource;
@@ -222,11 +224,9 @@ pub fn auto_group_id_and_video_id(url: &str) -> anyhow::Result<AutoInfo> {
                         ret.yt_dlp_ext_args.push(cookie.to_string_lossy().into());
                     }
                 }
-                if let Ok(port) = std::env::var("YTDLP_PROXY_PORT") {
-                    if !port.is_empty() {
-                        ret.yt_dlp_ext_args.push("--proxy".into());
-                        ret.yt_dlp_ext_args.push(format!("http://127.0.0.1:{port}"));
-                    }
+                if let Some(port) = config_rs::env::proxy_port() {
+                    ret.yt_dlp_ext_args.push("--proxy".into());
+                    ret.yt_dlp_ext_args.push(format!("http://127.0.0.1:{port}"));
                 }
             }
             if let Some(u) = parse_url(url) {
@@ -250,9 +250,9 @@ pub fn auto_group_id_and_video_id(url: &str) -> anyhow::Result<AutoInfo> {
             let mut info_args = vec!["--dump-json".to_string()];
             info_args.extend(ret.yt_dlp_ext_args.clone());
             info_args.push(url.to_string());
+            info!("[autoGroupIdAndVideoId] yt-dlp {info_args:?}");
 
-            let out = run_yt_dlp(&info_args)
-                .with_context(|| "yt-dlp --dump-json 失败 (cookie 可能过期或 URL 无效)")?;
+            let out = run_yt_dlp(&info_args)?;
             let info: serde_json::Value = match serde_json::from_str(&out) {
                 Ok(v) => v,
                 Err(e) => {
@@ -381,40 +381,46 @@ fn strip_http_body(buf: &[u8]) -> anyhow::Result<Vec<u8>> {
 
 /// 转码为 H.264 + AAC 的 mp4 (argv 与 TS `encodeToMp4` 一致)。
 pub fn encode_to_mp4(input: &str, output: &str) -> anyhow::Result<()> {
-    run_ffmpeg(&[
-        "-i",
+    run_ffmpeg_progress(
+        &[
+            "-i",
+            input,
+            "-map",
+            "0:v:0",
+            "-map",
+            "0:a:0?",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "fast",
+            "-crf",
+            "23",
+            "-c:a",
+            "aac",
+            "-movflags",
+            "+faststart",
+            output,
+        ],
         input,
-        "-map",
-        "0:v:0",
-        "-map",
-        "0:a:0?",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "fast",
-        "-crf",
-        "23",
-        "-c:a",
-        "aac",
-        "-movflags",
-        "+faststart",
-        output,
-    ])
+    )
 }
 
 /// 从视频抽取 wav (16bit/44.1k/双声道), 供下游 ASR/TTS (argv 与 TS 一致)。
 pub fn extract_audio(video: &str, audio: &str) -> anyhow::Result<()> {
-    run_ffmpeg(&[
-        "-i",
+    run_ffmpeg_progress(
+        &[
+            "-i",
+            video,
+            "-acodec",
+            "pcm_s16le",
+            "-ar",
+            "44100",
+            "-ac",
+            "2",
+            audio,
+        ],
         video,
-        "-acodec",
-        "pcm_s16le",
-        "-ar",
-        "44100",
-        "-ac",
-        "2",
-        audio,
-    ])
+    )
 }
 
 /// 用 ffmpeg-next 探测视频帧率 (对齐 subtitle-ocr-cli 的 probe 用法)。
@@ -449,11 +455,83 @@ pub fn run_ffmpeg(args: &[&str]) -> anyhow::Result<()> {
     run_binary("ffmpeg", &argv).map(|_| ())
 }
 
-/// spawn yt-dlp 二进制, 返回 stdout (用于 --dump-json); 非零退出即报错 (含 stderr)。
+/// spawn ffmpeg 并显示进度。
+///
+/// ffmpeg 进度写 stderr (默认 `-stats`), 格式 `time=HH:MM:SS.xx`, 解析后对比输入时长算百分比。
+/// 非 TTY 时进度条自动隐藏。参数与 `run_ffmpeg` 一致。
+pub fn run_ffmpeg_progress(args: &[&str], input_video: &str) -> anyhow::Result<()> {
+    let duration_us = video_duration_us(input_video).unwrap_or(0);
+    let mut argv = Vec::with_capacity(args.len() + 1);
+    argv.push("-y");
+    argv.extend_from_slice(args);
+    run_with_progress(
+        "ffmpeg",
+        &argv,
+        "[转码] [{bar:30.magenta/blue}] {pos}% ({eta})",
+        |line, pb| {
+            if let Some(pct) = parse_ffmpeg_pct(line, duration_us) {
+                pb.set_position(pct);
+            }
+        },
+    )
+    .map(|_| ())
+}
+
+/// spawn yt-dlp 二进制, 返回 stdout (用于 --dump-json); 非零退出即报错。
+///
+/// 失败时按 stderr 分类报错 (cookie 过期 / 网络错误 / 通用), 避免笼统误报。
 pub fn run_yt_dlp(args: &[String]) -> anyhow::Result<String> {
     let bin = std::env::var("YTDLP_BIN").unwrap_or_else(|_| "yt-dlp".to_string());
     let argv: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    run_binary(&bin, &argv)
+    run_binary(&bin, &argv).map_err(|e| {
+        // stderr 在 run_binary 的错误字符串里 (格式 "{bin} 退出码 {:?}: {stderr}")。
+        // 去掉前缀取 stderr 做分类; 提取失败则用全消息。
+        let msg = format!("{e}");
+        let stderr = msg.split_once(": ").map(|(_, r)| r).unwrap_or(&msg);
+        anyhow::anyhow!("{}", classify_ytdlp_error(stderr))
+    })
+}
+
+/// 下载视频 (yt-dlp), 显示下载进度条。
+///
+/// 加 `--newline` 让 yt-dlp 每行输出一条进度, 解析 `[download] xx.x%` 渲染进度条。
+/// 失败时按 stderr 分类报错 (与 `run_yt_dlp` 一致)。
+pub fn run_yt_dlp_download(args: &[String]) -> anyhow::Result<String> {
+    let bin = std::env::var("YTDLP_BIN").unwrap_or_else(|_| "yt-dlp".to_string());
+    let argv: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    let mut argv = argv;
+    argv.push("--newline");
+    run_with_progress(&bin, &argv, "[下载] [{bar:30.cyan/blue}] {pos}% ({eta})", |line, pb| {
+        if let Some(pct) = parse_ytdlp_pct(line) {
+            pb.set_position(pct);
+        }
+    })
+    .map_err(|e| {
+        let msg = format!("{e}");
+        let stderr = msg.split_once(": ").map(|(_, r)| r).unwrap_or(&msg);
+        anyhow::anyhow!("{}", classify_ytdlp_error(stderr))
+    })
+}
+
+/// 分类 yt-dlp stderr, 返回准确的错误提示 (cookie / 网络 / 通用)。
+fn classify_ytdlp_error(stderr: &str) -> String {
+    let s = stderr.to_lowercase();
+    if s.contains("sign in to confirm") || s.contains("no longer valid") {
+        "YouTube cookie 过期或无效。请用浏览器导出新的 Netscape cookie, 然后运行 command=cookie 写入。"
+            .to_string()
+    } else if s.contains("network is unreachable")
+        || s.contains("connection reset")
+        || s.contains("connection aborted")
+        || s.contains("failed to establish")
+        || s.contains("temporarily unavailable")
+        || s.contains("timed out")
+    {
+        format!(
+            "yt-dlp 网络错误 (无法连接 YouTube)。请检查网络或代理配置 (YTDLP_PROXY_PORT)。\n原始错误: {stderr}"
+        )
+    } else {
+        format!("yt-dlp 失败:\n{stderr}")
+    }
 }
 
 fn run_binary(bin: &str, args: &[&str]) -> anyhow::Result<String> {
@@ -469,6 +547,94 @@ fn run_binary(bin: &str, args: &[&str]) -> anyhow::Result<String> {
     }
     info!("[{bin}] 完成 ({elapsed:.1}s)");
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+/// 流式执行命令, 解析进度行渲染到 indicatif 进度条, 返回 stdout。
+///
+/// 进度输出在 stderr (yt-dlp/ffmpeg 默认), 逐行回调 `on_line` 更新进度条。
+/// 非 TTY (重定向/后台) 时 indicatif 自动隐藏; 失败返回含 stderr 的错误。
+/// 与 `run_binary` 的区别: 这里透传进度, 用于耗时的下载/转码场景。
+fn run_with_progress(
+    bin: &str,
+    args: &[&str],
+    template: &str,
+    mut on_line: impl FnMut(&str, &ProgressBar),
+) -> anyhow::Result<String> {
+    let t0 = std::time::Instant::now();
+    let mut child = Command::new(bin)
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .with_context(|| format!("无法执行 {bin} (PATH 中未找到? 需安装)"))?;
+
+    let pb = ProgressBar::new(100);
+    pb.set_style(
+        ProgressStyle::with_template(template).unwrap_or_else(|_| ProgressStyle::default_bar()),
+    );
+
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| anyhow!("无法获取 {bin} stderr"))?;
+    let reader = BufReader::new(stderr);
+    for line in reader.lines() {
+        let line = line?;
+        on_line(&line, &pb);
+    }
+
+    let out = child.wait_with_output()?;
+    pb.finish_and_clear();
+    let elapsed = t0.elapsed().as_secs_f32();
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        return Err(anyhow!("{bin} 退出码 {:?}: {}", out.status.code(), stderr));
+    }
+    info!("[{bin}] 完成 ({elapsed:.1}s)");
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+/// 解析 yt-dlp 下载进度行 `[download]  45.2% of 226.00MiB ...` → 百分比 (0-100)。
+fn parse_ytdlp_pct(line: &str) -> Option<u64> {
+    if !line.to_lowercase().contains("[download]") {
+        return None;
+    }
+    // 取 `%` 前的最后一个数字 token (兼容空格/对齐差异)
+    let before_pct = line.split('%').next()?;
+    let num = before_pct.rsplit(' ').next()?.trim();
+    num.parse::<f64>().ok().map(|v| v.min(100.0) as u64)
+}
+
+/// 解析 ffmpeg stderr 进度行的 `time=HH:MM:SS.xx` → 百分比 (0-100)。
+fn parse_ffmpeg_pct(line: &str, duration_us: i64) -> Option<u64> {
+    // "frame=... time=00:00:12.16 bitrate=..." → 取 time 段
+    let time_str = line.split("time=").nth(1)?.split_whitespace().next()?;
+    let secs = parse_hms_seconds(time_str)?;
+    if duration_us <= 0 {
+        return None;
+    }
+    // secs(秒) * 1_000_000(转 us) * 100(百分比) / duration_us
+    let pct = (secs as i128 * 100_000_000 / duration_us.max(1) as i128).min(100);
+    Some(pct as u64)
+}
+
+/// 解析 `HH:MM:SS.xx` 为秒 (f64)。格式不符返回 None。
+fn parse_hms_seconds(s: &str) -> Option<f64> {
+    let mut parts = s.split(':');
+    let h = parts.next()?.parse::<f64>().ok()?;
+    let m = parts.next()?.parse::<f64>().ok()?;
+    let sec = parts.next()?.parse::<f64>().ok()?;
+    Some(h * 3600.0 + m * 60.0 + sec)
+}
+
+/// 用 ffmpeg-next 探测视频总时长 (微秒), 供转码进度算百分比。
+fn video_duration_us(video: &str) -> Option<i64> {
+    if ffmpeg_next::init().is_err() {
+        return None;
+    }
+    let ictx = ffmpeg_next::format::input(Path::new(video)).ok()?;
+    let d = ictx.duration();
+    (d > 0).then_some(d)
 }
 
 fn sanitize_text(s: &str) -> String {
@@ -576,5 +742,72 @@ mod tests {
     #[test]
     fn extract_video_id_local_path() {
         assert_eq!(extract_video_id("/x/y/myclip.mp4"), "myclip");
+    }
+
+    #[test]
+    fn classify_ytdlp_cookie_expired() {
+        let msg = classify_ytdlp_error(
+            "ERROR: [youtube] abc: Sign in to confirm you're not a bot. ...",
+        );
+        assert!(msg.contains("cookie"), "应为 cookie 提示: {msg}");
+        assert!(msg.contains("command=cookie"), "应提示导出 cookie: {msg}");
+    }
+
+    #[test]
+    fn classify_ytdlp_network_unreachable() {
+        let msg = classify_ytdlp_error(
+            "ERROR: [youtube] abc: Unable to download webpage: [Errno 101] Network is unreachable",
+        );
+        assert!(msg.contains("网络错误"), "应为网络提示: {msg}");
+        assert!(msg.contains("YTDLP_PROXY_PORT"), "应提示检查代理: {msg}");
+    }
+
+    #[test]
+    fn classify_ytdlp_connection_reset() {
+        let msg =
+            classify_ytdlp_error("WARNING: Connection reset by peer. ERROR: Unable to download");
+        assert!(msg.contains("网络错误"), "应为网络提示: {msg}");
+    }
+
+    #[test]
+    fn classify_ytdlp_generic() {
+        let msg = classify_ytdlp_error("ERROR: Unsupported URL: xxx");
+        assert!(msg.contains("yt-dlp 失败"), "应为通用提示: {msg}");
+        assert!(msg.contains("Unsupported URL"), "应含原始 stderr: {msg}");
+    }
+
+    #[test]
+    fn parse_ytdlp_pct_variants() {
+        assert_eq!(
+            parse_ytdlp_pct("[download]  45.2% of 226.00MiB at 5.00MiB/s ETA 00:30"),
+            Some(45)
+        );
+        assert_eq!(parse_ytdlp_pct("[download]  100% of 1.00MiB"), Some(100));
+        assert_eq!(parse_ytdlp_pct("[youtube] 2g63UXaynaA: Downloading webpage"), None);
+        assert_eq!(parse_ytdlp_pct("[Merger] Merging formats into ..."), None);
+    }
+
+    #[test]
+    fn parse_ffmpeg_pct_variants() {
+        // duration 60s = 60_000_000 us
+        let dur = 60_000_000i64;
+        assert_eq!(
+            parse_ffmpeg_pct("frame= 1200 fps= 30 q=28.0 size=   1024kB time=00:00:30.00 bitrate=...", dur),
+            Some(50)
+        );
+        // 12s / 60s = 20%
+        assert_eq!(
+            parse_ffmpeg_pct("time=00:00:12.00 bitrate= 1000kbits/s", dur),
+            Some(20)
+        );
+        // 超过时长 clamp 100
+        assert_eq!(
+            parse_ffmpeg_pct("time=00:01:10.00", dur),
+            Some(100)
+        );
+        // 非 time 行 → None
+        assert_eq!(parse_ffmpeg_pct("frame= 100 fps= 30", dur), None);
+        // duration 未知 (0) → None
+        assert_eq!(parse_ffmpeg_pct("time=00:00:05.00", 0), None);
     }
 }

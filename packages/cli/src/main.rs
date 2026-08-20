@@ -17,6 +17,7 @@ use cli::strip_jsonc_comments;
 use ld_core::cmd::env::args::EnvAction;
 use ld_core::cmd::tasks::task::cmd_task;
 use ld_core::input::Command as InputCommand;
+use ld_core::input::Input;
 
 /// LocalDub CLI。
 ///
@@ -81,27 +82,37 @@ fn main() {
         .try_init();
 
     // 分发 (镜像 TS run-task.ts 的 switch(cmd)):
-    // 1. 显式 `cli env [--action check|ensure] [--targets key...]` 子命令优先;
-    // 2. 否则读 input.jsonc 的 command 字段, 对 input.command 直接模式匹配:
-    //    env/servers/cookie 各走各的; task 走 cmd_task;
+    // 1. 读 input.jsonc 得到基础 Input;
+    // 2. 若有 cli 子命令 (如 `cli env --action/--targets`), 用其参数覆盖 Input 对应字段,
+    //    统一走下面的 match input.command 派发 (cli 显式参数优先, 缺失保留 input.jsonc);
     //    check/deviceInfo/listModels 未移植到 Rust, no-op (对应 TS default 空分支);
     //    input 解析失败直接报错退出。
     let cli = Cli::parse();
-    if let Some(Command::Env { action, targets }) = cli.command {
-        if let Err(e) = run_env(action, &targets) {
-            eprintln!("[cli] env 错误: {e:#}");
-            exit(1);
-        }
-        return;
-    }
 
-    let input = match parse_repo_input() {
+    let mut input = match parse_repo_input() {
         Ok(input) => input,
+        // 有 cli 子命令 (如 `cli env`): input.jsonc 可选, 用默认 Input 作为基础
+        Err(_) if cli.command.is_some() => Input::default(),
+        // 无 cli 子命令: 必须读 input.jsonc 才知道跑什么命令
         Err(e) => {
             eprintln!("[cli] 读取 input 失败: {e:#}");
             exit(1);
         }
     };
+
+    // cli 子命令参数作为 Input 覆盖层: 显式传的字段才覆盖, 缺失保留 input.jsonc (混合回退)。
+    if let Some(Command::Env { action, targets }) = cli.command {
+        let mut env = input.env.clone().unwrap_or_default();
+        if let Some(a) = action {
+            env.action = a;
+        }
+        if !targets.is_empty() {
+            env.targets = targets;
+        }
+        input.env = Some(env);
+        input.command = InputCommand::Env;
+    }
+
     if let Err(e) = input.validate() {
         eprintln!("[cli] input 校验失败: {e}");
         exit(1);
@@ -135,66 +146,6 @@ fn main() {
             exit(1);
         }
     }
-}
-
-/// 处理 `cli env` 子命令 (混合策略: CLI 显式 > input.jsonc > 默认)。
-///
-/// - `action`: 显式传 `--action` 用之; 否则回退 `input.jsonc` 的 `env.action`; 再回退 `check`。
-/// - `targets`: 显式传 `--targets` 用之; 否则回退 `input.jsonc` 的 `env.targets`; 仍为空 → 按 stages 推断。
-fn run_env(action: Option<EnvAction>, cli_targets: &[String]) -> anyhow::Result<()> {
-    // 读 input.jsonc (用于 targets/action 回退与推断); 读不到则回退到全量。
-    let input = parse_repo_input().ok();
-
-    let action = match action {
-        Some(EnvAction::Ensure) => "ensure",
-        Some(EnvAction::Check) => "check",
-        // 未显式传 --action → 回退 input.jsonc 的 env.action (默认 check)
-        None => match input.as_ref().and_then(|i| i.env.as_ref()) {
-            Some(e) if e.action == EnvAction::Ensure => "ensure",
-            _ => "check",
-        },
-    };
-
-    // targets: CLI 显式 > input.env.targets > 推断 (推断时附带 precise 后端映射)
-    let (targets, desired) = if !cli_targets.is_empty() {
-        (cli_targets.to_vec(), std::collections::HashMap::new())
-    } else if let Some(env_args) = input.as_ref().and_then(|i| i.env.as_ref()) {
-        if env_args.targets.is_empty() {
-            ld_core::cmd::env::infer_targets(input.as_ref().unwrap())
-        } else {
-            (env_args.targets.clone(), std::collections::HashMap::new())
-        }
-    } else {
-        (Vec::new(), std::collections::HashMap::new()) // 回退: run_check 全量
-    };
-
-    let infer_note = if cli_targets.is_empty()
-        && input
-            .as_ref()
-            .and_then(|i| i.env.as_ref())
-            .map(|e| e.targets.is_empty())
-            .unwrap_or(false)
-    {
-        " (按 input.jsonc 推断)"
-    } else {
-        ""
-    };
-
-    let results = if action == "ensure" {
-        ld_core::cmd::env::run_ensure(&targets, &desired)
-    } else {
-        ld_core::cmd::env::run_check(&targets, &desired)
-    };
-    for r in &results {
-        println!("{}", ld_core::cmd::env::format_result(r));
-    }
-    println!(
-        "[cli] env {}{} 完成: {} 项",
-        action,
-        infer_note,
-        results.len()
-    );
-    Ok(())
 }
 
 /// 解析仓库根 `input.jsonc`/`input.json` 为 `ld_core::input::Input` (复用 `run` 的解析逻辑)。
