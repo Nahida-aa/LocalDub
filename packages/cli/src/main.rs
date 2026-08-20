@@ -13,7 +13,7 @@ use std::process::exit;
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use cli::strip_jsonc_comments;
+use cli::parse_repo_input;
 use ld_core::cmd::env::args::EnvAction;
 use ld_core::cmd::tasks::task::cmd_task;
 use ld_core::input::Command as InputCommand;
@@ -53,22 +53,6 @@ enum Command {
         #[arg(long, num_args = 1..)]
         targets: Vec<String>,
     },
-}
-
-/// 定位 input 文件: 仓库根目录优先 `input.jsonc`, 其次 `input.json`。
-fn resolve_input_path() -> anyhow::Result<std::path::PathBuf> {
-    let root = config_rs::root::repo_root();
-    let candidates = [root.join("input.jsonc"), root.join("input.json")];
-    for c in candidates.iter() {
-        if c.exists() {
-            return Ok(c.clone());
-        }
-    }
-    Err(anyhow::anyhow!(
-        "未找到 input 文件: 期望 {}/input.jsonc 或 {}/input.json",
-        root.display(),
-        root.display()
-    ))
 }
 
 fn main() {
@@ -148,21 +132,10 @@ fn main() {
     }
 }
 
-/// 解析仓库根 `input.jsonc`/`input.json` 为 `ld_core::input::Input` (复用 `run` 的解析逻辑)。
-/// 解析失败返回 None (调用方回退到全量检查), 不中断流程。
-fn parse_repo_input() -> anyhow::Result<ld_core::input::Input> {
-    let path = resolve_input_path()?;
-    let raw = std::fs::read_to_string(&path)
-        .with_context(|| format!("读取 input 失败: {}", path.display()))?;
-    let cleaned = strip_jsonc_comments(&raw);
-    let input: ld_core::input::Input = serde_json::from_str(&cleaned)
-        .with_context(|| format!("解析 input JSON 失败: {}", path.display()))?;
-    Ok(input)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cli::strip_jsonc_comments;
 
     #[test]
     fn resolves_jsonc_before_json() {
