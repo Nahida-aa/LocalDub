@@ -102,7 +102,7 @@ fn pick_voxcpm_bin(device: TtsDevice, runtime: TtsRuntime) -> anyhow::Result<Str
 /// 入口 (镜像 TS `stageTts`)。
 pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    tracing::info!(target: "tts", "tts: start");
+    tracing::info!(target: "tts", "start");
 
     let args = read_args(ctx);
     let vocals_dir = Path::new(&task_dir).join("split_audio").join("vocals");
@@ -519,7 +519,7 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    tracing::info!(target: "tts", "tts: done");
+    tracing::info!(target: "tts", "done");
     Ok(())
 }
 

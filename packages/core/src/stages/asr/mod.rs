@@ -33,7 +33,7 @@ fn read_args(ctx: &TaskCtx) -> AsrArgs {
 /// 入口 (镜像 TS `stageAsr`)。
 pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    tracing::info!(target: "asr", "asr: start");
+    tracing::info!(target: "asr", "start");
 
     set_stage_anyhow(
         &task_dir,

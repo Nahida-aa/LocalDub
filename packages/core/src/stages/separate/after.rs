@@ -22,7 +22,7 @@ fn read_asr_cfg(ctx: &TaskCtx) -> AsrArgs {
 /// 入口 (镜像 TS `stageSeparateAfter`)。
 pub fn stage_separate_after(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    tracing::info!(target: "separate", "separate_after: start");
+    tracing::info!(target: "separate", "start");
 
     set_stage_anyhow(
         &task_dir,
@@ -173,7 +173,7 @@ pub fn stage_separate_after(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    tracing::info!(target: "separate", "separate_after: done");
+    tracing::info!(target: "separate", "done");
     Ok(())
 }
 

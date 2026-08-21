@@ -24,7 +24,7 @@ fn read_args(ctx: &TaskCtx) -> SfOcrArgs {
 /// 入口 (镜像 TS `stageSfOcr`)。
 pub fn stage_sf_ocr(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    tracing::info!(target: "sf_ocr", "sf_ocr: start");
+    tracing::info!(target: "sf_ocr", "start");
 
     set_stage_anyhow(
         &task_dir,
@@ -130,7 +130,7 @@ pub fn stage_sf_ocr(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    tracing::info!(target: "sf_ocr", "sf_ocr: done");
+    tracing::info!(target: "sf_ocr", "done");
     Ok(())
 }
 

@@ -13,7 +13,7 @@ use std::process::Command;
 /// 入口 (镜像 TS `stageSfOcrPre`)。
 pub fn stage_sf_ocr_pre(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    tracing::info!(target: "sf_ocr", "sf_ocr_pre: start");
+    tracing::info!(target: "sf_ocr", "start");
 
     set_stage_anyhow(
         &task_dir,
@@ -93,7 +93,7 @@ pub fn stage_sf_ocr_pre(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    tracing::info!(target: "sf_ocr", "sf_ocr_pre: done");
+    tracing::info!(target: "sf_ocr", "done");
     Ok(())
 }
 

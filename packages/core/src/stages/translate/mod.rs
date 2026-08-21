@@ -170,7 +170,7 @@ fn translate_batch(
 /// 入口 (镜像 TS `stageTranslate`)。
 pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    tracing::info!(target: "translate", "translate: start");
+    tracing::info!(target: "translate", "start");
 
     let args = read_args(ctx);
     let (src_lang, target_lang) = resolve_language(ctx)?;
@@ -396,7 +396,7 @@ pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    tracing::info!(target: "translate", "translate: done");
+    tracing::info!(target: "translate", "done");
     Ok(())
 }
 

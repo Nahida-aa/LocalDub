@@ -26,7 +26,7 @@ fn read_args(ctx: &TaskCtx) -> OcrFixArgs {
 /// 入口 (镜像 TS `stageSfOcrFix`)。
 pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    tracing::info!(target: "sf_ocr", "sf_ocr_fix: start");
+    tracing::info!(target: "sf_ocr", "start");
 
     let frames_file = sf_ocr_dir(&task_dir).join("frames.json");
     if !frames_file.exists() {
@@ -157,7 +157,7 @@ pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    tracing::info!(target: "sf_ocr", "sf_ocr_fix: done");
+    tracing::info!(target: "sf_ocr", "done");
     Ok(())
 }
 

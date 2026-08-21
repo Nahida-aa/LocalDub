@@ -30,7 +30,7 @@ fn read_args(ctx: &TaskCtx) -> MixAudioArgs {
 /// 入口 (镜像 TS `stageMixAudio`)。
 pub fn stage_mix_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    tracing::info!(target: "mix_audio", "mix_audio: start");
+    tracing::info!(target: "mix_audio", "start");
 
     let args = read_args(ctx);
 
@@ -302,7 +302,7 @@ pub fn stage_mix_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    tracing::info!(target: "mix_audio", "mix_audio: done");
+    tracing::info!(target: "mix_audio", "done");
     Ok(())
 }
 

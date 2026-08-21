@@ -233,7 +233,7 @@ fn run_demucs(
 /// 入口 (镜像 TS `stageSeparate`)。
 pub fn stage_separate(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    tracing::info!(target: "separate", "separate: start");
+    tracing::info!(target: "separate", "start");
 
     let cfg = read_args(ctx);
 
@@ -339,7 +339,7 @@ pub fn stage_separate(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    tracing::info!(target: "separate", "separate: done");
+    tracing::info!(target: "separate", "done");
     Ok(())
 }
 
