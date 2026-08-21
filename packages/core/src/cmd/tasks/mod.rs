@@ -1,6 +1,7 @@
 pub mod continue_task;
 pub mod enqueue;
 pub mod get_task;
+pub mod meta;
 pub mod start;
 pub mod task;
 

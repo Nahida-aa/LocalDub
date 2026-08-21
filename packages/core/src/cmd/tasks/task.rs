@@ -66,6 +66,13 @@ pub fn cmd_task(input: &Input) -> anyhow::Result<()> {
                 println!("  (无 stage 状态)");
             }
         }
+        Some(TaskAction::GenerateMeta) => {
+            let task_dir = task
+                .task_dir
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("generate_meta 需要 input.task.taskDir"))?;
+            crate::cmd::tasks::meta::generate_meta(&task_dir).context("generate_meta 失败")?;
+        }
         None => {
             // TS: 缺省走 start 分支
             start_task(input).context("start_task 失败 (默认)")?;

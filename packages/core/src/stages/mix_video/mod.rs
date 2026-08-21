@@ -331,8 +331,8 @@ fn build_subtitle_srt_dub_branch(
     write_srt(&segs, sub_path, false).map_err(|e| anyhow!("写字幕 SRT 失败: {e}"))
 }
 
-/// 读取已有 SRT 文件为 SrtSeg 列表 (subtitle 分支 noTranslate 路径)。
-fn read_srt_file_to_segs(path: &str) -> anyhow::Result<Vec<SrtSeg>> {
+/// 读取已有 SRT 文件为 SrtSeg 列表 (subtitle 分支 noTranslate 路径 / generate_meta 复用)。
+pub fn read_srt_file_to_segs(path: &str) -> anyhow::Result<Vec<SrtSeg>> {
     let raw = std::fs::read_to_string(path).with_context(|| format!("读取 SRT {path} 失败"))?;
     let mut segs = Vec::new();
     let mut blocks: Vec<Vec<&str>> = Vec::new();

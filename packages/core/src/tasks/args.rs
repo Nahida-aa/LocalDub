@@ -19,6 +19,8 @@ pub enum TaskAction {
     GetGroupList,
     #[serde(rename = "get_task_ctx")]
     GetTaskCtx,
+    #[serde(rename = "generate_meta")]
+    GenerateMeta,
 }
 
 /// pipeline 阶段名 (stagesList)
