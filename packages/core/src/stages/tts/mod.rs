@@ -199,10 +199,11 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
     let mut tts_segments: Vec<TtsSegment> = Vec::with_capacity(segments.len());
 
     // 逐段合成进度条 (对齐 OCR/sf-cli 的 indicatif UX, 走 stderr, 非 TTY 自动隐藏)。
+    // 右侧 {msg} 动态显示上一段的实时率 RTF (生成秒 / 音频秒)。
     let pb = ProgressBar::new(segments.len() as u64);
     pb.set_style(
         ProgressStyle::with_template(
-            "[{elapsed_precise}] TTS 合成 [{bar:30.cyan/blue}] {pos}/{len} ({eta})",
+            "[{elapsed_precise}] TTS 合成 [{bar:30.cyan/blue}] {pos}/{len} ({eta}) {msg}",
         )
         .unwrap_or_else(|_| ProgressStyle::default_bar())
         .progress_chars("=> "),
@@ -430,6 +431,7 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
         .ok();
 
         // 调 voxcpm 合成: cloud -> HTTP gradio; 其他 -> 本地二进制
+        let gen_t0 = std::time::Instant::now();
         if let Some(cloud) = &cloud {
             let samples = cloud
                 .generate(&text, &ref_for_tts, Some(&item_text), 2.0)
@@ -458,6 +460,16 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
         }
 
         let tts_duration = probe_duration_ms(&out_path);
+        // 更新进度条右侧的实时率 (RTF = 生成耗时秒 / 音频时长秒, 越小越快)。
+        {
+            let gen_sec = gen_t0.elapsed().as_secs_f64();
+            let audio_sec = tts_duration as f64 / 1000.0;
+            if gen_sec > 0.0 && audio_sec > 0.0 {
+                pb.set_message(format!("上一段 RTF {:.3}", gen_sec / audio_sec));
+            } else {
+                pb.set_message(format!("上一段 {}ms / {}s", tts_duration, gen_sec));
+            }
+        }
         tts_segments.push(TtsSegment {
             timing: crate::stages::split_audio::out::SplitAudioTiming {
                 seg_idx: (i + 1) as u32,
