@@ -5,7 +5,7 @@
 
 use crate::context::TaskCtx;
 use crate::stages::utils::{
-    StagePatch, StageStatus, cargo_build_bin, emit_log, ensure_dir, find_release_bin, now_iso,
+    StagePatch, StageStatus, cargo_build_bin, ensure_dir, find_release_bin, now_iso,
     set_stage_anyhow, sf_ocr_pre_dir, video_source_path,
 };
 use std::process::Command;
@@ -13,7 +13,7 @@ use std::process::Command;
 /// 入口 (镜像 TS `stageSfOcrPre`)。
 pub fn stage_sf_ocr_pre(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    emit_log("sf_ocr_pre: start");
+    tracing::info!(target: "sf_ocr", "sf_ocr_pre: start");
 
     set_stage_anyhow(
         &task_dir,
@@ -34,7 +34,7 @@ pub fn stage_sf_ocr_pre(ctx: &TaskCtx) -> anyhow::Result<()> {
         Some(p) => p,
         None => {
             // 阶段内自动编译缺失二进制 (用户选项: 阶段内自动编译)
-            emit_log("未找到 sf-cli, 尝试自动编译...");
+            tracing::info!(target: "sf_ocr", "未找到 sf-cli, 尝试自动编译...");
             cargo_build_bin("sf-cli", "sf-cli", &[], true).map_err(|e| {
                 anyhow::anyhow!(
                     "{e}\n若编译失败, 请手动执行: cargo build --release -p sf-cli --bin sf-cli"
@@ -46,7 +46,7 @@ pub fn stage_sf_ocr_pre(ctx: &TaskCtx) -> anyhow::Result<()> {
     let out_dir = sf_ocr_pre_dir(&task_dir);
     ensure_dir(&out_dir)?;
 
-    emit_log(&format!("sf-cli {video_path} --out {}", out_dir.display()));
+    tracing::info!(target: "sf_ocr", "sf-cli {video_path} --out {}", out_dir.display());
     let status = Command::new(&bin)
         .arg(&video_path)
         .arg("--out")
@@ -77,10 +77,10 @@ pub fn stage_sf_ocr_pre(ctx: &TaskCtx) -> anyhow::Result<()> {
         serde_json::Value::Array(vec![])
     };
     let n = keyframes.as_array().map(|a| a.len()).unwrap_or(0);
-    emit_log(&format!(
+    tracing::info!(target: "sf_ocr", 
         "[sf_ocr_pre] {n} keyframes -> {}",
         out_dir.display()
-    ));
+    );
 
     set_stage_anyhow(
         &task_dir,
@@ -93,7 +93,7 @@ pub fn stage_sf_ocr_pre(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    emit_log("sf_ocr_pre: done");
+    tracing::info!(target: "sf_ocr", "sf_ocr_pre: done");
     Ok(())
 }
 

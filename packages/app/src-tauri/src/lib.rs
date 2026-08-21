@@ -4,14 +4,9 @@ use server::AppState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Respect `RUST_LOG` (e.g. `RUST_LOG=fs=debug` to trace file-watcher events);
-    // fall back to `info` when the env var is unset.
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
-        .init();
+    // 统一初始化 tracing (fmt + 任务文件落盘 + EnvFilter)。
+    // 重复 init 会失败, 故忽略返回值 (server 内部若已初始化则跳过)。
+    let _ = ld_core::logging::init();
 
     // fnRPC router (independent from rspc)
     let fnrpc_router = Arc::new(server::build_fn_rpc_router());

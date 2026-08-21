@@ -6,7 +6,7 @@
 use crate::context::TaskCtx;
 use crate::stages::asr::args::AsrArgs;
 use crate::stages::utils::{
-    StagePatch, StageStatus, emit_log, ffmpeg, now_iso, separate_after_dir, separate_dir,
+    StagePatch, StageStatus, ffmpeg, now_iso, separate_after_dir, separate_dir,
     set_stage_anyhow,
 };
 
@@ -22,7 +22,7 @@ fn read_asr_cfg(ctx: &TaskCtx) -> AsrArgs {
 /// 入口 (镜像 TS `stageSeparateAfter`)。
 pub fn stage_separate_after(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    emit_log("separate_after: start");
+    tracing::info!(target: "separate", "separate_after: start");
 
     set_stage_anyhow(
         &task_dir,
@@ -52,7 +52,7 @@ pub fn stage_separate_after(ctx: &TaskCtx) -> anyhow::Result<()> {
     // 1. 由 stems 重建 target_bgm.wav (修复 amix normalize bug)
     let all_stems_exist = stems[..3].iter().all(|(_, p)| p.exists());
     if all_stems_exist {
-        emit_log("[SeparateAfter] Generating target_bgm.wav (amix normalize=0)...");
+        tracing::info!(target: "separate", "Generating target_bgm.wav (amix normalize=0)...");
         ffmpeg(&[
             "-i".into(),
             stems[0].1.to_string_lossy().into_owned(),
@@ -67,9 +67,9 @@ pub fn stage_separate_after(ctx: &TaskCtx) -> anyhow::Result<()> {
             bgm_dst.to_string_lossy().into_owned(),
         ])?;
     } else if bgm_dst.exists() {
-        emit_log("[SeparateAfter] target_bgm.wav exists, reusing (stems not all found)");
+        tracing::info!(target: "separate", "target_bgm.wav exists, reusing (stems not all found)");
     } else {
-        emit_log("[SeparateAfter] No stems or BGM found, skipping BGM generation");
+        tracing::info!(target: "separate", "No stems or BGM found, skipping BGM generation");
     }
 
     // 2. 按 asr 配置生成 sidechain 混音人声
@@ -95,9 +95,9 @@ pub fn stage_separate_after(ctx: &TaskCtx) -> anyhow::Result<()> {
         }
         match mix_mode {
             crate::stages::asr::args::MixMode::RawSum => {
-                emit_log(&format!(
+                tracing::info!(target: "separate", 
                     "[SeparateAfter] raw-sum: mixing vocals + BGM at {reduce_bgm}dB..."
-                ));
+                );
                 ffmpeg(&[
                     "-i".into(),
                     vocals_path.to_string_lossy().into_owned(),
@@ -127,9 +127,9 @@ pub fn stage_separate_after(ctx: &TaskCtx) -> anyhow::Result<()> {
                 } else {
                     "bgm_sc"
                 };
-                emit_log(&format!(
+                tracing::info!(target: "separate", 
                     "[SeparateAfter] sidechain: {sc_params}, bgmReduce={reduce_bgm}dB"
-                ));
+                );
                 let filter = format!(
                     "[0:a]asplit[v][v_key];[1:a][v_key]sidechaincompress={sc_params}[bgm_sc]{bgm_vol};[v][{bgm_final}]amix=inputs=2:duration=first:weights=1 1[out]"
                 );
@@ -152,7 +152,7 @@ pub fn stage_separate_after(ctx: &TaskCtx) -> anyhow::Result<()> {
     // 3. 可选 silence gate
     if use_gate && mixed_dst.exists() {
         let gated_path = out_dir.join("target_3_vocals_gated.wav");
-        emit_log("[SeparateAfter] Applying silence gate...");
+        tracing::info!(target: "separate", "Applying silence gate...");
         ffmpeg(&[
             "-i".into(),
             mixed_dst.to_string_lossy().into_owned(),
@@ -173,7 +173,7 @@ pub fn stage_separate_after(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    emit_log("separate_after: done");
+    tracing::info!(target: "separate", "separate_after: done");
     Ok(())
 }
 

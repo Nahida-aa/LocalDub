@@ -14,7 +14,7 @@ use crate::context::TaskCtx;
 use crate::stages::mix_video::args::{Alignment, MixVideoArgs};
 use crate::stages::utils::srt::{SrtSeg, write_srt};
 use crate::stages::utils::{
-    StagePatch, StageStatus, TaskPatch, bgm_path, default_font, dubbing_path, emit_log, ensure_dir,
+    StagePatch, StageStatus, TaskPatch, bgm_path, default_font, dubbing_path, ensure_dir,
     ffmpeg_timeout, final_video_dir, probe_video_resolution, read_timings, read_translation_result,
     resolve_language, set_stage_anyhow, set_task_anyhow, subtitle_file_path, video_source_path,
 };
@@ -35,7 +35,7 @@ pub fn stage_mix_video(ctx: &TaskCtx) -> anyhow::Result<()> {
     let cfg = read_args(ctx);
 
     if !cfg.enabled {
-        emit_log("[mix_video] disabled (mix_video.enabled=false), skipping");
+        tracing::info!(target: "mix_video", "disabled (mix_video.enabled=false), skipping");
         set_stage_anyhow(
             &task_dir,
             "mix_video",
@@ -197,7 +197,7 @@ pub fn stage_mix_video(ctx: &TaskCtx) -> anyhow::Result<()> {
         .map_err(|e| anyhow!("mix_video (dub) ffmpeg 失败: {e}"))?;
     }
 
-    emit_log(&format!("Wrote final video: {}", final_video.display()));
+    tracing::info!(target: "mix_video", "Wrote final video: {}", final_video.display());
 
     // 写回 ctx.task.final_video_path (镜像 TS mix_video 设置 finalVideoPath)
     set_task_anyhow(

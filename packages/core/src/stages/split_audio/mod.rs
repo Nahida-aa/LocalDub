@@ -26,7 +26,7 @@ use crate::stages::split_audio::out::{
 };
 use crate::stages::split_audio::pad_segment::{SegmentBounds, pad_segments};
 use crate::stages::utils::{
-    StagePatch, StageStatus, emit_log, ensure_dir, now_iso, probe_duration_ms,
+    StagePatch, StageStatus, ensure_dir, now_iso, probe_duration_ms,
     read_translation_result, resolve_language, set_stage_anyhow, split_audio_path,
     split_audio_timings_path, subtitle_file_path, video_source_path, vocals_path,
 };
@@ -55,7 +55,7 @@ impl SegmentBounds for SplitAudioTiming {
 /// 入口 (镜像 TS `stageSplitAudio`)。
 pub fn stage_split_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    emit_log("split_audio: start");
+    tracing::info!(target: "split_audio", "split_audio: start");
 
     let args = read_args(ctx);
 
@@ -305,7 +305,7 @@ pub fn stage_split_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    emit_log("split_audio: done");
+    tracing::info!(target: "split_audio", "split_audio: done");
     Ok(())
 }
 

@@ -23,7 +23,7 @@ use crate::stages::translate::prompts::{
     MetaView, build_preprocess_prompt, build_translate_system,
 };
 use crate::stages::utils::{
-    StagePatch, StageStatus, emit_log, lang_name, now_iso, resolve_language, set_stage_anyhow,
+    StagePatch, StageStatus, lang_name, now_iso, resolve_language, set_stage_anyhow,
     subtitle_file_path, translation_file_path,
 };
 use config_rs::env::openai_api_key;
@@ -170,7 +170,7 @@ fn translate_batch(
 /// 入口 (镜像 TS `stageTranslate`)。
 pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    emit_log("translate: start");
+    tracing::info!(target: "translate", "translate: start");
 
     let args = read_args(ctx);
     let (src_lang, target_lang) = resolve_language(ctx)?;
@@ -315,7 +315,7 @@ pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
                     }
                 }
             }
-            Err(e) => emit_log(&format!("[WARN] [Translate] Preprocess failed: {e}")),
+            Err(e) => tracing::warn!(target: "translate", "[Translate] Preprocess failed: {e}"),
         }
     }
 
@@ -396,7 +396,7 @@ pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    emit_log("translate: done");
+    tracing::info!(target: "translate", "translate: done");
     Ok(())
 }
 

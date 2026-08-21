@@ -12,7 +12,7 @@ use std::path::Path;
 use crate::context::TaskCtx;
 use crate::stages::mix_audio::out::{Timing, TimingsFile};
 use crate::stages::utils::{
-    StagePatch, StageStatus, emit_log, ensure_dir, ffmpeg, now_iso, probe_duration_ms,
+    StagePatch, StageStatus, ensure_dir, ffmpeg, now_iso, probe_duration_ms,
     probe_sample_rate, read_split_audio_timings, set_stage_anyhow, split_audio_timings_path,
 };
 
@@ -30,7 +30,7 @@ fn read_args(ctx: &TaskCtx) -> MixAudioArgs {
 /// 入口 (镜像 TS `stageMixAudio`)。
 pub fn stage_mix_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    emit_log("mix_audio: start");
+    tracing::info!(target: "mix_audio", "mix_audio: start");
 
     let args = read_args(ctx);
 
@@ -302,7 +302,7 @@ pub fn stage_mix_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    emit_log("mix_audio: done");
+    tracing::info!(target: "mix_audio", "mix_audio: done");
     Ok(())
 }
 

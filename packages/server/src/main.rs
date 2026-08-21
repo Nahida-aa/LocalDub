@@ -6,12 +6,8 @@ use server::axum_server::start;
 use server::build_fn_rpc_router;
 
 fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
-        .init();
+    // 统一初始化 tracing (fmt + 任务文件落盘 + EnvFilter)。
+    let _ = ld_core::logging::init();
 
     let repo_root = repo_root();
     let app_state = server::AppState::new();

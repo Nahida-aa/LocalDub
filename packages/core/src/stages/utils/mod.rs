@@ -4,7 +4,6 @@
 //! - [`now_iso`] — RFC3339 无毫秒时间戳
 //! - [`set_stage`] / [`set_task`] — 对 `ctx.json` 中 stages / task 的 upsert 合并
 //! - 各 stage 输出目录 helper ([`separate_dir`] / [`asr_dir`] / [`separate_after_dir`] ...)
-//! - [`emit_log`] — tracing + 追加 `<tid>.log`
 //! - [`stages`] 模块: pipeline 阶段序列 ([`stages::get_stages`])
 
 pub mod srt;
@@ -693,7 +692,7 @@ pub fn resolve_language(ctx: &crate::context::TaskCtx) -> anyhow::Result<(String
         // 写回 ctx.target_language, 供后续翻译文件命名 / split_audio 读取 (best-effort:
         // ctx.json 不存在时仅告警, 不影响当前 stage 返回解析结果)
         if let Err(e) = write_target_language(&ctx.task.task_dir, &resolved) {
-            emit_log(&format!("[WARN] 写回 target_language 失败: {e}"));
+            tracing::warn!(target: "pipeline", "写回 target_language 失败: {e}");
         }
     }
     Ok((src_lang, resolved))
@@ -704,56 +703,6 @@ fn write_target_language(task_dir: &str, lang: &str) -> Result<(), String> {
     let mut ctx = read_ctx(task_dir)?;
     ctx.target_language = Some(lang.to_string());
     write_ctx(task_dir, &ctx)
-}
-
-// ---------------------------------------------------------------------------
-// 日志 (镜像 TS `emitLog`)
-// ---------------------------------------------------------------------------
-
-// 全局任务日志上下文 (镜像 TS `packages/util/log.ts` 的 AsyncLocalStorage)。
-// 单进程单任务模型下, 一个 thread_local 即足够: pipeline 入口 set_log_dir 注入一次,
-// stage 边界 set_log_stage 更新 stage 前缀, 之后 emit_log 免传 task_dir。
-thread_local! {
-    static LOG_CTX: std::cell::RefCell<LogCtx> = std::cell::RefCell::new(LogCtx::default());
-}
-
-#[derive(Default)]
-struct LogCtx {
-    task_dir: Option<String>,
-    stage: Option<String>,
-}
-
-/// 设置当前任务日志目录 (对标 TS `setLogContext`)。pipeline 入口调用一次。
-pub fn set_log_dir(task_dir: &str) {
-    LOG_CTX.with(|c| c.borrow_mut().task_dir = Some(task_dir.to_string()));
-}
-
-/// 设置当前 stage 名 (对标 TS `setCurrentStage`)。日志行自动带 `[stage] ` 前缀。
-pub fn set_log_stage(stage: &str) {
-    LOG_CTX.with(|c| c.borrow_mut().stage = Some(stage.to_string()));
-}
-
-/// 写日志: tracing info + 追加到 `<task_dir>/<tid>.log`。
-/// task_dir 从全局上下文取 (由 [`set_log_dir`] 注入), 无需每次传参。
-pub fn emit_log(line: &str) {
-    tracing::info!("{line}");
-    let (dir, stage) = LOG_CTX.with(|c| {
-        let c = c.borrow();
-        (c.task_dir.clone(), c.stage.clone())
-    });
-    let Some(dir) = dir else { return };
-    let Some(tid) = task_id(&dir) else { return };
-    let log_path = Path::new(&dir).join(format!("{tid}.log"));
-    let prefix = stage.map(|s| format!("[{s}] ")).unwrap_or_default();
-    let entry = format!("[{}] {prefix}{line}\n", now_iso());
-    // 追加失败不应中断流程
-    if let Ok(mut f) = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&log_path)
-    {
-        let _ = f.write_all(entry.as_bytes());
-    }
 }
 
 /// 序列化辅助: 把任意可序列化值转成 pretty JSON 字符串 (测试 / 透传用)。

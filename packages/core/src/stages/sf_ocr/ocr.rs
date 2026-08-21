@@ -7,7 +7,7 @@
 use crate::context::TaskCtx;
 use crate::stages::sf_ocr::args::SfOcrArgs;
 use crate::stages::utils::{
-    StagePatch, StageStatus, cargo_build_bin, emit_log, find_release_bin, now_iso,
+    StagePatch, StageStatus, cargo_build_bin, find_release_bin, now_iso,
     set_stage_anyhow, sf_ocr_dir, sf_ocr_pre_dir,
 };
 use std::process::Command;
@@ -24,7 +24,7 @@ fn read_args(ctx: &TaskCtx) -> SfOcrArgs {
 /// 入口 (镜像 TS `stageSfOcr`)。
 pub fn stage_sf_ocr(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
-    emit_log("sf_ocr: start");
+    tracing::info!(target: "sf_ocr", "sf_ocr: start");
 
     set_stage_anyhow(
         &task_dir,
@@ -50,7 +50,7 @@ pub fn stage_sf_ocr(ctx: &TaskCtx) -> anyhow::Result<()> {
         Some(p) => p,
         None => {
             // 阶段内自动编译缺失二进制 (用户选项: 阶段内自动编译)
-            emit_log("未找到 subtitle-ocr, 尝试自动编译...");
+            tracing::info!(target: "sf_ocr", "未找到 subtitle-ocr, 尝试自动编译...");
             cargo_build_bin("subtitle-ocr-cli", "subtitle-ocr", &[], true).map_err(|e| {
                 anyhow::anyhow!(
                     "{e}\n若编译失败, 请手动执行: cargo build --release -p subtitle-ocr-cli --bin subtitle-ocr"
@@ -73,7 +73,7 @@ pub fn stage_sf_ocr(ctx: &TaskCtx) -> anyhow::Result<()> {
         cmd.arg("--subtitle-only");
     }
 
-    emit_log(&format!(
+    tracing::info!(target: "sf_ocr", 
         "subtitle-ocr --dir {} --out {} --text-confidence-threshold {} {}",
         frame_dir.display(),
         out_file.display(),
@@ -83,7 +83,7 @@ pub fn stage_sf_ocr(ctx: &TaskCtx) -> anyhow::Result<()> {
         } else {
             ""
         }
-    ));
+    );
     let status = cmd
         .status()
         .map_err(|e| anyhow::anyhow!("spawn subtitle-ocr 失败: {e}"))?;
@@ -108,15 +108,15 @@ pub fn stage_sf_ocr(ctx: &TaskCtx) -> anyhow::Result<()> {
     if frames.is_empty() {
         return Err(anyhow::anyhow!("sf_ocr: no OCR results from keyframes"));
     }
-    emit_log(&format!(
+    tracing::info!(target: "sf_ocr", 
         "{} frame results -> {}",
         frames.len(),
         out_file.display()
-    ));
+    );
 
     if cfg.cleanup_frames {
         let _ = std::fs::remove_dir_all(&frame_dir);
-        emit_log("Keyframes cleaned up");
+        tracing::info!(target: "sf_ocr", "Keyframes cleaned up");
     }
 
     set_stage_anyhow(
@@ -130,7 +130,7 @@ pub fn stage_sf_ocr(ctx: &TaskCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    emit_log("sf_ocr: done");
+    tracing::info!(target: "sf_ocr", "sf_ocr: done");
     Ok(())
 }
 

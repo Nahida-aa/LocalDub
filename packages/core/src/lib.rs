@@ -1,4 +1,5 @@
 pub mod cmd;
+pub mod logging;
 pub mod r#const;
 pub mod context;
 pub mod input;

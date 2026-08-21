@@ -56,14 +56,9 @@ enum Command {
 }
 
 fn main() {
-    // 让 ld_core 内 emit_log 的 tracing::info! 落到 stdout (续跑/分段日志才可见)。
-    // 重复 init 会报错, 故仅当尚未初始化时才装 (测试/嵌套调用安全)。
-    let _ = tracing_subscriber::fmt()
-        .with_writer(std::io::stderr)
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
-        .try_init();
+    // 统一初始化 tracing: fmt(stderr) + 任务文件落盘 + EnvFilter。
+    // 重复 init 会失败, 故仅当尚未初始化时才装 (测试/嵌套调用安全)。
+    let _ = ld_core::logging::init();
 
     // 分发 (镜像 TS run-task.ts 的 switch(cmd)):
     // 1. 读 input.jsonc 得到基础 Input;

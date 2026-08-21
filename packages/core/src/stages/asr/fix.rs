@@ -6,7 +6,7 @@ use crate::context::TaskCtx;
 use crate::stages::asr::fix_args::AsrFixArgs;
 use crate::stages::asr::out::AsrResult;
 use crate::stages::utils::{
-    StagePatch, StageStatus, asr_dir, emit_log, ensure_dir, now_iso, resolve_language,
+    StagePatch, StageStatus, asr_dir, ensure_dir, now_iso, resolve_language,
     set_stage_anyhow,
 };
 
@@ -24,7 +24,7 @@ pub fn stage_asr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
     let args = read_fix_args(ctx);
     if !args.enabled {
-        emit_log("[ASR Fix] disabled (asr_fix.enabled=false), skipping");
+        tracing::info!(target: "asr", "disabled (asr_fix.enabled=false), skipping");
         return Ok(());
     }
     // asr_fix 目录平级于 task_dir (镜像 TS `join(taskDir, "asr_fix")`),
@@ -70,7 +70,7 @@ pub fn stage_asr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
         let domain_hint = args.llm_fix.domain_hint.clone();
 
         if let Some(h) = &domain_hint {
-            emit_log(&format!("[ASR Fix] domainHint: {h}"));
+            tracing::info!(target: "asr", "domainHint: {h}");
         }
         set_stage_anyhow(
             &task_dir,
@@ -82,10 +82,10 @@ pub fn stage_asr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
         )?;
 
         let prompt = segments_to_prompt(&segments);
-        emit_log(&format!(
+        tracing::info!(target: "asr", 
             "LLM fixing {} segs (model={llm_model})...",
             segments.len()
-        ));
+        );
 
         let t0 = std::time::Instant::now();
         let system = build_asr_fix_system_prompt(&source_lang_label, domain_hint.as_deref());
@@ -106,12 +106,12 @@ pub fn stage_asr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
                     s.text = t.clone();
                 }
             }
-            emit_log(&format!(
+            tracing::info!(target: "asr", 
                 "LLM fixed {} segs in {elapsed:.1}s",
                 segments.len()
-            ));
+            );
         } else {
-            emit_log("LLM response parse failed, keeping original text");
+            tracing::info!(target: "asr", "LLM response parse failed, keeping original text");
         }
     }
 
@@ -133,10 +133,10 @@ pub fn stage_asr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
         serde_json::to_string_pretty(&out).map_err(|e| anyhow!("序列化 asr_fix 结果失败: {e}"))?;
     std::fs::write(&srt_file, json).with_context(|| format!("写入 {} 失败", srt_file.display()))?;
 
-    emit_log(&format!(
+    tracing::info!(target: "asr", 
         "[ASR Fix] Written {} segs to asr_fix.json",
         segments.len()
-    ));
+    );
 
     set_stage_anyhow(
         &task_dir,

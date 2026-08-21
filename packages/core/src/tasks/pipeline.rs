@@ -21,14 +21,14 @@ use crate::stages::split_audio::stage_split_audio;
 use crate::stages::translate::stage_translate;
 use crate::stages::tts::stage_tts;
 use crate::stages::utils::{
-    StagePatch, StageStatus, emit_log, now_iso, set_log_dir, set_log_stage, set_stage_anyhow,
-    set_task_anyhow,
+    StagePatch, StageStatus, now_iso, set_stage_anyhow, set_task_anyhow,
 };
 
 /// 运行完整 pipeline (镜像 TS `runPipeline`)。
 pub fn run_pipeline(task_dir: &str) -> anyhow::Result<()> {
-    set_log_dir(task_dir);
-    emit_log("run_pipeline: start");
+    // 进入 task span: 携带 task_dir 供 TaskFileLayer 落盘到 <task_dir>/<tid>.log。
+    let _task_guard = tracing::info_span!("task", task_dir = task_dir).entered();
+    tracing::info!(target: "pipeline", "run_pipeline: start");
 
     let ctx = read_ctx(task_dir).map_err(anyhow::Error::msg)?;
     let pipeline = ctx.pipeline.clone();
@@ -38,9 +38,9 @@ pub fn run_pipeline(task_dir: &str) -> anyhow::Result<()> {
     // targetStage 不在序列中则告警忽略 (镜像 TS)
     if let Some(ts) = ctx.input.get("targetStage").and_then(|v| v.as_str()) {
         if !stages.iter().any(|s| s == ts) {
-            emit_log(&format!(
+            tracing::info!(target: "pipeline", 
                 "[WARN] targetStage \"{ts}\" 不在 {pipeline} pipeline 中, 忽略"
-            ));
+            );
         }
     }
 
@@ -56,9 +56,9 @@ pub fn run_pipeline(task_dir: &str) -> anyhow::Result<()> {
     for stage in &stages {
         // 先检查 handler 是否存在 (镜像 TS: 无 handler 则 warn + skip, 不标记 running)
         if !has_handler(stage) {
-            emit_log(&format!(
+            tracing::info!(target: "pipeline", 
                 "[WARN] [Pipeline] No handler for stage {stage}, skipping"
-            ));
+            );
             continue;
         }
 
@@ -80,21 +80,21 @@ pub fn run_pipeline(task_dir: &str) -> anyhow::Result<()> {
                 ..Default::default()
             },
         )?;
-        emit_log(&format!("[Pipeline] Running {stage}"));
+        tracing::info!(target: "pipeline", "Running {stage}");
 
         match run_stage(stage, task_dir) {
             Ok(()) => {
                 // 达到 targetStage 即停止 (镜像 TS)
                 if let Some(ts) = ctx.input.get("targetStage").and_then(|v| v.as_str()) {
                     if stage == ts {
-                        emit_log(&format!("[Pipeline] 达到目标步骤 \"{ts}\", 停止"));
+                        tracing::info!(target: "pipeline", "达到目标步骤 \"{ts}\", 停止");
                         break;
                     }
                 }
             }
             Err(e) => {
                 let msg = e.to_string();
-                emit_log(&format!("[ERROR] [Pipeline] Stage {stage} failed: {msg}"));
+                tracing::error!(target: "pipeline", "[Pipeline] Stage {stage} failed: {msg}");
                 set_stage_anyhow(
                     task_dir,
                     stage,
@@ -127,7 +127,7 @@ pub fn run_pipeline(task_dir: &str) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    emit_log(&format!("[Pipeline] Task {task_id} completed"));
+    tracing::info!(target: "pipeline", "Task {task_id} completed");
     Ok(())
 }
 
@@ -155,7 +155,8 @@ pub fn has_handler(stage: &str) -> bool {
 /// 每个 handler 自行 `read_ctx` 获取最新 ctx (与 TS `readCtx(sp)` 一致)。
 /// 调用方已通过 [`has_handler`] 过滤, 此处仅处理已知 stage。
 pub fn run_stage(stage: &str, task_dir: &str) -> anyhow::Result<()> {
-    set_log_stage(stage);
+    // 进入 stage span: 携带 stage 名供 TaskFileLayer 作为 [stage] 前缀。
+    let _stage_guard = tracing::info_span!("stage", stage = stage).entered();
     let ctx = read_ctx(task_dir).map_err(anyhow::Error::msg)?;
     match stage {
         "separate" => stage_separate(&ctx),
