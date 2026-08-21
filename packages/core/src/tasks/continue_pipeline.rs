@@ -73,7 +73,7 @@ pub fn continue_pipeline(ctx: &TaskCtx) -> anyhow::Result<()> {
             )?;
         }
         tracing::info!(target: "pipeline", 
-            "[Pipeline] Resetting from \"{cf}\" ({} stage(s)), resuming...",
+            "Resetting from \"{cf}\" ({} stage(s)), resuming...",
             stages.len() - start_idx
         );
     } else {
@@ -95,7 +95,7 @@ pub fn continue_pipeline(ctx: &TaskCtx) -> anyhow::Result<()> {
             tracing::info!(target: "pipeline", "continue from beginning");
         } else {
             tracing::info!(target: "pipeline", 
-                "[Pipeline] Skipping {start_idx} completed stage(s), resuming from \"{}\"",
+                "Skipping {start_idx} completed stage(s), resuming from \"{}\"",
                 stages[start_idx]
             );
         }
@@ -112,7 +112,7 @@ pub fn continue_pipeline(ctx: &TaskCtx) -> anyhow::Result<()> {
     )?;
 
     tracing::info!(target: "pipeline", 
-        "[Pipeline] Running runStages: {:?}",
+        "Running runStages: {:?}",
         &stages[start_idx..]
     );
 
@@ -121,7 +121,7 @@ pub fn continue_pipeline(ctx: &TaskCtx) -> anyhow::Result<()> {
 
         if !has_handler(stage) {
             tracing::info!(target: "pipeline", 
-                "[WARN] [Pipeline] No handler for stage {stage}, skipping"
+                "[WARN] No handler for stage {stage}, skipping"
             );
             continue;
         }
@@ -157,7 +157,7 @@ pub fn continue_pipeline(ctx: &TaskCtx) -> anyhow::Result<()> {
             }
             Err(e) => {
                 let msg = e.to_string();
-                tracing::error!(target: "pipeline", "[Pipeline] Stage {stage} failed: {msg}");
+                tracing::error!(target: "pipeline", "Stage {stage} failed: {msg}");
                 set_stage_anyhow(
                     task_dir,
                     stage,

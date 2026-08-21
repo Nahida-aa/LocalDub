@@ -134,7 +134,7 @@ pub fn stage_asr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
     std::fs::write(&srt_file, json).with_context(|| format!("写入 {} 失败", srt_file.display()))?;
 
     tracing::info!(target: "asr", 
-        "[ASR Fix] Written {} segs to asr_fix.json",
+        "Written {} segs to asr_fix.json",
         segments.len()
     );
 

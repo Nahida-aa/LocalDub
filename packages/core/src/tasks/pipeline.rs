@@ -57,7 +57,7 @@ pub fn run_pipeline(task_dir: &str) -> anyhow::Result<()> {
         // 先检查 handler 是否存在 (镜像 TS: 无 handler 则 warn + skip, 不标记 running)
         if !has_handler(stage) {
             tracing::info!(target: "pipeline", 
-                "[WARN] [Pipeline] No handler for stage {stage}, skipping"
+                "[WARN] No handler for stage {stage}, skipping"
             );
             continue;
         }
@@ -94,7 +94,7 @@ pub fn run_pipeline(task_dir: &str) -> anyhow::Result<()> {
             }
             Err(e) => {
                 let msg = e.to_string();
-                tracing::error!(target: "pipeline", "[Pipeline] Stage {stage} failed: {msg}");
+                tracing::error!(target: "pipeline", "Stage {stage} failed: {msg}");
                 set_stage_anyhow(
                     task_dir,
                     stage,
