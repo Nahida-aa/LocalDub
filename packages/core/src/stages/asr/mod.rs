@@ -190,6 +190,21 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
     let raw: WhisperJson = serde_json::from_str(&raw_text)
         .with_context(|| format!("解析 whisper JSON 失败: {whisper_json}"))?;
 
+    // —— 归档: 把 whisper 原始输出 (<input>.wav.json) 移动到 asr/ 下 ——
+    // whisper-cli 把原始 JSON 写在输入音频旁 (separate_after/), 解析完后搬进 asr/
+    // 便于与 asr.json 同目录归档/分析; 文件名保持原样 (如 target_3_vocals_mixed.wav.json)。
+    if let Some(name) = std::path::Path::new(&whisper_json).file_name() {
+        let dst = audio_dir.join(name);
+        let src_path = std::path::Path::new(&whisper_json);
+        if dst != src_path {
+            let _ = std::fs::remove_file(&dst); // 跨平台安全: 先清目标再 rename
+            match std::fs::rename(src_path, &dst) {
+                Ok(()) => tracing::info!(target: "asr", "whisper 原始 JSON 已移到 asr/{}", name.to_string_lossy()),
+                Err(e) => tracing::warn!(target: "asr", "移动 whisper 原始 JSON 到 asr/ 失败 (已忽略): {e}"),
+            }
+        }
+    }
+
     let detected_language = if raw.result.language.is_empty() {
         "auto".to_string()
     } else {
