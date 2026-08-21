@@ -88,4 +88,8 @@ pub struct TaskArgs {
     /// 字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)
     #[serde(default)]
     pub subtitle_source: SubtitleSource,
+    /// 是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。
+    /// 注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。
+    #[serde(default)]
+    pub download_subtitles: bool,
 }

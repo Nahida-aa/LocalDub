@@ -6,14 +6,14 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use chrono::Utc;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::context::{Task, TaskCtx, TaskStage, VideoSource, read_ctx_from_value, write_ctx};
 use crate::input::Input;
 use crate::tasks::args::Pipeline;
 use crate::tasks::import::util::{
     auto_group_id_and_video_id, copy_file_to_path, download_remote_video, encode_to_mp4,
-    extract_audio, probe_frame_rate,
+    extract_audio, probe_frame_rate, run_yt_dlp_download,
 };
 
 #[derive(Debug, Clone)]
@@ -107,7 +107,14 @@ pub fn import_video(input: &Input) -> anyhow::Result<TaskCtx> {
     std::fs::create_dir_all(&task_dir)
         .with_context(|| format!("创建 taskDir 失败: {task_dir:?}"))?;
 
-    let downloaded = download_video(&url, source, &group_id, &task_id, &yt_dlp_ext_args)?;
+    let downloaded = download_video(
+        &url,
+        source,
+        &group_id,
+        &task_id,
+        &yt_dlp_ext_args,
+        args.download_subtitles,
+    )?;
 
     // 探测帧率
     let frame_rate = probe_frame_rate(&downloaded.video_path);
@@ -184,6 +191,7 @@ pub fn download_video(
     group_id: &str,
     task_id: &str,
     yt_dlp_ext_args: &[String],
+    download_subtitles: bool,
 ) -> anyhow::Result<Downloaded> {
     let task_dir = workfolder().join(group_id).join(task_id);
     let mut downloaded_video_path = task_dir.join(format!("{task_id}.mp4"));
@@ -242,6 +250,16 @@ pub fn download_video(
             .context("转码失败")?;
             extract_audio(video_path.to_str().unwrap(), audio_path.to_str().unwrap())
                 .context("抽取音频失败")?;
+
+            // 可选: 下载平台自带字幕 (官方/自动) 落盘到 download/ 供后续分析/消费。
+            // best-effort: YouTube 现需 PO token, 无服务时失败仅告警, 不阻断主流程。
+            if download_subtitles {
+                if let Err(e) =
+                    download_youtube_subtitles(url, &task_dir, yt_dlp_ext_args)
+                {
+                    warn!("[import] 字幕下载失败 (已忽略): {e}");
+                }
+            }
         }
         VideoSource::Unknown => {
             return Err(anyhow::anyhow!("未知视频来源, 无法下载"));
@@ -269,6 +287,44 @@ fn find_task_video(task_dir: &std::path::Path, task_id: &str) -> Option<PathBuf>
             let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
             (name.starts_with(&prefix) && p.is_file()).then_some(p)
         })
+}
+
+/// 下载平台自带字幕 (YouTube/Bilibili 的官方 + 自动字幕) 落盘到 `task_dir/download/`。
+///
+/// best-effort: YouTube 现要求 PO token, 无 bgutil 服务时 yt-dlp 会报
+/// "missing subtitles because a PO token was not provided", 调用方应捕获并告警。
+/// 下载产物形如 `download/{video_id}.{lang}.vtt` / `.srt` (由 yt-dlp 决定)。
+fn download_youtube_subtitles(
+    url: &str,
+    task_dir: &std::path::Path,
+    yt_dlp_ext_args: &[String],
+) -> anyhow::Result<()> {
+    let out_dir = task_dir.join("download");
+    std::fs::create_dir_all(&out_dir)
+        .with_context(|| format!("创建 {} 失败", out_dir.display()))?;
+
+    // 复用主下载的 cookies/proxy/playlist 参数; 额外加字幕参数。
+    // --write-subs: 官方字幕; --write-auto-subs: 自动生成字幕; 全部语言。
+    // 不另加 --no-playlist: 沿用 yt_dlp_ext_args 里已有的 playlist 处理 (单集/整列一致)。
+    let mut args: Vec<String> = vec![
+        "--skip-download".into(),
+        "--write-subs".into(),
+        "--write-auto-subs".into(),
+        "--sub-langs".into(),
+        "all".into(),
+        "-o".into(),
+        out_dir
+            .join("%(id)s.%(lang)s.%(ext)s")
+            .to_string_lossy()
+            .into(),
+    ];
+    args.extend(yt_dlp_ext_args.iter().cloned());
+    args.push(url.to_string());
+
+    info!("[import] 下载字幕: yt-dlp {:?}", args);
+    run_yt_dlp_download(&args).context("yt-dlp 字幕下载失败")?;
+    info!("[import] 字幕下载完成, 落盘于 {}", out_dir.display());
+    Ok(())
 }
 
 /// 从 ctx.json 读回 (方便下游阶段复用, 镜像 TS `readCtx`)。
