@@ -71,6 +71,12 @@ fn chinese_ratio(s: &str) -> f64 {
 }
 
 /// 批量翻译 (含 3 次重试), 返回与 `batch` 等长的译文 (镜像 TS `translateBatch`)。
+///
+/// 重试策略: 若某次返回的译文数量与 batch 不符, 已匹配的句直接保留,
+/// 后续 attempt 只对**缺失的句子**重新请求 (子集重试), 而非整批重来 ——
+/// 避免像 49/50 这种情况因为一句话抽风而整批重来。但**不**无脑兜底:
+/// 3 次重试后仍有缺失则明确报错, 并在日志/错误中列出缺失句子的序号与原文,
+/// 交由人工评估, 而不会把原文当译文塞回去。
 fn translate_batch(
     batch: &[String],
     system: &str,
@@ -84,17 +90,33 @@ fn translate_batch(
         .collect::<Vec<_>>()
         .join("\n");
 
+    // filled[i] 为已成功翻译的句子 (None = 待翻译)
+    let mut filled: Vec<Option<String>> = vec![None; batch.len()];
+    let mut pending: Vec<usize> = (0..batch.len()).collect();
     let mut last_err = "未知原因 (LLM 未返回可用结果)".to_string();
+
     for attempt in 0..3 {
+        // 构造本轮待翻译子集的编号文本
+        let subset_numbered: String = pending
+            .iter()
+            .map(|&i| format!("{}. {}", i + 1, batch[i]))
+            .collect::<Vec<_>>()
+            .join("\n");
         let user_msg = if attempt > 0 {
             format!(
-                "{numbered}\n\n（注意：以上回复包含中文！必须全部输出{lang}译文，不得包含任何中文。）",
-                numbered = numbered,
+                "{subset_numbered}\n\n（注意：以上回复包含中文！必须全部输出{lang}译文，不得包含任何中文。）",
+                subset_numbered = subset_numbered,
                 lang = lang_name(target_lang)
             )
         } else {
-            numbered.clone()
+            // 首轮用全量编号, 后续轮用子集编号
+            if attempt == 0 && pending.len() == batch.len() {
+                numbered.clone()
+            } else {
+                subset_numbered
+            }
         };
+
         let reply = match llm::chat_completions(
             &user_msg,
             &llm::ChatOptions {
@@ -132,51 +154,79 @@ fn translate_batch(
                 continue;
             }
         };
-        let mut results: Vec<String> = Vec::with_capacity(batch.len());
-        let mut ok = true;
-        for (i, d) in arr.iter().take(batch.len()).enumerate() {
-            let dst = d.as_str().unwrap_or("").trim().to_string();
-            if target_lang != "zh" && chinese_ratio(&dst) > 0.3 {
-                last_err = format!(
-                    "第 {} 句仍含中文 (ratio={:.2}, 期望 {})",
-                    i + 1,
-                    chinese_ratio(&dst),
-                    target_lang
-                );
-                ok = false;
-                break;
-            }
-            if dst.is_empty() {
+
+        // 将本轮回复按 pending 顺序对齐填入 filled
+        let mut still_pending: Vec<usize> = Vec::with_capacity(pending.len());
+        for (slot, &i) in pending.iter().enumerate() {
+            let d = arr.get(slot).and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+            let bad = if target_lang != "zh" && chinese_ratio(&d) > 0.3 {
+                last_err = format!("第 {} 句仍含中文 (ratio={:.2}, 期望 {})", i + 1, chinese_ratio(&d), target_lang);
+                true
+            } else if d.is_empty() {
                 last_err = format!("第 {} 句译文为空", i + 1);
-                ok = false;
-                break;
+                true
+            } else {
+                false
+            };
+            if bad {
+                still_pending.push(i);
+            } else {
+                filled[i] = Some(d);
             }
-            results.push(dst);
         }
-        if ok && results.len() == batch.len() {
-            return Ok(results);
+        pending = still_pending;
+
+        if pending.is_empty() {
+            // 全部补齐
+            let out: Vec<String> = filled.iter().map(|o| o.clone().unwrap_or_default()).collect();
+            return Ok(out);
         }
-        if results.len() != batch.len() {
-            last_err = format!(
-                "译文数量不符: 期望 {} 句, 实际 {} 句 (期望语言 {})",
-                batch.len(),
-                results.len(),
-                target_lang
-            );
-        }
+        // 暴露具体缺失哪句 + 原文, 供评估而非无脑兜底
+        let missing_detail: Vec<String> = pending
+            .iter()
+            .map(|&i| {
+                let src = batch[i].chars().take(40).collect::<String>();
+                format!("#{} (原文: {}{})", i + 1, src, if batch[i].chars().count() > 40 { "…" } else { "" })
+            })
+            .collect();
         tracing::warn!(
             target: "translate",
-            "batch attempt {} 失败: {}",
+            "batch attempt {} 后仍有 {} 句未翻译: {}",
             attempt + 1,
-            last_err
+            pending.len(),
+            missing_detail.join("; ")
         );
         if attempt == 2 {
             break;
         }
     }
-    Err(anyhow::anyhow!(
-        "批量翻译 3 次重试后仍失败: {last_err} (期望 {target_lang})"
-    ))
+
+    // 重试耗尽仍有缺失: 明确报错, 列出缺失句子的序号/原因/原文, 不兜底保留原文
+    if !pending.is_empty() {
+        let missing_detail: Vec<String> = pending
+            .iter()
+            .map(|&i| {
+                let src = batch[i].chars().take(60).collect::<String>();
+                format!(
+                    "#{} (原因: {}; 原文: {}{})",
+                    i + 1,
+                    last_err,
+                    src,
+                    if batch[i].chars().count() > 60 { "…" } else { "" }
+                )
+            })
+            .collect();
+        return Err(anyhow::anyhow!(
+            "批量翻译 3 次重试后仍缺失 {} 句 (期望 {}/{} 句, 期望语言 {}): {}",
+            pending.len(),
+            batch.len() - pending.len(),
+            batch.len(),
+            target_lang,
+            missing_detail.join("; ")
+        ));
+    }
+
+    Ok(filled.into_iter().map(|o| o.unwrap_or_default()).collect())
 }
 
 /// 入口 (镜像 TS `stageTranslate`)。
