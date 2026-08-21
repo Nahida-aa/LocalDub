@@ -84,7 +84,7 @@ fn translate_batch(
         .collect::<Vec<_>>()
         .join("\n");
 
-    let mut last_err = String::new();
+    let mut last_err = "未知原因 (LLM 未返回可用结果)".to_string();
     for attempt in 0..3 {
         let user_msg = if attempt > 0 {
             format!(
@@ -108,28 +108,28 @@ fn translate_batch(
         ) {
             Ok(r) => r,
             Err(e) => {
-                last_err = e.to_string();
+                last_err = format!("LLM 调用失败: {e}");
+                tracing::warn!(target: "translate", "batch attempt {} 失败: {}", attempt + 1, last_err);
                 continue;
             }
         };
         let parsed = match parse_json_reply(&reply) {
             Ok(v) => v,
             Err(e) => {
-                last_err = e.to_string();
+                last_err = format!("回复无法解析为 JSON: {e}; 原始回复前 200 字符: {}", &reply[..reply.len().min(200)]);
+                tracing::warn!(target: "translate", "batch attempt {} 失败: {}", attempt + 1, last_err);
                 continue;
             }
         };
-        let arr = parsed.get("dst").and_then(|d| d.as_array()).ok_or_else(|| {
-            last_err = "LLM 回复缺少 dst 数组".to_string();
-            anyhow::anyhow!("LLM 回复缺少 dst 数组")
-        });
-        let arr = match arr {
-            Ok(a) => a,
-            Err(e) => {
-                if attempt < 2 {
-                    continue;
+        let arr = match parsed.get("dst").and_then(|d| d.as_array()) {
+            Some(a) => a,
+            None => {
+                last_err = "LLM 回复缺少 dst 数组".to_string();
+                tracing::warn!(target: "translate", "batch attempt {} 失败: {}; 原始回复: {}", attempt + 1, last_err, &reply[..reply.len().min(200)]);
+                if attempt == 2 {
+                    break;
                 }
-                return Err(e);
+                continue;
             }
         };
         let mut results: Vec<String> = Vec::with_capacity(batch.len());
@@ -156,14 +156,26 @@ fn translate_batch(
         if ok && results.len() == batch.len() {
             return Ok(results);
         }
+        if results.len() != batch.len() {
+            last_err = format!(
+                "译文数量不符: 期望 {} 句, 实际 {} 句 (期望语言 {})",
+                batch.len(),
+                results.len(),
+                target_lang
+            );
+        }
+        tracing::warn!(
+            target: "translate",
+            "batch attempt {} 失败: {}",
+            attempt + 1,
+            last_err
+        );
         if attempt == 2 {
-            return Err(anyhow::anyhow!(
-                "批量翻译 3 次重试后仍失败: {last_err} (期望 {target_lang})"
-            ));
+            break;
         }
     }
     Err(anyhow::anyhow!(
-        "批量翻译失败 (3 次): {last_err} (期望 {target_lang})"
+        "批量翻译 3 次重试后仍失败: {last_err} (期望 {target_lang})"
     ))
 }
 
@@ -329,9 +341,11 @@ pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
     );
 
     const BATCH_SIZE: usize = 50;
+    let total_batches = texts.chunks(BATCH_SIZE).count();
     let mut dsts: Vec<String> = Vec::with_capacity(texts.len());
     for (i, chunk) in texts.chunks(BATCH_SIZE).enumerate() {
         let batch: Vec<String> = chunk.to_vec();
+        tracing::info!(target: "translate", "batch {}/{}: {} 句", i + 1, total_batches, batch.len());
         let results = translate_batch(&batch, &system, &target_lang, &args)?;
         dsts.extend(results);
         set_stage_anyhow(
