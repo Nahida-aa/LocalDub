@@ -18,13 +18,16 @@ use std::path::Path;
 use serde_json::Value;
 
 use crate::context::TaskCtx;
-use crate::stages::translate::out::{TranslateResult, TranslateResultMeta, TranslateSegment};
+use crate::stages::translate::out::{
+    TranslatePartialResult, TranslatePartialSegment, TranslateResult, TranslateResultMeta,
+    TranslateSegment,
+};
 use crate::stages::translate::prompts::{
     MetaView, build_preprocess_prompt, build_translate_system,
 };
 use crate::stages::utils::{
     StagePatch, StageStatus, lang_name, now_iso, resolve_language, set_stage_anyhow,
-    subtitle_file_path, translation_file_path,
+    subtitle_file_path, translation_file_path, translation_partial_path,
 };
 use config_rs::env::openai_api_key;
 
@@ -70,19 +73,28 @@ fn chinese_ratio(s: &str) -> f64 {
     han as f64 / s.chars().count() as f64
 }
 
+/// 批量翻译失败但携带已译部分的错误 (供调用方写 partial + 暴露缺失)。
+struct TranslateBatchError {
+    message: String,
+    /// 与 batch 等长的填充, 已译句为 Some, 缺失为 None
+    filled: Vec<Option<String>>,
+    /// 缺失句在 batch 内的索引
+    missing: Vec<usize>,
+}
+
 /// 批量翻译 (含 3 次重试), 返回与 `batch` 等长的译文 (镜像 TS `translateBatch`)。
 ///
 /// 重试策略: 若某次返回的译文数量与 batch 不符, 已匹配的句直接保留,
 /// 后续 attempt 只对**缺失的句子**重新请求 (子集重试), 而非整批重来 ——
 /// 避免像 49/50 这种情况因为一句话抽风而整批重来。但**不**无脑兜底:
-/// 3 次重试后仍有缺失则明确报错, 并在日志/错误中列出缺失句子的序号与原文,
-/// 交由人工评估, 而不会把原文当译文塞回去。
+/// 3 次重试后仍有缺失则返回 [`TranslateBatchError`] (携带已译部分与缺失索引),
+/// 交由调用方写 partial 落盘并暴露缺失, 而不会把原文当译文塞回去。
 fn translate_batch(
     batch: &[String],
     system: &str,
     target_lang: &str,
     args: &args::TranslateArgs,
-) -> anyhow::Result<Vec<String>> {
+) -> Result<Vec<String>, TranslateBatchError> {
     let numbered: String = batch
         .iter()
         .enumerate()
@@ -201,7 +213,7 @@ fn translate_batch(
         }
     }
 
-    // 重试耗尽仍有缺失: 明确报错, 列出缺失句子的序号/原因/原文, 不兜底保留原文
+    // 重试耗尽仍有缺失: 返回携带已译部分的错误 (filled 已含 Some/None), 不兜底
     if !pending.is_empty() {
         let missing_detail: Vec<String> = pending
             .iter()
@@ -216,14 +228,18 @@ fn translate_batch(
                 )
             })
             .collect();
-        return Err(anyhow::anyhow!(
-            "批量翻译 3 次重试后仍缺失 {} 句 (期望 {}/{} 句, 期望语言 {}): {}",
-            pending.len(),
-            batch.len() - pending.len(),
-            batch.len(),
-            target_lang,
-            missing_detail.join("; ")
-        ));
+        return Err(TranslateBatchError {
+            message: format!(
+                "批量翻译 3 次重试后仍缺失 {} 句 (期望 {}/{} 句, 期望语言 {}): {}",
+                pending.len(),
+                batch.len() - pending.len(),
+                batch.len(),
+                target_lang,
+                missing_detail.join("; ")
+            ),
+            filled,
+            missing: pending,
+        });
     }
 
     Ok(filled.into_iter().map(|o| o.unwrap_or_default()).collect())
@@ -392,12 +408,89 @@ pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
 
     const BATCH_SIZE: usize = 50;
     let total_batches = texts.chunks(BATCH_SIZE).count();
-    let mut dsts: Vec<String> = Vec::with_capacity(texts.len());
+    let partial_path = translation_partial_path(&task_dir, &target_lang);
+
+    // 阶段内续跑: 读已有 partial, 恢复已完成 batch 与已译句
+    let (mut completed, partial_segs) = read_partial(&partial_path);
+    if !completed.is_empty() {
+        tracing::info!(
+            target: "translate",
+            "resume: {} 个 batch 已完成, 跳过 (共 {} batch)",
+            completed.len(),
+            total_batches
+        );
+    }
+
+    // 把 partial 中已完成 batch 的已译句回填到 dsts (缺失句 dst=None 仍待翻)
+    let mut dsts: Vec<Option<String>> = vec![None; texts.len()];
+    {
+        let mut by_batch: std::collections::HashMap<usize, Vec<&TranslatePartialSegment>> =
+            std::collections::HashMap::new();
+        for ps in partial_segs.iter() {
+            by_batch.entry(ps.batch_index).or_default().push(ps);
+        }
+        for (&bi, segs) in by_batch.iter() {
+            if !completed.contains(&bi) {
+                continue;
+            }
+            let start = bi * BATCH_SIZE;
+            for (k, ps) in segs.iter().enumerate() {
+                let gi = start + k;
+                if gi < dsts.len() && !ps.missing {
+                    dsts[gi] = Some(ps.dst.clone());
+                }
+            }
+        }
+    }
+
     for (i, chunk) in texts.chunks(BATCH_SIZE).enumerate() {
+        if completed.contains(&i) {
+            tracing::info!(target: "translate", "batch {}/{}: 已完成, 跳过", i + 1, total_batches);
+            continue;
+        }
         let batch: Vec<String> = chunk.to_vec();
         tracing::info!(target: "translate", "batch {}/{}: {} 句", i + 1, total_batches, batch.len());
-        let results = translate_batch(&batch, &system, &target_lang, &args)?;
-        dsts.extend(results);
+        match translate_batch(&batch, &system, &target_lang, &args) {
+            Ok(results) => {
+                for (k, r) in results.into_iter().enumerate() {
+                    let gi = i * BATCH_SIZE + k;
+                    if gi < dsts.len() {
+                        dsts[gi] = Some(r.replace("——", "，"));
+                    }
+                }
+                completed.insert(i);
+            }
+            Err(e) => {
+                // 把已译部分写进 partial (含缺失标注), 然后暴露错误
+                for (k, opt) in e.filled.into_iter().enumerate() {
+                    let gi = i * BATCH_SIZE + k;
+                    if gi < dsts.len() {
+                        dsts[gi] = opt.map(|s| s.replace("——", "，"));
+                    }
+                }
+                write_partial(
+                    &partial_path,
+                    &texts,
+                    &srt_segments,
+                    &dsts,
+                    &completed,
+                    &src_lang,
+                    &target_lang,
+                )
+                .ok();
+                return Err(anyhow::anyhow!("Stage translate failed: {}", e.message));
+            }
+        }
+        // 每 batch 完成即增量落盘 partial (阶段内续跑 + 分析用)
+        write_partial(
+            &partial_path,
+            &texts,
+            &srt_segments,
+            &dsts,
+            &completed,
+            &src_lang,
+            &target_lang,
+        )?;
         set_stage_anyhow(
             &task_dir,
             "translate",
@@ -413,6 +506,7 @@ pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
         .ok();
     }
 
+    // 全部完成: 组装正式结果, 写 translation.{lang}.json, 删除 partial
     let segments: Vec<TranslateSegment> = srt_segments
         .iter()
         .enumerate()
@@ -420,7 +514,8 @@ pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
             text: texts[idx].clone(),
             dst: dsts
                 .get(idx)
-                .map(|d| d.replace("——", "，"))
+                .cloned()
+                .flatten()
                 .unwrap_or_default(),
             src_lang: Some(src_lang.clone()),
             dst_lang: Some(target_lang.clone()),
@@ -448,6 +543,9 @@ pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
     std::fs::write(&out_file, json)
         .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", out_file.display(), e))?;
 
+    // 正式结果已落盘, 删掉增量 partial (避免残留误导)
+    let _ = std::fs::remove_file(&partial_path);
+
     // 确保 ctx.target_language 在内存之外也落盘 (resolve_language 已写回文件, 这里仅保险)
     set_stage_anyhow(
         &task_dir,
@@ -461,6 +559,76 @@ pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
         },
     )?;
     tracing::info!(target: "translate", "done");
+    Ok(())
+}
+
+/// 读 partial: 返回已完成 batch 集合与已记录的段。
+fn read_partial(path: &Path) -> (std::collections::HashSet<usize>, Vec<TranslatePartialSegment>) {
+    let Ok(raw) = std::fs::read_to_string(path) else {
+        return (Default::default(), Vec::new());
+    };
+    let Ok(p) = serde_json::from_str::<TranslatePartialResult>(&raw) else {
+        return (Default::default(), Vec::new());
+    };
+    (
+        p.completed_batches.into_iter().collect(),
+        p.segments,
+    )
+}
+
+/// 写 partial: 把 `dsts` (Some=已译, None=缺失) 与 `completed` 落盘。
+fn write_partial(
+    path: &Path,
+    texts: &[String],
+    srt_segments: &[Value],
+    dsts: &[Option<String>],
+    completed: &std::collections::HashSet<usize>,
+    src_lang: &str,
+    target_lang: &str,
+) -> anyhow::Result<()> {
+    let batch_size = 50usize;
+    let segments: Vec<TranslatePartialSegment> = (0..texts.len())
+        .map(|gi| {
+            let bi = gi / batch_size;
+            let dst = dsts.get(gi).cloned().flatten().unwrap_or_default();
+            let missing = dsts.get(gi).map(|o| o.is_none()).unwrap_or(true)
+                && !completed.contains(&bi);
+            TranslatePartialSegment {
+                text: texts[gi].clone(),
+                dst,
+                src_lang: Some(src_lang.to_string()),
+                dst_lang: Some(target_lang.to_string()),
+                start_ms: srt_segments
+                    .get(gi)
+                    .and_then(|u| u.get("start_ms"))
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0),
+                end_ms: srt_segments
+                    .get(gi)
+                    .and_then(|u| u.get("end_ms"))
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0),
+                batch_index: bi,
+                missing,
+            }
+        })
+        .collect();
+    let partial = TranslatePartialResult {
+        segments,
+        completed_batches: completed.iter().copied().collect(),
+        meta: TranslateResultMeta {
+            src_lang: src_lang.to_string(),
+            target_lang: target_lang.to_string(),
+        },
+    };
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", parent.display(), e))?;
+    }
+    let json = serde_json::to_string_pretty(&partial)
+        .map_err(|e| anyhow::anyhow!("序列化 partial 失败: {e}"))?;
+    std::fs::write(path, json)
+        .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", path.display(), e))?;
     Ok(())
 }
 
@@ -548,6 +716,64 @@ mod tests {
         let res = stage_translate(&ctx);
         assert!(res.is_err());
         assert!(res.unwrap_err().to_string().contains("字幕文件不存在"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn partial_roundtrip_restores_completed_batch() {
+        let dir = std::env::temp_dir()
+            .join(format!("ld_partial_{}", std::process::id()))
+            .to_string_lossy()
+            .to_string();
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(format!("{dir}/translate")).unwrap();
+
+        let path = std::path::Path::new(&dir).join("translate/translation.zh.partial.json");
+        // 51 句: batch 0 (句0..49) 全部完成; batch 1 仅句50, 缺失
+        let n = 51usize;
+        let texts: Vec<String> = (0..n).map(|i| format!("t{i}")).collect();
+        let srt: Vec<Value> = (0..n)
+            .map(|i| json!({"start_ms": i * 100, "end_ms": i * 100 + 50}))
+            .collect();
+        let mut dsts: Vec<Option<String>> = (0..n).map(|i| Some(format!("D{i}"))).collect();
+        dsts[50] = None; // batch 1 那句缺失
+        let mut completed = std::collections::HashSet::new();
+        completed.insert(0usize); // 仅 batch 0 完成
+
+        write_partial(&path, &texts, &srt, &dsts, &completed, "en", "zh").unwrap();
+
+        let (restored, segs) = read_partial(&path);
+        assert!(restored.contains(&0));
+        assert_eq!(segs.len(), n);
+        // batch 0 内全成功 → 不 missing
+        assert!(!segs[0].missing && segs[0].dst == "D0");
+        assert!(!segs[49].missing && segs[49].dst == "D49");
+        // batch 1 未 completed 且句50 缺失 → missing=true, dst 空
+        assert!(segs[50].missing && segs[50].dst.is_empty());
+
+        // 模拟续跑回填: 仅 completed batch 的句恢复, 缺失句仍为 None
+        let mut dsts2: Vec<Option<String>> = vec![None; n];
+        let mut by_batch: std::collections::HashMap<usize, Vec<&TranslatePartialSegment>> =
+            std::collections::HashMap::new();
+        for ps in segs.iter() {
+            by_batch.entry(ps.batch_index).or_default().push(ps);
+        }
+        for (&bi, segs_b) in by_batch.iter() {
+            if !restored.contains(&bi) {
+                continue;
+            }
+            let start = bi * 50;
+            for (k, ps) in segs_b.iter().enumerate() {
+                let gi = start + k;
+                if gi < dsts2.len() && !ps.missing {
+                    dsts2[gi] = Some(ps.dst.clone());
+                }
+            }
+        }
+        assert_eq!(dsts2[0], Some("D0".to_string()));
+        assert_eq!(dsts2[49], Some("D49".to_string()));
+        assert_eq!(dsts2[50], None); // 缺失句仍未翻
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

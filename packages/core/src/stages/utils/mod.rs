@@ -638,6 +638,13 @@ pub fn translation_file_path(task_dir: &str, lang: &str) -> PathBuf {
         .join(format!("translation.{lang}.json"))
 }
 
+/// 翻译增量进度文件路径 `translate/translation.{lang}.partial.json`。
+pub fn translation_partial_path(task_dir: &str, lang: &str) -> PathBuf {
+    Path::new(task_dir)
+        .join("translate")
+        .join(format!("translation.{lang}.partial.json"))
+}
+
 /// split_audio 结果路径 `split_audio/split_audio.json` (padding 后时序)。
 pub fn split_audio_path(task_dir: &str) -> PathBuf {
     Path::new(task_dir)
