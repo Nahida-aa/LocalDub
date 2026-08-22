@@ -5,7 +5,7 @@
 //! - Cls: resize to 48×192, (x/255 - 0.5) / 0.5
 //! - Rec: 固定高度 48, 保持纵横比, `img_width = int(48 * ratio)`（无上下限，int 截断）
 
-use crate::image::{Image, resize_bilinear};
+use crate::image::{resize_bilinear, Image};
 
 pub const DET_LIMIT_SIDE: usize = 736;
 pub const CLS_W: usize = 192;

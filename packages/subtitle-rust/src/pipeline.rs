@@ -9,8 +9,8 @@
 use std::time::Instant;
 
 use crate::char_list::load_char_list;
-use crate::det::{DetBox, db_postprocess};
-use crate::image::{Image, Point, order_points_clockwise, rotate_180, warp_perspective_crop};
+use crate::det::{db_postprocess, DetBox};
+use crate::image::{order_points_clockwise, rotate_180, warp_perspective_crop, Image, Point};
 use crate::infer::load_sessions;
 use crate::preprocess::{preprocess_cls, preprocess_det, preprocess_rec};
 use crate::rec::ctc_decode;
