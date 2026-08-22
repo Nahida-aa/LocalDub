@@ -32,7 +32,7 @@ tch = ["burn/tch"]
 
 [dependencies]
 config-rs.workspace = true
-voxcpm-rs = { path = "../../submodule/voxcpm-rs", default-features = false }
+voxcpm-rs.workspace = true
 burn = { version = "0.20.1", default-features = false, features = ["std"] }
 clap.workspace = true
 hound = "3"

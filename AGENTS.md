@@ -20,6 +20,7 @@ Before editing files for a substantial task:
 - 类型检查: `bun tsc`, `cargo check`
 - 可以使用 `gh` 来操作 github, git push 默认由人类进行操作
 - 调试日志使用 tracing, 调试之后可以不用清除日志
+- 先查清楚问题再讨论如何解决, 不要一开始就想着使错误不发生, 错误是不需要规避的事情
 
 ## Key directories
 

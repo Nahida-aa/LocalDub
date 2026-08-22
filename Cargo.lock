@@ -179,15 +179,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "approx"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cab112f0a86d568ea0e627cc1d6be74a1e9cd55214684db5561995f6dad897c6"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
 name = "arbitrary"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -647,15 +638,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "blas-src"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5bd439b48f5425c9f4597141b52476358e05e08471bc30f4d1c2a1f4084d7c9f"
-dependencies = [
- "openblas-src",
-]
-
-[[package]]
 name = "block"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1021,7 +1003,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96be578991cecef163e41a73bf985d8d7eb7fb8ef7bececf8d48523c481ecddf"
 dependencies = [
  "atomic_float",
- "blas-src",
  "burn-autodiff",
  "burn-backend",
  "burn-ir",
@@ -1034,7 +1015,6 @@ dependencies = [
  "matrixmultiply",
  "ndarray 0.17.2",
  "num-traits",
- "openblas-src",
  "paste",
  "portable-atomic",
  "portable-atomic-util",
@@ -1429,15 +1409,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dec551ab6e7578819132c713a93c022a05d60159dc86e7a7050223577484c55a"
 dependencies = [
  "rustversion",
-]
-
-[[package]]
-name = "cblas-sys"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6feecd82cce51b0204cf063f0041d69f24ce83f680d87514b004248e7b0fa65"
-dependencies = [
- "libc",
 ]
 
 [[package]]
@@ -5892,8 +5863,6 @@ version = "0.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "520080814a7a6b4a6e9070823bb24b4531daac8c4627e08ba5de8c5ef2f2752d"
 dependencies = [
- "cblas-sys",
- "libc",
  "matrixmultiply",
  "num-complex",
  "num-integer",
@@ -6445,32 +6414,6 @@ dependencies = [
  "dunce",
  "is-wsl",
  "libc",
-]
-
-[[package]]
-name = "openblas-build"
-version = "0.10.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb9c85e9e7dd5acdc67b9f3f0c99656b550df716bc63540c6a224a920754a5c2"
-dependencies = [
- "anyhow",
- "cc",
- "flate2",
- "tar",
- "thiserror 2.0.20",
- "ureq 3.4.0",
-]
-
-[[package]]
-name = "openblas-src"
-version = "0.10.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1a81a5e467f1861ad6ac32d5ec1690ad097d19854753b7424250fe27da46b98"
-dependencies = [
- "dirs 6.0.0",
- "openblas-build",
- "pkg-config",
- "vcpkg",
 ]
 
 [[package]]
@@ -10572,13 +10515,11 @@ dependencies = [
  "log",
  "native-tls",
  "percent-encoding",
- "rustls",
  "rustls-pki-types",
  "socks",
  "ureq-proto",
  "utf8-zero",
  "webpki-root-certs",
- "webpki-roots 1.0.9",
 ]
 
 [[package]]
@@ -10726,11 +10667,9 @@ dependencies = [
 name = "voxcpm-rs"
 version = "0.5.0"
 dependencies = [
- "approx",
  "burn",
  "burn-store",
  "bytemuck",
- "env_logger",
  "half",
  "hound",
  "log",

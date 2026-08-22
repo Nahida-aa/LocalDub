@@ -54,6 +54,7 @@ image = "0.25"
 ndarray = "0.17"
 # ocr-segment-adjust 用 ffmpeg 读视频像素高度（Y 偏移惩罚归一化分母），版本对齐 ocr-lab。
 ffmpeg-next = "9.0.0"
+voxcpm-rs = { version = "0.5.0", default-features = false }
 # OCR 核心（从本仓库拆出的 ocr-lab）。git 源由 cargo 自动拉取/解析其内部
 # workspace 依赖与 [patch]，LocalDub 侧零镜像；版本以 ocr-lab 为准。
 subtitle-finder = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "81396471da2cf864d76b405bf7e98e4aa072cab1" }
@@ -65,6 +66,7 @@ lto = "fat"
 codegen-units = 1
 
 [patch.crates-io]
+voxcpm-rs = { path = "submodule/voxcpm-rs" }
 burn-cubecl = { path = "submodule/voxcpm-rs/vendor/patched/burn-cubecl" }
 cubecl-spirv = { path = "submodule/voxcpm-rs/vendor/patched/cubecl-spirv" }
 # Specta rc.26 crates are not yet published to crates.io; track the exact
