@@ -388,6 +388,12 @@ const StagesSchema = z
           .default(true)
           .describe("是否对导入的字幕段落添加时间轴 padding")
           .optional(),
+        mergeOverlap: z
+          .boolean()
+          .optional()
+          .describe(
+            '合并相邻重叠字幕段并按句子重切，用于清理 YouTube 自动字幕的渐进式滑动窗口重叠（每句重复上句尾部 + 10ms 回声段）；默认仅当 task.subtitleSource === "file" 时启用，对无重叠的干净字幕幂等',
+          ),
       })
       .default({} as any)
       .optional(),
