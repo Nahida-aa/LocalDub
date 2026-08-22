@@ -289,24 +289,27 @@ export function splitBySentences(segments: ImportedSubtitleSegment[]): ImportedS
 }
 
 /**
- * TTS 配音段细分：句子词数 > maxWords 时切分，切点优先落在逗号处；
- * 无逗号（或无更多逗号）时从后往前按词边界切，保证每段 ≤ maxWords 词。
- * 时间按字符占比线性插值。
+ * TTS 配音段归一化：所有段最终词数 ≤ maxWords，且尽量接近 maxWords（避免碎片）。
+ *
+ * 1. 超长段（> maxWords 词）内部切分：优先在逗号处切（贪心累积到上限），
+ *    无逗号或单片段仍超限时从后往前按词边界切。
+ * 2. 相邻短段贪心合并：累积词数 ≤ maxWords 时合并成一句（时间取 [首段 start, 末段 end]）。
+ *    因此 "So," "over the years," "I" 这类碎段（总词数 ≤ maxWords）会还原为完整一句。
  */
 export function splitForTTS(
   segments: ImportedSubtitleSegment[],
   maxWords = 10,
 ): ImportedSubtitleSegment[] {
-  const out: ImportedSubtitleSegment[] = [];
+  // 1. 内部切分超长段 → 原子段（每段 ≤ maxWords）
+  const atoms: ImportedSubtitleSegment[] = [];
   for (const seg of segments) {
-    const wordCount = seg.text.split(/\s+/).filter(Boolean).length;
-    if (wordCount <= maxWords) {
-      out.push(seg);
+    if (countWords(seg.text) <= maxWords) {
+      atoms.push(seg);
       continue;
     }
-    const parts = segmentSubParts(seg.text, maxWords);
+    const parts = greedyCommaSplit(seg.text, maxWords);
     if (parts.length <= 1) {
-      out.push(seg);
+      atoms.push(seg);
       continue;
     }
     const totalChars = seg.text.replace(/\s/g, "").length || 1;
@@ -317,35 +320,97 @@ export function splitForTTS(
       const isLast = i === parts.length - 1;
       const start = cursor;
       const end = isLast ? seg.end : Math.round(cursor + (chars / totalChars) * span);
-      out.push({ ...seg, text: p, start, end });
+      atoms.push({ ...seg, text: p, start, end });
       cursor = end;
     });
   }
+
+  // 2. 相邻短段贪心合并（累积 ≤ maxWords），完整句子（以 . ! ? 结尾）优先断开
+  const out: ImportedSubtitleSegment[] = [];
+  let cur: ImportedSubtitleSegment | null = null;
+  for (const seg of atoms) {
+    const w = countWords(seg.text);
+    if (!cur) {
+      cur = { ...seg };
+      continue;
+    }
+    if (endsWithSentenceEnd(cur.text)) {
+      out.push(cur);
+      cur = { ...seg };
+      continue;
+    }
+    if (countWords(cur.text) + w <= maxWords) {
+      cur.text = `${cur.text} ${seg.text}`;
+      cur.end = seg.end;
+      continue;
+    }
+    out.push(cur);
+    cur = { ...seg };
+  }
+  if (cur) out.push(cur);
   return out;
 }
 
-/** 把一段文本切成 ≤ maxWords 词的小段：优先逗号处切，剩余无逗号部分从后往前切。 */
-function segmentSubParts(text: string, maxWords: number): string[] {
+/** 文本是否以句子结束标点（. ! ? …）结尾。 */
+function endsWithSentenceEnd(text: string): boolean {
+  return /[.!?…]["')\]]*$/.test(text.trim());
+}
+
+function countWords(text: string): number {
+  return text.split(/\s+/).filter(Boolean).length;
+}
+
+/**
+ * 把一段文本切成 ≤ maxWords 词的小段，切分次数最少：
+ * 按逗号分成片段后贪心累积（每段尽量接近 maxWords），
+ * 单片段仍超限时从后往前按词边界切。
+ */
+function greedyCommaSplit(text: string, maxWords: number): string[] {
   const commaParts = text.split(/(?<=,)\s+/);
   const parts: string[] = [];
-  for (const p of commaParts) {
-    const tokens = p.split(/\s+/).filter(Boolean);
-    if (tokens.length <= maxWords) {
-      parts.push(p);
+  let acc = "";
+  let accWords = 0;
+  for (const cp of commaParts) {
+    const w = countWords(cp);
+    if (w > maxWords) {
+      // 单片段超限：先落地已累积部分，再对该片段从后往前切，
+      // 剩余（最前面的 ≤ maxWords 部分）作为 acc 继续参与累积
+      if (accWords > 0) {
+        parts.push(acc);
+        acc = "";
+        accWords = 0;
+      }
+      const chunks = backwardChunks(cp, maxWords);
+      for (let i = 0; i < chunks.length - 1; i++) parts.push(chunks[i]);
+      acc = chunks[chunks.length - 1];
+      accWords = countWords(acc);
       continue;
     }
-    // 从后往前切：先切出尾部 maxWords 词，剩余继续，切点落在词边界
-    let end = tokens.length;
-    const sub: string[] = [];
-    while (end > maxWords) {
-      const start = end - maxWords;
-      sub.unshift(tokens.slice(start, end).join(" "));
-      end = start;
+    if (accWords + w <= maxWords) {
+      acc = acc ? `${acc} ${cp}` : cp;
+      accWords += w;
+    } else {
+      parts.push(acc);
+      acc = cp;
+      accWords = w;
     }
-    if (end > 0) sub.unshift(tokens.slice(0, end).join(" "));
-    parts.push(...sub);
   }
+  if (acc) parts.push(acc);
   return parts;
+}
+
+/** 从后往前按词边界切，返回数组按文本顺序排列（首段可能 < maxWords，末段 = maxWords）。 */
+function backwardChunks(text: string, maxWords: number): string[] {
+  const tokens = text.split(/\s+/).filter(Boolean);
+  const chunks: string[] = [];
+  let end = tokens.length;
+  while (end > maxWords) {
+    const start = end - maxWords;
+    chunks.unshift(tokens.slice(start, end).join(" "));
+    end = start;
+  }
+  if (end > 0) chunks.unshift(tokens.slice(0, end).join(" "));
+  return chunks;
 }
 
 /** 常见英文缩写，句点后接大写（如 "vs. Zombies"）时不视为句界。 */
@@ -411,8 +476,8 @@ function splitTextIntoSentences(text: string): string[] {
     if (prevWord != null && (prevWord.length <= 1 || ABBREVIATIONS.has(prevWord.toLowerCase()))) {
       continue;
     }
-    // 句界：段尾，或后跟空白+大写（含数字）
-    if (/^\s*$/.test(rest) || /^\s+[A-ZÀ-ÖØ-ÞA-Z0-9]/.test(rest)) {
+    // 句界：段尾，或后跟空白+大写/数字/引号/括号/方括号（如 "[laughter]" 前一句句号）
+    if (/^\s*$/.test(rest) || /^\s+[A-ZÀ-ÖØ-ÞA-Z0-9\["'()]/.test(rest)) {
       const sent = text.slice(last, end).trim();
       if (sent) out.push(sent);
       last = end;
