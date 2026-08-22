@@ -24,7 +24,9 @@ pre-commit:
       glob: "**/*.rs"
       exclude:
         - "submodule/**"
-      run: cargo fmt -- {staged_files}
+      # 用全仓模式而非 `cargo fmt -- {staged_files}`:
+      # rustfmt 文件模式下 use 排序与全仓模式不一致(小写/大写优先), 会导致每次提交循环改动
+      run: cargo fmt --all
       stage_fixed: true
 
     - name: oxfmt

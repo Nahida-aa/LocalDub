@@ -11,7 +11,7 @@
 use std::ffi::c_void;
 use std::path::Path;
 
-use opencv::core::{CV_8UC, Mat, Point2f, Size};
+use opencv::core::{Mat, Point2f, Size, CV_8UC};
 use opencv::imgproc;
 use opencv::prelude::*;
 

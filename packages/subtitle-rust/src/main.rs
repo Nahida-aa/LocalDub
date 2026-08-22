@@ -10,7 +10,7 @@ mod pipeline;
 mod preprocess;
 mod rec;
 
-use crate::pipeline::{OcrOutput, run_ocr, run_ocr_with_sessions};
+use crate::pipeline::{run_ocr, run_ocr_with_sessions, OcrOutput};
 
 fn parse_args() -> Result<(String, f32, bool, String, String, bool), String> {
     let args: Vec<String> = env::args().collect();

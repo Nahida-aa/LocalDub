@@ -20,7 +20,7 @@ fn main() {
 
     #[cfg(windows)]
     {
-        use device_rs::gpu::dxgi::{DxgiAdapterProbe, DxgiProbeSummary, probe_dxgi};
+        use device_rs::gpu::dxgi::{probe_dxgi, DxgiAdapterProbe, DxgiProbeSummary};
         use serde::Serialize;
 
         #[derive(Serialize)]
