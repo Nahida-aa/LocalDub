@@ -52,6 +52,30 @@ function withOcrStages(stages: StageName[], pipeline?: string): StageName[] {
   return out;
 }
 
+/**
+ * subtitleSource === 'file' 时的阶段列表：跳过 asr/asr_fix（字幕来自外部文件），
+ * 在 translate 前插入 import_subtitle 阶段；pipeline === 'subtitle' 或
+ * stages.import_subtitle.skipSeparate 时去掉 separate，skipSeparate 时额外去掉 separate_after。
+ */
+function withFileSubtitleStages(
+  stages: StageName[],
+  pipeline?: string,
+  skipSeparate?: boolean,
+): StageName[] {
+  const drop = new Set<StageName>(["asr", "asr_fix"]);
+  if (pipeline === "subtitle" || skipSeparate) drop.add("separate");
+  if (skipSeparate) drop.add("separate_after");
+  const filtered = stages.filter((s) => !drop.has(s));
+  const idx = filtered.findIndex((s) => s === "translate");
+  const out = [...filtered];
+  if (idx === -1) {
+    out.push("import_subtitle");
+  } else {
+    out.splice(idx, 0, "import_subtitle");
+  }
+  return out;
+}
+
 // function withAsrOcrStages(stages: StageName[], _pipeline?: string): StageName[] {
 // 	const out: StageName[] = [];
 // 	for (const s of stages) {
@@ -74,6 +98,8 @@ export function getStages(pipeline?: string): StageName[] {
     const src = args.task.subtitleSource ?? "asr";
     if (src === "ocr") stages = withOcrStages(stages, pipeline);
     else if (src === "asr_ocr") stages = DUB_ASR_OCR_STAGES;
+    else if (src === "file")
+      stages = withFileSubtitleStages(stages, pipeline, args.stages?.import_subtitle?.skipSeparate);
     if (args.stages?.translate?.enabled === false) {
       stages = stages.filter((s) => s !== "translate");
     }

@@ -7,14 +7,10 @@
     <cargoProject FILE="$PROJECT_DIR$/Cargo.toml" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="2551b379-47ce-4525-9b26-520d4341f0ed" name="更改" comment="">
+    <list default="true" id="2551b379-47ce-4525-9b26-520d4341f0ed" name="更改" comment="解决冲突">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/packages/core/ml/demucs/_engine.py" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/ml/demucs/_engine.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/packages/core/ml/demucs/torch_server_separate.py" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/ml/demucs/torch_server_separate.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/packages/core/ml/whisper/torch_server_asr.py" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/ml/whisper/torch_server_asr.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/packages/demucs_torch_server/pytorch_server.py" beforeDir="false" afterPath="$PROJECT_DIR$/packages/demucs_torch_server/pytorch_server.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/packages/shared/i18n/paraglide/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/packages/shared/i18n/paraglide/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/packages/shared/i18n/project.inlang/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/packages/shared/i18n/project.inlang/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src-tauri/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/submodule/voxcpm-rs" beforeDir="false" afterPath="$PROJECT_DIR$/submodule/voxcpm-rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -184,7 +180,17 @@
       <workItem from="1785427814177" duration="3881000" />
       <workItem from="1785462340643" duration="141000" />
       <workItem from="1785466755895" duration="78000" />
+      <workItem from="1787378394226" duration="1513000" />
     </task>
+    <task id="LOCAL-00001" summary="解决冲突">
+      <option name="closed" value="true" />
+      <created>1787378557188</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1787378557188</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -207,7 +213,8 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="chore: remaining local changes" />
-    <option name="LAST_COMMIT_MESSAGE" value="" />
+    <MESSAGE value="解决冲突" />
+    <option name="LAST_COMMIT_MESSAGE" value="解决冲突" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
