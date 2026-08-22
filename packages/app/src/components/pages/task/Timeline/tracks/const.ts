@@ -6,6 +6,7 @@ export const STAGE_TRACKS: Record<StageName, string[]> = {
   // root: [],
   asr: ["asr"],
   asr_fix: [],
+  import_subtitle: [],
   separate: [],
   separate_after: [],
   asr_ocr_pre: ["asr"],

@@ -142,6 +142,7 @@ export function TaskDetailPage(props: Props) {
       text: item.dst,
       startMs: item.actual_start,
       endMs: item.actual_end,
+      raw: item,
     }));
   };
 
@@ -228,6 +229,7 @@ export function TaskDetailPage(props: Props) {
         label: "merge_audio/timings.json",
         segments: merge_audio,
         color: "#3b82f6",
+        filePath: `${taskDir}/merge_audio/timings.json`,
       });
     const tts = ttsSegments();
     if (tts.length)
@@ -245,6 +247,7 @@ export function TaskDetailPage(props: Props) {
         label: "split_audio/timings.json",
         segments: split_audio_timings_data,
         color: "#3b82f6",
+        filePath: `${taskDir}/split_audio/timings.json`,
       });
     const split_audio_data = split_audio();
     if (split_audio_data.length)

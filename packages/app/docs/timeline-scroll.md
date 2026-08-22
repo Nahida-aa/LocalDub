@@ -76,3 +76,15 @@
 ### 实验状态备份
 
 `a03a775` 迁移 + `AsrOcrFix` 订阅的中间实验状态存于 `git stash@{0}`（`wip: a03a迁移+订阅 实验状态`），如需可 `git stash apply` 恢复，非最终成果。
+
+## 2026-08 追加：`query.ts` 集中 hooks 层是稳定复现源（已排除 `enabled` 因素）
+
+使用者实测确认（作为独立判别，区别于上面被双稳态干扰的二分实验）：
+
+- **只要 TaskDetailPage 一接入 `query.ts` 的 `use_*_data` hooks（无论是否传 `enabled?: () => boolean`），归零即稳定复现；不接入（保留内联 query）则不触发。**
+- 也就是说 `enabled` 开关不是变量；触发源在集中 hooks 层本身：
+  1. 每个 hook 内部 `useParams({ from: "/group/$id/$taskId" })` 构造 taskDir（vs 内联版用 `props.groupId/taskId`）；
+  2. `use_translate_data` 内部额外 `use_task_ctx()` —— 在 TaskDetailPage 自己的 `taskCtxQ` 之外出现第二个 `get_task_ctx` 订阅实例。
+- 这为「query 层 hooks 化为 a03a775 回归源」提供了**稳定的实证**（此前结论受双稳态干扰而存疑，此条是确定可复现的）。
+
+**决策强化**：`query.ts`（`packages/app/src/components/pages/task/query.ts`）**暂不接入** TaskDetailPage，文件可保留作资产（当前 uncommitted）；"查询下沉到轨道组件"的架构方向不变。

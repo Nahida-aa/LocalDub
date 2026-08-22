@@ -5,11 +5,17 @@
 //! Design:
 //! - A process-global [`GlobalWatcher`] owns one native (`notify::RecommendedWatcher`)
 //!   and one poll (`notify::PollWatcher`) backend, plus a dedicated dispatch thread.
-//! - `watch(path)` registers a directory (Linux: `NonRecursive`; the caller watches
-//!   the parent and filters by name — this avoids the inotify single-file-invalidation
-//!   trap when a file is truncated/recreated). It returns an [`FsWatch`] handle whose
-//!   `Drop` unwatches.
-//! - `watch_stream(path)` is a convenience that yields a `Stream<PathEvent>`.
+//! - All watches are recursive, so directories created *after* the watch starts are
+//!   still observed (a pipeline's `merge_video/` appearing mid-run and the files
+//!   inside it). `watch(path)` returns an [`FsWatch`] handle whose `Drop` unwatches.
+//! - `watch_stream(path)` yields a `Stream<PathEvent>`. Events are coalesced by path
+//!   (like Zed's `pending_path_events`): many changes to the same file collapse into
+//!   one final event, and bursts are flushed in batches. On top of path-coalescing we
+//!   also apply a short **flush debounce window**: after the first wake-up signal we
+//!   wait `LOCALDUB_FILE_WATCHER_FLUSH_MS` (default 250ms) before draining, so a file
+//!   written in chunks across multiple poll cycles (e.g. ffmpeg streaming an .mp4)
+//!   collapses into a single `Changed` event rather than one-per-chunk. `Access`
+//!   events are dropped (they carry no content change).
 
 use crate::event::{PathEvent, PathEventKind, WatcherMode};
 use async_channel::{Receiver, Sender};
@@ -49,6 +55,30 @@ fn poll_interval() -> Duration {
     })
 }
 
+/// How long to wait after the first wake-up signal before draining the pending
+/// buffer. Mirrors the time-window coalescing that Zed applies on top of its
+/// path-based `pending_path_events`.
+///
+/// Why this is needed: path-coalescing alone only collapses events that land in
+/// the *same* drain cycle. A file written in chunks spread across multiple poll
+/// intervals (e.g. ffmpeg streaming an .mp4) produces one wake-up per chunk, so
+/// each chunk drains as its own `Changed` event. Waiting a short window lets the
+/// burst of chunks accumulate into a single coalesced event.
+///
+/// Configured via `LOCALDUB_FILE_WATCHER_FLUSH_MS`, clamped to 50–2000ms,
+/// default 250ms.
+fn flush_debounce_ms() -> Duration {
+    static FLUSH_DEBOUNCE: OnceLock<Duration> = OnceLock::new();
+    *FLUSH_DEBOUNCE.get_or_init(|| {
+        let ms: u64 = std::env::var("LOCALDUB_FILE_WATCHER_FLUSH_MS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(250)
+            .clamp(50, 2_000);
+        Duration::from_millis(ms)
+    })
+}
+
 /// Handle returned by [`watch`]. Dropping it removes the underlying watch.
 #[derive(Debug)]
 pub struct FsWatch {
@@ -75,23 +105,96 @@ pub fn watch(path: impl Into<PathBuf>) -> io::Result<FsWatch> {
 /// watch is tied to the returned stream's lifetime: dropping the stream unwatches.
 pub fn watch_stream(path: impl Into<PathBuf>) -> io::Result<impl Stream<Item = PathEvent>> {
     let handle = watch(path.into())?;
-    let (tx, rx): (Sender<PathEvent>, Receiver<PathEvent>) = async_channel::unbounded();
-    // The real callback is installed on the existing registration.
-    global_watcher().install_callback(handle.id, move |event: &Event| {
-        for path_event in map_notify_event(event) {
-            let _ = tx.try_send(path_event);
+    // Per-stream pending buffer. Like Zed's `pending_path_events`, events are
+    // coalesced by path: if the same path changes many times before the stream
+    // is polled, only the latest kind survives (e.g. a file written in 30 chunks
+    // yields a single `Changed`). The `signal` channel wakes the stream to flush
+    // the buffer in batches.
+    let pending: Arc<Mutex<HashMap<PathBuf, Option<PathEventKind>>>> = Arc::default();
+    let (signal_tx, signal_rx): (Sender<()>, Receiver<()>) = async_channel::unbounded();
+
+    global_watcher().install_callback(handle.id, {
+        let pending = pending.clone();
+        move |event: &Event| {
+            let mut map = pending.lock().unwrap();
+            let mut dirty = false;
+            for path_event in map_notify_event(event) {
+                map.insert(path_event.path.clone(), path_event.kind);
+                dirty = true;
+            }
+            if dirty {
+                let _ = signal_tx.try_send(());
+            }
         }
     });
-    Ok(stream::unfold((rx, handle), |(rx, handle)| async move {
-        match rx.recv().await {
-            Ok(event) => Some((event, (rx, handle))),
-            // Channel closed (shouldn't happen while handle is alive) → end stream.
-            Err(_) => None,
-        }
-    }))
+
+    // State: signal receiver, coalescing buffer, watch handle, and a queue of
+    // already-batched items awaiting yield.
+    let flush_debounce = flush_debounce_ms();
+    let state = (
+        signal_rx,
+        pending,
+        handle,
+        Vec::<PathEvent>::new(),
+        flush_debounce,
+    );
+    Ok(stream::unfold(
+        state,
+        |(signal_rx, pending, handle, mut queue, flush_debounce)| async move {
+            loop {
+                // Yield anything already batched first.
+                if let Some(item) = queue.pop() {
+                    return Some((item, (signal_rx, pending, handle, queue, flush_debounce)));
+                }
+                // Wait for a wake-up. The first signal opens a short flush window:
+                // any further signals that arrive within that window are drained
+                // out quickly (non-blocking `try_recv`) so their events accumulate
+                // in `pending` instead of each triggering its own flush. Only after
+                // the window elapses do we drain the whole buffer in one batch.
+                if signal_rx.recv().await.is_err() {
+                    return None;
+                }
+                tokio::time::sleep(flush_debounce).await;
+                // Consume any signals that piled up during the window without
+                // blocking forever; bounded by the window size so this can't loop
+                // indefinitely.
+                let deadline = tokio::time::Instant::now() + flush_debounce;
+                while tokio::time::Instant::now() < deadline {
+                    match signal_rx.try_recv() {
+                        Ok(()) => continue,
+                        Err(_) => break,
+                    }
+                }
+                let batch: Vec<PathEvent> = {
+                    let mut map = pending.lock().unwrap();
+                    std::mem::take(&mut *map)
+                        .into_iter()
+                        .map(|(path, kind)| PathEvent::new(path, kind))
+                        .collect()
+                };
+                // If the wake-up was spurious (pending already drained by a prior
+                // cycle) or nothing accumulated, loop back to wait for the next
+                // signal instead of yielding a dummy event.
+                if batch.is_empty() {
+                    continue;
+                }
+                queue = batch;
+            }
+        },
+    ))
 }
 
 fn map_notify_event(event: &Event) -> Vec<PathEvent> {
+    // Access events (open/close/read/stat) carry no content change and fire
+    // extremely often; drop them like Zed does (see `enqueue`). This is what
+    // produced the `kind: null` entries on the frontend.
+    if matches!(event.kind, EventKind::Access(_)) {
+        return Vec::new();
+    }
+
+    // Debug: print the raw notify EventKind so we can see what falls through to
+    // `None` (the `kind: null` entries on the frontend). Enable with RUST_LOG=fs=debug.
+    tracing::debug!(raw_kind = ?event.kind, paths = ?event.paths, "fs watcher raw notify event");
     let kind = match event.kind {
         EventKind::Create(_) => Some(PathEventKind::Created),
         EventKind::Modify(_) => Some(PathEventKind::Changed),
@@ -108,6 +211,7 @@ fn map_notify_event(event: &Event) -> Vec<PathEvent> {
         let p = event.paths.first().cloned().unwrap_or_default();
         events.push(PathEvent::new(p, Some(PathEventKind::Rescan)));
     }
+    tracing::debug!(mapped = ?events, "fs watcher mapped notify event");
     events
 }
 
@@ -191,21 +295,16 @@ impl GlobalWatcher {
                 WatcherMode::Native => self.native_watcher.lock().unwrap(),
                 WatcherMode::Poll => self.poll_watcher.lock().unwrap(),
             };
-            let recursive = if mode == WatcherMode::Poll {
-                RecursiveMode::Recursive
-            } else {
-                // Linux inotify: NonRecursive on the directory we watch. The
-                // caller filters by child name. This survives file recreation.
-                #[cfg(target_os = "linux")]
-                {
-                    RecursiveMode::NonRecursive
-                }
-                #[cfg(not(target_os = "linux"))]
-                {
-                    RecursiveMode::Recursive
-                }
-            };
-            w.as_mut().unwrap().watch(&path, recursive)
+            // Use Recursive on every platform and backend. notify's `NonRecursive`
+            // (the old Linux default) does NOT auto-track subdirectories created
+            // after the watch is installed, so dynamically-created dirs (e.g. a
+            // pipeline's `merge_video/` appearing mid-run) and their files would
+            // never surface events. Recursive keeps those in view. Poll already
+            // used Recursive; this just unifies Native with it.
+            let recursive = RecursiveMode::Recursive;
+            w.as_mut()
+                .unwrap()
+                .watch(&path, recursive)
                 .map_err(|e| io::Error::other(e.to_string()))?;
         }
 
@@ -312,17 +411,25 @@ impl GlobalWatcher {
         let mut ids: Vec<WatcherRegistrationId> = Vec::new();
         let state = self.state.lock().unwrap();
         for event_path in &event.paths {
+            // `ancestors()` yields the path itself first, then each parent up to
+            // the root. We must check every ancestor (including the parent dirs),
+            // not stop at the path itself — otherwise a watched directory never
+            // matches events on its children.
             for ancestor in event_path.ancestors() {
                 if let Some(regs) = state.path_index.get(ancestor) {
                     ids.extend_from_slice(regs);
-                }
-                if ancestor == event_path {
-                    break;
                 }
             }
         }
         ids.sort_unstable();
         ids.dedup();
+        tracing::debug!(
+            paths = ?event.paths,
+            kind = ?event.kind,
+            watched = ?state.path_index.keys().collect::<Vec<_>>(),
+            matched = ?ids,
+            "fs watcher dispatching event"
+        );
         for id in ids {
             if let Some(reg) = state.registrations.get(&id) {
                 (reg.callback)(&event);
