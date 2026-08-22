@@ -1,5 +1,5 @@
 use config_rs::root::base_dir;
-use futures::{stream, Stream, StreamExt};
+use futures::{Stream, StreamExt, stream};
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
@@ -19,7 +19,10 @@ pub fn watch_task_log(task_dir: String) -> impl Stream<Item = String> {
     // Watch the *parent* directory (NonRecursive) rather than the log file itself.
     // inotify (and most OS watchers) drop a watch when the watched file is
     // truncated/recreated; watching the parent survives that and we filter by name.
-    let watch_dir = p.parent().map(Path::to_path_buf).unwrap_or_else(|| p.clone());
+    let watch_dir = p
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| p.clone());
     let log_file_name = format!("{task_id}.log");
 
     let (initial_lines, initial_len) = match std::fs::read_to_string(&log_path) {
@@ -86,9 +89,14 @@ pub fn watch_task_log(task_dir: String) -> impl Stream<Item = String> {
                     if len >= state.last_len {
                         // File grew (or unchanged): read the appended bytes.
                         if let Ok(mut f) = tokio::fs::File::open(&state.log_path).await {
-                            if f.seek(std::io::SeekFrom::Start(state.last_len)).await.is_ok() {
+                            if f.seek(std::io::SeekFrom::Start(state.last_len))
+                                .await
+                                .is_ok()
+                            {
                                 let mut content = String::new();
-                                if f.read_to_string(&mut content).await.is_ok() && !content.is_empty() {
+                                if f.read_to_string(&mut content).await.is_ok()
+                                    && !content.is_empty()
+                                {
                                     state.last_len = len;
                                     state.tail = content
                                         .lines()
@@ -105,11 +113,8 @@ pub fn watch_task_log(task_dir: String) -> impl Stream<Item = String> {
                         // File shrank (truncated/recreated): re-read from the start.
                         if let Ok(c) = tokio::fs::read_to_string(&state.log_path).await {
                             state.last_len = c.len() as u64;
-                            state.tail = c
-                                .lines()
-                                .map(String::from)
-                                .collect::<Vec<_>>()
-                                .into_iter();
+                            state.tail =
+                                c.lines().map(String::from).collect::<Vec<_>>().into_iter();
                             if let Some(line) = state.tail.next() {
                                 return Some((line, state));
                             }

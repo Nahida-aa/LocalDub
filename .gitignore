@@ -219,3 +219,6 @@ build/
 out/
 
 build_b/
+
+# CodeBuddy IDE project data
+.codebuddy/

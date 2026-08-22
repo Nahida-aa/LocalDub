@@ -26,9 +26,13 @@ pub fn ctc_decode(logits: &[f32], shape: &[usize], char_list: &[String]) -> (Str
         let mut max_idx = 0usize;
         let mut max_val = row[0];
         for (i, &v) in row.iter().enumerate() {
-            if v > max_val { max_val = v; max_idx = i; }
+            if v > max_val {
+                max_val = v;
+                max_idx = i;
+            }
         }
-        if max_idx == 0 { // blank
+        if max_idx == 0 {
+            // blank
             prev = -1;
             continue;
         }
@@ -40,7 +44,9 @@ pub fn ctc_decode(logits: &[f32], shape: &[usize], char_list: &[String]) -> (Str
         }
         prev = max_idx as i32;
     }
-    let avg = if confs.is_empty() { 0.0 } else {
+    let avg = if confs.is_empty() {
+        0.0
+    } else {
         confs.iter().sum::<f32>() / confs.len() as f32
     };
     (chars, avg)
