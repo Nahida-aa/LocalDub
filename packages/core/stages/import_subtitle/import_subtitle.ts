@@ -288,6 +288,66 @@ export function splitBySentences(segments: ImportedSubtitleSegment[]): ImportedS
   return out;
 }
 
+/**
+ * TTS 配音段细分：句子词数 > maxWords 时切分，切点优先落在逗号处；
+ * 无逗号（或无更多逗号）时从后往前按词边界切，保证每段 ≤ maxWords 词。
+ * 时间按字符占比线性插值。
+ */
+export function splitForTTS(
+  segments: ImportedSubtitleSegment[],
+  maxWords = 10,
+): ImportedSubtitleSegment[] {
+  const out: ImportedSubtitleSegment[] = [];
+  for (const seg of segments) {
+    const wordCount = seg.text.split(/\s+/).filter(Boolean).length;
+    if (wordCount <= maxWords) {
+      out.push(seg);
+      continue;
+    }
+    const parts = segmentSubParts(seg.text, maxWords);
+    if (parts.length <= 1) {
+      out.push(seg);
+      continue;
+    }
+    const totalChars = seg.text.replace(/\s/g, "").length || 1;
+    const span = seg.end - seg.start;
+    let cursor = seg.start;
+    parts.forEach((p, i) => {
+      const chars = p.replace(/\s/g, "").length;
+      const isLast = i === parts.length - 1;
+      const start = cursor;
+      const end = isLast ? seg.end : Math.round(cursor + (chars / totalChars) * span);
+      out.push({ ...seg, text: p, start, end });
+      cursor = end;
+    });
+  }
+  return out;
+}
+
+/** 把一段文本切成 ≤ maxWords 词的小段：优先逗号处切，剩余无逗号部分从后往前切。 */
+function segmentSubParts(text: string, maxWords: number): string[] {
+  const commaParts = text.split(/(?<=,)\s+/);
+  const parts: string[] = [];
+  for (const p of commaParts) {
+    const tokens = p.split(/\s+/).filter(Boolean);
+    if (tokens.length <= maxWords) {
+      parts.push(p);
+      continue;
+    }
+    // 从后往前切：先切出尾部 maxWords 词，剩余继续，切点落在词边界
+    let end = tokens.length;
+    const sub: string[] = [];
+    while (end > maxWords) {
+      const start = end - maxWords;
+      sub.unshift(tokens.slice(start, end).join(" "));
+      end = start;
+    }
+    if (end > 0) sub.unshift(tokens.slice(0, end).join(" "));
+    parts.push(...sub);
+  }
+  return parts;
+}
+
 /** 常见英文缩写，句点后接大写（如 "vs. Zombies"）时不视为句界。 */
 const ABBREVIATIONS = new Set([
   "vs",
@@ -425,6 +485,14 @@ export async function stageImportSubtitle(ctx: TaskCtx): Promise<void> {
       emitLog(
         taskDir,
         `[Import Subtitle] Sentence split: ${merged.segments.length} → ${segments.length} segs`,
+      );
+      // TTS 细分：长句（> maxSegmentWords 词）先按逗号切，无逗号则从后往前切
+      const maxWords = importCfg?.maxSegmentWords ?? 10;
+      const beforeLen = segments.length;
+      segments = splitForTTS(segments, maxWords);
+      emitLog(
+        taskDir,
+        `[Import Subtitle] TTS split: ${beforeLen} → ${segments.length} segs (max ${maxWords} words)`,
       );
     } else {
       segments = merged.segments;

@@ -394,6 +394,14 @@ const StagesSchema = z
           .describe(
             '合并相邻重叠字幕段并按句子重切，用于清理 YouTube 自动字幕的渐进式滑动窗口重叠（每句重复上句尾部 + 10ms 回声段）；默认仅当 task.subtitleSource === "file" 时启用，对无重叠的干净字幕幂等',
           ),
+        maxSegmentWords: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe(
+            "TTS 配音段最大词数（默认 10）：长句优先在逗号处切分，无逗号则从后往前按词边界切分，保证每段不超过该词数",
+          ),
       })
       .default({} as any)
       .optional(),
