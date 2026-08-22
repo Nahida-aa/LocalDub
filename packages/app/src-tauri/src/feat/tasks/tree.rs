@@ -1,5 +1,5 @@
 use config_rs::root::base_dir;
-use futures::{stream, Stream};
+use futures::{Stream, stream};
 use std::path::Path;
 use std::pin::Pin;
 
