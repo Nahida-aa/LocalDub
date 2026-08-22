@@ -98,7 +98,7 @@ async fn greet(ctx: &Ctx, input: GreetInput) -> GreetOutput {
 
 - `.agents/hardware.md` — GPU 兼容性 & MES hang 根因
 - `.agents/model-strategy.md` — 各模型设备分配策略 & 废弃路径详情
-- `.agents/demucs.md` — Demucs CPU fallback 说明
+- `packages/demucs_burn/docs/` — Demucs 经验文档（CPU fallback / PyTorch 优化 / 模型来源 / 后端基准索引）
 - `.agents/cosyvoice2.md` — CosyVoice2/3 ONNX 导出状态
 - `.agents/asr-loop-fix.md` — ffmpeg swresample 导致 whisper 幻觉循环根因
 - `.agents/windows-path-case.md` — Windows PATH 大小写坑 (exit=53 + 空输出)
