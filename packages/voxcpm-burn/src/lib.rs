@@ -1,71 +1,51 @@
+//! voxcpm-burn 公共逻辑。各后端二进制（`src/bin/voxcpm-burn-*`）是薄壳：
+//! 选定后端类型后调用 [`run`]。
 #![recursion_limit = "256"]
 
 use std::path::PathBuf;
 use std::time::Instant;
 
 use anyhow::{Context, Result};
+use burn::prelude::Backend;
 use clap::Parser;
-use voxcpm_rs::{GenerateOptions, VoxCPM, audio};
-
-// 后端类型别名。各二进制通过 `required-features` 绑定唯一 feature, 但 `default = ["wgpu"]`
-// 会让 wgpu 在仅 `--features <x>` 时仍生效, 触发 `type B` 重复定义 (E0428)。
-// 这里用互斥 cfg 链 (优先级 tch > vulkan > wgpu > cpu) 保证仅一个 `B` 存活,
-// 使「手动 `cargo build --bin voxcpm-burn-tch`」(不带 --no-default-features) 也能编译。
-#[cfg(feature = "tch")]
-type B = burn::backend::LibTorch<half::bf16>;
-#[cfg(all(feature = "vulkan", not(feature = "tch")))]
-type B = burn::backend::Vulkan<half::bf16, i32>;
-#[cfg(all(feature = "wgpu", not(any(feature = "tch", feature = "vulkan"))))]
-type B = burn::backend::Wgpu<f32, i32>;
-#[cfg(all(
-    feature = "cpu",
-    not(any(feature = "tch", feature = "vulkan", feature = "wgpu"))
-))]
-type B = burn::backend::NdArray<f32>;
+use voxcpm_rs::{GenerateOptions, VoxCPM};
 
 #[derive(Parser)]
 #[command(name = "voxcpm-burn")]
-struct Cli {
+pub struct Cli {
     #[arg(long)]
-    benchmark_load: bool,
+    pub benchmark_load: bool,
 
-    text: Option<String>,
+    pub text: Option<String>,
 
-    output: Option<PathBuf>,
+    pub output: Option<PathBuf>,
 
     #[arg(long, default_value = "")]
-    model_dir: String,
+    pub model_dir: String,
 
     #[arg(long, default_value_t = 10)]
-    timesteps: usize,
+    pub timesteps: usize,
 
     #[arg(long, default_value_t = 2.0)]
-    cfg: f32,
+    pub cfg: f32,
 
     #[arg(long, default_value_t = 500)]
-    max_len: usize,
+    pub max_len: usize,
 
     #[arg(long)]
-    warmup: bool,
+    pub warmup: bool,
 
     /// Parallel segment generation (batch N sentences). GPU sweet spot ~8.
     #[arg(long)]
-    parallel_segments: Option<usize>,
+    pub parallel_segments: Option<usize>,
 
     /// Reference audio for voice cloning (zero-shot). Pass a WAV/FLAC/MP3 path.
     #[arg(long, default_value = "")]
-    ref_audio: String,
+    pub ref_audio: String,
 }
 
-fn main() -> Result<()> {
-    env_logger::Builder::from_env(
-        env_logger::Env::default()
-            .default_filter_or("info,wgpu_hal=error,wgpu_core=error,naga=error,cubecl_wgpu=warn"),
-    )
-    .init();
-
-    let cli = Cli::parse();
-
+/// 主流程。stdout 约定（基准脚本依赖，勿改）：`Benchmark-Load-Time` / `Benchmark-Warmup-Time` / `Benchmark-Gen-Time`。
+pub fn run<B: Backend>(cli: Cli, device: B::Device) -> Result<()> {
     let model_dir = if cli.model_dir.is_empty() {
         config_rs::path::models::voxcpm_model_dir()
     } else {
@@ -74,7 +54,6 @@ fn main() -> Result<()> {
 
     eprintln!("Loading model from {}", model_dir.display());
 
-    let device = Default::default();
     let load_start = Instant::now();
     let model: VoxCPM<B> =
         VoxCPM::from_local(&model_dir, &device).context("Failed to load model")?;
@@ -82,6 +61,7 @@ fn main() -> Result<()> {
     eprintln!("Model loaded in {:.3}s", load_time.as_secs_f64());
     println!("Benchmark-Load-Time: {:.3}", load_time.as_secs_f64());
 
+    // 仅 wgpu/vulkan 是 GPU-shader 后端; 与旧互斥 cfg 链的 any(wgpu|vulkan) 等价。
     if cli.warmup {
         #[cfg(any(feature = "wgpu", feature = "vulkan"))]
         {
@@ -145,7 +125,14 @@ fn main() -> Result<()> {
     println!("Benchmark-Gen-Time: {:.3}", gen_time.as_secs_f64());
 
     eprintln!("Writing {}", out_path.display());
-    audio::write_wav(&out_path, &wav, sr).context("Failed to write WAV")?;
+    voxcpm_rs::audio::write_wav(&out_path, &wav, sr).context("Failed to write WAV")?;
     eprintln!("Done!");
     Ok(())
+}
+
+pub fn init_logging() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(
+        "info,wgpu_hal=error,wgpu_core=error,naga=error,cubecl_wgpu=warn",
+    ))
+    .init();
 }

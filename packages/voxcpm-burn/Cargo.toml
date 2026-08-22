@@ -5,22 +5,22 @@ edition = "2021"
 
 [[bin]]
 name = "voxcpm-burn-wgpu"
-path = "src/main.rs"
+path = "src/bin/voxcpm-burn-wgpu.rs"
 required-features = ["wgpu"]
 
 [[bin]]
 name = "voxcpm-burn-cpu"
-path = "src/main.rs"
+path = "src/bin/voxcpm-burn-cpu.rs"
 required-features = ["cpu"]
 
 [[bin]]
 name = "voxcpm-burn-vulkan"
-path = "src/main.rs"
+path = "src/bin/voxcpm-burn-vulkan.rs"
 required-features = ["vulkan"]
 
 [[bin]]
 name = "voxcpm-burn-tch"
-path = "src/main.rs"
+path = "src/bin/voxcpm-burn-tch.rs"
 required-features = ["tch"]
 
 [features]

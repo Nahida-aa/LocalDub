@@ -5,32 +5,32 @@ edition = "2021"
 
 [[bin]]
 name = "demucs-burn-wgpu"
-path = "src/main.rs"
+path = "src/bin/demucs-burn-wgpu.rs"
 required-features = ["wgpu"]
 
 [[bin]]
 name = "demucs-burn-vulkan"
-path = "src/main.rs"
+path = "src/bin/demucs-burn-vulkan.rs"
 required-features = ["vulkan"]
 
 [[bin]]
 name = "demucs-burn-cpu"
-path = "src/main.rs"
+path = "src/bin/demucs-burn-cpu.rs"
 required-features = ["cpu"]
 
 [[bin]]
 name = "demucs-burn-rocm"
-path = "src/main.rs"
+path = "src/bin/demucs-burn-rocm.rs"
 required-features = ["rocm"]
 
 [[bin]]
 name = "demucs-burn-tch"
-path = "src/main.rs"
+path = "src/bin/demucs-burn-tch.rs"
 required-features = ["tch"]
 
 [[bin]]
 name = "demucs-burn-cuda"
-path = "src/main.rs"
+path = "src/bin/demucs-burn-cuda.rs"
 required-features = ["cuda"]
 
 [features]
