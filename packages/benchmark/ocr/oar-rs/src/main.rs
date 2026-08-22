@@ -1,7 +1,7 @@
 use std::env;
+use std::fs;
 use std::path::PathBuf;
 use std::time::Instant;
-use std::fs;
 
 use oar_ocr::domain::{TextDetectionConfig, TextRecognitionConfig};
 use oar_ocr::prelude::*;
@@ -27,10 +27,14 @@ struct OcrOutput {
 
 fn repo_root() -> PathBuf {
     let p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    p.parent().unwrap()
-        .parent().unwrap()
-        .parent().unwrap()
-        .parent().unwrap()
+    p.parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
         .to_path_buf()
 }
 
@@ -44,9 +48,21 @@ fn models_dir() -> PathBuf {
 
 fn model_filenames(size: &str) -> (&str, &str, &str) {
     match size {
-        "small" => ("pp-ocrv6_small_det.onnx", "pp-ocrv6_small_rec.onnx", "ppocrv6_dict.txt"),
-        "medium" => ("pp-ocrv6_medium_det.onnx", "pp-ocrv6_medium_rec.onnx", "ppocrv6_dict.txt"),
-        _ => ("pp-ocrv6_tiny_det.onnx", "pp-ocrv6_tiny_rec.onnx", "ppocrv6_tiny_dict.txt"),
+        "small" => (
+            "pp-ocrv6_small_det.onnx",
+            "pp-ocrv6_small_rec.onnx",
+            "ppocrv6_dict.txt",
+        ),
+        "medium" => (
+            "pp-ocrv6_medium_det.onnx",
+            "pp-ocrv6_medium_rec.onnx",
+            "ppocrv6_dict.txt",
+        ),
+        _ => (
+            "pp-ocrv6_tiny_det.onnx",
+            "pp-ocrv6_tiny_rec.onnx",
+            "ppocrv6_tiny_dict.txt",
+        ),
     }
 }
 
@@ -76,7 +92,10 @@ fn parse_args() -> Result<Args, String> {
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
-            "--subtitle-only" => { a.subtitle_only = true; i += 1; }
+            "--subtitle-only" => {
+                a.subtitle_only = true;
+                i += 1;
+            }
             "--dir" => {
                 if i + 1 < args.len() {
                     a.target = args[i + 1].clone();
@@ -91,7 +110,10 @@ fn parse_args() -> Result<Args, String> {
                     i += 1;
                     a.model_size = args[i].clone();
                     if !matches!(a.model_size.as_str(), "tiny" | "small" | "medium") {
-                        return Err(format!("--model-size must be tiny, small, or medium (got: {})", a.model_size));
+                        return Err(format!(
+                            "--model-size must be tiny, small, or medium (got: {})",
+                            a.model_size
+                        ));
                     }
                 } else {
                     return Err("--model-size requires a value (tiny|small|medium)".to_string());
@@ -110,7 +132,9 @@ fn parse_args() -> Result<Args, String> {
                 }
                 i += 1;
             }
-            _ => { i += 1; }
+            _ => {
+                i += 1;
+            }
         }
     }
 
@@ -126,8 +150,11 @@ fn list_images(dir: &str) -> Result<Vec<String>, String> {
     for entry in fs::read_dir(dir).map_err(|e| format!("Cannot read dir: {}", e))? {
         let entry = entry.map_err(|e| e.to_string())?;
         let path = entry.path();
-        if !path.is_file() { continue; }
-        let ext = path.extension()
+        if !path.is_file() {
+            continue;
+        }
+        let ext = path
+            .extension()
             .and_then(|e| e.to_str())
             .map(|e| e.to_lowercase())
             .unwrap_or_default();
@@ -152,7 +179,11 @@ fn process_image(
         .into_rgb8();
 
     let total_h = img.height() as f32;
-    let y_offset = if subtitle_only { (total_h * 0.6) as u32 } else { 0 };
+    let y_offset = if subtitle_only {
+        (total_h * 0.6) as u32
+    } else {
+        0
+    };
 
     let input = if subtitle_only {
         let (w, h) = (img.width(), img.height());
@@ -162,7 +193,8 @@ fn process_image(
         img
     };
 
-    let mut results = ocr.predict(vec![input])
+    let mut results = ocr
+        .predict(vec![input])
         .map_err(|e| format!("ocr.predict failed: {}", e))?;
 
     let total_ms = t0.elapsed().as_secs_f32() * 1000.0;
@@ -173,8 +205,13 @@ fn process_image(
     if let Some(result) = results.first_mut() {
         for region in &result.text_regions {
             if let Some((text, conf)) = region.text_with_confidence() {
-                if conf < text_score { continue; }
-                let box_: Vec<Vec<f32>> = region.bounding_box.points.iter()
+                if conf < text_score {
+                    continue;
+                }
+                let box_: Vec<Vec<f32>> = region
+                    .bounding_box
+                    .points
+                    .iter()
                     .map(|p| vec![p.x, p.y + y_offset as f32])
                     .collect();
                 texts.push(text.to_string());
@@ -203,7 +240,9 @@ fn run() -> Result<(), String> {
 
     let ocr = if args.auto_download {
         // Route downloads to models_dir instead of ~/.oar/
-        unsafe { env::set_var("OAR_HOME", md); }
+        unsafe {
+            env::set_var("OAR_HOME", md);
+        }
 
         OAROCRBuilder::new(det_fn, rec_fn, dict_fn)
             .text_detection_config(TextDetectionConfig {
@@ -227,7 +266,10 @@ fn run() -> Result<(), String> {
         let dict_path = md.join(dict_fn);
         for p in [&det_path, &rec_path, &dict_path] {
             if !p.exists() {
-                return Err(format!("Model file not found: {} (use --auto-download to download)", p.display()));
+                return Err(format!(
+                    "Model file not found: {} (use --auto-download to download)",
+                    p.display()
+                ));
             }
         }
         OAROCRBuilder::new(&det_path, &rec_path, &dict_path)
@@ -263,16 +305,22 @@ fn run() -> Result<(), String> {
                 std::path::Path::new(fp)
                     .file_name()
                     .map(|f| f.to_string_lossy().to_string())
-                    .unwrap_or_default()
+                    .unwrap_or_default(),
             );
         }
         results.push(r);
     }
 
     if args.dir_mode {
-        println!("{}", serde_json::to_string_pretty(&results).map_err(|e| e.to_string())?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&results).map_err(|e| e.to_string())?
+        );
     } else if let Some(r) = results.into_iter().next() {
-        println!("{}", serde_json::to_string_pretty(&r).map_err(|e| e.to_string())?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&r).map_err(|e| e.to_string())?
+        );
     }
 
     Ok(())

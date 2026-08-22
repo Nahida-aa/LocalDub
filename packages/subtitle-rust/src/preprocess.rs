@@ -5,7 +5,7 @@
 //! - Cls: resize to 48×192, (x/255 - 0.5) / 0.5
 //! - Rec: 固定高度 48, 保持纵横比, `img_width = int(48 * ratio)`（无上下限，int 截断）
 
-use crate::image::{resize_bilinear, Image};
+use crate::image::{Image, resize_bilinear};
 
 pub const DET_LIMIT_SIDE: usize = 736;
 pub const CLS_W: usize = 192;
@@ -69,7 +69,14 @@ pub fn preprocess_det(full: &Image, bottom_only: bool) -> DetPreproc {
         }
     }
 
-    DetPreproc { tensor, orig_h, orig_w, resized_h: new_h, resized_w: new_w, y_offset }
+    DetPreproc {
+        tensor,
+        orig_h,
+        orig_w,
+        resized_h: new_h,
+        resized_w: new_w,
+        y_offset,
+    }
 }
 
 pub fn preprocess_cls(img: &Image) -> Vec<f32> {
@@ -112,5 +119,8 @@ pub fn preprocess_rec(img: &Image) -> RecPreproc {
             }
         }
     }
-    RecPreproc { tensor, width: img_w }
+    RecPreproc {
+        tensor,
+        width: img_w,
+    }
 }

@@ -301,7 +301,7 @@ export function emitLog(taskDir: string, line: string) {
   appendFileSync(logPath, `[${ts}] ${line}\n`);
 }
 
-export function ffmpeg(args: string[], timeout = 300_000) {
+export function ffmpeg(args: string[], timeout = 1_800_000) {
   const r = spawnSync(env.FFMPEG_PATH, ["-y", ...args], {
     stdio: ["pipe", "pipe", "pipe"],
     timeout,

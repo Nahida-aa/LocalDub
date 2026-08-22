@@ -11,7 +11,7 @@
 use std::ffi::c_void;
 use std::path::Path;
 
-use opencv::core::{Mat, Point2f, Size, CV_8UC};
+use opencv::core::{CV_8UC, Mat, Point2f, Size};
 use opencv::imgproc;
 use opencv::prelude::*;
 
@@ -27,14 +27,17 @@ pub struct Image {
 
 impl Image {
     pub fn new(w: usize, h: usize) -> Self {
-        Self { w, h, data: vec![0u8; w * h * 3] }
+        Self {
+            w,
+            h,
+            data: vec![0u8; w * h * 3],
+        }
     }
 
     /// Load from path. Converts any supported input to RGB8, then swaps
     /// to BGR to match Python rapidocr (which uses cv2.imread directly).
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, String> {
-        let img = image::open(path.as_ref())
-            .map_err(|e| format!("load image failed: {}", e))?;
+        let img = image::open(path.as_ref()).map_err(|e| format!("load image failed: {}", e))?;
         let rgb = img.to_rgb8();
         let (w, h) = (rgb.width() as usize, rgb.height() as usize);
         let mut raw = rgb.into_raw();
@@ -55,7 +58,8 @@ fn as_mat(img: &Image) -> Mat {
             img.w as i32,
             CV_8UC(3),
             img.data.as_ptr() as *mut c_void,
-        ).expect("cv::Mat wrap")
+        )
+        .expect("cv::Mat wrap")
     }
 }
 
@@ -90,23 +94,32 @@ fn from_mat(mat: &Mat) -> Image {
 /// Resize src (src_w x src_h) into dst (dst_w x dst_h) using bilinear
 /// interpolation, delegated to OpenCV's SIMD-optimized kernel.
 pub fn resize_bilinear(
-    src: &[u8], src_w: usize, src_h: usize,
-    dst: &mut [u8], dst_w: usize, dst_h: usize,
+    src: &[u8],
+    src_w: usize,
+    src_h: usize,
+    dst: &mut [u8],
+    dst_w: usize,
+    dst_h: usize,
 ) {
     let src_mat = unsafe {
         Mat::new_rows_cols_with_data_unsafe_def(
-            src_h as i32, src_w as i32,
+            src_h as i32,
+            src_w as i32,
             CV_8UC(3),
             src.as_ptr() as *mut c_void,
-        ).expect("cv::Mat src")
+        )
+        .expect("cv::Mat src")
     };
     let mut dst_mat = Mat::default();
     imgproc::resize(
-        &src_mat, &mut dst_mat,
+        &src_mat,
+        &mut dst_mat,
         Size::new(dst_w as i32, dst_h as i32),
-        0.0, 0.0,
+        0.0,
+        0.0,
         imgproc::INTER_LINEAR,
-    ).expect("cv::resize");
+    )
+    .expect("cv::resize");
     let total = dst_w * dst_h * 3;
     let mat_ptr = dst_mat.data() as *const u8;
     let step = dst_mat.step1(0).unwrap_or(0) as usize;
@@ -151,7 +164,10 @@ pub fn rotate_180(img: &Image) -> Image {
 
 /// 2D point with float coordinates (subpixel).
 #[derive(Copy, Clone, Debug)]
-pub struct Point { pub x: f32, pub y: f32 }
+pub struct Point {
+    pub x: f32,
+    pub y: f32,
+}
 
 /// Perspective-warp crop: maps source 4-point polygon to a rectangle of size
 /// (out_w, out_h), pulling pixels from `img` via bilinear sampling. Uses
@@ -185,19 +201,22 @@ pub fn warp_perspective_crop(img: &Image, pts: &[Point; 4]) -> Image {
 
     // OpenCV: getPerspectiveTransform(src, dst) returns M: src->dst.
     // warpPerspective with default flags expects M: src->dst (inverts internally to sample).
-    let m = imgproc::get_perspective_transform_slice_def(
-        &src_pts_arr, &dst_pts_arr,
-    ).expect("cv::getPerspectiveTransform");
+    let m = imgproc::get_perspective_transform_slice_def(&src_pts_arr, &dst_pts_arr)
+        .expect("cv::getPerspectiveTransform");
 
     let src = as_mat(img);
     let mut out_mat = Mat::default();
     let out_size = Size::new(dst_w as i32, dst_h as i32);
     imgproc::warp_perspective(
-        &src, &mut out_mat, &m, out_size,
+        &src,
+        &mut out_mat,
+        &m,
+        out_size,
         imgproc::INTER_LINEAR,
-        0,  // border_type = BORDER_CONSTANT
+        0, // border_type = BORDER_CONSTANT
         opencv::core::Scalar::all(0.0),
-    ).expect("cv::warpPerspective");
+    )
+    .expect("cv::warpPerspective");
 
     let cropped = from_mat(&out_mat);
 

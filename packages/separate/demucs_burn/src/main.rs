@@ -4,9 +4,11 @@ use std::time::Instant;
 use anyhow::{Context, Result};
 use clap::Parser;
 use demucs_core::listener::{ForwardEvent, ForwardListener};
-use demucs_core::model::metadata::{ModelInfo, ALL_MODELS, HTDEMUCS_FT_ID, HTDEMUCS_6S_ID, HTDEMUCS_ID};
-use demucs_core::provider::fs::FsProvider;
+use demucs_core::model::metadata::{
+    ALL_MODELS, HTDEMUCS_6S_ID, HTDEMUCS_FT_ID, HTDEMUCS_ID, ModelInfo,
+};
 use demucs_core::provider::ModelProvider;
+use demucs_core::provider::fs::FsProvider;
 use demucs_core::{Demucs, ModelOptions};
 
 #[cfg(feature = "cubecl-cpu")]
@@ -101,14 +103,19 @@ fn run() -> Result<()> {
     let provider = FsProvider::with_dir(config_rs::path::models::demucs_model_dir());
     let bytes = if provider.is_cached(info) {
         eprintln!("Loading cached model: {}", info.id);
-        provider.load_cached(info).context("Failed to load cached model")?
+        provider
+            .load_cached(info)
+            .context("Failed to load cached model")?
     } else {
-        anyhow::bail!("Model '{}' not cached. Run demucs-cli first to download it.", info.id);
+        anyhow::bail!(
+            "Model '{}' not cached. Run demucs-cli first to download it.",
+            info.id
+        );
     };
 
     #[cfg(feature = "cubecl-wgpu")]
     let device = {
-        use burn::backend::wgpu::{graphics::AutoGraphicsApi, init_setup, RuntimeOptions};
+        use burn::backend::wgpu::{RuntimeOptions, graphics::AutoGraphicsApi, init_setup};
         let d = Default::default();
         let options = RuntimeOptions {
             tasks_max: cli.tasks_max as usize,
@@ -122,8 +129,8 @@ fn run() -> Result<()> {
     let device = Default::default();
 
     let load_start = Instant::now();
-    let model = Demucs::<B>::from_bytes(opts, &bytes, device)
-        .context("Failed to load model weights")?;
+    let model =
+        Demucs::<B>::from_bytes(opts, &bytes, device).context("Failed to load model weights")?;
     let load_time = load_start.elapsed();
     eprintln!("Model loaded in {:.3}s", load_time.as_secs_f64());
     println!("Benchmark-Load-Time: {:.3}", load_time.as_secs_f64());
@@ -152,17 +159,29 @@ fn run() -> Result<()> {
     eprintln!("Reading {}", input.display());
     let (left, right, sample_rate) = read_wav(&input)?;
     let duration_secs = left.len() as f64 / sample_rate as f64;
-    eprintln!("  {} samples, {:.1}s, {} Hz, stereo", left.len(), duration_secs, sample_rate);
+    eprintln!(
+        "  {} samples, {:.1}s, {} Hz, stereo",
+        left.len(),
+        duration_secs,
+        sample_rate
+    );
 
     for round in 1..=cli.benchmark_rounds {
         eprintln!("--- Round {}/{} ---", round, cli.benchmark_rounds);
         let sep_start = Instant::now();
         let stems = pollster::block_on(model.separate_with_listener(
-            &left, &right, sample_rate, &mut BenchListener,
+            &left,
+            &right,
+            sample_rate,
+            &mut BenchListener,
         ))?;
         let sep_time = sep_start.elapsed();
         eprintln!("Generate (round {}): {:.3}s", round, sep_time.as_secs_f64());
-        println!("Benchmark-Gen-Time-Round{}: {:.3}", round, sep_time.as_secs_f64());
+        println!(
+            "Benchmark-Gen-Time-Round{}: {:.3}",
+            round,
+            sep_time.as_secs_f64()
+        );
 
         if round == cli.benchmark_rounds {
             std::fs::create_dir_all(&out_dir)?;
@@ -193,7 +212,10 @@ fn read_wav(path: &PathBuf) -> Result<(Vec<f32>, Vec<f32>, u32)> {
         hound::SampleFormat::Float => reader.samples::<f32>().map(|s| s.unwrap_or(0.0)).collect(),
         hound::SampleFormat::Int => {
             let max = (1u32 << (spec.bits_per_sample - 1)) as f32;
-            reader.samples::<i32>().map(|s| s.unwrap_or(0) as f32 / max).collect()
+            reader
+                .samples::<i32>()
+                .map(|s| s.unwrap_or(0) as f32 / max)
+                .collect()
         }
     };
 

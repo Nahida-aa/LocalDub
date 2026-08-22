@@ -1,6 +1,6 @@
 use std::env;
-use std::path::Path;
 use std::fs;
+use std::path::Path;
 
 mod char_list;
 mod det;
@@ -10,7 +10,7 @@ mod pipeline;
 mod preprocess;
 mod rec;
 
-use crate::pipeline::{run_ocr, run_ocr_with_sessions, OcrOutput};
+use crate::pipeline::{OcrOutput, run_ocr, run_ocr_with_sessions};
 
 fn parse_args() -> Result<(String, f32, bool, String, String, bool), String> {
     let args: Vec<String> = env::args().collect();
@@ -28,18 +28,33 @@ fn parse_args() -> Result<(String, f32, bool, String, String, bool), String> {
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
-            "--subtitle-only" => { subtitle_only = true; i += 1; }
-            "--device" => { i += 2; }
-            "--dir" => {
-                if i + 1 < args.len() { target = args[i + 1].clone(); dir_mode = true; i += 2; }
-                else { i += 1; }
-            }
-            s if !s.starts_with("--") => {
-                if target.is_empty() { target = s.to_string(); }
-                else { text_score = s.parse().unwrap_or(0.5); }
+            "--subtitle-only" => {
+                subtitle_only = true;
                 i += 1;
             }
-            _ => { i += 1; }
+            "--device" => {
+                i += 2;
+            }
+            "--dir" => {
+                if i + 1 < args.len() {
+                    target = args[i + 1].clone();
+                    dir_mode = true;
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+            s if !s.starts_with("--") => {
+                if target.is_empty() {
+                    target = s.to_string();
+                } else {
+                    text_score = s.parse().unwrap_or(0.5);
+                }
+                i += 1;
+            }
+            _ => {
+                i += 1;
+            }
         }
     }
 
@@ -52,7 +67,14 @@ fn parse_args() -> Result<(String, f32, bool, String, String, bool), String> {
         .map_err(|_| "OCR_MODELS_DIR not set")?;
     let keys_path = env::var("OCR_KEYS_PATH").map_err(|_| "OCR_KEYS_PATH not set")?;
 
-    Ok((target, text_score, subtitle_only, models_dir, keys_path, dir_mode))
+    Ok((
+        target,
+        text_score,
+        subtitle_only,
+        models_dir,
+        keys_path,
+        dir_mode,
+    ))
 }
 
 fn list_images(dir: &str) -> Result<Vec<String>, String> {
@@ -61,8 +83,11 @@ fn list_images(dir: &str) -> Result<Vec<String>, String> {
     for entry in fs::read_dir(p).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
         let path = entry.path();
-        if !path.is_file() { continue; }
-        let ext = path.extension()
+        if !path.is_file() {
+            continue;
+        }
+        let ext = path
+            .extension()
             .and_then(|e| e.to_str())
             .map(|e| e.to_lowercase())
             .unwrap_or_default();
@@ -75,7 +100,12 @@ fn list_images(dir: &str) -> Result<Vec<String>, String> {
 }
 
 fn with_filename(mut result: OcrOutput, filepath: &str) -> OcrOutput {
-    result.file = Some(Path::new(filepath).file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default());
+    result.file = Some(
+        Path::new(filepath)
+            .file_name()
+            .map(|f| f.to_string_lossy().to_string())
+            .unwrap_or_default(),
+    );
     result
 }
 
@@ -102,8 +132,15 @@ fn main() {
             let model_load_ms = t0.elapsed().as_secs_f32() * 1000.0;
 
             for fp in &frame_paths {
-                let r = run_ocr_with_sessions(fp, &char_list, &mut sessions, score, so,
-                    char_list_load_ms, model_load_ms)?;
+                let r = run_ocr_with_sessions(
+                    fp,
+                    &char_list,
+                    &mut sessions,
+                    score,
+                    so,
+                    char_list_load_ms,
+                    model_load_ms,
+                )?;
                 results.push(with_filename(r, fp));
             }
         } else {

@@ -39,14 +39,15 @@ pub async fn get_task_ctx(task_dir: String) -> Result<TaskCtx, String> {
 #[fnrpc::rpc_mutate]
 pub async fn resume_task(task_dir: String, from_stage: String) -> Result<(), String> {
     let abs_task_dir = base_dir().join(&task_dir);
-    let abs_task_dir_str = abs_task_dir.to_str()
+    let abs_task_dir_str = abs_task_dir
+        .to_str()
         .ok_or_else(|| "invalid path".to_string())?;
 
     let ctx_path = abs_task_dir.join("ctx.json");
-    let ctx_raw = std::fs::read_to_string(&ctx_path)
-        .map_err(|e| format!("read ctx.json failed: {}", e))?;
-    let mut ctx: serde_json::Value = serde_json::from_str(&ctx_raw)
-        .map_err(|e| format!("parse ctx.json failed: {}", e))?;
+    let ctx_raw =
+        std::fs::read_to_string(&ctx_path).map_err(|e| format!("read ctx.json failed: {}", e))?;
+    let mut ctx: serde_json::Value =
+        serde_json::from_str(&ctx_raw).map_err(|e| format!("parse ctx.json failed: {}", e))?;
 
     ctx["input"]["task"]["taskDir"] = serde_json::Value::String(abs_task_dir_str.to_string());
     ctx["input"]["task"]["action"] = serde_json::Value::String("resume".into());
@@ -56,8 +57,11 @@ pub async fn resume_task(task_dir: String, from_stage: String) -> Result<(), Str
     ctx["input"]["stages"]["tts"]["runtime"] = serde_json::Value::String("cloud".into());
 
     let input_path = base_dir().join("packages").join("cli").join("input.json");
-    std::fs::write(&input_path, serde_json::to_string_pretty(&ctx["input"]).unwrap())
-        .map_err(|e| format!("write input.json failed: {}", e))?;
+    std::fs::write(
+        &input_path,
+        serde_json::to_string_pretty(&ctx["input"]).unwrap(),
+    )
+    .map_err(|e| format!("write input.json failed: {}", e))?;
 
     let output = std::process::Command::new("bun")
         .args(["run", "run-task.ts"])
@@ -172,6 +176,3 @@ pub async fn start_new_task(
         Err(String::from_utf8_lossy(&output.stderr).to_string())
     }
 }
-
-
-

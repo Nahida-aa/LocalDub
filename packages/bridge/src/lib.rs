@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, FnArg, Item, ItemConst, ItemFn};
+use syn::{FnArg, Item, ItemConst, ItemFn, parse_macro_input};
 
 #[proc_macro_attribute]
 pub fn export(_attr: TokenStream, item: TokenStream) -> TokenStream {
