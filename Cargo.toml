@@ -4,7 +4,7 @@ members = [
     "packages/bridge", "packages/config-rs", "packages/core", "packages/device-rs",
     "packages/demucs_burn", "packages/time", "packages/voxcpm-burn", "packages/app/src-tauri",
     "packages/fs", "packages/sf-cli", "packages/subtitle-ocr-cli", "packages/server", "packages/tts",
-    "packages/sdk", "packages/cli", "packages/env", "packages/subtitle-asr", "packages/llm", "packages/voxlab",
+    "packages/sdk", "packages/cli", "packages/env", "packages/subtitle-asr", "packages/llm", "packages/pacer-rs", "packages/voxlab",
 ]
 
 [workspace.package]
@@ -21,6 +21,7 @@ device-rs = { path = "packages/device-rs" }
 fs = { path = "packages/fs" }
 ld-core = { path = "packages/core" }
 llm = { path = "packages/llm" }
+pacer-rs = { path = "packages/pacer-rs" }
 server = { path = "packages/server" }
 time = { path = "packages/time" }
 voxlab = { path = "packages/voxlab" }

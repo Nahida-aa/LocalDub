@@ -114,6 +114,20 @@ pub fn stage_mix_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
         ])?;
         let trimmed_ms = probe_duration_ms(&trimmed_file);
 
+        // 零时长段跳过 (TTS 无效输出/静音占位): 不进 concat、不写 timings,
+        // last_end/drift 保持不动, 该槽位自然留白。替代原先的硬失败 ——
+        // 单个坏段不应让整条 pipeline 失败 (空译文/无参考音的占位 wav 同样零时长)。
+        if trimmed_ms <= 0 {
+            tracing::warn!(
+                target: "mix_audio",
+                "#{} 零时长段, 跳过 (tts={}ms): {}",
+                i + 1,
+                tts_ms,
+                tts_file
+            );
+            continue;
+        }
+
         // advance: 从前间隙借时间
         let original_slot_base_ms = end_ms.saturating_sub(start_ms);
         let mut advance_ms: i64 = 0;
@@ -142,7 +156,8 @@ pub fn stage_mix_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
         let gap_ms = (next_start_ms as i64 - end_ms as i64).max(0);
         let delay_ms = gap_ms.min(max_delay_ms);
 
-        if real_start_ms > last_end_ms {
+        let pushed_silence = real_start_ms > last_end_ms;
+        if pushed_silence {
             let gap_sec = (real_start_ms - last_end_ms) as f64 / 1000.0;
             let silence_file = silence_dir.join(format!("silence_{i}.wav"));
             let silence_file = silence_file.to_string_lossy().into_owned();
@@ -198,15 +213,23 @@ pub fn stage_mix_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
 
         let real_end_ms = (real_start_ms as f64 + stretched_ms).floor() as i64;
         if real_end_ms <= real_start_ms {
-            return Err(anyhow::anyhow!(
-                "mix_audio #{} 生成了零时长段: tts_file={}, start={}ms end={}ms, tts={}ms trimmed={}ms",
+            // 上方 trimmed<=0 早退后理论上不可达 (slot>=50ms 保证拉伸结果 >=1ms),
+            // 这里仅作极端兜底: 回滚本段 concat 条目并跳过, 不再硬失败整条 pipeline。
+            segment_inputs.pop(); // stretched_file
+            if pushed_silence {
+                segment_inputs.pop(); // silence_file
+            }
+            tracing::warn!(
+                target: "mix_audio",
+                "#{} 生成了零时长段, 跳过: tts_file={}, start={}ms end={}ms, tts={}ms trimmed={}ms",
                 i + 1,
                 tts_file,
                 start_ms,
                 end_ms,
                 tts_ms,
                 trimmed_ms
-            ));
+            );
+            continue;
         }
 
         last_end_ms = real_end_ms;

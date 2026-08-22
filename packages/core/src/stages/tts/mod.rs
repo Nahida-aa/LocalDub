@@ -34,6 +34,10 @@ const MIN_REF_DURATION_MS: u64 = 2500;
 /// 本地二进制输出也为 48k, 故静音占位统一用 48000Hz 以保证与合成段、mix_audio 探测一致。
 const SILENT_SAMPLE_RATE: u32 = 48000;
 
+/// 合成结果有效性阈值: 短于此视为无效音频 (cloud 对超短文本可能返回 ~1ms 近空 wav,
+/// 曾导致 mix_audio 零时长硬失败, 见 workfolder 大/55 #25)。正常单音节约 300ms+。
+const MIN_TTS_DURATION_MS: u64 = 100;
+
 /// 写一段合法的静音 wav (47000Hz 单声道, 无采样数据)。
 ///
 /// 用于「有意不合成」的段 (regenIndices 排除 / 空译文 / 无参考音),
@@ -430,33 +434,92 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
         )
         .ok();
 
-        // 调 voxcpm 合成: cloud -> HTTP gradio; 其他 -> 本地二进制
+        // 调 voxcpm 合成: cloud -> HTTP gradio; 其他 -> 本地二进制。
+        // 合成 + 有效性校验 (<MIN_TTS_DURATION_MS 视为失败) 整体走 Retryer —— 网络抖动
+        // 与「超短文本返回近空音频」同一机制兜底 (镜像 TS voxcpm.ts AsyncRetryer 包住
+        // synthesize)。重试耗尽则写静音占位并标 error, 不再让整条 pipeline 失败
+        // (mix_audio 会跳过零时长段)。
         let gen_t0 = std::time::Instant::now();
-        if let Some(cloud) = &cloud {
-            let samples = cloud
-                .generate(&text, &ref_for_tts, Some(&item_text), 2.0)
-                .map_err(|e| anyhow::anyhow!("voxcpm cloud 段 {idx} 失败: {e}"))?;
-            voxlab::write_wav(&samples.samples, samples.sample_rate, &out_path)
-                .map_err(|e| anyhow::anyhow!("写 cloud tts wav 段 {idx} 失败: {e}"))?;
-        } else {
-            let bin = bin
-                .as_ref()
-                .expect("non-cloud runtime must select a local voxcpm binary");
-            let mut cmd = std::process::Command::new(bin);
-            cmd.arg("--ref-audio").arg(&ref_for_tts);
-            cmd.arg(&text);
-            cmd.arg(&out_path);
-            let out = cmd
-                .output()
-                .map_err(|e| anyhow::anyhow!("spawn {bin} 失败: {e}"))?;
-            if !out.status.success() {
-                let stderr = String::from_utf8_lossy(&out.stderr);
-                return Err(anyhow::anyhow!(
-                    "voxcpm-burn 段 {idx} 失败 (exit {:?}): {}",
-                    out.status.code(),
-                    stderr
-                ));
+        let out_path_synth = out_path.clone();
+        let synth_once = || -> anyhow::Result<()> {
+            // 先清掉上一轮可能的坏产物, 避免写失败时 probe 读到旧文件
+            let _ = fs::remove_file(&out_path_synth);
+            if let Some(cloud) = &cloud {
+                let samples = cloud
+                    .generate(&text, &ref_for_tts, Some(&item_text), 2.0)
+                    .map_err(|e| anyhow::anyhow!("voxcpm cloud 段 {idx} 失败: {e}"))?;
+                voxlab::write_wav(&samples.samples, samples.sample_rate, &out_path_synth)
+                    .map_err(|e| anyhow::anyhow!("写 cloud tts wav 段 {idx} 失败: {e}"))?;
+            } else {
+                let bin = bin
+                    .as_ref()
+                    .expect("non-cloud runtime must select a local voxcpm binary");
+                let mut cmd = std::process::Command::new(bin);
+                cmd.arg("--ref-audio").arg(&ref_for_tts);
+                cmd.arg(&text);
+                cmd.arg(&out_path_synth);
+                let out = cmd
+                    .output()
+                    .map_err(|e| anyhow::anyhow!("spawn {bin} 失败: {e}"))?;
+                if !out.status.success() {
+                    let stderr = String::from_utf8_lossy(&out.stderr);
+                    anyhow::bail!(
+                        "voxcpm-burn 段 {idx} 失败 (exit {:?}): {}",
+                        out.status.code(),
+                        stderr
+                    );
+                }
             }
+            let dur = probe_duration_ms(&out_path_synth);
+            if dur < MIN_TTS_DURATION_MS {
+                anyhow::bail!(
+                    "合成音频时长 {dur}ms < {MIN_TTS_DURATION_MS}ms, 视为无效结果"
+                );
+            }
+            Ok(())
+        };
+        let retrier = pacer_rs::Retryer::new()
+            .max_attempts(2)
+            .base_wait_ms(500)
+            .max_wait_ms(2000)
+            .jitter(0.3);
+        if let Err(e) = retrier.execute(synth_once, |attempt, err| {
+            tracing::warn!(
+                target: "tts",
+                "[TTS] 段 {idx} 合成失败 (第 {attempt} 次, 将重试): {err:#}"
+            );
+        }) {
+            tracing::warn!(
+                target: "tts",
+                "[TTS] 段 {idx} 重试后仍无效 ({e:#}), 写静音占位并标 error"
+            );
+            write_silent_wav(&out_path)?;
+            tts_segments.push(TtsSegment {
+                timing: crate::stages::split_audio::out::SplitAudioTiming {
+                    seg_idx: (i + 1) as u32,
+                    text: item_text.clone(),
+                    start_ms,
+                    end_ms: start_ms,
+                    dst: text.clone(),
+                    src_lang: item
+                        .get("src_lang")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    dst_lang: item
+                        .get("dst_lang")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    speaker: item
+                        .get("speaker")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    text_confidence: None,
+                },
+                slot_end_ms: end_ms,
+                tts_duration_ms: 0,
+                status: "error".to_string(),
+            });
+            continue;
         }
 
         let tts_duration = probe_duration_ms(&out_path);

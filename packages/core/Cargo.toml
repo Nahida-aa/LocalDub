@@ -21,6 +21,7 @@ tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }
 ffmpeg-next.workspace = true
 voxlab.workspace = true
+pacer-rs.workspace = true
 reqwest.workspace = true
 indicatif.workspace = true
 mdns-sd-discovery.workspace = true
