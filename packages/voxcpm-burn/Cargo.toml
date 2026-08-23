@@ -5,22 +5,22 @@ edition = "2021"
 
 [[bin]]
 name = "voxcpm-burn-wgpu"
-path = "src/main.rs"
+path = "src/bin/voxcpm-burn-wgpu.rs"
 required-features = ["wgpu"]
 
 [[bin]]
 name = "voxcpm-burn-cpu"
-path = "src/main.rs"
+path = "src/bin/voxcpm-burn-cpu.rs"
 required-features = ["cpu"]
 
 [[bin]]
 name = "voxcpm-burn-vulkan"
-path = "src/main.rs"
+path = "src/bin/voxcpm-burn-vulkan.rs"
 required-features = ["vulkan"]
 
 [[bin]]
 name = "voxcpm-burn-tch"
-path = "src/main.rs"
+path = "src/bin/voxcpm-burn-tch.rs"
 required-features = ["tch"]
 
 [features]
@@ -31,12 +31,12 @@ vulkan = ["voxcpm-rs/vulkan"]
 tch = ["burn/tch"]
 
 [dependencies]
-config-rs = { path = "../config-rs" }
-voxcpm-rs = { path = "../../submodule/voxcpm-rs", default-features = false }
+config-rs.workspace = true
+voxcpm-rs.workspace = true
 burn = { version = "0.20.1", default-features = false, features = ["std"] }
-clap = { version = "4", features = ["derive"] }
+clap.workspace = true
 hound = "3"
-anyhow = "1"
+anyhow.workspace = true
 pollster = "0.4"
 env_logger = "0.11"
 half = "2"

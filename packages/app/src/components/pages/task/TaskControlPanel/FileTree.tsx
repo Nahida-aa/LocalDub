@@ -1,11 +1,11 @@
 import { For, Show, createSignal } from "solid-js";
 import { client, fnrpc } from "#/integrations/fnrpc/client.ts";
-import type { DirEntry } from "#/integrations/fnrpc/bindings.ts";
 import { useQuery } from "@tanstack/solid-query";
 import { addTab, setActivePath, useTabs } from "#/components/app/FileContent/store/ContentPanel.ts";
+import { DirEntry } from "@repo/sdk/index";
 
 function formatSize(bytes: number | bigint): string {
-  const n = typeof bytes === 'bigint' ? Number(bytes) : bytes as number
+  const n = typeof bytes === "bigint" ? Number(bytes) : (bytes as number);
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
@@ -31,7 +31,7 @@ function FileTreeItem(props: {
         <div
           class="flex items-center gap-1 px-2 py-0.5 cursor-pointer hover:bg-accent/40 truncate text-xs"
           style={{ "padding-left": `${props.depth * 16 + 8}px` }}
-          onClick={() => setExpanded(e => !e)}
+          onClick={() => setExpanded((e) => !e)}
         >
           <span class="text-[10px] w-3 shrink-0">{expanded() ? "▼" : "▶"}</span>
           <span class="text-muted-foreground">📁</span>
@@ -53,17 +53,17 @@ function FileTreeItem(props: {
       class="flex items-center gap-1 px-2 py-0.5 cursor-pointer hover:bg-accent/40 truncate text-xs"
       style={{ "padding-left": `${props.depth * 16 + 8}px` }}
       onClick={() => {
-          // 如果已打开则直接切换
-          const existing = tabs().find((t) => t.path === props.fullPath );
-          if (existing) {
-            setActivePath(props.fullPath);
-            return;
-          }
+        // 如果已打开则直接切换
+        const existing = tabs().find((t) => t.path === props.fullPath);
+        if (existing) {
+          setActivePath(props.fullPath);
+          return;
+        }
         addTab({
           label: props.entry.name,
           path: props.fullPath,
-        })
-        setActivePath(props.fullPath)
+        });
+        setActivePath(props.fullPath);
         // props.onOpenFile(props.entry.name, props.fullPath)
       }}
     >
@@ -71,7 +71,9 @@ function FileTreeItem(props: {
       <span class="text-muted-foreground">📄</span>
       <span class="truncate">{props.entry.name}</span>
       <Show when={props.entry.size != null}>
-        <span class="text-muted-foreground/50 ml-auto shrink-0">{formatSize(props.entry.size!)}</span>
+        <span class="text-muted-foreground/50 ml-auto shrink-0">
+          {formatSize(props.entry.size!)}
+        </span>
       </Show>
     </div>
   );

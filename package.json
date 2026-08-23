@@ -6,7 +6,6 @@
     "packages/*"
   ],
   "scripts": {
-    "setup": "bun scripts/setup/setup.ts",
     "run": "bun --cwd packages/cli run-task.ts",
     "test": "bun test",
     "stats": "scc . --exclude-dir node_modules,dist,build,target,venv,.venv,__pycache__,.git,vendor,out,cmake-build-debug,CMakeFiles --exclude-ext lock,json,md,yaml,yml,toml,ini,conf",

@@ -1,0 +1,12 @@
+{
+  "name": "@repo/env",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./*.ts",
+    "./*.ts": "./*.ts"
+  },
+  "dependencies": {
+    "@repo/config": "workspace:*"
+  }
+}

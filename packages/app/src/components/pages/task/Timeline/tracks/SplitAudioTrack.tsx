@@ -1,3 +1,4 @@
+import { Show } from "solid-js";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -11,33 +12,27 @@ import { AudioPlayer } from "#/components/ui/audio-player";
 import { mediaUrl } from "#/lib/utils/path.ts";
 import type { Track, TrackSegment } from "../consts";
 import { client } from "#/integrations/fnrpc/client.ts";
-import type { SplitAudioTiming } from "@repo/core/stages/06_split_audio/types";
+import type { SplitAudioSegment, SplitAudioTiming } from "@repo/core/stages/06_split_audio/out";
+import { useTrackData } from "./useTrackData";
+import type { BaseTrackProps } from "./shared";
 
-interface Props {
-  track: Track;
-  totalPx: number;
-  pxPerMs: number;
-  onSeek: (ms: number) => void;
-  color: string;
-  taskDir: string;
-  filePath: string;
-}
+type Props = BaseTrackProps;
 
 function serializeSegments(segments: TrackSegment[]): string {
   const segs: SplitAudioTiming[] = segments.map((s) => {
     const raw = (s.raw as SplitAudioTiming) || ({} as SplitAudioTiming);
     return {
       seg_idx: s.index + 1,
-      src: raw.src ?? "",
-      dst: s.text,
+      text: s.text,
+      dst: raw.dst ?? s.text,
       src_lang: raw.src_lang ?? "auto",
       dst_lang: raw.dst_lang ?? "vi",
-      start: s.startMs,
-      end: s.endMs,
+      start_ms: s.startMs,
+      end_ms: s.endMs,
       speaker: raw.speaker ?? "1",
     };
   });
-  return JSON.stringify({ translation: segs }, null, 2);
+  return JSON.stringify({ segments: segs }, null, 2);
 }
 
 const DEFAULT_DURATION_MS = 500;
@@ -54,12 +49,12 @@ function insertAt(segments: TrackSegment[], index: number, after: boolean): Trac
     endMs: after ? current.endMs + DEFAULT_DURATION_MS : current.startMs,
     raw: {
       seg_idx: 0,
-      src: "",
+      text: "",
       dst: "",
       src_lang: "auto",
       dst_lang: "vi",
-      start: 0,
-      end: 0,
+      start_ms: 0,
+      end_ms: 0,
       speaker: "1",
     },
   };
@@ -88,29 +83,50 @@ function deleteAt(segments: TrackSegment[], index: number): TrackSegment[] {
 }
 
 export function SplitAudioTrack(props: Props) {
-  const { track, pxPerMs, onSeek, color, taskDir } = props;
+  const { taskDir, pxPerMs, onSeek, color } = props;
+  const track = () => props.track;
+  const isTimings = () => track().id === "split_audio_timings";
+  const { segments } = useTrackData({
+    taskDir,
+    trackId: track().id,
+    path: () =>
+      isTimings()
+        ? `${taskDir}/split_audio/timings.json`
+        : `${taskDir}/split_audio/split_audio.json`,
+    parse: (text) => {
+      const data = JSON.parse(text) as { segments?: SplitAudioSegment[] };
+      return (data.segments || []).map((item, i: number) => ({
+        index: i,
+        text: item.text,
+        startMs: isTimings() ? item.start_ms : item.split_start_ms,
+        endMs: isTimings() ? item.end_ms : item.split_end_ms,
+        raw: item,
+      }));
+    },
+    label: () => (isTimings() ? "split_audio/timings.json" : "split_audio/split_audio.json"),
+  });
+  const filePath = () =>
+    isTimings() ? `${taskDir}/split_audio/timings.json` : `${taskDir}/split_audio/split_audio.json`;
 
   const handleInsertBefore = async (segIndex: number) => {
-    const newSegments = insertAt(track.segments, segIndex, false);
-    await client.write_app_file_text.call([props.filePath, serializeSegments(newSegments)]);
+    const newSegments = insertAt(segments(), segIndex, false);
+    await client.write_app_file_text.call([filePath(), serializeSegments(newSegments)]);
   };
 
   const handleInsertAfter = async (segIndex: number) => {
-    const newSegments = insertAt(track.segments, segIndex, true);
-    await client.write_app_file_text.call([props.filePath, serializeSegments(newSegments)]);
+    const newSegments = insertAt(segments(), segIndex, true);
+    await client.write_app_file_text.call([filePath(), serializeSegments(newSegments)]);
   };
 
   const handleEdit = (segIndex: number) => {
-    const seg = track.segments[segIndex];
+    const seg = segments()[segIndex];
     if (!seg) return;
     const raw = seg.raw as SplitAudioTiming | undefined;
 
     openModal(
       () => (
         <TrackEditModal
-          textLabel="译文"
-          srcLabel="原文"
-          initialSrc={raw?.src}
+          textLabel="原文"
           initialText={seg.text}
           initialStartMs={seg.startMs}
           initialEndMs={seg.endMs}
@@ -123,22 +139,19 @@ export function SplitAudioTrack(props: Props) {
               </div>
             )
           }
-          onSave={({ text, src, startMs, endMs }) => {
-            const newSegments = track.segments.map((s, i) =>
+          onSave={({ text, startMs, endMs }) => {
+            const newSegments = segments().map((s, i) =>
               i === segIndex
                 ? {
                     ...s,
                     text,
                     startMs,
                     endMs,
-                    raw: { ...(s.raw as object), ...(src !== undefined ? { src } : {}) },
+                    raw: { ...(s.raw as object) },
                   }
                 : s,
             );
-            return client.write_app_file_text.call([
-              props.filePath,
-              serializeSegments(newSegments),
-            ]);
+            return client.write_app_file_text.call([filePath(), serializeSegments(newSegments)]);
           }}
         />
       ),
@@ -147,12 +160,12 @@ export function SplitAudioTrack(props: Props) {
   };
 
   const handleDelete = async (segIndex: number) => {
-    const newSegments = deleteAt(track.segments, segIndex);
-    await client.write_app_file_text.call([props.filePath, serializeSegments(newSegments)]);
+    const newSegments = deleteAt(segments(), segIndex);
+    await client.write_app_file_text.call([filePath(), serializeSegments(newSegments)]);
   };
 
   const handlePlay = (segIndex: number) => {
-    const seg = track.segments[segIndex];
+    const seg = segments()[segIndex];
     if (!seg) return;
     const idx = String(segIndex + 1).padStart(4, "0");
     const url = mediaUrl(`${taskDir}/split_audio/vocals/${idx}.wav`);
@@ -169,42 +182,44 @@ export function SplitAudioTrack(props: Props) {
   };
 
   return (
-    <div class="h-16 border-b relative">
-      {track.segments.map((seg) => (
-        <ContextMenu>
-          <ContextMenuTrigger as="div" class="contents">
-            <div
-              class="absolute top-1 h-12 rounded cursor-pointer truncate text-xs px-2 border flex items-center hover:opacity-80"
-              style={{
-                left: `${seg.startMs * pxPerMs}px`,
-                width: `${Math.max((seg.endMs - seg.startMs) * pxPerMs, 4)}px`,
-                background: `${color}33`,
-                "border-color": `${color}55`,
-              }}
-              onClick={() => onSeek(seg.startMs)}
-              title={(seg.raw as SplitAudioTiming | undefined)?.src || seg.text}
-            >
-              {(seg.raw as SplitAudioTiming | undefined)?.src || seg.text}
-            </div>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem onSelect={() => handlePlay(seg.index)}>播放切分片段</ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem onSelect={() => handleInsertBefore(seg.index)}>
-              向前插入
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => handleInsertAfter(seg.index)}>
-              向后插入
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => handleEdit(seg.index)}>编辑</ContextMenuItem>
-            <ContextMenuItem onSelect={() => onSeek(seg.endMs)}>跳转到结尾</ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem onSelect={() => handleDelete(seg.index)} class="text-destructive">
-              删除
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-      ))}
-    </div>
+    <Show when={segments().length > 0}>
+      <div class="h-16 border-b relative">
+        {segments().map((seg) => (
+          <ContextMenu>
+            <ContextMenuTrigger as="div" class="contents">
+              <div
+                class="absolute top-1 h-12 rounded cursor-pointer truncate text-xs px-2 border flex items-center hover:opacity-80"
+                style={{
+                  left: `${seg.startMs * pxPerMs}px`,
+                  width: `${Math.max((seg.endMs - seg.startMs) * pxPerMs, 4)}px`,
+                  background: `${color}33`,
+                  "border-color": `${color}55`,
+                }}
+                onClick={() => onSeek(seg.startMs)}
+                title={(seg.raw as SplitAudioTiming | undefined)?.text || seg.text}
+              >
+                {(seg.raw as SplitAudioTiming | undefined)?.text || seg.text}
+              </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem onSelect={() => handlePlay(seg.index)}>播放切分片段</ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem onSelect={() => handleInsertBefore(seg.index)}>
+                向前插入
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => handleInsertAfter(seg.index)}>
+                向后插入
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => handleEdit(seg.index)}>编辑</ContextMenuItem>
+              <ContextMenuItem onSelect={() => onSeek(seg.endMs)}>跳转到结尾</ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem onSelect={() => handleDelete(seg.index)} class="text-destructive">
+                删除
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        ))}
+      </div>
+    </Show>
   );
 }

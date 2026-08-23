@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { mergeFrames } from "@repo/core/stages/ocr/ocrMerge";
+import { mergeFrames } from "@repo/subtitle-ocr/ocr_fix/merge_frames";
 import { findRapidOcrModelsDir } from "@repo/subtitle-ocr/utils";
 
 const REPO_ROOT = resolve(__dirname, "..", "..", "..", "..");

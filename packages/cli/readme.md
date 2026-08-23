@@ -40,7 +40,7 @@ bun run run
     "translate": {
       "targetLang": "vi"
     },
-    "merge_video": {
+    "mix_video": {
       "fontSize": 19,
       "marginV": 34,
     }
@@ -64,7 +64,7 @@ bun run run
 | stage | 参数 | 类型 | 说明 |
 |---|---|---|---|
 | `translate` | `targetLang` | string | 目标语言，如 en, ja, vi；优先于 createTask.targetLang |
-| `merge_video` | `fontSize` | number (1-200) | 字幕字号，不填则自动 |
+| `mix_video` | `fontSize` | number (1-200) | 字幕字号，不填则自动 |
 | | `marginV` | int (≥0) | 垂直边距(像素)，不填则自动 |
 | | `alignment` | int (1-9) | 字幕对齐: 1=左下 2=中下 3=右下 4=左中 5=居中 6=右中 7=左上 8=中上 9=右上 |
 | | `outline` | number (≥0) | 描边宽度(像素)，0=无描边，支持小数如 1.5 |

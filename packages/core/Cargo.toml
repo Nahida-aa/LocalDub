@@ -1,0 +1,32 @@
+[package]
+name = "ld-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde.workspace = true
+specta.workspace = true
+clap.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+config-rs.workspace = true
+llm.workspace = true
+mdns-sd.workspace = true
+specta-typescript.workspace = true
+specta-serde.workspace = true
+specta-jsonschema.workspace = true
+time.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }
+ffmpeg-next.workspace = true
+voxlab.workspace = true
+pacer-rs.workspace = true
+reqwest.workspace = true
+indicatif.workspace = true
+mdns-sd-discovery.workspace = true
+# mdns-sd-discovery (avahi D-Bus) 需要 tokio runtime 跑 browse
+tokio = { version = "1", default-features = false, features = ["rt", "sync", "time"] }
+
+[dev-dependencies]
+futures = { version = "0.3", default-features = false, features = ["executor"] }

@@ -8,6 +8,7 @@ import { BASE_PX_PER_MS, rulerConfig, trackColor } from "./consts";
 export type { Track, TrackSegment } from "./consts";
 import type { Track } from "./consts";
 import type { FrameRate } from "@repo/core/utils/timecode";
+import { trace } from "#/lib/debugLog.ts";
 
 interface Props {
   tracks: Track[];
@@ -22,7 +23,7 @@ let _timelineMount = 0;
 
 export function Timeline(props: Props) {
   const myMount = ++_timelineMount;
-  console.warn(`[EL-MOUNT] Timeline #${myMount} taskDir=${props.taskDir}`);
+  trace(`[EL-MOUNT] Timeline #${myMount} taskDir=${props.taskDir}`);
   const fpsFloat = () => props.fps.numerator / props.fps.denominator;
 
   const ZOOM_MIN = 0.1;
@@ -51,7 +52,7 @@ export function Timeline(props: Props) {
     const onSc = () => {
       const v = container.scrollLeft;
       if (v !== lastEvtSl.v) {
-        console.warn(`[SCROLL] scrollLeft ${lastEvtSl.v}->${v}`);
+        trace(`[SCROLL] scrollLeft ${lastEvtSl.v}->${v}`);
         lastEvtSl.v = v;
       }
     };
@@ -67,7 +68,7 @@ export function Timeline(props: Props) {
           return desc.get!.call(container);
         },
         set(v) {
-          console.warn(
+          trace(
             `[SET-SL] explicit ${container.scrollLeft}->${v} target=${container.className || container.nodeName}\n${new Error().stack}`,
           );
           return desc.set!.call(container, v);
@@ -78,14 +79,14 @@ export function Timeline(props: Props) {
     // 劫持 scrollTo / scroll：原生方法，不走 scrollLeft setter
     const origScrollTo = (container as any).scrollTo;
     (container as any).scrollTo = function (...args: any[]) {
-      console.warn(
+      trace(
         `[SCROLLTO] sl=${container.scrollLeft} args=${JSON.stringify(args)}\n${new Error().stack}`,
       );
       return origScrollTo.apply(this, args);
     };
     const origScroll = (container as any).scroll;
     (container as any).scroll = function (...args: any[]) {
-      console.warn(
+      trace(
         `[SCROLL] sl=${container.scrollLeft} args=${JSON.stringify(args)}\n${new Error().stack}`,
       );
       return origScroll.apply(this, args);
@@ -94,14 +95,12 @@ export function Timeline(props: Props) {
     // scrollIntoView 也改滚动位置（不走 scrollLeft setter）
     const origSIV = (container as any).scrollIntoView;
     (container as any).scrollIntoView = function (...args: any[]) {
-      console.warn(
-        `[SIV] sl=${container.scrollLeft} args=${JSON.stringify(args)}\n${new Error().stack}`,
-      );
+      trace(`[SIV] sl=${container.scrollLeft} args=${JSON.stringify(args)}\n${new Error().stack}`);
       return origSIV.apply(this, args);
     };
     const origWinScroll = window.scrollTo.bind(window);
     (window as any).scrollTo = function (...args: any[]) {
-      console.warn(`[WIN-SCROLL] args=${JSON.stringify(args)}\n${new Error().stack}`);
+      trace(`[WIN-SCROLL] args=${JSON.stringify(args)}\n${new Error().stack}`);
       return origWinScroll(...args);
     };
 
@@ -119,12 +118,12 @@ export function Timeline(props: Props) {
       const cw = container.clientWidth;
       const conn = container.isConnected;
       if (conn !== prev.conn) {
-        console.warn(`[CONN] isConnected ${prev.conn}->${conn} sl=${sl}`);
+        trace(`[CONN] isConnected ${prev.conn}->${conn} sl=${sl}`);
         prev.conn = conn;
       }
       if (sl !== prev.sl || sw !== prev.sw || cw !== prev.cw) {
         const iw = container.firstElementChild?.getBoundingClientRect().width ?? -1;
-        console.warn(
+        trace(
           `[RAF] sl=${prev.sl}->${sl} sw=${prev.sw}->${sw} cw=${prev.cw}->${cw} iw=${iw} dur=${props.duration} zoom=${zoom().toFixed(3)} conn=${conn}`,
         );
         prev.sl = sl;
@@ -140,7 +139,7 @@ export function Timeline(props: Props) {
     const capSc = (e: Event) => {
       const t = e.target as HTMLElement;
       const cur = (t as any).__pid !== undefined ? `pid=${(t as any).__pid}` : "";
-      console.warn(`[SCROLL-capture] ${t.className || t.nodeName} ${cur} sl=${t.scrollLeft}`);
+      trace(`[SCROLL-capture] ${t.className || t.nodeName} ${cur} sl=${t.scrollLeft}`);
     };
     document.addEventListener("scroll", capSc, true);
     onCleanup(() => document.removeEventListener("scroll", capSc, true));
@@ -150,7 +149,7 @@ export function Timeline(props: Props) {
       for (const e of entries) {
         const t = e.target as HTMLElement;
         const r = e.contentRect;
-        console.warn(
+        trace(
           `[RESIZE] ${t.className || t.nodeName} w=${Math.round(r.width)} h=${Math.round(r.height)}`,
         );
       }
@@ -201,7 +200,7 @@ export function Timeline(props: Props) {
         ch.push(`pid:${last.pid}->${pid}`);
         last.pid = pid;
       }
-      if (ch.length) console.warn(`[TRACE]`, ch.join(" | "));
+      if (ch.length) trace(`[TRACE]`, ch.join(" | "));
     }, 50);
     onCleanup(() => clearInterval(id));
 
@@ -212,12 +211,12 @@ export function Timeline(props: Props) {
           const added = m.addedNodes.length;
           const removed = m.removedNodes.length;
           if (added || removed)
-            console.warn(
+            trace(
               `[TRACE-mut] childList on ${tgt.className || tgt.nodeName} +${added} -${removed}`,
             );
         } else if (m.type === "attributes") {
           const newVal = (tgt as any).getAttribute(m.attributeName);
-          console.warn(
+          trace(
             `[TRACE-mut] attr:${m.attributeName}="${newVal}" on ${tgt.className || tgt.nodeName}`,
           );
         }
@@ -289,6 +288,7 @@ export function Timeline(props: Props) {
           ref={(el) => (labelsRef = el)}
           tracks={props.tracks}
           trackColor={trackColor}
+          taskDir={props.taskDir ?? ""}
         />
 
         <div ref={rightRef!} class="flex-1 flex flex-col min-w-0 relative overflow-hidden">

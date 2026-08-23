@@ -15,9 +15,12 @@ Before editing files for a substantial task:
 # LocalDub
 
 - 需要有批判性思维(可以质疑)
-- 测试/实验/探索一律不用 `/tmp`，写到 `packages/tmp/`。
-- 类型检查: `bun typecheck`, `cargo check`
-- 可以使用 `gh` 来操作 github
+- 修改代码后, 如果认为适合提交, 就自行提交
+- 测试/实验/探索一律不用 `/tmp`，写到 `tmp/` 或 `packages/tmp/`
+- 类型检查: `bun tsc`, `cargo check`
+- 可以使用 `gh` 来操作 github, git push 默认由人类进行操作
+- 调试日志使用 tracing, 调试之后可以不用清除日志
+- 先查清楚问题再讨论如何解决, 不要一开始就想着使错误不发生, 错误是不需要规避的事情
 
 ## Key directories
 
@@ -26,6 +29,7 @@ Before editing files for a substantial task:
 - `packages/cli/src/ml/` — 模型实现（whisper、demucs 等）
 - `packages/cli/src/ml/ocr/ocr.ts` — OCR 二进制调用（ort-cpp），使用 `pythonBin()`（config.ts）而非内联 VIRTUAL_ENV
 - `packages/subtitle-ocr/` — 字幕专用 OCR 包（ort-cpp、subtitle-node.ts、subtitle-py.py）
+- `packages/sf-ocr/` — 关键帧 OCR 策略入口（消费 ocr-lab：subtitle-finder 提关键帧 → subtitle-ocr 识别）
 - `packages/benchmark/` — 性能测试与参数对比
 - `packages/benchmark/ocr/compute/` — OCR 基准测试脚本
 - `packages/benchmark/ocr/compute/postprocess_det.py` — 引用了 `packages/subtitle-ocr/ppocr_keys.json`
@@ -88,13 +92,14 @@ async fn greet(ctx: &Ctx, input: GreetInput) -> GreetOutput {
 - **Dawn WebGPU**：≥3 sessions → `VK_ERROR_DEVICE_LOST`，限制 ≤2 个 WebGPU session
 - **ffmpeg swresample whisper 幻觉循环**：sidechain 混音音频在 ffmpeg `-ar 16000` 后尾段产生 x68+ 幻觉循环。已去掉该冗余重采样，让 miniaudio 内部处理。详情 → `.agents/asr-loop-fix.md`
 - **whisper.cpp 无法检测短语音**：0.5s+ 的短叹（"唉" 71.20）和轻笑（"哈哈哈" 115.42）在 38 个参数组合中几乎全部 miss。silero VAD v6 能捕获"唉"但 CER 涨 3-4ppt 且时间戳左漂 0.8-1.2s；"啊+哈哈哈"则没有任何参数能捕获——whisper 语言模型解码偏好将短语音合并入相邻段。详情 → `packages/benchmark/asr/whisper/results/FINDINGS.md`
+- **TTS cloud 对超短文本返回近空音频**：单音节段（如 "嘿"→"Hê"，workfolder 大/55 #25）VoxCPM cloud 可能返回 ~1ms 近空 wav，曾致 mix_audio 零时长硬失败。现由 pacer-rs Retryer 在 tts 段内重试（<100ms 视为无效），耗尽则写静音占位标 error；mix_audio 对零时长段跳过留白而非失败。
 - **VAD 变体时间戳偏移**：所有 VAD 模式都系统性地将分段边界左移（s_off_mean -0.75~-1.85s），导致字幕 timing 不准。CER 最低的 sidechain+vad-v6-th02（8.41%）偏移 -534ms。最佳平衡参数是 sidechain+temp-02（CER 9.48%，s_off +203ms，94.7% 检测率）
 
 ## Navigation
 
 - `.agents/hardware.md` — GPU 兼容性 & MES hang 根因
 - `.agents/model-strategy.md` — 各模型设备分配策略 & 废弃路径详情
-- `.agents/demucs.md` — Demucs CPU fallback 说明
+- `packages/demucs_burn/docs/` — Demucs 经验文档（CPU fallback / PyTorch 优化 / 模型来源 / 后端基准索引）
 - `.agents/cosyvoice2.md` — CosyVoice2/3 ONNX 导出状态
 - `.agents/asr-loop-fix.md` — ffmpeg swresample 导致 whisper 幻觉循环根因
 - `.agents/windows-path-case.md` — Windows PATH 大小写坑 (exit=53 + 空输出)

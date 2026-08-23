@@ -5,7 +5,6 @@ import { fetchStatsRes } from "@repo/core/servers/client";
 import { client, fnrpc } from "#/integrations/fnrpc/client.ts";
 // import { client } from '#/integrations/rspc/rspc.ts';
 
-let _torchPort = 19109;
 let _voxcpmPort = 19112;
 
 async function fetchStats(port: number): Promise<ModelServerStatus> {
@@ -16,22 +15,6 @@ async function fetchStats(port: number): Promise<ModelServerStatus> {
   const data = (await res.json()) as ModelServerStatus;
   console.log(`fetchStats(${port}) =>`, data);
   return data;
-}
-
-async function ping(port: number): Promise<boolean> {
-  const [res, err] = await to(fetchStatsRes(port));
-  if (err) return false;
-  return res.ok;
-}
-
-async function waitForHealth(port: number, timeoutMs = 60_000): Promise<ModelServerStatus> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 200));
-    const status = await fetchStats(port);
-    if (status.status === "running") return status;
-  }
-  throw new Error(`TorchServer startup timeout after ${timeoutMs}ms`);
 }
 
 async function waitForVoxCpm(port: number, timeoutMs = 120_000): Promise<ModelServerStatus> {
@@ -47,45 +30,6 @@ async function waitForVoxCpm(port: number, timeoutMs = 120_000): Promise<ModelSe
     uptime_s: 0,
     models: { voxcpm: { status: "error", device: "" } },
   };
-}
-
-export async function startTorch(): Promise<ModelServerStatus> {
-  const { port } = await fnrpc.find_server("DemucsTorchServer");
-  _torchPort = port;
-  if (await ping(port)) return fetchStats(port);
-
-  _torchPort = await fnrpc.start_torch();
-  return waitForHealth(_torchPort);
-}
-
-export async function stopTorch(): Promise<ModelServerStatus> {
-  try {
-    await fetch(`http://127.0.0.1:${_torchPort}/api/shutdown`, { method: "POST" });
-  } catch {
-    // already gone
-  }
-  await fnrpc.start_torch();
-  return { status: "stopped", port: _torchPort, uptime_s: 0, models: {} };
-}
-
-export async function restartTorch(): Promise<ModelServerStatus> {
-  try {
-    await fetch(`http://127.0.0.1:${_torchPort}/api/shutdown`, { method: "POST" });
-  } catch {
-    /* ok */
-  }
-  await fnrpc.start_torch();
-
-  await new Promise((r) => setTimeout(r, 1500));
-
-  _torchPort = await fnrpc.start_torch();
-  return waitForHealth(_torchPort);
-}
-
-export async function checkTorch(): Promise<ModelServerStatus> {
-  const { port } = await fnrpc.find_server("DemucsTorchServer");
-  _torchPort = port;
-  return fetchStats(port);
 }
 
 // VoxCPM server management
@@ -125,7 +69,7 @@ async function pingVoxCpm(port: number): Promise<boolean> {
 }
 
 export async function startVoxCpm(): Promise<ModelServerStatus> {
-  const { port } = await fnrpc.find_server("VoxcpmTorchGradio");
+  const { port } = await fnrpc.find_server("voxcpm_torch_gradio");
   _voxcpmPort = port;
   if (await pingVoxCpm(port)) return fetchVoxCpmHealth(port);
 
@@ -135,7 +79,7 @@ export async function startVoxCpm(): Promise<ModelServerStatus> {
 
 export async function get_voxcpm_torch_gradio_status(): Promise<ModelServerStatus> {
   console.log(`get_voxcpm_torch_gradio_status(), _voxcpmPort=${_voxcpmPort}`);
-  const { port } = await fnrpc.find_server("VoxcpmTorchGradio");
+  const { port } = await fnrpc.find_server("voxcpm_torch_gradio");
   console.log(`get_voxcpm_torch_gradio_status() => found port=${port}`);
   _voxcpmPort = port;
   return fetchStats(port);
@@ -155,4 +99,28 @@ export async function restartVoxCpm(): Promise<ModelServerStatus> {
   await stopVoxCpm();
   await new Promise((r) => setTimeout(r, 1500));
   return startVoxCpm();
+}
+
+// 主服务器 (packages/server) 管理。主服务器是 fnrpc 载体, 由 app 生命周期启动,
+// 设置界面仅显示状态 (停止会导致 UI 失联, 不做启停)。
+
+const MAIN_SERVER_PORT = 19110;
+
+/** 探测主服务器状态 (GET /fnrpc/health_check, 返回 "ok" = running)。 */
+export async function checkMainServer(): Promise<ModelServerStatus> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${MAIN_SERVER_PORT}/fnrpc/health_check`, {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!res.ok) return { status: "stopped", port: MAIN_SERVER_PORT, uptime_s: 0, models: {} };
+    const data = (await res.json()) as { json?: string };
+    return {
+      status: data?.json === "ok" ? "running" : "stopped",
+      port: MAIN_SERVER_PORT,
+      uptime_s: 0,
+      models: {},
+    };
+  } catch {
+    return { status: "stopped", port: MAIN_SERVER_PORT, uptime_s: 0, models: {} };
+  }
 }

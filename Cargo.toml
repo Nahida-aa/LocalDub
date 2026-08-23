@@ -1,41 +1,84 @@
 [workspace]
-members = [
-    "packages/benchmark/ocr/oar-rs", "packages/bridge", "packages/config-rs", "packages/core-rs", "packages/device-rs",
-    "packages/separate/demucs_burn", "packages/subtitle-rust", "packages/time", "packages/voxcpm-burn", "packages/app/src-tauri",
-    "packages/fs"
-]
 resolver = "3"
+members = [
+    "packages/bridge", "packages/config-rs", "packages/core", "packages/device-rs",
+    "packages/demucs_burn", "packages/time", "packages/voxcpm-burn", "packages/app/src-tauri",
+    "packages/fs", "packages/sf-cli", "packages/subtitle-ocr-cli", "packages/server", "packages/tts",
+    "packages/sdk", "packages/cli", "packages/env", "packages/subtitle-asr", "packages/llm", "packages/pacer-rs", "packages/voxlab",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+publish = false
 
 [workspace.dependencies]
+# 本地 workspace crate
+bridge = { path = "packages/bridge" }
+config-rs = { path = "packages/config-rs" }
+device-rs = { path = "packages/device-rs" }
+fs = { path = "packages/fs" }
+ld-core = { path = "packages/core" }
+llm = { path = "packages/llm" }
+pacer-rs = { path = "packages/pacer-rs" }
+server = { path = "packages/server" }
+time = { path = "packages/time" }
+voxlab = { path = "packages/voxlab" }
 async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+mdns-sd = "0.21"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
 specta = { version = "=2.0.0-rc.26", features = ["derive", "serde_json"] }
 specta-typescript = { version = "0.0.13", features = ["serde"] }
 specta-serde = { version = "0.0.13" }
 specta-util = { version = "0.0.13" }
+specta-jsonschema = { git = "https://github.com/specta-rs/specta.git", rev = "7bfd7428d675201f2beec8a0f0221599a2b3ea45" }
 fnrpc = { version = "0.4.2", features = ["ts-bindings", "tracing"] }
 fnrpc-axum = { version = "0.4.2" }
 fnrpc-tauri = { version = "0.4.2" }
 notify = { version = "6", features = ["macos_fsevent"] }
 async-channel = "2"
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "registry"] }
+anyhow = "1"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+clap = { version = "4", features = ["derive"] }
+# 进度条（UX 层反馈，独立于 tracing 诊断日志）。
+indicatif = "0.17"
+# 原生 DNS-SD/mDNS 发现（Linux 走 avahi D-Bus，macOS/Windows 走系统 API）。
+# 相比 mdns-sd 的自实现广播，这里用 OS 原生栈，与 zeroconf/bonjour 互通。
+mdns-sd-discovery = "0.3"
+image = "0.25"
+ndarray = "0.17"
+# ocr-segment-adjust 用 ffmpeg 读视频像素高度（Y 偏移惩罚归一化分母），版本对齐 ocr-lab。
+ffmpeg-next = "9.0.0"
+voxcpm-rs = { version = "0.5.0", default-features = false }
+# OCR 核心（从本仓库拆出的 ocr-lab）。git 源由 cargo 自动拉取/解析其内部
+# workspace 依赖与 [patch]，LocalDub 侧零镜像；版本以 ocr-lab 为准。
+subtitle-finder = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "81396471da2cf864d76b405bf7e98e4aa072cab1" }
+subtitle-ocr = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "81396471da2cf864d76b405bf7e98e4aa072cab1" }
+rapidocr-ort = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "81396471da2cf864d76b405bf7e98e4aa072cab1" }
 
 [profile.release]
 lto = "fat"
 codegen-units = 1
 
 [patch.crates-io]
+voxcpm-rs = { path = "submodule/voxcpm-rs" }
 burn-cubecl = { path = "submodule/voxcpm-rs/vendor/patched/burn-cubecl" }
 cubecl-spirv = { path = "submodule/voxcpm-rs/vendor/patched/cubecl-spirv" }
 # Specta rc.26 crates are not yet published to crates.io; track the exact
 # commit tauri-specta uses so we stay in sync with upstream behaviour
 # (including serde variant/field renames via `specta-serde::PhasesFormat`).
 # TODO: Remove once the rc.26 Specta crates are published.
-specta = { git = "https://github.com/specta-rs/specta.git", rev = "3c535739ea7bd8737ecdbff6c3aef9b7330da706" }
-specta-macros = { git = "https://github.com/specta-rs/specta.git", rev = "3c535739ea7bd8737ecdbff6c3aef9b7330da706" }
-specta-serde = { git = "https://github.com/specta-rs/specta.git", rev = "3c535739ea7bd8737ecdbff6c3aef9b7330da706" }
-specta-typescript = { git = "https://github.com/specta-rs/specta.git", rev = "3c535739ea7bd8737ecdbff6c3aef9b7330da706" }
-specta-util = { git = "https://github.com/specta-rs/specta.git", rev = "3c535739ea7bd8737ecdbff6c3aef9b7330da706" }
-fnrpc = { git = "https://github.com/Nahida-aa/fnrpc.git", rev = "b77f290320ec88fc382c6a5130de1cf2f18af2f9" }
-fnrpc-axum = { git = "https://github.com/Nahida-aa/fnrpc.git", rev = "b77f290320ec88fc382c6a5130de1cf2f18af2f9" }
-fnrpc-tauri = { git = "https://github.com/Nahida-aa/fnrpc.git", rev = "b77f290320ec88fc382c6a5130de1cf2f18af2f9" }
+specta = { git = "https://github.com/specta-rs/specta.git", rev = "7bfd7428d675201f2beec8a0f0221599a2b3ea45" }
+specta-macros = { git = "https://github.com/specta-rs/specta.git", rev = "7bfd7428d675201f2beec8a0f0221599a2b3ea45" }
+specta-serde = { git = "https://github.com/specta-rs/specta.git", rev = "7bfd7428d675201f2beec8a0f0221599a2b3ea45" }
+specta-typescript = { git = "https://github.com/specta-rs/specta.git", rev = "7bfd7428d675201f2beec8a0f0221599a2b3ea45" }
+specta-util = { git = "https://github.com/specta-rs/specta.git", rev = "7bfd7428d675201f2beec8a0f0221599a2b3ea45" }
+fnrpc = { git = "https://github.com/Nahida-aa/fnrpc.git", rev = "76ddfbfba4d65feff5d911968133987107901151" }
+fnrpc-axum = { git = "https://github.com/Nahida-aa/fnrpc.git", rev = "76ddfbfba4d65feff5d911968133987107901151" }
+fnrpc-tauri = { git = "https://github.com/Nahida-aa/fnrpc.git", rev = "76ddfbfba4d65feff5d911968133987107901151" }

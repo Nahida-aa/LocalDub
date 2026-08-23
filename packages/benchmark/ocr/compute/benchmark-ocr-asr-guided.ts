@@ -50,7 +50,7 @@ interface Segment {
 interface ASRSeg extends Segment {
   text: string;
 }
-interface OCRLine {
+interface OcrBoxResult {
   text: string;
   confidence: number;
 }
@@ -90,7 +90,7 @@ function loadASR(): ASRSeg[] {
   }));
 }
 
-function ocrFrame(framePath: string): OCRLine[] {
+function ocrFrame(framePath: string): OcrBoxResult[] {
   const args = [framePath];
   if (TEXT_SCORE != null) args.push(String(TEXT_SCORE));
   if (SUBTITLE_ONLY) args.push("--subtitle-only");
@@ -103,7 +103,7 @@ function ocrFrame(framePath: string): OCRLine[] {
   try {
     const parsed = JSON.parse(r.stdout);
     const items = Array.isArray(parsed) ? parsed : [parsed];
-    const lines: OCRLine[] = [];
+    const lines: OcrBoxResult[] = [];
     for (const item of items) {
       for (const seg of item.segments || [])
         lines.push({ text: seg.text, confidence: seg.confidence });

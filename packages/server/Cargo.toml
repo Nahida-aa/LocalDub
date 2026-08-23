@@ -1,0 +1,34 @@
+[package]
+name = "server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+specta.workspace = true
+config-rs.workspace = true
+ld-core.workspace = true
+device-rs.workspace = true
+fs.workspace = true
+fnrpc.workspace = true
+fnrpc-axum.workspace = true
+axum = "0.8"
+tower-http = { version = "0.5", features = ["cors", "fs"] }
+tokio.workspace = true
+futures = { version = "0.3", default-features = false, features = ["std"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+mdns-sd.workspace = true
+mdns-sd-discovery.workspace = true

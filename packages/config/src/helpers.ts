@@ -1,7 +1,6 @@
-import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { env } from './env.ts';
-import { DATA_DIR, COOKIE_DIR, LOG_DIR, YOUTUBE_COOKIE_PATH } from './path/paths.ts';
+import { mkdirSync } from "node:fs";
+import { env } from "./env.ts";
+import { DATA_DIR, COOKIE_DIR, LOG_DIR } from "./path/paths.ts";
 
 export function device(): string {
   return env.CUDA_DEVICE ?? env.DEVICE;
@@ -42,21 +41,7 @@ export function ytdlpDefaults(): YtDlpDefaults {
 }
 
 export function ensureRuntimeDirs(): void {
-  for (const dir of [
-    DATA_DIR,
-    COOKIE_DIR,
-    LOG_DIR,
-    env.WORKFOLDER,
-    env.MODEL_CACHE_DIR,
-  ]) {
+  for (const dir of [DATA_DIR, COOKIE_DIR, LOG_DIR, env.WORKFOLDER, env.MODEL_CACHE_DIR]) {
     mkdirSync(dir, { recursive: true });
-  }
-
-  const oldCookie = join(COOKIE_DIR, 'youtube_cookie.txt');
-  if (!existsSync(YOUTUBE_COOKIE_PATH) && existsSync(oldCookie)) {
-    try {
-      copyFileSync(oldCookie, YOUTUBE_COOKIE_PATH);
-      console.log('[config] Migrated youtube_cookie.txt → youtube.txt');
-    } catch { /* ignore */ }
   }
 }

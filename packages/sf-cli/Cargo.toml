@@ -1,0 +1,19 @@
+[package]
+name = "sf-cli"
+version.workspace = true
+edition.workspace = true
+
+
+[dependencies]
+anyhow = { workspace = true }
+# ocr-lab 关键帧策略：subtitle-finder 提关键帧 → 落盘 PNG/timeline/keyframes.json，
+# OCR 识别交给 subtitle-ocr CLI（packages/subtitle-ocr-cli）单独做。
+subtitle-finder = { workspace = true }
+image = { workspace = true }
+ndarray = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+# CLI 参数解析（--output 枚举控制输出模式）。
+clap.workspace = true
+# 进度条（走 stderr，与 tracing/stdout 解耦，对齐 subtitle-ocr）。
+indicatif = { workspace = true }

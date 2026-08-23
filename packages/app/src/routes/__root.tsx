@@ -66,10 +66,6 @@ function RootDocument({ children }: { children: JSX.Element }) {
       {/*<fnrpc.Provider client={client} queryClient={queryClient}>*/}
       {/*<ClientApiProvider value={{
     serversManagerApi: {
-      startTorch: torchApi.startTorch,
-      stopTorch: torchApi.stopTorch,
-      restartTorch: torchApi.restartTorch,
-      checkTorch: torchApi.checkTorch,
       startVoxCpm: torchApi.startVoxCpm,
       stopVoxCpm: torchApi.stopVoxCpm,
       restartVoxCpm: torchApi.restartVoxCpm,
@@ -90,7 +86,7 @@ function RootDocument({ children }: { children: JSX.Element }) {
       {/*<ThemeProvider>*/}
       <SidebarProvider>
         <AppSidebar />
-        <main class="min-w-0 flex-1 h-screen grid grid-rows-[auto_1fr]">
+        <main class="min-w-0 flex-1 h-screen grid grid-rows-[auto_minmax(0,1fr)]">
           <Header />
           {children}
           <ModalRenderer />

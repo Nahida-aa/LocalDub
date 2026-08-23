@@ -9,8 +9,8 @@ export const DUB_STAGES: StageSpec[] = [
   { name: 'translate', label: 'Translate' },
   { name: 'split_audio', label: 'Split audio' },
   { name: 'tts', label: 'VoxCPM' },
-  { name: 'merge_audio', label: 'Merge audio' },
-  { name: 'merge_video', label: 'Merge video' },
+  { name: 'mix_audio', label: 'Merge audio' },
+  { name: 'mix_video', label: 'Merge video' },
 ]
 
 export const SUBTITLE_STAGES: StageSpec[] = [
@@ -19,7 +19,7 @@ export const SUBTITLE_STAGES: StageSpec[] = [
   { name: 'asr', label: 'Whisper' },
   { name: 'asr_fix', label: 'Split sentences' },
   { name: 'translate', label: 'Translate' },
-  { name: 'merge_video', label: 'Merge video' },
+  { name: 'mix_video', label: 'Merge video' },
 ]
 ```
 
@@ -37,11 +37,11 @@ export const SUBTITLE_STAGES: StageSpec[] = [
 | **translate** | `asr_fix.json` / `ocr.json` | `translation.json` | LLM 翻译。可跳过：`enabled: false` |
 | **split_audio** | `asr_fix.json` / `ocr.json` + `translation.json`(enabled) | `timings.json`, `segments/vocals/*.wav` | VAD 时间校正，统一写 `timings.json` |
 | **tts** | `timings.json`, `segments/vocals/*.wav` | `segments/tts/*.wav` | 语音合成（dub only） |
-| **merge_audio** | `timings.json`, `segments/tts/*.wav` | `audio_dubbing.wav` | 拼接 + 变速 + BGM 混音（dub only） |
-| **merge_video** | `timings.json` + 音视频 | `video_final.mp4` / `video_final_subtitle.mp4` | 字幕烧录 + 最终合成 |
+| **mix_audio** | `timings.json`, `segments/tts/*.wav` | `audio_dubbing.wav` | 拼接 + 变速 + BGM 混音（dub only） |
+| **mix_video** | `timings.json` + 音视频 | `video_final.mp4` / `video_final_subtitle.mp4` | 字幕烧录 + 最终合成 |
 
 关键约定：
-- **`timings.json`** 是下游唯一数据源（merge_video / merge_audio / tts 只读此文件）
+- **`timings.json`** 是下游唯一数据源（mix_video / mix_audio / tts 只读此文件）
 - **`translation.json`** 仅作为 translate 的输出分界点，被 split_audio 消费后不再使用
 - **`asr_fix.json` / `ocr.json`** — 字幕源文件，各自归属 asr_fix / ocr 阶段，下游通过 `subtitleSource` config 精准选择
 
@@ -56,8 +56,8 @@ flowchart LR
   cond -->|enabled=false| sa
   tl --> sa["split_audio<br>→ timings.json"]
   sa --> tts["tts"]
-  tts --> ma["merge_audio<br>+ BGM"]
-  ma --> mv["merge_video<br>← timings.json"]
+  tts --> ma["mix_audio<br>+ BGM"]
+  ma --> mv["mix_video<br>← timings.json"]
   mv --> out["video_final.mp4"]
 ```
 
@@ -69,7 +69,7 @@ flowchart
   sep["separate"]
   cond_sa{split_audio<br>.vadAlign}
   sa["split_audio"]
-  mv["merge_video"]
+  mv["mix_video"]
 
   dl["download"] --> sub_src_cond{subtitleSource}
   sub_src_cond --> |asr| sep_cond
@@ -98,8 +98,8 @@ flowchart
   │   ├── video_source.mp4        # [download] original video
   │   ├── target_3_vocals.wav        # [separate] vocals stem (clean, Demucs output)
   │   ├── target_bgm.wav           # [separate] bgm stem (drums+bass+other)
-  │   ├── video_final.mp4         # [merge_video] dub output
-  │   └── video_final_subtitle.mp4# [merge_video] subtitle output
+  │   ├── video_final.mp4         # [mix_video] dub output
+  │   └── video_final_subtitle.mp4# [mix_video] subtitle output
   ├── metadata/
   │   ├── local_info.json         # mode, languages, stage overrides
   │   ├── ytdlp_info.json         # [download] video metadata (yt-dlp --dump-json)
@@ -107,18 +107,18 @@ flowchart
   │   ├── asr_fix.json          # [asr_fix] padded sentence timings
   │   ├── ocr.json           # [ocr] OCR subtitle recognition output
   │   ├── translation.<lang>.json # [translate] translated segments
-  │   ├── timings.json            # [merge_audio] TTS segments with actual timings
-  │   └── subtitles.<lang>.srt    # [merge_video] subtitle file (both modes)
+  │   ├── timings.json            # [mix_audio] TTS segments with actual timings
+  │   └── subtitles.<lang>.srt    # [mix_video] subtitle file (both modes)
   ├── tmp/
   │   ├── audio_source.wav        # [separate] WAV extracted from video (ffmpeg)
-  │   ├── audio_dubbing.wav       # [merge_audio] concatenated TTS output
-  │   ├── audio_mixed.m4a         # [merge_video] dubbing + BGM mixed
-  │   ├── concat_list.txt         # [merge_audio] ffmpeg concat demuxer list
-  │   └── silence_<N>.wav         # [merge_audio] gap filler silence
+  │   ├── audio_dubbing.wav       # [mix_audio] concatenated TTS output
+  │   ├── audio_mixed.m4a         # [mix_video] dubbing + BGM mixed
+  │   ├── concat_list.txt         # [mix_audio] ffmpeg concat demuxer list
+  │   └── silence_<N>.wav         # [mix_audio] gap filler silence
   └── segments/
       ├── vocals/<NNNN>.wav       # [split_audio] reference clips per segment
       ├── tts/<NNNN>.wav          # [tts] generated speech per segment
-      └── stretched/<NNNN>.wav    # [merge_audio] tempo-adjusted TTS clips
+      └── stretched/<NNNN>.wav    # [mix_audio] tempo-adjusted TTS clips
 ```
 - {NNNN}_trimmed.wav — TTS 原始输出 → silenceremove（去尾部静音）
 - {NNNN}.wav — _trimmed → rubberband（变速拉伸至原视频对应句段时长）→ 最终拼入 audio_dubbing.wav
@@ -238,7 +238,7 @@ Translate ASR text via LLM (OpenAI-compatible API). 可跳过：`config.stages.t
 ### split_audio
 
 Slice vocals WAV into per-segment reference clips using translation timings.
-- subtitle 模式下仅在 `vadAlign: true` 时运行，否则 merge_video 直接读 `asr_fix.json` / `ocr.json`。
+- subtitle 模式下仅在 `vadAlign: true` 时运行，否则 mix_video 直接读 `asr_fix.json` / `ocr.json`。
 - translate 跳过时从字幕源文件取原文作为 `src`/`dst`。
 
 | Input | Source | Description |
@@ -273,7 +273,7 @@ Voice cloning TTS via VoxCPM2 (ONNX / PyTorch / Cloud).
 
 ---
 
-### merge_audio (dub only)
+### mix_audio (dub only)
 
 Concatenate TTS segments into a continuous dubbing track with tempo adjustment and gap-fill silence.
 
@@ -301,7 +301,7 @@ Concatenate TTS segments into a continuous dubbing track with tempo adjustment a
 
 ---
 
-### merge_video
+### mix_video
 
 Combine audio + video + optional subtitles. Different output per mode:
 
@@ -333,7 +333,7 @@ Both modes produce an SRT subtitle file at `metadata/subtitles.<lang>.srt`.
 | `status` | text NOT NULL | pending/running/success/failed | pipeline |
 | `current_stage` | text? | Currently executing stage | pipeline |
 | `task_dir` | text? | Relative path to session dir | download |
-| `final_video_path` | text? | API path to output video | merge_video |
+| `final_video_path` | text? | API path to output video | mix_video |
 | `error_message` | text? | Failure reason | pipeline |
 | `created_at` | text NOT NULL | ISO timestamp | creation |
 | `started_at` | text? | ISO timestamp | pipeline |
@@ -362,8 +362,8 @@ Composite PK: `(task_id, name)`, FK → `tasks.id ON DELETE CASCADE`.
 | separate | Demucs (vocals + bgm) | Demucs (vocals + bgm, same handler) |
 | split_audio | ✅ YES | ✅ only if `vadAlign: true` |
 | tts | ✅ YES | ❌ skipped |
-| merge_audio | ✅ YES | ❌ skipped |
-| merge_video | dubbing + BGM + subs | burned-in subtitles only |
+| mix_audio | ✅ YES | ❌ skipped |
+| mix_video | dubbing + BGM + subs | burned-in subtitles only |
 
 ## Stage Names
 
@@ -376,5 +376,5 @@ Composite PK: `(task_id, name)`, FK → `tasks.id ON DELETE CASCADE`.
 | Translate | `translate` | ✅ (可跳过 via `enabled: false`) | ✅ (ditto) |
 | Split audio | `split_audio` | — | ✅ |
 | TTS | `tts` | — | ✅ |
-| Merge audio | `merge_audio` | — | ✅ |
-| Merge video | `merge_video` | ✅ | ✅ |
+| Merge audio | `mix_audio` | — | ✅ |
+| Merge video | `mix_video` | ✅ | ✅ |

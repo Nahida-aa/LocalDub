@@ -1,0 +1,20 @@
+[package]
+name = "voxlab"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "voxlab"
+path = "src/lib.rs"
+
+[[bin]]
+name = "voxlab"
+path = "src/main.rs"
+
+[dependencies]
+reqwest = { workspace = true, features = ["multipart"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }

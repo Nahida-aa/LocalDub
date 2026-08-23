@@ -222,3 +222,5 @@ build_b/
 
 # CodeBuddy IDE project data
 .codebuddy/
+input.json
+input.jsonc

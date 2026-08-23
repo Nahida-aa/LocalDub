@@ -1,3 +1,4 @@
+import { Show } from "solid-js";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -8,27 +9,28 @@ import {
 import { openModal } from "@repo/ui-solid/custom/modal/renderer";
 import type { Track, TrackSegment } from "../consts";
 import { client } from "#/integrations/fnrpc/client.ts";
-import { useMutation } from "@tanstack/solid-query";
-import type { TranslateFile } from "@repo/core/stages/05_translate/type";
+import { useMutation, useQuery } from "@tanstack/solid-query";
+import type { TranslateResult, TranslateSegment } from "@repo/core/stages/05_translate/out";
 import { deleteAt, insertAt, type BaseTrackProps } from "./shared";
 import { TrackEditModal } from "./comp/TrackEditModal";
+import { useTrackData } from "./useTrackData";
 
 type Props = BaseTrackProps;
 
 function serializeSegments(segments: TrackSegment[]): string {
-  const segs: TranslateFile["translation"] = segments.map((s) => {
-    const raw = (s.raw as TranslateFile["translation"][number]) || {};
+  const segs: TranslateSegment[] = segments.map((s) => {
+    const raw = (s.raw as TranslateSegment) || {};
     return {
-      src: raw.src ?? "",
+      text: raw.text ?? "",
       dst: s.text,
-      src_lang: raw.src_lang ?? "auto",
-      dst_lang: raw.dst_lang ?? "auto",
-      start: s.startMs,
-      end: s.endMs,
-      speaker: raw.speaker ?? "1",
+      src_lang: raw.src_lang,
+      dst_lang: raw.dst_lang,
+      start_ms: s.startMs,
+      end_ms: s.endMs,
+      speaker: raw.speaker,
     };
   });
-  return JSON.stringify({ translation: segs }, null, 2);
+  return JSON.stringify({ segments: segs }, null, 2);
 }
 
 const TRANSLATE_DEFAULT_RAW = {
@@ -47,6 +49,28 @@ export function TranslationTrack(props: Props) {
   const color = () => props.color;
   const onSeek = props.onSeek;
 
+  const ctxQ = useQuery(() => client.get_task_ctx.queryOptions(props.taskDir));
+  const lang = () => (ctxQ.isSuccess ? ctxQ.data?.target_language : undefined);
+  const path = () => (lang() ? `${props.taskDir}/translate/translation.${lang()}.json` : undefined);
+
+  const { segments } = useTrackData({
+    taskDir: props.taskDir,
+    trackId: track().id,
+    path,
+    parse: (text) => {
+      const data: TranslateResult = JSON.parse(text);
+      return (data.segments || []).map((item, i: number) => ({
+        index: i,
+        text: item.dst,
+        startMs: item.start_ms,
+        endMs: item.end_ms,
+        raw: item,
+      }));
+    },
+    label: () => `translation.${lang()}.json`,
+  });
+  const filePath = () => path() ?? "";
+
   const mutation = useMutation(() =>
     client.write_app_file_text.mutationOptions({
       onSuccess: (_data, variables, _onMutateResult, context) => {
@@ -58,30 +82,30 @@ export function TranslationTrack(props: Props) {
   );
 
   const handleInsertBefore = (segIndex: number) => {
-    const newSegments = insertAt(track().segments, segIndex, false, {
+    const newSegments = insertAt(segments(), segIndex, false, {
       defaultRaw: TRANSLATE_DEFAULT_RAW,
     });
-    mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+    mutation.mutate([filePath(), serializeSegments(newSegments)]);
   };
 
   const handleInsertAfter = (segIndex: number) => {
-    const newSegments = insertAt(track().segments, segIndex, true, {
+    const newSegments = insertAt(segments(), segIndex, true, {
       defaultRaw: TRANSLATE_DEFAULT_RAW,
     });
-    mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+    mutation.mutate([filePath(), serializeSegments(newSegments)]);
   };
 
   const handleEdit = (segIndex: number) => {
-    const seg = track().segments[segIndex];
+    const seg = segments()[segIndex];
     if (!seg) return;
-    const raw = seg.raw as TranslateFile["translation"][number] | undefined;
+    const raw = seg.raw as TranslateSegment | undefined;
 
     openModal(
       () => (
         <TrackEditModal
           textLabel="译文"
           srcLabel="原文"
-          initialSrc={raw?.src}
+          initialSrc={raw?.text}
           initialText={seg.text}
           initialStartMs={seg.startMs}
           initialEndMs={seg.endMs}
@@ -95,7 +119,7 @@ export function TranslationTrack(props: Props) {
             )
           }
           onSave={({ text, src, startMs, endMs }) => {
-            const newSegments = track().segments.map((s, i) =>
+            const newSegments = segments().map((s, i) =>
               i === segIndex
                 ? {
                     ...s,
@@ -106,7 +130,7 @@ export function TranslationTrack(props: Props) {
                   }
                 : s,
             );
-            mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+            mutation.mutate([filePath(), serializeSegments(newSegments)]);
           }}
         />
       ),
@@ -115,45 +139,47 @@ export function TranslationTrack(props: Props) {
   };
 
   const handleDelete = (segIndex: number) => {
-    const newSegments = deleteAt(track().segments, segIndex);
-    mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+    const newSegments = deleteAt(segments(), segIndex);
+    mutation.mutate([filePath(), serializeSegments(newSegments)]);
   };
 
   return (
-    <div class="h-16 border-b relative">
-      {track().segments.map((seg) => (
-        <ContextMenu>
-          <ContextMenuTrigger as="div" class="contents">
-            <div
-              class="absolute top-1 h-12 rounded cursor-pointer truncate text-xs px-2 border flex items-center hover:opacity-80"
-              style={{
-                left: `${seg.startMs * pxPerMs()}px`,
-                width: `${Math.max((seg.endMs - seg.startMs) * pxPerMs(), 4)}px`,
-                background: `${color()}33`,
-                "border-color": `${color()}55`,
-              }}
-              onClick={() => onSeek(seg.startMs)}
-              title={(seg.raw as TranslateFile["translation"][number] | undefined)?.src || seg.text}
-            >
-              {seg.text}
-            </div>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem onSelect={() => handleInsertBefore(seg.index)}>
-              向前插入
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => handleInsertAfter(seg.index)}>
-              向后插入
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => handleEdit(seg.index)}>编辑</ContextMenuItem>
-            <ContextMenuItem onSelect={() => onSeek(seg.endMs)}>跳转到结尾</ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem onSelect={() => handleDelete(seg.index)} class="text-destructive">
-              删除
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-      ))}
-    </div>
+    <Show when={segments().length > 0}>
+      <div class="h-16 border-b relative">
+        {segments().map((seg) => (
+          <ContextMenu>
+            <ContextMenuTrigger as="div" class="contents">
+              <div
+                class="absolute top-1 h-12 rounded cursor-pointer truncate text-xs px-2 border flex items-center hover:opacity-80"
+                style={{
+                  left: `${seg.startMs * pxPerMs()}px`,
+                  width: `${Math.max((seg.endMs - seg.startMs) * pxPerMs(), 4)}px`,
+                  background: `${color()}33`,
+                  "border-color": `${color()}55`,
+                }}
+                onClick={() => onSeek(seg.startMs)}
+                title={(seg.raw as TranslateSegment | undefined)?.text || seg.text}
+              >
+                {seg.text}
+              </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem onSelect={() => handleInsertBefore(seg.index)}>
+                向前插入
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => handleInsertAfter(seg.index)}>
+                向后插入
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => handleEdit(seg.index)}>编辑</ContextMenuItem>
+              <ContextMenuItem onSelect={() => onSeek(seg.endMs)}>跳转到结尾</ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem onSelect={() => handleDelete(seg.index)} class="text-destructive">
+                删除
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        ))}
+      </div>
+    </Show>
   );
 }

@@ -53,7 +53,7 @@ export function FileTab() {
               </button>
               {/* 活跃 tab 底部高亮条 */}
               <Show when={isActive}>
-                <div class="absolute bottom-0 left-0 right-0 h-[1px] bg-primary" />
+                <div class="absolute bottom-0 left-0 right-0 h-px bg-primary" />
               </Show>
             </div>
           );

@@ -8,8 +8,445 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2551b379-47ce-4525-9b26-520d4341f0ed" name="更改" comment="解决冲突">
+      <change afterPath="$PROJECT_DIR$/.agents/ocr-lab.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.cargo/config.toml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/input.example.jsonc" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/input.schema.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/app/justfile" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/app/src/components/app/header/StartTaskDialog.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/tracks/MixAudioTrack.tsx" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/tracks/presence.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/tracks/useTrackData.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/useTaskTreeEvents.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/app/src/lib/audio/waveform.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/app/src/lib/debugLog.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/benchmark/ocr/justfile" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/cli/Cargo.toml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/cli/justfile" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/cli/src/bin/inputctl.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/cli/src/lib.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/cli/src/main.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/Cargo.toml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/cmd/tasks/continueTask.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/const/lang.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/servers/args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/bin/gen-input-schema.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/cmd/cookie/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/cmd/env/args.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/cmd/env/handler.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/cmd/env/input.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/cmd/env/items.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/cmd/env/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/cmd/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/cmd/servers/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/cmd/sound.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/cmd/tasks/continue_task.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/cmd/tasks/enqueue.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/cmd/tasks/meta.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/cmd/tasks/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/cmd/tasks/start.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/cmd/tasks/task.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/const/lang.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/const/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/input/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/input/stages.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/lib.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/logging.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/servers/args.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/asr/args.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/asr/fix.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/asr/fix_args.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/asr/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/asr/out.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/asr_ocr/args.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/asr_ocr/fix_args.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/asr_ocr/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/asr_ocr/pre_args.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/mix_audio/args.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/mix_audio/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/mix_audio/out.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/mix_video/args.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/mix_video/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/separate/after.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/separate/args.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/separate/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/sf_ocr/args.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/sf_ocr/fix_args.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/sf_ocr/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/sf_ocr/ocr.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/sf_ocr/ocr_fix.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/sf_ocr/ocr_pre.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/split_audio/args.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/split_audio/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/split_audio/out.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/split_audio/pad_segment.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/split_audio/util.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/split_audio/vad_align.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/translate/args.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/translate/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/translate/out.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/translate/prompts.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/tts/args.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/tts/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/tts/out.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/utils/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/utils/srt.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/stages/utils/stages.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/tasks/args.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/tasks/continue_pipeline.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/tasks/import/download.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/tasks/import/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/tasks/import/util.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/tasks/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/src/tasks/pipeline.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/04_asr_ocr/args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/04_asr_ocr/fix_args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/04_asr_ocr/ocr.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/04_asr_ocr/ocr_fix.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/04_asr_ocr/ocr_pre.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/04_asr_ocr/ocr_pre_args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/04_asr_ocr/pre_args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/04_asr_ocr/resample.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/05_translate/args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/05_translate/out.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/06_split_audio/args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/06_split_audio/out.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/06_split_audio/pad_segment.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/06_split_audio/util.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/06_split_audio/vad_align.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/07_tts/args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/07_tts/out.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/asr/args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/asr/fix_args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/asr/out.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/asr/util/asr_llm_fix.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/asr/util/parse.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/mix_audio/args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/mix_audio/mix_audio.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/mix_video/args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/separate/after.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/separate/args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/separate/index.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/sf_ocr/args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/sf_ocr/fix_args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/sf_ocr/llm_fix.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/sf_ocr/ocr.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/sf_ocr/ocr_fix.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/sf_ocr/ocr_pre.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/sf_ocr/util.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/sf_ocr/util/cli.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/sf_ocr/util/llm_fix.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/sf_ocr/util/ocr_prompt.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/stages/utils/srt_llm.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/tasks/args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/tasks/continue.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/tasks/import/download.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/tasks/import/utils.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/tasks/start.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/core/tasks/util.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/demucs_burn/Cargo.toml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/demucs_burn/docs/README.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/demucs_burn/justfile" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/demucs_burn/src/bin/demucs-burn-cpu.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/demucs_burn/src/bin/demucs-burn-cuda.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/demucs_burn/src/bin/demucs-burn-rocm.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/demucs_burn/src/bin/demucs-burn-tch.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/demucs_burn/src/bin/demucs-burn-vulkan.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/demucs_burn/src/bin/demucs-burn-wgpu.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/demucs_burn/wrapper.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/env/Cargo.toml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/env/items/ocr_cpp_bin.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/env/package.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/env/src/main.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/env/types.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/llm/Cargo.toml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/llm/llm_fix_args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/llm/openai.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/llm/package.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/llm/src/lib.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/llm/src/llm_fix_args.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/llm/src/ocr_fix.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/llm/tests/real_ollama.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/pacer-rs/Cargo.toml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/pacer-rs/src/lib.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/sdk/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/sdk/Cargo.toml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/sdk/README.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/sdk/fnrpc/bindings.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/sdk/index.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/sdk/package.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/sdk/src/main.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/sdk/tsconfig.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/server/Cargo.toml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/server/src/axum_server.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/server/src/feat/tasks/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/server/src/feat/tasks/queue.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/server/src/lib.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/server/src/main.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/server/todo.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/sf-cli/Cargo.toml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/sf-cli/justfile" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/sf-cli/src/main.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-asr/Cargo.toml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-asr/args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-asr/package.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-asr/src/args.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-asr/src/main.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-asr/types.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-asr/whisper_types.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr-cli/Cargo.toml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr-cli/justfile" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr-cli/src/bin/merge_frames_cli.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr-cli/src/bin/ocr_frames_adjust_box_cli.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr-cli/src/bin/ocr_frames_filter_box_cli.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr-cli/src/bin/ocr_post_cli.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr-cli/src/bin/ocr_segment_adjust_cli.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr-cli/src/bin/ocr_segment_filter_cli.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr-cli/src/main.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr/args.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr/engine.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr/ffmpeg_util.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr/ocr_fix/box_adjust.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr/ocr_fix/box_filter.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr/ocr_fix/merge_frames.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr/ocr_fix/resample.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr/ocr_fix/segment_adjust.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr/ocr_fix/segment_filter.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr/ocr_fix/stats.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr/ocr_util.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle-ocr/runtimes/ort-cpp.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle/package.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/subtitle/types.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/tts/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/tts/Cargo.toml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/tts/index.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/tts/package.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/tts/src/main.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/tts/tsconfig.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/util/file_op.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/util/log.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/util/package.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/util/path.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/util/time.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/voxcpm-burn/src/bin/voxcpm-burn-cpu.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/voxcpm-burn/src/bin/voxcpm-burn-tch.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/voxcpm-burn/src/bin/voxcpm-burn-vulkan.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/voxcpm-burn/src/bin/voxcpm-burn-wgpu.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/voxlab/Cargo.toml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/voxlab/justfile" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/voxlab/src/engines/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/voxlab/src/engines/voxcpm/cloud.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/voxlab/src/engines/voxcpm/mod.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/voxlab/src/engines/voxcpm/voxcpm_modelbest.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/voxlab/src/gradio_client.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/voxlab/src/lib.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/voxlab/src/main.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/packages/voxlab/src/wav.rs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/scripts/convert-ocr-frames.mjs" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/scripts/justfile" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/scripts/video-duration.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.agents/conv-patch.md" beforeDir="false" afterPath="$PROJECT_DIR$/packages/demucs_burn/docs/conv-patch.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.agents/demucs.md" beforeDir="false" afterPath="$PROJECT_DIR$/packages/demucs_burn/docs/cpu-fallback.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.agents/learn.local.md" beforeDir="false" afterPath="$PROJECT_DIR$/.agents/learn.local.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.agents/model-strategy.md" beforeDir="false" afterPath="$PROJECT_DIR$/.agents/model-strategy.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.agents/skills/solidjs-reactivity/SKILL.md" beforeDir="false" afterPath="$PROJECT_DIR$/.agents/skills/solidjs-reactivity/SKILL.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/AGENTS.md" beforeDir="false" afterPath="$PROJECT_DIR$/AGENTS.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.lock" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/bun.lock" beforeDir="false" afterPath="$PROJECT_DIR$/bun.lock" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/demucs-optimization.md" beforeDir="false" afterPath="$PROJECT_DIR$/packages/demucs_burn/docs/pytorch-cpu-optimization.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/models/separate/demucs.md" beforeDir="false" afterPath="$PROJECT_DIR$/packages/demucs_burn/docs/models.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/justfile" beforeDir="false" afterPath="$PROJECT_DIR$/justfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lefthook.yml" beforeDir="false" afterPath="$PROJECT_DIR$/lefthook.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/docs/timeline-scroll.md" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/docs/timeline-scroll.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/package.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src-tauri/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/capabilities/default.json" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src-tauri/capabilities/default.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/src/bin/gen_fnrpc.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/src/commands.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/server/src/commands.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/src/ctx.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/server/src/ctx.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/src/feat/demo.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/server/src/feat/demo.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/src/feat/file_op.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/server/src/feat/file_op.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/src/feat/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/server/src/feat/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/src/feat/other.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/server/src/feat/other.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/src/feat/servers.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/server/src/feat/servers.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/src/feat/tasks/log.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/server/src/feat/tasks/log.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/src/feat/tasks/mod.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/src/feat/tasks/tree.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/server/src/feat/tasks/tree.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/src/integrations/fnrpc_axum.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/server/src/fnrpc_axum.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/src/integrations/fnrpc_func.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/server/src/fnrpc_func.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/src/integrations/mod.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/src/lib.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src-tauri/src/lib.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src-tauri/src/server.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/app/AppSidebar.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/app/AppSidebar.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/app/FileContent/FileTab.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/app/FileContent/FileTab.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/app/FileContent/VideoViewer/VideoPanel.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/app/FileContent/VideoViewer/VideoPanel.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/app/FileContent/store/ContentPanel.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/app/FileContent/store/ContentPanel.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/app/header/Header.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/app/header/Header.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/app/settings/ServerManager.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/app/settings/ServerManager.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/app/settings/general.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/app/settings/general.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/pages/home/IndexPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/pages/home/IndexPage.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/pages/task/TaskControlPanel/FileTree.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/TaskControlPanel/FileTree.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/pages/task/TaskControlPanel/StageStatusBadge.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/TaskControlPanel/StageStatusBadge.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/pages/task/TaskControlPanel/TaskControlPanel.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/TaskControlPanel/TaskControlPanel.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/pages/task/TaskControlPanel/taskControlPanelStore.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/TaskControlPanel/taskControlPanelStore.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/pages/task/TaskDetailPage.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/TaskDetailPage.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/Timeline.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/Timeline.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/TimelineTrackSide.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/TimelineTrackSide.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/TimelineTracks.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/TimelineTracks.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/tracks/AsrOcrFixTrack.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/tracks/AsrOcrFixTrack.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/tracks/AsrTrack.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/tracks/AsrTrack.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/tracks/MergeAudioTrack.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/tracks/SplitAudioTrack.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/tracks/SplitAudioTrack.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/tracks/TranslationTrack.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/tracks/TranslationTrack.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/tracks/TtsTrack.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/tracks/TtsTrack.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/tracks/const.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/tracks/const.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/tracks/shared.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/pages/task/Timeline/tracks/shared.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/components/ui/audio-player.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/components/ui/audio-player.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/feat/servers/servers.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/feat/servers/servers.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/hooks/useScrollSync.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/hooks/useScrollSync.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/integrations/fnrpc/bindings.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/integrations/fnrpc/client.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/integrations/fnrpc/client.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/app/src/routes/__root.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/app/src/routes/__root.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/benchmark/asr_ocr/compute/benchmark-asr-guided.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/benchmark/asr_ocr/compute/benchmark-asr-guided.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/benchmark/asr_ocr/compute/benchmark-vocals.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/benchmark/asr_ocr/compute/benchmark-vocals.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/benchmark/ocr/compute/benchmark-cpp-fps.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/benchmark/ocr/compute/benchmark-cpp-fps.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/benchmark/ocr/compute/benchmark-ocr-asr-guided.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/benchmark/ocr/compute/benchmark-ocr-asr-guided.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/benchmark/ocr/compute/benchmark-ocr-video.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/benchmark/ocr/compute/benchmark-ocr-video.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/benchmark/ocr/compute/run-merge-audio.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/benchmark/ocr/compute/run-merge-audio.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/benchmark/ocr/compute/run-merge-video.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/benchmark/ocr/compute/run-merge-video.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/benchmark/ocr/compute/run-split-audio.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/benchmark/ocr/compute/run-split-audio.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/benchmark/ocr/compute/run-tts.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/benchmark/ocr/compute/run-tts.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/benchmark/ocr/oar-rs/Cargo.toml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/benchmark/ocr/oar-rs/readme.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/benchmark/ocr/oar-rs/src/main.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/cli/architecture.md" beforeDir="false" afterPath="$PROJECT_DIR$/packages/cli/architecture.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/cli/input.example.json" beforeDir="false" afterPath="$PROJECT_DIR$/packages/cli/input.example.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/cli/input.schema.json" beforeDir="false" afterPath="$PROJECT_DIR$/packages/cli/input.schema.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/cli/readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/packages/cli/readme.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/cli/run-task.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/cli/run-task.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/cli/src/feat/command/check.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/cli/src/feat/command/check.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/cli/src/feat/command/servers.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/cli/src/feat/command/servers.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/cli/src/ml/server/client.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/cli/src/ml/server/client.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/config-rs/src/env.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/config-rs/src/env.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/config-rs/src/path/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/config-rs/src/path/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/config-rs/src/path/models.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/config-rs/src/path/models.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/config-rs/src/path/paths.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/config-rs/src/path/paths.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/config-rs/src/servers.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/config-rs/src/servers.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/config/src/helpers.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/config/src/helpers.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/config/src/path/scripts.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/config/src/path/scripts.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/config/src/servers.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/config/src/servers.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core-rs/Cargo.toml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core-rs/src/cmd/mod.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core-rs/src/cmd/tasks/get_task.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/src/cmd/tasks/get_task.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core-rs/src/cmd/tasks/input.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/sdk/justfile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core-rs/src/context/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/src/context/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core-rs/src/context/types.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/src/context/types.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core-rs/src/lib.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core-rs/src/servers/discovery.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/src/servers/discovery.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core-rs/src/servers/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/src/servers/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core-rs/src/utils/file_ops.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/src/utils/file_ops.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core-rs/src/utils/mod.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/src/utils/mod.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core-rs/src/utils/time.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/src/utils/time.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/cmd/cookie/handler.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/cmd/cookie/handler.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/cmd/cookie/input.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/cmd/cookie/args.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/cmd/env/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/cmd/env/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/cmd/env/items.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/cmd/env/items.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/cmd/env/items/ocr_cpp_bin.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/cmd/env/types.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/cmd/tasks/import/download.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/cmd/tasks/import/utils.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/cmd/tasks/input.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/cmd/tasks/rerunStage.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/cmd/tasks/resumeTask.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/cmd/tasks/startTask.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/cmd/tasks/startTask.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/cmd/tasks/task.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/cmd/tasks/task.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/context/context.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/context/context.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/input/tts.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/input/types.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/input/types.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/ml/demucs/cli/burn_cli.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/ml/demucs/cli/burn_cli.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/ml/demucs/cli/ggml_cli.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/ml/demucs/cli/ggml_cli.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/ml/llm/input.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/ml/subtitle_ocr/input.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/ml/subtitle_ocr/ocr.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/ml/subtitle_ocr/ocr.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/ml/subtitle_ocr/runtimes/ort-cpp.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/ml/subtitle_ocr/runtimes/ort-py.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/ml/subtitle_ocr/types.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/ml/voxcpm/runtime/voxcpm_torch_gradio.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/ml/voxcpm/runtime/voxcpm_torch_gradio.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/ml/voxcpm/runtime/voxcpm_torch_gradio_ensure.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/ml/voxcpm/runtime/voxcpm_torch_gradio_ensure.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/ml/voxcpm/voxcpm.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/ml/voxcpm/voxcpm.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/ml/whisper/runtime/faster_whisper_py.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/ml/whisper/runtime/faster_whisper_py.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/ml/whisper/runtime/ggml.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/ml/whisper/runtime/ggml.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/ml/whisper/runtime/pytorch.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/ml/whisper/runtime/pytorch.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/servers/discovery.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/servers/discovery.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/servers/input.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/04_asr_ocr/asr_ocr.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/04_asr_ocr/asr_ocr_fix.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/04_asr_ocr/asr_ocr_pre.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/05_translate/translate.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/stages/05_translate/translate.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/05_translate/type.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/05_translate/utils.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/stages/05_translate/utils.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/06_split_audio/split_audio.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/stages/06_split_audio/split_audio.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/06_split_audio/types.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/07_tts/types.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/asr/asr.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/stages/asr/asr.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/asr/asr_fix.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/stages/asr/asr_fix.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/asr/types.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/stages/asr/types.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/stages/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/merge_audio/merge_audio.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/merge_audio/types.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/stages/mix_audio/types.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/merge_video.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/stages/mix_video/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/ocr/ocr.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/ocr/ocrMerge.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/ocr/ocr_fix.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/ocr/utils.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/separate.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/separate_after.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/tts.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/stages/07_tts/tts.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/utils/filtering.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/stages/utils/filtering.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/utils/stages.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/stages/utils/stages.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/stages/utils/utils.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/stages/utils/utils.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/tasks/pipeline-runner.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/utils/ffmpeg.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/utils/ffmpeg.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/utils/fileOps.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/utils/fileOps.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/core/utils/srt.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/core/utils/srt.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/device-rs/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/packages/device-rs/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/fs/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/packages/fs/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/fs/src/watcher.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/fs/src/watcher.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/separate/demucs_burn/Cargo.toml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/separate/demucs_burn/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/demucs_burn/src/lib.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/separate/demucs_burn/wrapper.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/separate/readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/packages/separate/readme.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/servers_py/servers_py/mdns_server.py" beforeDir="false" afterPath="$PROJECT_DIR$/packages/servers_py/servers_py/mdns_server.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/shared/i18n/messages/en.json" beforeDir="false" afterPath="$PROJECT_DIR$/packages/shared/i18n/messages/en.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/shared/i18n/messages/zh-cn.json" beforeDir="false" afterPath="$PROJECT_DIR$/packages/shared/i18n/messages/zh-cn.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/subtitle-ocr/ort-cpp/ts/ocr.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/subtitle-ocr/ort-cpp/ts/ocr.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/subtitle-ocr/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/packages/subtitle-ocr/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/subtitle-ocr/subtitle-node.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/subtitle-ocr/subtitle-node.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/subtitle-ocr/types.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/subtitle-ocr/types.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/subtitle-rust/Cargo.lock" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/subtitle-rust/Cargo.toml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/subtitle-rust/src/char_list.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/subtitle-rust/src/det.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/subtitle-rust/src/image.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/subtitle-rust/src/infer.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/subtitle-rust/src/main.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/subtitle-rust/src/pipeline.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/subtitle-rust/src/preprocess.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/subtitle-rust/src/rec.rs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/subtitle-rust/ts/ocr.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/time/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/packages/time/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/ui-solid/custom/card.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/ui-solid/custom/card.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/ui-solid/custom/modal/renderer.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/packages/ui-solid/custom/modal/renderer.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/voxcpm-burn/Cargo.toml" beforeDir="false" afterPath="$PROJECT_DIR$/packages/voxcpm-burn/Cargo.toml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/voxcpm-burn/src/main.rs" beforeDir="false" afterPath="$PROJECT_DIR$/packages/voxcpm-burn/src/lib.rs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/packages/voxlab/scripts/test-tts.ts" beforeDir="false" afterPath="$PROJECT_DIR$/packages/voxlab/scripts/test-tts.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/readme.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/submodule/voxcpm-rs" beforeDir="false" afterPath="$PROJECT_DIR$/submodule/voxcpm-rs" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -54,23 +491,23 @@
   <component name="ProjectViewState">
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;G:/LocalDub/packages/subtitle-ocr&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;org.rust.cargo.project.model.PROJECT_DISCOVERY&quot;: &quot;true&quot;,
-    &quot;org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon&quot;: &quot;&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;D:\\Intelji IDEA\\IntelliJ IDEA 2024.2.5\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "git-widget-placeholder": "正在合并 main",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "G:/LocalDub/packages/subtitle-ocr",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "org.rust.cargo.project.model.PROJECT_DISCOVERY": "true",
+    "org.rust.cargo.project.model.impl.CargoExternalSystemProjectAware.subscribe.first.balloon": "",
+    "ts.external.directory.path": "D:\\Intelji IDEA\\IntelliJ IDEA 2024.2.5\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="G:\LocalDub\packages\subtitle-ocr" />
@@ -181,6 +618,7 @@
       <workItem from="1785462340643" duration="141000" />
       <workItem from="1785466755895" duration="78000" />
       <workItem from="1787378394226" duration="1513000" />
+      <workItem from="1787491620717" duration="1982000" />
     </task>
     <task id="LOCAL-00001" summary="解决冲突">
       <option name="closed" value="true" />

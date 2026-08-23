@@ -1,0 +1,12 @@
+[package]
+name = "llm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+specta.workspace = true
+anyhow.workspace = true
+reqwest.workspace = true

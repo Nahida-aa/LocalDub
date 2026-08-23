@@ -4,7 +4,7 @@ import type { ModelServerStatus } from "@repo/core/servers/type";
 import { spawn, type ChildProcess } from "node:child_process";
 import { to } from "@repo/shared/lib/utils/try";
 import { fetchStatsData } from "@repo/core/servers/client";
-import { TTSInput } from "@repo/core/input/tts";
+import { TtsArgs } from "../../../stages/07_tts/args";
 import { pythonBin, VOXCPM_TORCH_GRADIO_MAIN } from "@repo/config/path/bin";
 import { findServer, readPortFromOutput } from "@repo/core/servers/discovery";
 
@@ -139,7 +139,7 @@ export const connectToVoxCPMTorchGradioServer = async ({
   }
 };
 
-export const newVoxCPMPyTorchGradio = (cfg: TTSInput): TTSBackend => {
+export const newVoxCPMPyTorchGradio = (cfg: TtsArgs): TTSBackend => {
   let cloud: VoxCPMCloud | null = null;
   let device = cfg && "device" in cfg ? (cfg.device as string) : "cpu";
   let port = 19112;
