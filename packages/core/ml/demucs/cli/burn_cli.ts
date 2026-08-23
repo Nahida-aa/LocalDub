@@ -13,10 +13,11 @@ import { log } from "@repo/util/log";
 function findLibtorchPath(): string | null {
   const buildDir = join(REPO_ROOT, "target", "release", "build");
   if (!existsSync(buildDir)) return null;
+  const libName = process.platform === "win32" ? "libtorch_cpu.dll" : "libtorch_cpu.so";
   for (const dir of readdirSync(buildDir)) {
     if (!dir.startsWith("torch-sys-")) continue;
     const libDir = join(buildDir, dir, "out", "libtorch", "libtorch", "lib");
-    if (existsSync(join(libDir, "libtorch_cpu.so"))) return libDir;
+    if (existsSync(join(libDir, libName))) return libDir;
   }
   return null;
 }
@@ -25,7 +26,8 @@ const demucsBuildTasks = new Map<string, Promise<string>>();
 
 /** 确保 demucs-burn-${backend} 二进制已构建（缺失时自动编译），返回 bin 路径。 */
 async function ensureDemucsBin(taskDir: string, binName: string): Promise<string> {
-  const binPath = join(REPO_ROOT, "target", "release", binName);
+  const exeSuffix = process.platform === "win32" ? ".exe" : "";
+  const binPath = join(REPO_ROOT, "target", "release", binName + exeSuffix);
   if (existsSync(binPath)) return binPath;
 
   const crateDir = join(REPO_ROOT, "packages", "demucs_burn");
@@ -95,7 +97,11 @@ export async function separateBurn({
     if (!libtorchLib) {
       throw new Error("libtorch not found. Build tch binary first.");
     }
-    env.LD_LIBRARY_PATH = [libtorchLib, env.LD_LIBRARY_PATH].filter(Boolean).join(":");
+    if (process.platform === "win32") {
+      env.PATH = [libtorchLib, env.PATH].filter(Boolean).join(";");
+    } else {
+      env.LD_LIBRARY_PATH = [libtorchLib, env.LD_LIBRARY_PATH].filter(Boolean).join(":");
+    }
   }
 
   const t0 = performance.now();
