@@ -57,7 +57,9 @@ def ocr_frame(
 			y_center = (adj_box[0][1] + adj_box[2][1]) / 2
 			if y_range and not (y_range[0] <= y_center <= y_range[1]):
 				continue
-			if subtitle_only and not (620 <= y_center <= 700):
+			# subtitle_only 的 620-700 硬编码仅适用于默认 bottom_only 模式；
+			# 用户显式指定 y_range 时以 y_range 为准，跳过该硬编码过滤
+			if subtitle_only and not y_range and not (620 <= y_center <= 700):
 				continue
 			lines.append({
 				"text": text.strip(),
