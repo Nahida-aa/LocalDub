@@ -107,6 +107,15 @@ export async function stageSplitAudio(ctx: TaskCtx) {
 
   // 源音频总时长, 用于上界截断
   const totalMs = probeDurationMs(sourceAudio);
+  log(`[split_audio] totalMs=${totalMs} sourceAudio=${sourceAudio} hasVocals=${hasVocals}`);
+  if (!Number.isFinite(totalMs) || totalMs <= 0) {
+    // 防静默失败: probeDurationMs 对 ffprobe 空输出返回 0, 会让下面所有段走
+    // `end <= start` 占位分支写出 44 字节空 wav, 导致 tts 全 skipped、mix_audio 再报
+    // "Invalid data" 且无法定位根因。这里显式报错, continue 重跑即恢复。
+    throw new Error(
+      `[split_audio] probeDurationMs failed for ${sourceAudio}: got ${totalMs}ms (ffprobe 无输出, 可能偶发失败, 重跑本阶段即可)`,
+    );
+  }
 
   ensureDir(vocalsSegmentDir);
   ensureDir(splitAudioDir);

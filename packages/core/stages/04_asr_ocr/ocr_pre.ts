@@ -132,6 +132,14 @@ export async function stageAsrOcrPre(ctx: TaskCtx) {
 
   if (!asrSegsRaw.length) throw new Error("No ASR segments found");
 
+  // 兼容旧格式 asr.json（segments 用 start/end 而非 start_ms/end_ms，单位均为毫秒）
+  // 旧 run 的 asr 产物字段未归一化，直接读 start_ms/end_ms 会得到 undefined 导致 0 帧。
+  for (const seg of asrSegsRaw) {
+    const legacy = seg as AsrSegment & { start?: number; end?: number };
+    if (seg.start_ms == null && legacy.start != null) seg.start_ms = legacy.start;
+    if (seg.end_ms == null && legacy.end != null) seg.end_ms = legacy.end;
+  }
+
   // Step 1: Split ASR segments by punctuation
   log(`${asrSegsRaw.length} Split ASR segments by punctuation`);
   const asrSegs = splitAsrByWords(asrSegsRaw);
