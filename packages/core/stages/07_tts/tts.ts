@@ -22,6 +22,8 @@ import { log } from "@repo/util/log";
 const MIN_REF_BYTES = 1200 * 16 * 2;
 // refAudioX2 触发阈值: 参考音短于该时长时, 拼接自身翻倍作为 TTS 参考输入。
 const MIN_REF_DURATION_MS = 2500;
+// VoxCPM 云 API 参考音频时长上限 (50s), 留 5s 余量避免边界触发服务端校验。
+const MAX_REF_DURATION_MS = 45_000;
 
 /**
  * Progress bar
@@ -59,11 +61,13 @@ export async function stageTts(ctx: TaskCtx) {
   const vocalsDir = join(taskDir, "split_audio", "vocals");
   const ttsWavDir = join(taskDir, "tts", "wavs");
   const doubledDir = join(taskDir, "tts", "ref_doubled");
+  const trimmedDir = join(taskDir, "tts", "ref_trimmed");
 
   ensureDir(ttsWavDir);
   if (ttsArgs.refAudioX2) {
     ensureDir(doubledDir);
   }
+  ensureDir(trimmedDir);
 
   const { segments } = await read_split_audio_timings(ctx);
 
@@ -210,6 +214,16 @@ export async function stageTts(ctx: TaskCtx) {
         }
         refWav = doubled;
       }
+    }
+
+    // Trim reference audio longer than MAX_REF_DURATION_MS (VoxCPM cloud 50s 上限)
+    const refMs = probeDurationMs(refWav);
+    if (refMs > MAX_REF_DURATION_MS) {
+      const trimmed = resolve(trimmedDir, `ref_${idx}_trim.wav`);
+      if (!existsSync(trimmed)) {
+        ffmpeg(["-i", refWav, "-t", String(MAX_REF_DURATION_MS / 1000), "-c", "copy", trimmed]);
+      }
+      refWav = trimmed;
     }
 
     setStage(taskDir, "tts", {

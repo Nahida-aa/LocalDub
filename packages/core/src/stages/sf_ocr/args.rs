@@ -51,6 +51,10 @@ pub struct SfOcrArgs {
     /// 只识别字幕区域 (Y轴裁剪); 默认 true
     #[serde(default = "default_true")]
     pub subtitle_only: bool,
+    /// Y 轴像素过滤范围 [y1, y2] (原图坐标), 仅保留该区间内的字幕框;
+    /// 默认不限制。指定后替代 subtitle_only 的 [0.85, 0.99] 比例硬编码过滤。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub y_range: Option<[f32; 2]>,
     /// 步骤完成后是否删除抽出的帧图片; 默认 false (保留)
     #[serde(default)]
     pub cleanup_frames: bool,
@@ -63,6 +67,7 @@ impl Default for SfOcrArgs {
             device: default_device(),
             text_confidence_threshold: default_text_confidence_threshold(),
             subtitle_only: default_true(),
+            y_range: None,
             cleanup_frames: false,
         }
     }

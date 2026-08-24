@@ -8,8 +8,11 @@ import { OcrSegmentFilterResult } from "@repo/subtitle-ocr/ocr_fix/segment_filte
 import { readJson } from "../../utils/fileOps";
 import { OcrFramesResult } from "@repo/subtitle-ocr/types";
 
+const ocrBinPath = (name: string) =>
+  join(REPO_ROOT, "target", "release", `${name}${process.platform === "win32" ? ".exe" : ""}`);
+
 export const ensureOcrBin = async () => {
-  const ocrBin = join(REPO_ROOT, "target", "release", "subtitle-ocr");
+  const ocrBin = ocrBinPath("subtitle-ocr");
   if (!existsSync(ocrBin)) {
     log(`[sf_ocr] subtitle-ocr 未构建，自动编译...`);
     const build = await $`cargo build --release -p subtitle-ocr-cli --bin subtitle-ocr`
@@ -28,6 +31,7 @@ export const cellOcr = async (
   ocrArgs: {
     text_confidence_threshold: number;
     subtitleOnly: boolean;
+    yRange?: [number, number];
   },
 ) => {
   const ocrBin = await ensureOcrBin();
@@ -39,6 +43,7 @@ export const cellOcr = async (
     "--text-confidence-threshold",
     String(ocrArgs.text_confidence_threshold),
     ...(ocrArgs.subtitleOnly ? ["--subtitle-only"] : []),
+    ...(ocrArgs.yRange ? ["--y-range", String(ocrArgs.yRange[0]), String(ocrArgs.yRange[1])] : []),
   ];
   log(`subtitle-ocr ${args.join(" ")}`);
   const proc = spawn([ocrBin, ...args], {
@@ -61,7 +66,7 @@ export const cellOcr = async (
 };
 
 export const ensureOcrPostBin = async () => {
-  const ocrPostBin = join(REPO_ROOT, "target", "release", "ocr-post");
+  const ocrPostBin = ocrBinPath("ocr-post");
   if (!existsSync(ocrPostBin)) {
     log(`ocr-post 未构建，自动编译...`);
     const build = await $`cargo build --release -p subtitle-ocr-cli --bin ocr-post`

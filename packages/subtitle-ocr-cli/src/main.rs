@@ -58,6 +58,12 @@ struct Cli {
     #[arg(long)]
     subtitle_only: bool,
 
+    /// 按像素纵向区间 [Y1, Y2] 过滤字幕框（原图坐标，如 `980 1080`）。
+    /// 指定后替代 --subtitle-only 的 [0.85, 0.99] 比例硬编码过滤（后者仅适合
+    /// 1080p 底部区域，自定义 yRange 时框会过大）。
+    #[arg(long, num_args = 2, value_names = ["Y1", "Y2"])]
+    y_range: Option<Vec<f32>>,
+
     /// 关闭重叠框 NMS 去重（cpp --no-nms）
     #[arg(long)]
     no_nms: bool,
@@ -117,9 +123,13 @@ fn main() -> Result<()> {
     let repo_root = current_exe_repo_root()?;
     let model_dir = resolve_path(&repo_root, &cli.model_dir);
 
+    // 像素纵向区间（原图坐标）。指定时关闭库内 [0.85,0.99] 比例硬编码过滤，
+    // 由本 CLI 在 OCR 结果上按区间过滤（兼容非 1080p / 自定义字幕区域）。
+    let y_range: Option<[f32; 2]> = cli.y_range.as_deref().map(|v| [v[0], v[1]]);
+
     let opts = OcrOptions {
         bottom_only: !cli.full_frame,
-        subtitle_only: cli.subtitle_only,
+        subtitle_only: cli.subtitle_only && y_range.is_none(),
         use_nms: !cli.no_nms,
         text_confidence_threshold: cli.text_confidence_threshold.unwrap_or(0.5),
         use_warp_crop: cli.warp_crop,
@@ -159,6 +169,22 @@ fn main() -> Result<()> {
         pb.inc(1);
     }
     pb.finish();
+
+    // --y-range：按像素纵向区间过滤每个帧的识别框（库内 subtitle_only 已关，
+    // 由这里精确过滤），并重新聚合文本/置信度/值域。
+    if let Some([y1, y2]) = y_range {
+        for f in &mut frame_outs {
+            let before = f.boxes.len();
+            f.boxes.retain(|b| b.y_range[1] >= y1 && b.y_range[0] <= y2);
+            if f.boxes.len() != before || f.boxes.is_empty() {
+                let agg = subtitle_ocr::aggregate_boxes(&f.boxes);
+                f.text = agg.text;
+                f.text_confidence = agg.text_confidence;
+                f.x_range = agg.x_range;
+                f.y_range = agg.y_range;
+            }
+        }
+    }
 
     // --out：额外落地 OcrFramesResult（文件名由调用方指定，如 asr_ocr_frames.json）
     if let Some(out) = &cli.out {

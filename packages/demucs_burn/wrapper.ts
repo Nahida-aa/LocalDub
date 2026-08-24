@@ -24,10 +24,15 @@ interface BurnResult {
 function findLibtorchPath(): string | null {
   const buildDir = join(RELEASE_DIR, "build");
   if (!existsSync(buildDir)) return null;
+  // torch-sys Windows 构建产物是 torch_cpu.dll（非 libtorch_cpu.dll），Linux 才是 libtorch_cpu.so
+  const libNames =
+    process.platform === "win32"
+      ? ["torch_cpu.dll", "libtorch_cpu.dll"]
+      : ["libtorch_cpu.so", "libtorch.so"];
   for (const dir of readdirSync(buildDir)) {
     if (!dir.startsWith("torch-sys-")) continue;
     const libDir = join(buildDir, dir, "out", "libtorch", "libtorch", "lib");
-    if (existsSync(join(libDir, "libtorch_cpu.so"))) return libDir;
+    if (libNames.some((n) => existsSync(join(libDir, n)))) return libDir;
   }
   return null;
 }
@@ -35,7 +40,8 @@ function findLibtorchPath(): string | null {
 export function runBurn(input: string, outDir: string, opts: BurnOptions = {}): BurnResult {
   const backend: Backend = opts.backend ?? "wgpu";
   const binName = backend === "tch" ? "demucs-burn-tch" : "demucs-burn-wgpu";
-  const binPath = join(RELEASE_DIR, binName);
+  const binSuffix = process.platform === "win32" ? ".exe" : "";
+  const binPath = join(RELEASE_DIR, binName + binSuffix);
 
   if (!existsSync(binPath)) {
     throw new Error(`Binary not found: ${binPath}.`);
@@ -53,7 +59,11 @@ export function runBurn(input: string, outDir: string, opts: BurnOptions = {}): 
     if (!libtorchLib) {
       throw new Error("libtorch not found. Build tch binary first.");
     }
-    env.LD_LIBRARY_PATH = [libtorchLib, env.LD_LIBRARY_PATH].filter(Boolean).join(":");
+    if (process.platform === "win32") {
+      env.PATH = [libtorchLib, env.PATH].filter(Boolean).join(";");
+    } else {
+      env.LD_LIBRARY_PATH = [libtorchLib, env.LD_LIBRARY_PATH].filter(Boolean).join(":");
+    }
   }
 
   const result = spawnSync(binPath, args, {

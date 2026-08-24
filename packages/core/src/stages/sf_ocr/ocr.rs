@@ -72,16 +72,19 @@ pub fn stage_sf_ocr(ctx: &TaskCtx) -> anyhow::Result<()> {
     if cfg.subtitle_only {
         cmd.arg("--subtitle-only");
     }
+    if let Some([y1, y2]) = cfg.y_range {
+        cmd.arg("--y-range").arg(y1.to_string()).arg(y2.to_string());
+    }
 
     tracing::info!(target: "sf_ocr",
-        "subtitle-ocr --dir {} --out {} --text-confidence-threshold {} {}",
+        "subtitle-ocr --dir {} --out {} --text-confidence-threshold {} {} {}",
         frame_dir.display(),
         out_file.display(),
         cfg.text_confidence_threshold,
-        if cfg.subtitle_only {
-            "--subtitle-only"
-        } else {
-            ""
+        if cfg.subtitle_only { "--subtitle-only" } else { "" },
+        match cfg.y_range {
+            Some([y1, y2]) => format!("--y-range {y1} {y2}"),
+            None => String::new(),
         }
     );
     let status = cmd

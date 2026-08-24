@@ -13,11 +13,15 @@ import { log } from "@repo/util/log";
 function findLibtorchPath(): string | null {
   const buildDir = join(REPO_ROOT, "target", "release", "build");
   if (!existsSync(buildDir)) return null;
-  const libName = process.platform === "win32" ? "libtorch_cpu.dll" : "libtorch_cpu.so";
+  // torch-sys Windows 构建产物是 torch_cpu.dll（非 libtorch_cpu.dll），Linux 才是 libtorch_cpu.so
+  const libNames =
+    process.platform === "win32"
+      ? ["torch_cpu.dll", "libtorch_cpu.dll"]
+      : ["libtorch_cpu.so", "libtorch.so"];
   for (const dir of readdirSync(buildDir)) {
     if (!dir.startsWith("torch-sys-")) continue;
     const libDir = join(buildDir, dir, "out", "libtorch", "libtorch", "lib");
-    if (existsSync(join(libDir, libName))) return libDir;
+    if (libNames.some((n) => existsSync(join(libDir, n)))) return libDir;
   }
   return null;
 }

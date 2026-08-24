@@ -54,19 +54,26 @@ mdns-sd-discovery = "0.3"
 image = "0.25"
 ndarray = "0.17"
 # ocr-segment-adjust 用 ffmpeg 读视频像素高度（Y 偏移惩罚归一化分母），版本对齐 ocr-lab。
-ffmpeg-next = "9.0.0"
+# non-exhaustive-enums：ffmpeg-sys-next 绑定 master-latest(≈4.12) 头文件含新增枚举
+# （如 AV_CODEC_ID_PCM_DVDA/ITUT_T35），需开启后让 ffmpeg-next 的 match 走通配分支。
+ffmpeg-next = { version = "9.0.0", features = ["non-exhaustive-enums"] }
 voxcpm-rs = { version = "0.5.0", default-features = false }
-# OCR 核心（从本仓库拆出的 ocr-lab）。git 源由 cargo 自动拉取/解析其内部
-# workspace 依赖与 [patch]，LocalDub 侧零镜像；版本以 ocr-lab 为准。
-subtitle-finder = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "81396471da2cf864d76b405bf7e98e4aa072cab1" }
-subtitle-ocr = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "81396471da2cf864d76b405bf7e98e4aa072cab1" }
-rapidocr-ort = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "81396471da2cf864d76b405bf7e98e4aa072cab1" }
+# OCR 核心（从本仓库拆出的 ocr-lab）。vendor 本地副本（修复 opencv 0.100 绑定
+# 不再生成 AlgorithmHint 重载导致 warp_perspective 参数不匹配），改动：
+#   packages/rapidocr-ort/src/pipeline.rs 去掉 ALGO_HINT_ACCURATE 参数。
+subtitle-finder = { path = "../vendor/ocr-lab/packages/subtitle-finder" }
+subtitle-ocr = { path = "../vendor/ocr-lab/packages/subtitle-ocr" }
+rapidocr-ort = { path = "../vendor/ocr-lab/packages/rapidocr-ort" }
 
 [profile.release]
 lto = "fat"
 codegen-units = 1
 
 [patch.crates-io]
+# ffmpeg-sys-next 默认强制 bindgen "runtime" feature，导致 clang-sys 进入 runtime 模式，
+# 与 opencv 绑定生成器的静态链接冲突（"libclang not loaded on this thread"）。
+# vendor 后去掉 runtime，改用静态链接 libclang.lib（LLVM 官方预编译包提供）。
+ffmpeg-sys-next = { path = "vendor/ffmpeg-sys-next" }
 voxcpm-rs = { path = "submodule/voxcpm-rs" }
 burn-cubecl = { path = "submodule/voxcpm-rs/vendor/patched/burn-cubecl" }
 cubecl-spirv = { path = "submodule/voxcpm-rs/vendor/patched/cubecl-spirv" }

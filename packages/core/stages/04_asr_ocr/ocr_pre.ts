@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, rmSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { readJson } from "@repo/core/utils/fileOps";
 import { writeJson, ensureDir } from "@repo/util/file_op";
@@ -186,6 +186,9 @@ export async function stageAsrOcrPre(ctx: TaskCtx) {
   // Step 3: Extract frames
   const frameDir = join(taskDir, "asr_ocr_pre", "frames");
   ensureDir(frameDir);
+  // 清理旧产物：asr_ocr_pre 每次重跑都要干净帧目录，
+  // 否则旧命名（如 frame_0001090.jpg）会污染 Rust OCR 的 --dir 批量模式（只认 ms/ms_ms 命名）。
+  for (const f of readdirSync(frameDir)) rmSync(join(frameDir, f), { force: true });
 
   const extractCount = extract_frames(sortedTs, videoPath, frameDir);
 

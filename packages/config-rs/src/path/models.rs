@@ -1,5 +1,5 @@
 use crate::root::repo_root;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// whisper.cpp submodule 根目录
 fn whisper_cpp_dir() -> PathBuf {
@@ -43,8 +43,19 @@ pub fn youtube_cookie_path() -> PathBuf {
     cookie_dir().join("youtube.txt")
 }
 
+/// 模型缓存根目录 (镜像 TS `MODEL_CACHE_DIR`: 相对路径相对 repo_root 解析, fallback `data/models`)。
 pub fn model_cache_dir() -> PathBuf {
-    data_dir().join("models")
+    match std::env::var("MODEL_CACHE_DIR") {
+        Ok(v) if !v.is_empty() => {
+            let p = Path::new(v.trim());
+            if p.is_relative() {
+                repo_root().join(p)
+            } else {
+                p.to_path_buf()
+            }
+        }
+        _ => data_dir().join("models"),
+    }
 }
 
 pub fn demucs_model_dir() -> PathBuf {

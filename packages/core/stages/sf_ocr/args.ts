@@ -17,6 +17,12 @@ export const SfOcrArgsSchema = z
       ),
     text_confidence_threshold: z.number().default(0.45).describe("OCR 识别置信度阈值, 默认 0.45"),
     subtitleOnly: z.boolean().default(true).describe("只识别字幕区域 (Y轴裁剪); 默认 true"),
+    yRange: z
+      .tuple([z.number(), z.number()])
+      .optional()
+      .describe(
+        "Y 轴像素过滤范围 [y1, y2] (原图坐标), 仅保留该区间内的字幕框; 默认不限制。指定后替代 subtitleOnly 的 [0.85, 0.99] 比例硬编码过滤",
+      ),
     cleanupFrames: z
       .boolean()
       .default(false)
