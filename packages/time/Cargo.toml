@@ -8,7 +8,7 @@ serde = { workspace = true }
 specta = { workspace = true }
 specta-typescript.workspace = true
 num-traits = "0.2"
-bridge = { path = "../bridge" }
+bridge.workspace = true
 wasm-bindgen = { version = "0.2", optional = true }
 tsify-next = { version = "0.5", features = ["wasm-bindgen"], optional = true }
 

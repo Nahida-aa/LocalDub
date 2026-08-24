@@ -1,0 +1,55 @@
+# OCR 基准测试常用命令
+#
+# 前提：packages/subtitle-ocr/ort-cpp/build/subtitle_ocr_ort_cpp 已构建
+#       (just build)，rapidocr 模型在 data/models/rapidocr，参考视频在
+#       packages/benchmark/ref/video_source.mp4。
+#
+# 引擎可选值: cpp | cpp-opencv | python | node | rust | oar
+# 生产配置   : fps=2, subtitle-only, text_score=0.45
+
+set shell := ["bash", "-c"]
+
+# 列出所有可用命令
+default:
+    @just --list
+
+# 构建 C++ ORT (OpenCV) 二进制
+build:
+    cmake --build ../../../subtitle-ocr/ort-cpp/build --parallel
+
+# 运行 ocr.test.ts（只测 C++ 二进制）
+test:
+    bun test ../../../subtitle-ocr/ocr.test.ts
+
+# 跑生产配置 fps2-so-ts0.45。(cpp-opencv 是 cpp 的别名；批量与否由 --dir 控制)
+#   mode=batch = 传 --dir 单次批量（快，~2x）；mode=spawn = 逐帧子进程（隔离性好，慢）
+#   just prod            # batch
+#   just prod spawn
+prod mode="batch":
+    #!/bin/bash
+    dir_flag=""
+    [ "{{mode}}" == "spawn" ] || dir_flag="--dir"
+    bun run compute/benchmark-ocr-video.ts --engine cpp --only ocr-cpp-fps2-so-ts0.45 $dir_flag
+
+# 跑单个引擎的完整默认参数矩阵 (fps0.5/1/2 × ts0.3~0.5 × so on/off)
+sweep engine="cpp-opencv":
+    bun run compute/benchmark-ocr-video.ts --engine {{engine}}
+
+# 生产配置重复 N 次（测 ORT 多线程 run-to-run 稳定性）
+#   just prod-repeat 5
+prod-repeat n="3" engine="cpp-opencv":
+    bun run compute/benchmark-ocr-video.ts --engine {{engine}} --only ocr-{{engine}}-fps2-so-ts0.45 --runs {{n}}
+
+# C++ 独立 fps 基准（2fps, so, ts0.45，逐帧 spawn）
+cpp-fps fps="2" ts="0.45":
+    bun run compute/benchmark-cpp-fps.ts
+
+# ASR-guided OCR 基准 (mid1fps)
+#   ASR_SOURCE=ggml-s1-vocals ASR_PARAM=baseline just asr-guided --label my-label
+asr-guided args:
+    bun run compute/benchmark-ocr-asr-guided.ts --text-score 0.45 --subtitle-only {{args}}
+
+# 评估某次结果 (eval-ocr.ts, --ms)
+#   just eval <ocr.json> <label>
+eval hyp label:
+    bun run ../../ref/compute/eval-ocr.ts {{hyp}} --label {{label}} --ms

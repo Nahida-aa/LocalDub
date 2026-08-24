@@ -31,3 +31,20 @@ pub fn workfolder() -> PathBuf {
 pub fn model_cache_dir() -> PathBuf {
     resolve_path(&var_or("MODEL_CACHE_DIR", "data/models"))
 }
+
+pub fn openai_base_url() -> String {
+    var_or("OPENAI_BASE_URL", "http://localhost:11434/v1")
+}
+
+pub fn openai_model() -> String {
+    var_or("OPENAI_MODEL", "gemma4:31b-cloud")
+}
+
+pub fn openai_api_key() -> Option<String> {
+    var("OPENAI_API_KEY").filter(|v| !v.is_empty())
+}
+
+/// yt-dlp 代理端口 (镜像 TS `YTDLP_PROXY_PORT`)。未配置或为空返回 None。
+pub fn proxy_port() -> Option<String> {
+    var("YTDLP_PROXY_PORT").filter(|v| !v.is_empty())
+}

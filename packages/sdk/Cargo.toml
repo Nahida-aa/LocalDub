@@ -1,0 +1,11 @@
+[package]
+name = "sdk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+config-rs.workspace = true
+server.workspace = true
+fnrpc.workspace = true

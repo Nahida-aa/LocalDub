@@ -3,7 +3,7 @@ import { useViewingTab } from "./TaskControlPanel/taskControlPanelStore";
 import {
   use_asr_data,
   use_asr_ocr_fix_llm_data,
-  use_merge_audio_timings_data,
+  use_mix_audio_timings_data,
   use_split_audio_data,
   use_split_audio_timings_data,
   use_task_ctx,
@@ -31,8 +31,8 @@ export const use_track = (): (() => Track[]) => {
   const transSegments = use_translate_data({
     enabled: () => !!transLang() && stage_map().translate?.status === "success",
   });
-  const merge_audio_segments = use_merge_audio_timings_data({
-    enabled: () => stage_map().merge_audio?.status === "success",
+  const mix_audio_segments = use_mix_audio_timings_data({
+    enabled: () => stage_map().mix_audio?.status === "success",
   });
   const split_audio = use_split_audio_data({
     enabled: () => stage_map().split_audio?.status === "success",
@@ -43,12 +43,12 @@ export const use_track = (): (() => Track[]) => {
 
   return (): Track[] => {
     const result: Track[] = [];
-    const merge_audio = merge_audio_segments();
-    if (merge_audio.length)
+    const mix_audio = mix_audio_segments();
+    if (mix_audio.length)
       result.push({
-        id: "merge_audio",
-        label: "merge_audio/timings.json",
-        segments: merge_audio,
+        id: "mix_audio",
+        label: "mix_audio/timings.json",
+        segments: mix_audio,
         color: "#3b82f6",
       });
     const tts = ttsSegments();

@@ -1,0 +1,48 @@
+# demucs-burn：Thin Rust binary wrapping demucs-core（burn 0.20）。
+set unstable
+set lists
+# 用法（在 packages/demucs_burn/ 下）：
+#   just                       # 默认 = 显示任务列表
+#   just build                 # 编译指定 backend（默认 wgpu）
+#   just build-all             # 编译全部 backend 二进制（release）
+#   just run <in.wav> <out>    # 分离音频（默认 htdemucs_ft + wgpu）
+#   just bench-load            # 模型加载基准（打印 load 耗时）
+#   just bench <in.wav> <out>  # 推理基准（--benchmark-rounds N 可传）
+#
+# backend 与 feature/bin 对应（Cargo.toml）：
+#   wgpu -> demucs-burn-wgpu (default)   tch -> demucs-burn-tch
+#   cpu  -> demucs-burn-cpu              rocm -> demucs-burn-rocm
+#   cuda -> demucs-burn-cuda
+
+# ---- 默认任务（`just` 无参即显示列表） ----
+default:
+    @just --list
+
+# ---- 编译（release）全部 backend 二进制 ----
+build-all:
+    cargo build -p demucs-burn --release --bins
+
+# ---- 编译（debug/release 二选一，指定 backend）----
+# 用法：just build [backend] [release]
+build backend="wgpu" release="":
+    cargo build -p demucs-burn {{ if release != "" { "--release" } else { "" } }} --bin demucs-burn-{{backend}} --no-default-features --features {{backend}}
+
+# ---- 单测 ----
+test:
+    cargo test -p demucs-burn
+
+# ---- 分离音频（位置传输入/输出，默认 wgpu + htdemucs_ft）----
+# 用法：just run <input.wav> <outDir> [backend] [model]
+run input="workfolder/sep/input.wav" out="workfolder/sep/out" backend="wgpu" model="htdemucs_ft":
+    cargo run -p demucs-burn --release --bin demucs-burn-{{backend}} --no-default-features --features {{backend}} -- --model {{model}} {{input}} {{out}}
+
+# ---- 模型加载基准（只加载 + 打印耗时，不做推理）----
+# 用法：just bench-load [backend] [model]
+bench-load backend="wgpu" model="htdemucs_ft":
+    cargo run -p demucs-burn --release --bin demucs-burn-{{backend}} --no-default-features --features {{backend}} -- --benchmark-load --model {{model}}
+
+# ---- 推理基准（--benchmark-rounds N 进程内跑 N 次，验证无残余 JIT）----
+# 用法：just bench <input.wav> <outDir> [backend] [model] [rounds] [warmup]
+# 注意：warmup 传 --warmup 即开启；--tasks-max 默认 128。
+bench input="workfolder/sep/input.wav" out="workfolder/sep/out" backend="wgpu" model="htdemucs_ft" rounds="1" warmup="":
+    cargo run -p demucs-burn --release --bin demucs-burn-{{backend}} --no-default-features --features {{backend}} -- --model {{model}} --benchmark-rounds {{rounds}} {{ if warmup != "" { "--warmup" } else { "" } }} {{input}} {{out}}

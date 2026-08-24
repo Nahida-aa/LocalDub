@@ -1,6 +1,6 @@
 import type { Track, TrackSegment } from "../consts";
 
-/** 各轨道组件公共 props（数据一律由父层下发，组件内不读 shared query） */
+/** 各轨道组件公共 props（数据由轨道组件内部自取，父层只下发 id/label/color 描述符） */
 export interface BaseTrackProps {
   track: Track;
   totalPx: number;
@@ -8,7 +8,6 @@ export interface BaseTrackProps {
   onSeek: (ms: number) => void;
   color: string;
   taskDir: string;
-  filePath: string;
 }
 
 export function deleteAt(segments: TrackSegment[], index: number): TrackSegment[] {

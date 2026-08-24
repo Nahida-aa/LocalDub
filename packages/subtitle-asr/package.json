@@ -1,0 +1,13 @@
+{
+  "name": "@repo/subtitle-asr",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./*.ts",
+    "./*.ts": "./*.ts"
+  },
+  "dependencies": {
+    "@repo/subtitle": "workspace:*",
+    "zod": "^4.4.3"
+  }
+}

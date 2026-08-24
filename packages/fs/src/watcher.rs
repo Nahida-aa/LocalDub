@@ -6,7 +6,7 @@
 //! - A process-global [`GlobalWatcher`] owns one native (`notify::RecommendedWatcher`)
 //!   and one poll (`notify::PollWatcher`) backend, plus a dedicated dispatch thread.
 //! - All watches are recursive, so directories created *after* the watch starts are
-//!   still observed (a pipeline's `merge_video/` appearing mid-run and the files
+//!   still observed (a pipeline's `mix_video/` appearing mid-run and the files
 //!   inside it). `watch(path)` returns an [`FsWatch`] handle whose `Drop` unwatches.
 //! - `watch_stream(path)` yields a `Stream<PathEvent>`. Events are coalesced by path
 //!   (like Zed's `pending_path_events`): many changes to the same file collapse into
@@ -298,7 +298,7 @@ impl GlobalWatcher {
             // Use Recursive on every platform and backend. notify's `NonRecursive`
             // (the old Linux default) does NOT auto-track subdirectories created
             // after the watch is installed, so dynamically-created dirs (e.g. a
-            // pipeline's `merge_video/` appearing mid-run) and their files would
+            // pipeline's `mix_video/` appearing mid-run) and their files would
             // never surface events. Recursive keeps those in view. Poll already
             // used Recursive; this just unifies Native with it.
             let recursive = RecursiveMode::Recursive;

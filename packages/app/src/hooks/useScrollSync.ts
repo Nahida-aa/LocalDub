@@ -9,19 +9,25 @@ export function useScrollSync(
     const tracks = getTracks();
     const ruler = getRuler();
     const labels = getLabels();
+    if (!tracks) return;
 
-    function sync() {
-      if (!tracks) return;
-      if (ruler) ruler.scrollLeft = tracks.scrollLeft;
-      if (labels) labels.scrollTop = tracks.scrollTop;
+    // 轨道滚动 → 带动 ruler(横向) 与 标签列(纵向)
+    function syncFromTracks() {
+      if (ruler) ruler.scrollLeft = tracks!.scrollLeft;
+      if (labels) labels.scrollTop = tracks!.scrollTop;
     }
 
-    if (tracks) {
-      tracks.addEventListener("scroll", sync, { passive: true });
+    // 标签列滚动 → 反向带动轨道(纵向)，双向联动
+    function syncFromLabels() {
+      if (labels) tracks!.scrollTop = labels.scrollTop;
     }
+
+    tracks.addEventListener("scroll", syncFromTracks, { passive: true });
+    labels?.addEventListener("scroll", syncFromLabels, { passive: true });
 
     onCleanup(() => {
-      if (tracks) tracks.removeEventListener("scroll", sync);
+      tracks.removeEventListener("scroll", syncFromTracks);
+      labels?.removeEventListener("scroll", syncFromLabels);
     });
   });
 }

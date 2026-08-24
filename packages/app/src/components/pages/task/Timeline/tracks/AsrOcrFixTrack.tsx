@@ -1,4 +1,4 @@
-import { createSignal, onMount } from "solid-js";
+import { createSignal, Show } from "solid-js";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -9,33 +9,36 @@ import {
 import { openModal, closeModal } from "@repo/ui-solid/custom/modal/renderer";
 import type { Track, TrackSegment } from "../consts";
 import { client } from "#/integrations/fnrpc/client.ts";
-import type { AsrOcrBaseSegment, AsrOcrFile } from "@repo/core/ml/subtitle_ocr/types";
-import { useMutation, useQuery } from "@tanstack/solid-query";
+import { useMutation } from "@tanstack/solid-query";
 import { useViewingTab } from "../../TaskControlPanel/taskControlPanelStore";
 import { STAGE_TRACKS } from "./const";
+import { AsrOcrFile, OcrSegment } from "@repo/subtitle-ocr/types";
+import { OcrSegmentFilterResult } from "@repo/subtitle-ocr/ocr_fix/segment_filter";
+import { useTrackData } from "./useTrackData";
+import type { BaseTrackProps } from "./shared";
 
-interface Props {
-  track: Track;
-  totalPx: number;
-  pxPerMs: number;
-  onSeek: (ms: number) => void;
-  color: string;
-  taskDir: string;
-  filePath: string;
-}
+type Props = BaseTrackProps;
 
-function serializeSegments(segments: TrackSegment[]): string {
-  const segs: AsrOcrBaseSegment[] = segments.map((s) => {
-    const raw = (s.raw as AsrOcrBaseSegment) || {};
+function serializeSegments(segments: TrackSegment[], trackId: string): string {
+  const segs: OcrSegment[] = segments.map((s) => {
+    const raw = (s.raw as OcrSegment) || {};
     return {
       text: s.text,
-      start: s.startMs,
-      end: s.endMs,
-      box_y: raw.box_y ?? [0, 0],
-      confidence: raw.confidence ?? 1,
+      start_ms: s.startMs,
+      end_ms: s.endMs,
+      y_range: raw.y_range ?? [0, 0],
+      text_confidence: raw.text_confidence ?? 1,
     };
   });
-  const out: AsrOcrFile = { result: { segments: segs } };
+  const merged = segs
+    .map((s) => s.text)
+    .filter(Boolean)
+    .join(" ");
+  // sf_ocr_fix 落盘 segment_filter_llm_fix/segment_filter 形状 (OcrSegmentFilterResult)，其余走 AsrOcrFile
+  const out =
+    trackId === "sf_ocr_fix"
+      ? { result: { text: merged, segments: segs } }
+      : { result: { segments: segs } };
   return JSON.stringify(out, null, 2);
 }
 
@@ -80,12 +83,51 @@ function deleteAt(segments: TrackSegment[], index: number): TrackSegment[] {
 }
 
 export function AsrOcrFixTrack(props: Props) {
+  const { taskDir, pxPerMs, onSeek, color } = props;
   const track = () => props.track;
-  const pxPerMs = () => props.pxPerMs;
-  const color = () => props.color;
-  const onSeek = props.onSeek;
+  const isSf = () => track().id === "sf_ocr_fix";
   const viewingTab = useViewingTab();
-  const taskCtxQ = useQuery(() => client.get_task_ctx.queryOptions(props.taskDir));
+
+  const primaryPath = () =>
+    isSf()
+      ? `${taskDir}/sf_ocr_fix/segment_filter_llm_fix.json`
+      : `${taskDir}/asr_ocr_fix/asr_ocr_fused_llm_fix.json`;
+  const fallbackPath = () => `${taskDir}/sf_ocr_fix/segment_filter.json`;
+
+  // sf_ocr_fix：优先 LLM 修正产物，读取失败则回落到段过滤产物
+  const { q, fb, active, segments } = useTrackData({
+    taskDir,
+    trackId: track().id,
+    path: primaryPath,
+    fallbackPath: () => (isSf() ? fallbackPath() : undefined),
+    parse: (text) => {
+      if (isSf()) {
+        const data = JSON.parse(text) as OcrSegmentFilterResult;
+        return (data.result?.segments ?? []).map((item, i: number) => ({
+          index: i,
+          text: item.text,
+          startMs: item.start_ms,
+          endMs: item.end_ms,
+          raw: item,
+        }));
+      }
+      const data = JSON.parse(text) as AsrOcrFile;
+      return data.result.segments.map((item, i: number) => ({
+        index: i,
+        text: item.text,
+        startMs: item.start_ms,
+        endMs: item.end_ms,
+        raw: item,
+      }));
+    },
+    label: () =>
+      isSf()
+        ? q.isSuccess
+          ? "sf_ocr_fix/segment_filter_llm_fix.json"
+          : "sf_ocr_fix/segment_filter.json"
+        : "asr_ocr_fix/asr_ocr_fused_llm_fix.json",
+  });
+  const filePath = () => (active() === fb ? fallbackPath() : primaryPath());
 
   // ---- 联动删除（校对 + 译文同步删同索引）：占位，待服务端 RPC，见 ROADMAP.md ----
   const tabTracks = () => {
@@ -108,19 +150,19 @@ export function AsrOcrFixTrack(props: Props) {
     }),
   );
   const handleInsertBefore = (segIndex: number) => {
-    const newSegments = insertAt(track().segments, segIndex, false);
-    mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+    const newSegments = insertAt(segments(), segIndex, false);
+    mutation.mutate([filePath(), serializeSegments(newSegments, track().id)]);
   };
 
   const handleInsertAfter = (segIndex: number) => {
-    const newSegments = insertAt(track().segments, segIndex, true);
-    mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+    const newSegments = insertAt(segments(), segIndex, true);
+    mutation.mutate([filePath(), serializeSegments(newSegments, track().id)]);
   };
 
   const handleEdit = (segIndex: number) => {
-    const seg = track().segments[segIndex];
+    const seg = segments()[segIndex];
     if (!seg) return;
-    const raw = seg.raw as AsrOcrBaseSegment | undefined;
+    const raw = seg.raw as OcrSegment | undefined;
 
     openModal(
       () => {
@@ -129,10 +171,10 @@ export function AsrOcrFixTrack(props: Props) {
         const [endMs, setEndMs] = createSignal(seg.endMs);
 
         const onSave = () => {
-          const newSegments = track().segments.map((s, i) =>
+          const newSegments = segments().map((s, i) =>
             i === segIndex ? { ...s, text: text(), startMs: startMs(), endMs: endMs() } : s,
           );
-          mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+          mutation.mutate([filePath(), serializeSegments(newSegments, track().id)]);
           closeModal();
         };
 
@@ -168,9 +210,9 @@ export function AsrOcrFixTrack(props: Props) {
             </div>
             {raw && (
               <div class="flex gap-4 text-xs text-muted-foreground">
-                <span>置信度: {raw.confidence?.toFixed(3)}</span>
+                <span>置信度: {raw.text_confidence?.toFixed(3)}</span>
                 <span>
-                  box_y: [{raw.box_y?.[0]}, {raw.box_y?.[1]}]
+                  y_range: [{raw.y_range?.[0]}, {raw.y_range?.[1]}]
                 </span>
               </div>
             )}
@@ -196,56 +238,57 @@ export function AsrOcrFixTrack(props: Props) {
   };
 
   const handleDelete = (segIndex: number) => {
-    const newSegments = deleteAt(track().segments, segIndex);
-    mutation.mutate([props.filePath, serializeSegments(newSegments)]);
+    const newSegments = deleteAt(segments(), segIndex);
+    mutation.mutate([filePath(), serializeSegments(newSegments, track().id)]);
   };
-  onMount(() => {
-    console.log("AsrOcrFixTrack.onMount");
-  });
 
   return (
-    <div class="h-16 border-b relative" data-vtab={viewingTab()}>
-      {track().segments.map((seg) => (
-        <ContextMenu>
-          <ContextMenuTrigger as="div" class="contents">
-            <div
-              class="absolute top-1 h-12 rounded cursor-pointer truncate text-xs px-2 border flex items-center hover:opacity-80"
-              style={{
-                left: `${seg.startMs * pxPerMs()}px`,
-                width: `${Math.max((seg.endMs - seg.startMs) * pxPerMs(), 4)}px`,
-                background: `${color()}33`,
-                "border-color": `${color()}55`,
-              }}
-              onClick={() => onSeek(seg.startMs)}
-              title={seg.text}
-            >
-              {seg.text}
-            </div>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem onSelect={() => handleInsertBefore(seg.index)}>
-              向前插入
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => handleInsertAfter(seg.index)}>
-              向后插入
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => handleEdit(seg.index)}>编辑</ContextMenuItem>
-            <ContextMenuItem onSelect={() => onSeek(seg.endMs)}>跳转到结尾</ContextMenuItem>
-            <ContextMenuSeparator />
-            {showLinkedDelete() && (
-              <ContextMenuItem
-                onSelect={() => console.log("[LINKED-DELETE] 开发中，待服务端 RPC，见 ROADMAP.md")}
-                class="text-destructive"
+    <Show when={segments().length > 0}>
+      <div class="h-16 border-b relative" data-vtab={viewingTab()}>
+        {segments().map((seg) => (
+          <ContextMenu>
+            <ContextMenuTrigger as="div" class="contents">
+              <div
+                class="absolute top-1 h-12 rounded cursor-pointer truncate text-xs px-2 border flex items-center hover:opacity-80"
+                style={{
+                  left: `${seg.startMs * pxPerMs}px`,
+                  width: `${Math.max((seg.endMs - seg.startMs) * pxPerMs, 4)}px`,
+                  background: `${color}33`,
+                  "border-color": `${color}55`,
+                }}
+                onClick={() => onSeek(seg.startMs)}
+                title={seg.text}
               >
-                联动删除(校对+译文) · 开发中
+                {seg.text}
+              </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem onSelect={() => handleInsertBefore(seg.index)}>
+                向前插入
               </ContextMenuItem>
-            )}
-            <ContextMenuItem onSelect={() => handleDelete(seg.index)} class="text-destructive">
-              删除
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-      ))}
-    </div>
+              <ContextMenuItem onSelect={() => handleInsertAfter(seg.index)}>
+                向后插入
+              </ContextMenuItem>
+              <ContextMenuItem onSelect={() => handleEdit(seg.index)}>编辑</ContextMenuItem>
+              <ContextMenuItem onSelect={() => onSeek(seg.endMs)}>跳转到结尾</ContextMenuItem>
+              <ContextMenuSeparator />
+              {showLinkedDelete() && (
+                <ContextMenuItem
+                  onSelect={() =>
+                    console.log("[LINKED-DELETE] 开发中，待服务端 RPC，见 ROADMAP.md")
+                  }
+                  class="text-destructive"
+                >
+                  联动删除(校对+译文) · 开发中
+                </ContextMenuItem>
+              )}
+              <ContextMenuItem onSelect={() => handleDelete(seg.index)} class="text-destructive">
+                删除
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        ))}
+      </div>
+    </Show>
   );
 }

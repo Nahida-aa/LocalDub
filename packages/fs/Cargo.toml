@@ -5,13 +5,13 @@ edition = "2021"
 description = "LocalDub file watching crate (notify-based, modeled on Zed's fs_watcher)"
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
+tokio.workspace = true
 futures = { version = "0.3", default-features = false, features = ["std"] }
 async-channel.workspace = true
-notify = { workspace = true }
+notify.workspace = true
 tracing.workspace = true
-serde = { version = "1", features = ["derive"] }
-specta = { workspace = true }
+serde.workspace = true
+specta.workspace = true
 
 [dev-dependencies]
 tempfile = "3"

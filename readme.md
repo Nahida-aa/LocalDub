@@ -1,3 +1,4 @@
 # LocalDub
 
-> ⚠️ `packages/web/` is **deprecated** — replaced by `packages/app/`. No longer maintained.
+> 警告
+> scripts/setup/setup.ts 已经废弃

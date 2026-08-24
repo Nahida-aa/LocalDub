@@ -3,20 +3,12 @@ name = "app"
 version = "0.1.0"
 description = "LocalDub Desktop Application"
 authors = ["Nahida-aa"]
-edition = "2021"
+edition = "2024"
 default-run = "app"
 
 [lib]
 name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
-
-# [[bin]]
-# name = "gen-types"
-# path = "src/bin/gen_types.rs"
-
-[[bin]]
-name = "gen-fnrpc"
-path = "src/bin/gen_fnrpc.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -24,27 +16,13 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-core-rs = { path = "../../core-rs" }
-config-rs = { path = "../../config-rs" }
-device-rs = { path = "../../device-rs" }
-fs = { path = "../../fs" }
+tauri-plugin-dialog = "2"
+serde.workspace = true
+serde_json.workspace = true
 fnrpc.workspace = true
-fnrpc-axum.workspace = true
 fnrpc-tauri.workspace = true
-# rspc = { version = "0.4", features = ["typescript"] }
-# rspc-axum = "0.3"
-# tauri-plugin-rspc = "0.2"
+server.workspace = true
+ld-core.workspace = true
 axum = "0.8"
-tower-http = { version = "0.5", features = ["cors", "fs"] }
-async-trait = "0.1"
-futures = { version = "0.3", default-features = false, features = ["std"] }
-specta.workspace = true
-tokio = { version = "1", features = ["full"] }
-rfd = "0.15"
-tower = "0.4"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-reqwest = "0.12"
-base64 = "0.22"
+tracing.workspace = true
+tracing-subscriber.workspace = true

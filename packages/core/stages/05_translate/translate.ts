@@ -1,4 +1,4 @@
-import { readJson, writeJson, ensureDir } from "@repo/core/utils/fileOps";
+import { readJson } from "@repo/core/utils/fileOps";
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { env } from "@repo/config/env";
@@ -7,41 +7,41 @@ import {
   emitLog,
   LANG_NAMES,
   nowISO,
-  readTaskLanguages,
-  SrtJson,
   subtitleFilePath,
   translationFilePath,
 } from "@repo/core/stages/utils/utils.ts";
 import { TaskCtx, setCtx, setStage } from "@repo/core/context/context.ts";
-import { buildPreprocessPrompt, buildTranslateSystem, resolveTargetLanguage } from "./utils";
+import { buildPreprocessPrompt, buildTranslateSystem, resolveLanguage } from "./utils";
 import { chat_completions } from "../../ml/llm/openai";
 import { to } from "@repo/shared/lib/utils/try";
-import { TranslateFile } from "./type";
+import { TranslateResult, TranslateSegment } from "./out";
+import { writeJson, ensureDir } from "@repo/util/file_op";
+import { SrtJson } from "@repo/subtitle/types";
+import { log } from "@repo/util/log";
 
 export async function stageTranslate(ctx: TaskCtx) {
   const taskId = ctx.task.id;
   const taskDir = ctx.task.task_dir;
-  const { asrLanguage: srcLangCode } = readTaskLanguages(ctx);
 
-  const dstLangCode = resolveTargetLanguage(ctx);
-  const translationFile = translationFilePath(taskDir, dstLangCode);
-  const srcLangName = LANG_NAMES[srcLangCode] || srcLangCode;
-  const dstLangName = LANG_NAMES[dstLangCode] || dstLangCode;
+  const { srcLang, targetLang } = resolveLanguage(ctx);
+  const translationFile = translationFilePath(taskDir, targetLang);
+  const srcLangName = LANG_NAMES[srcLang] || srcLang;
+  const dstLangName = LANG_NAMES[targetLang] || targetLang;
 
   const srtFile = subtitleFilePath(ctx);
-  const data = await readJson<SrtJson>(srtFile, ctx);
+  const data = await readJson<SrtJson>(srtFile);
   const segments = data.result.segments;
-  const texts = segments.map((u: any) => (u.text || "").trim());
+  const texts = segments.map((u) => (u.text || "").trim());
   const fullText = (data.result.text || "").trim() || texts.join(" ");
 
   const ytdlpPath = join(taskDir, "download", "ytdlp_info.json");
   const hasMeta = existsSync(ytdlpPath);
   let meta: any = {};
   if (hasMeta) {
-    meta = readJson(ytdlpPath, ctx);
+    meta = readJson(ytdlpPath);
   }
 
-  const transArgs = readInputArgs().stages?.translate;
+  const transArgs = readInputArgs().stages.translate;
   const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
 
@@ -108,7 +108,7 @@ export async function stageTranslate(ctx: TaskCtx) {
     correctionsStr,
   });
 
-  const BATCH_SIZE = 20;
+  const BATCH_SIZE = 50;
   const dsts: string[] = [];
 
   async function translateBatch(batchTexts: string[], attempt = 0): Promise<string[]> {
@@ -125,14 +125,14 @@ export async function stageTranslate(ctx: TaskCtx) {
       const results = arr.slice(0, batchTexts.length).map((d: any, i: number) => {
         const dst = String(d ?? "").trim();
         const chineseRatio = (dst.match(/[\u4e00-\u9fff]/g) || []).length / (dst.length || 1);
-        if (dstLangCode !== "zh" && chineseRatio > 0.3) {
-          const msg = `[Translate] Item ${i + 1} still Chinese (ratio=${chineseRatio.toFixed(2)}, expected ${dstLangCode})`;
-          emitLog(taskDir, `[ERROR] ${msg}`);
+        if (targetLang !== "zh" && chineseRatio > 0.3) {
+          const msg = `[Translate] Item ${i + 1} still Chinese (ratio=${chineseRatio.toFixed(2)}, expected ${targetLang})`;
+          log(`[ERROR] ${msg}`);
           throw new Error(msg);
         }
         if (!dst) {
           const msg = `[Translate] Item ${i + 1} got empty dst`;
-          emitLog(taskDir, `[ERROR] ${msg}`);
+          log(`[ERROR] ${msg}`);
           throw new Error(msg);
         }
         return dst;
@@ -153,8 +153,8 @@ export async function stageTranslate(ctx: TaskCtx) {
       return results;
     } catch (e: any) {
       if (attempt < 2) return translateBatch(batchTexts, attempt + 1);
-      const msg = `[Translate] batch failed after 3 attempts: ${e.message || e} (expected ${dstLangCode})`;
-      emitLog(taskDir, `[ERROR] ${msg}`);
+      const msg = `[Translate] batch failed after 3 attempts: ${e.message || e} (expected ${targetLang})`;
+      log(`[ERROR] ${msg}`);
       throw new Error(msg);
     }
   }
@@ -168,19 +168,25 @@ export async function stageTranslate(ctx: TaskCtx) {
     });
   }
 
-  const translation: TranslateFile["translation"] = segments.map((u: any, idx: number) => ({
-    src: texts[idx],
-    dst: dsts[idx]?.replace(/——/g, "，") || "",
-    src_lang: srcLangCode,
-    dst_lang: dstLangCode,
-    start: u.start,
-    end: u.end,
-    speaker: "1",
+  const translation: TranslateSegment[] = segments.map((u, idx) => ({
+    text: texts[idx],
+    dst: dsts[idx]?.replace(/——/g, "，") ?? "",
+    src_lang: srcLang,
+    dst_lang: targetLang,
+    start_ms: u.start_ms,
+    end_ms: u.end_ms,
   }));
+  const translateResult: TranslateResult = {
+    segments: translation,
+    meta: {
+      src_lang: srcLang,
+      target_lang: targetLang,
+    },
+  };
 
   const translateDir = join(taskDir, "translate");
-  ensureDir(translateDir, ctx);
-  writeJson(translationFile, { translation }, ctx);
+  ensureDir(translateDir);
+  writeJson(translationFile, translateResult);
 
   await setStage(taskDir, "translate", {
     status: "success",

@@ -13,12 +13,14 @@ import {
   readCtx,
   Task,
 } from "@repo/core/context/context.ts";
-import { SubtitleSource, TargetLang } from "@repo/core/cmd/tasks/input";
-import { readJson } from "../../utils/fileOps";
-import { TranslateFile } from "../05_translate/type";
-import { SplitAudioFile, SplitAudioTimingFile } from "../06_split_audio/types";
+import { SubtitleSource } from "../../tasks/args";
+import { TargetLang } from "../../const/lang";
+import { getLastSegment, readJson } from "../../utils/fileOps";
+import { setLogContext, setCurrentStage, getLogContext } from "@repo/util/log";
+import { TranslateResult } from "../05_translate/out";
+import { SplitAudioResult, SplitAudioTimingResult } from "../06_split_audio/out";
 import { TaskStage } from "../../context/types";
-import { TimingsFile } from "../merge_audio/types";
+import { TimingsFile } from "../mix_audio/types";
 
 /** Get the downloaded video source path for a session. */
 export function video_source_path(ctx: TaskCtx): string {
@@ -182,17 +184,11 @@ export const LANG_NAMES: Record<string, string> = {
   bn: "Bengali",
 };
 
-export function readTaskLanguages(ctx: TaskCtx): {
-  asrLanguage: string;
-  targetLanguage: TargetLang;
-} {
-  if (ctx) {
-    return {
-      asrLanguage: ctx.asr_language || "en",
-      targetLanguage: ctx.target_language || "zh",
-    };
-  }
-  return { asrLanguage: "en", targetLanguage: "zh" };
+export function readTaskLanguages(ctx: TaskCtx) {
+  return {
+    asrLanguage: ctx.asr_language,
+    targetLanguage: ctx.target_language ?? "zh",
+  };
 }
 
 export function translationFilePath(taskDir: string, lang: string): string {
@@ -204,28 +200,20 @@ export function readTranslationResult(ctx: TaskCtx) {
   }
   const filePath = translationFilePath(ctx.task.task_dir, ctx.target_language);
   if (!existsSync(filePath)) throw new Error(`translation file not found: ${filePath}`);
-  return readJson<TranslateFile>(filePath, ctx);
+  return readJson<TranslateResult>(filePath);
 }
 
-export interface SrtJson {
-  result: {
-    text: string;
-    segments: {
-      text: string;
-      start: number;
-      end: number;
-      confidence: number;
-    }[];
-  };
-}
 /**
  * - asr_ocr -> asr_ocr_fused.json
  * - asr_ocr + asr_ocr_fix?.llmFix -> asr_ocr_fused_llm_fix.json
  */
 export function subtitleFilePath(ctx: TaskCtx): string {
   const src = ctx.input?.task?.subtitleSource ?? "asr";
-  if (src === "ocr") {
-    const fixFile = join(ctx.task.task_dir, "ocr_fix", "ocr_fix.json");
+  if (src === "sf_ocr") {
+    const filename = ctx.input.stages.sf_ocr_fix.llmFix
+      ? "segment_filter_llm_fix.json"
+      : "segment_filter.json";
+    const fixFile = join(ctx.task.task_dir, "sf_ocr_fix", filename);
     return fixFile;
   }
   if (src === "asr_ocr") {
@@ -246,23 +234,23 @@ export function split_audio_timings_path(taskDir: string): string {
 }
 export function read_split_audio(ctx: TaskCtx) {
   const filepath = split_audio_path(ctx.task.task_dir);
-  return readJson<SplitAudioFile>(filepath, ctx);
+  return readJson<SplitAudioResult>(filepath);
 }
 export function read_split_audio_timings(ctx: TaskCtx) {
   const filepath = split_audio_timings_path(ctx.task.task_dir);
-  return readJson<SplitAudioTimingFile>(filepath, ctx);
+  return readJson<SplitAudioTimingResult>(filepath);
 }
 
 /**
- * 目前修改此文件不会影响配音结果, 但重新运行 merge_video 时会改变生成的字幕时间位置
+ * 目前修改此文件不会影响配音结果, 但重新运行 mix_video 时会改变生成的字幕时间位置
  */
 export function timings_filepath(taskDir: string): string {
-  return join(taskDir, "merge_audio", "timings.json");
+  return join(taskDir, "mix_audio", "timings.json");
 }
 export function read_timings(ctx: TaskCtx) {
   const filepath = timings_filepath(ctx.task.task_dir);
   if (!existsSync(filepath)) throw new Error(`timings file not found: ${filepath}`);
-  return readJson<TimingsFile>(filepath, ctx);
+  return readJson<TimingsFile>(filepath);
 }
 
 export function tts_filepath(taskDir: string): string {
@@ -278,7 +266,7 @@ export function gatedVocalsPath(taskDir: string): string {
 }
 
 export function dubbingPath(taskDir: string): string {
-  return join(taskDir, "merge_audio", "audio_dubbing.wav");
+  return join(taskDir, "mix_audio", "audio_dubbing.wav");
 }
 
 export function finalVideoDir(
@@ -286,20 +274,31 @@ export function finalVideoDir(
   subtitleSource: SubtitleSource,
   noTranslate: boolean,
 ): string {
-  const suffix = subtitleSource === "asr_ocr" ? "_asr_ocr" : subtitleSource === "ocr" ? "_ocr" : "";
+  const suffix =
+    subtitleSource === "asr_ocr" ? "_asr_ocr" : subtitleSource === "sf_ocr" ? "_sf_ocr" : "";
   const ntlSuffix = noTranslate ? "_ntl" : "";
   const mode = pipeline === "subtitle" ? "subtitle" : "dub";
   return `${mode}${suffix}${ntlSuffix}`;
 }
 
-export function emitLog(taskDir: string, line: string) {
-  const tid = getTaskId(taskDir);
-  console.log(line);
+export function emitLog(taskDir: string | undefined, line: string) {
+  // 优先使用调用方显式传入的 taskDir；若未传（新零参数用法），则从 ALS 日志上下文获取。
+  // ALS 由 pipeline-runner 在任务启动时 setLogContext 注入，覆盖整个 stage 串行执行链。
+  const dir = taskDir ?? getLogContext()?.taskDir;
+  // 当前阶段（如已通过 setCurrentStage 设置）作为日志前缀，便于按阶段检索。
+  const stage = getLogContext()?.currentStage;
+  const prefix = stage ? `[${stage}] ` : "";
+  console.log(prefix + line);
+  if (!dir) return;
+  const tid = getLastSegment(dir);
   if (!tid) return;
   const ts = nowISO();
-  const logPath = join(taskDir, `${tid}.log`);
-  appendFileSync(logPath, `[${ts}] ${line}\n`);
+  const logPath = join(dir, `${tid}.log`);
+  appendFileSync(logPath, `[${ts}] ${prefix}${line}\n`);
 }
+
+/** 任务启动时调用一次：注入日志上下文（后续 emitLog 可免传 taskDir）。 */
+export { setLogContext, setCurrentStage };
 
 export function ffmpeg(args: string[], timeout = 1_800_000) {
   const r = spawnSync(env.FFMPEG_PATH, ["-y", ...args], {

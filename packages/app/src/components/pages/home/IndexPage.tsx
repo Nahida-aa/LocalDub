@@ -2,30 +2,36 @@ import { client, fnrpc } from "#/integrations/fnrpc/client.ts";
 import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui-solid/base/card";
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 import { Link } from "@tanstack/solid-router";
-import type { TaskBrief } from "#/integrations/fnrpc/bindings.ts";
 import { CardX } from "@repo/ui-solid/custom/card";
 import { ScrollArea } from "@repo/ui-solid/base/scroll-area";
 import { Separator } from "@repo/ui-solid/base/separator";
 import { consumeEventIterator } from "@fnrpc/client";
 import { createQuery } from "@tanstack/solid-query";
-type GroupInfo = { group_id: string; task_count: number; created_at: string | null; tasks: TaskBrief[] };
+import { TaskBrief } from "@repo/sdk/index";
+type GroupInfo = {
+  group_id: string;
+  task_count: number;
+  created_at: string | null;
+  tasks: TaskBrief[];
+};
 
 function StatCard(p: { label: string; value: number }) {
-  return (
-    <CardX title={p.label}
-      Footer={<span class="text-2xl font-semibold">{p.value}</span>}
-    />
-  );
+  return <CardX title={p.label} Footer={<span class="text-2xl font-semibold">{p.value}</span>} />;
 }
 
 function StatusBadge(p: { status: string }) {
   const cls = (() => {
     switch (p.status) {
-      case "completed": return "bg-green-600/20 text-green-500";
-      case "running": return "bg-blue-600/20 text-blue-400";
-      case "failed": return "bg-red-600/20 text-red-400";
-      case "queued": return "bg-yellow-600/20 text-yellow-400";
-      default: return "bg-muted text-muted-foreground";
+      case "completed":
+        return "bg-green-600/20 text-green-500";
+      case "running":
+        return "bg-blue-600/20 text-blue-400";
+      case "failed":
+        return "bg-red-600/20 text-red-400";
+      case "queued":
+        return "bg-yellow-600/20 text-yellow-400";
+      default:
+        return "bg-muted text-muted-foreground";
     }
   })();
   return <span class={`text-xs px-2 py-0.5 rounded-full ${cls}`}>{p.status}</span>;
@@ -44,22 +50,24 @@ function timeAgo(iso: string | null | undefined) {
 
 export function IndexPage() {
   import("@fnrpc/client").then(({ consumeEventIterator }) => {
-    const stream = fnrpc.watch_task_log('workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第1集');
+    const stream = fnrpc.watch_task_log(
+      "workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第1集",
+    );
     consumeEventIterator(stream, {
       onEvent: (line) => console.log("[log]", line),
       onError: (err) => console.error(err),
     });
   });
-  const groupListQ = createQuery(() => client.get_group_list.queryOptions(null) );
+  const groupListQ = createQuery(() => client.get_group_list.queryOptions(null));
   const groups = () => (groupListQ.data ?? []) as GroupInfo[];
-  const allTasks = () => groups().flatMap(g => g.tasks);
+  const allTasks = () => groups().flatMap((g) => g.tasks);
   const s = () => {
     const t = allTasks();
     return {
       groups: groups().length,
       total: t.length,
-      running: t.filter(x => x.status === 'running').length,
-      failed: t.filter(x => x.status === 'failed').length,
+      running: t.filter((x) => x.status === "running").length,
+      failed: t.filter((x) => x.status === "failed").length,
     };
   };
   const recentTasks = () =>
@@ -83,34 +91,42 @@ export function IndexPage() {
           <StatCard label="Running" value={s().running} />
           <StatCard label="Failed" value={s().failed} />
         </div>
-        <CardX title="Recent Tasks" class="gap-0" Footer={<div class="w-full">
-          <div class="grid grid-cols-[auto_1fr_auto_auto] gap-x-4 gap-y-1 px-4 py-2 text-xs text-muted-foreground ">
-              <span>Status</span>
-              <span>Task</span>
-              <span>Stage</span>
-              <span>Time</span>
+        <CardX
+          title="Recent Tasks"
+          class="gap-0"
+          Footer={
+            <div class="w-full">
+              <div class="grid grid-cols-[auto_1fr_auto_auto] gap-x-4 gap-y-1 px-4 py-2 text-xs text-muted-foreground ">
+                <span>Status</span>
+                <span>Task</span>
+                <span>Stage</span>
+                <span>Time</span>
+              </div>
+              <Separator orientation="horizontal" class="mx-2" />
+              <ScrollArea scrollbarSize={10}>
+                <For each={recentTasks()}>
+                  {(task: TaskBrief) => {
+                    const group = groups().find((g) => g.tasks.some((t) => t.id === task.id));
+                    return (
+                      <Link
+                        to={`/group/${group?.group_id || "unknown"}/${task.id}` as any}
+                        class="grid grid-cols-[auto_1fr_auto_auto] gap-x-4 gap-y-1 px-4 py-2 text-sm hover:bg-accent/30 items-center"
+                      >
+                        <StatusBadge status={task.status} />
+                        <span class="truncate">{task.id}</span>
+                        <span class="text-xs text-muted-foreground">
+                          {task.current_stage || "—"}
+                        </span>
+                        <span class="text-xs text-muted-foreground">
+                          {timeAgo(task.completed_at || task.created_at)}
+                        </span>
+                      </Link>
+                    );
+                  }}
+                </For>
+              </ScrollArea>
             </div>
-            <Separator orientation='horizontal' class="mx-2" />
-            <ScrollArea scrollbarSize={10}>
-
-            <For each={recentTasks()}>
-              {(task: TaskBrief) => {
-                const group = groups().find(g => g.tasks.some(t => t.id === task.id));
-                return (
-                  <Link
-                    to={`/group/${group?.group_id || 'unknown'}/${task.id}` as any}
-                    class="grid grid-cols-[auto_1fr_auto_auto] gap-x-4 gap-y-1 px-4 py-2 text-sm hover:bg-accent/30 items-center"
-                  >
-                    <StatusBadge status={task.status} />
-                    <span class="truncate">{task.id}</span>
-                    <span class="text-xs text-muted-foreground">{task.current_stage || '—'}</span>
-                    <span class="text-xs text-muted-foreground">{timeAgo(task.completed_at || task.created_at)}</span>
-                  </Link>
-                );
-              }}
-            </For>
-            </ScrollArea>
-          </div>}
+          }
           FooterClass="p-0"
         />
       </Show>

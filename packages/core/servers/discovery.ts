@@ -15,19 +15,23 @@ Usage:
   const urls = await findServers('torch', 19109)
   ```
 */
-import type { ServerType } from '@repo/config/servers'
-import { SERVICE_MAP } from '@repo/config/servers'
+import type { ServerType } from "@repo/config/servers";
+import { SERVICE_MAP } from "@repo/config/servers";
 
 export interface ServerInfo {
-  host: string
-  port: number
-  foundVia: 'mdns' | 'default' | 'portfile'
+  host: string;
+  port: number;
+  foundVia: "mdns" | "default" | "portfile";
 }
 
-
 /** Timeout for mDNS browse (ms). */
-const MDNS_TIMEOUT = 3000
+const MDNS_TIMEOUT = 3000;
 
+/** 默认端口映射 (与 Rust config-rs ServerType::default_port 对齐)。 */
+const DEFAULT_PORTS: Record<ServerType, number> = {
+  server: 19110,
+  voxcpm_torch_gradio: 19112,
+};
 
 /**
  * Discover all running instances of a server type via mDNS.
@@ -35,63 +39,59 @@ const MDNS_TIMEOUT = 3000
  *
  * Returns base URLs like `http://127.0.0.1:19109`.
  */
-export async function findServers(
-  type: ServerType,
-): Promise<string[]> {
-  const mdnsList = await findServerViaMdnsAll(type, MDNS_TIMEOUT)
+export async function findServers(type: ServerType): Promise<string[]> {
+  const mdnsList = await findServerViaMdnsAll(type, MDNS_TIMEOUT);
   if (mdnsList.length > 0) {
-    return mdnsList.map((s) => `http://${s.host}:${s.port}`)
+    return mdnsList.map((s) => `http://${s.host}:${s.port}`);
   }
-  return [`http://127.0.0.1:${type === 'voxcpm_torch_gradio' ? 19112 : 19109}`]
+  return [`http://127.0.0.1:${DEFAULT_PORTS[type]}`];
 }
 
 /**
  * Discover a single LocalDub server by mDNS, falling back to default port.
  */
-export async function findServer(
-  type: ServerType = 'voxcpm_torch_gradio',
-): Promise<ServerInfo> {
-  console.log(`findServer(${type})`)
-  const mdnsList = await findServerViaMdnsAll(type, MDNS_TIMEOUT)
-  console.log(`findServer(${type}) => mdnsList=${JSON.stringify(mdnsList)}`)
+export async function findServer(type: ServerType = "server"): Promise<ServerInfo> {
+  console.log(`findServer(${type})`);
+  const mdnsList = await findServerViaMdnsAll(type, MDNS_TIMEOUT);
+  console.log(`findServer(${type}) => mdnsList=${JSON.stringify(mdnsList)}`);
   if (mdnsList.length > 0) {
-    return { ...mdnsList[0], foundVia: 'mdns' }
+    return { ...mdnsList[0], foundVia: "mdns" };
   }
-  return { host: '127.0.0.1', port: type === 'voxcpm_torch_gradio' ? 19112 : 19109, foundVia: 'default' }
+  return { host: "127.0.0.1", port: DEFAULT_PORTS[type], foundVia: "default" };
 }
 
 export async function findServerViaMdnsAll(
   type: ServerType,
-  timeoutMs: number=MDNS_TIMEOUT,
+  timeoutMs: number = MDNS_TIMEOUT,
 ): Promise<{ host: string; port: number }[]> {
-  const serviceType = SERVICE_MAP[type]
-  if (!serviceType) return []
+  const serviceType = SERVICE_MAP[type];
+  if (!serviceType) return [];
 
-  const Bonjour = await import('bonjour-service').then((m) => m.Bonjour)
-  const bonjour = new Bonjour()
-  const results: { host: string; port: number }[] = []
+  const Bonjour = await import("bonjour-service").then((m) => m.Bonjour);
+  const bonjour = new Bonjour();
+  const results: { host: string; port: number }[] = [];
 
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
-      browser.stop()
-      bonjour.destroy()
-      resolve(results)
-    }, timeoutMs)
+      browser.stop();
+      bonjour.destroy();
+      resolve(results);
+    }, timeoutMs);
 
-    const browser = bonjour.find({ type: serviceType.replace(/^_|\._tcp\.local$/g, '') }, (svc) => {
-      const entry = { host: svc.referer?.address ?? '127.0.0.1', port: svc.port }
+    const browser = bonjour.find({ type: serviceType.replace(/^_|\._tcp\.local$/g, "") }, (svc) => {
+      const entry = { host: svc.referer?.address ?? "127.0.0.1", port: svc.port };
       // Deduplicate
       if (!results.some((r) => r.host === entry.host && r.port === entry.port)) {
-        results.push(entry)
+        results.push(entry);
       }
-    })
+    });
 
-    browser.start()
-  })
+    browser.start();
+  });
 }
 
 /** Read the first PORT= line from a spawned process stdout. */
 export function readPortFromOutput(output: string): number | null {
-  const m = output.match(/^PORT=(\d+)/m)
-  return m ? parseInt(m[1], 10) : null
+  const m = output.match(/^PORT=(\d+)/m);
+  return m ? parseInt(m[1], 10) : null;
 }
