@@ -164,12 +164,9 @@ name = "app"
 version = "0.1.0"
 dependencies = [
  "axum",
- "fnrpc",
- "fnrpc-tauri",
  "ld-core",
  "serde",
  "serde_json",
- "server",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
@@ -3433,20 +3430,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "fnrpc-tauri"
-version = "0.4.6"
-source = "git+https://github.com/Nahida-aa/fnrpc.git?rev=76ddfbfba4d65feff5d911968133987107901151#76ddfbfba4d65feff5d911968133987107901151"
-dependencies = [
- "fnrpc",
- "futures",
- "serde",
- "serde_json",
- "tauri",
- "tokio",
- "tokio-util",
 ]
 
 [[package]]
@@ -12320,3 +12303,8 @@ dependencies = [
  "syn 3.0.3",
  "winnow 1.0.4",
 ]
+
+[[patch.unused]]
+name = "fnrpc-tauri"
+version = "0.4.6"
+source = "git+https://github.com/Nahida-aa/fnrpc.git?rev=76ddfbfba4d65feff5d911968133987107901151#76ddfbfba4d65feff5d911968133987107901151"

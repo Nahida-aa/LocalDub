@@ -1,40 +1,37 @@
 import { createTanstackQueryUtils } from "@fnrpc/tanstack-query";
-import { createClient, fetchTransport, tauriTransport } from "@fnrpc/client";
+import { createClient, fetchTransport } from "@fnrpc/client";
 import { __procedureMeta, type Procedures } from "@repo/sdk/fnrpc/bindings";
 import { isTauri } from "@tauri-apps/api/core";
-import { findServer } from "@repo/core/servers/discovery";
 
-// 非 Tauri (浏览器) 场景: 用 mDNS 发现主服务器地址, fallback 到本机默认端口。
-// 由于 fetchTransport 的 url 是同步固定值, 而 mDNS 是异步的, 这里先同步 fallback
-// 到本机默认, 再在后台异步发现真实地址并通过重新挂载的 transport 生效。
-const DEFAULT_SERVER_URL = "http://127.0.0.1:19110/fnrpc";
-
-async function discoverServerUrl(): Promise<string> {
-  const info = await findServer("main");
-  return `http://${info.host}:${info.port}/fnrpc`;
+// fnrpc 基址:
+// - Tauri 桌面: 主服务器由 app 启动时自动拉起 (本机 127.0.0.1:19110, 见 src-tauri lib.rs)
+// - 主服务器直接 serve 的浏览器页面 (手机等): 同源
+// - vite dev (1420) 的浏览器调试: 打本机 server (CORS permissive 已开)
+function resolveServerUrl(): string {
+  if (isTauri()) return "http://127.0.0.1:19110/fnrpc";
+  if (typeof location !== "undefined" && location.port === "1420")
+    return "http://127.0.0.1:19110/fnrpc";
+  return `${location.origin}/fnrpc`;
 }
 
-// 首次模块加载即触发异步发现 (best-effort), 供上层在准备就绪后替换 transport。
-export const serverUrlPromise: Promise<string> = (async () => {
-  const url = await discoverServerUrl();
-  console.debug("[fnrpc] discovered server:", url);
-  return url;
-})();
+const serverUrl = resolveServerUrl();
 
-const transport = (() => {
-  try {
-    if (isTauri()) {
-      return tauriTransport(() => import("@tauri-apps/api/core"));
+// 等 server ready (桌面启动时异步拉起, 有几秒窗口; 超时仍继续, 交给 retry/错误提示)
+async function waitServerReady(base: string, timeoutMs = 30000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const r = await fetch(`${base}/health_check`, { signal: AbortSignal.timeout(2000) });
+      if (r.ok) return;
+    } catch {
+      // 尚未就绪
     }
-  } catch {
-    // ignore
+    await new Promise((r) => setTimeout(r, 300));
   }
-  // 非 Tauri: 先同步用本机默认; 跨机器发现由 serverUrlPromise 提供, 上层可按需重建。
-  return fetchTransport({ url: DEFAULT_SERVER_URL });
-})();
+  console.warn("[fnrpc] server 未就绪 (超时), 继续加载但请求可能失败");
+}
 
-console.debug("Using transport");
-export const fnrpc = createClient<Procedures>(transport, __procedureMeta);
-console.debug("Created fnrpc");
+await waitServerReady(serverUrl);
 
+export const fnrpc = createClient<Procedures>(fetchTransport({ url: serverUrl }), __procedureMeta);
 export const client = createTanstackQueryUtils(fnrpc);
