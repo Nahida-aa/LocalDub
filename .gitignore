@@ -219,3 +219,6 @@ build/
 out/
 input.json
 input.jsonc
+
+# server 运行日志 (cli servers start 重定向)
+logs/

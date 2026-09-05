@@ -11,6 +11,7 @@
 use std::process::Command;
 use std::time::Duration;
 
+use anyhow::Context;
 use crate::input::Input;
 use crate::servers::args::ServerAction;
 use crate::servers::discovery::find_server_via_mdns_all;
@@ -153,6 +154,9 @@ fn futures_block_on<T>(fut: impl std::future::Future<Output = T>) -> T {
 ///
 /// 只支持 `ServerType::Server` (主服务器)。已运行则直接返回; 否则 spawn
 /// `target/{release,debug}/server` 二进制并轮询健康端点直到就绪。
+///
+/// 日志: detached 进程不占终端, stdout/stderr 追加重定向到 `<base_dir>/logs/server.log`
+/// (直接继承 cli 的终端管道会在 cli 退出后触发 EPIPE, 所以不能继承)。
 fn start(name: Option<ServerType>) -> anyhow::Result<String> {
     let t = name.unwrap_or(ServerType::Server);
     if t != ServerType::Server {
@@ -171,12 +175,24 @@ fn start(name: Option<ServerType>) -> anyhow::Result<String> {
         anyhow::anyhow!("未找到 server 二进制 (target/release/server 或 target/debug/server)")
     })?;
 
-    // spawn detached: 主服务器独立于 cli 进程, 不持有 cli 的 stdio 管道,
-    // 使 `cli servers start` 返回后正常退出 (而非等子进程结束)。
+    // detached: 独立进程组 + stdio 重定向到日志文件
+    let log_path = config_rs::root::base_dir().join("logs").join("server.log");
+    if let Some(dir) = log_path.parent() {
+        std::fs::create_dir_all(dir)
+            .with_context(|| format!("创建日志目录 {:?} 失败", dir))?;
+    }
+    let log_file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .with_context(|| format!("打开日志文件 {log_path:?} 失败"))?;
+
     let mut cmd = Command::new(&bin);
     cmd.stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null());
+        .stdout(std::process::Stdio::from(
+            log_file.try_clone().context("克隆日志文件句柄失败")?,
+        ))
+        .stderr(std::process::Stdio::from(log_file));
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
@@ -188,20 +204,24 @@ fn start(name: Option<ServerType>) -> anyhow::Result<String> {
     // 健康轮询 fnrpc health_check
     for _ in 0..30 {
         if server_healthy() {
-            return Ok(format!("主服务器已启动: http://127.0.0.1:{}/", ServerType::Server.default_port()));
+            return Ok(format!(
+                "主服务器已启动: http://127.0.0.1:{}/ (日志: {})",
+                ServerType::Server.default_port(),
+                log_path.display()
+            ));
         }
         std::thread::sleep(Duration::from_millis(500));
     }
     Err(anyhow::anyhow!(
-        "主服务器启动超时 ({}s)",
-        30 * 500 / 1000
+        "主服务器启动超时 ({}s), 查看日志: {}",
+        30 * 500 / 1000,
+        log_path.display()
     ))
 }
 
 /// `stop` 动作: 停止主服务器。
 ///
-/// 主服务器 (axum) 暂无 shutdown 端点, 通过 fnrpc `/fnrpc/shutdown` 优雅停止
-/// (若已实现) 或提示手动停止。
+/// 通过 fnrpc `/fnrpc/shutdown` 优雅停止 (AppState.shutdown 通知 axum 退出)。
 fn stop(_name: Option<ServerType>) -> anyhow::Result<String> {
     let port = ServerType::Server.default_port();
     // 尝试 fnrpc shutdown (当前主服务器未提供该端点, 预留)
