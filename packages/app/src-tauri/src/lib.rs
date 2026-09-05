@@ -13,17 +13,9 @@ pub fn run() {
 
     let app_state = AppState::new();
 
-    // Axum HTTP server for mobile web browser access
-    let axum_state = app_state.clone();
-    let axum_fnrpc = fnrpc_router.clone();
-    let dist_dir = app_state
-        .repo_root
-        .join("packages")
-        .join("app")
-        .join("dist");
-    tauri::async_runtime::spawn(async move {
-        server::start(axum_state, axum_fnrpc, dist_dir, 19110).await;
-    });
+    // 桌面端不内嵌 HTTP server: UI 的 fnrpc 走 Tauri IPC (直连上面的 router),
+    // media 走 asset protocol 直读文件 —— 均不依赖 19110 上的 HTTP 服务。
+    // 主服务器 (19110) 是独立进程 (`cli servers start`), 服务 CLI 与手机浏览器。
 
     let tauri_state = fnrpc_tauri::FnrpcTauriState::from_arc(fnrpc_router, move || server::Ctx {
         state: app_state.clone(),
