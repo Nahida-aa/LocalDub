@@ -501,8 +501,15 @@ mod tests {
     use serde_json::json;
 
     fn test_ctx(input: serde_json::Value) -> TaskCtx {
+        // 每个测试实例独立目录: 同进程测试并行运行, 共享目录会互相覆盖
+        // ctx.json (读到半写状态导致偶发断言失败)。
+        static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let dir = std::env::temp_dir()
-            .join(format!("ld_asr_test_{}", std::process::id()))
+            .join(format!(
+                "ld_asr_test_{}_{}",
+                std::process::id(),
+                SEQ.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+            ))
             .to_string_lossy()
             .to_string();
         std::fs::create_dir_all(&dir).unwrap();
