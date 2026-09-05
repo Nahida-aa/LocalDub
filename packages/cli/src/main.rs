@@ -18,17 +18,18 @@ use ld_core::cmd::env::args::EnvAction;
 use ld_core::cmd::tasks::task::cmd_task;
 use ld_core::input::Command as InputCommand;
 use ld_core::input::Input;
+use ld_core::tasks::args::{StageName, TaskAction};
 
 /// LocalDub CLI。
 ///
 /// 无子命令时读取仓库根 `input.jsonc` 的 `command` 字段派发 (task/env/servers/cookie 等);
-/// `env` 子命令直接做环境检查/修复。
+/// `env`/`task` 子命令可用命令行参数直接触发。
 ///
 /// 设计意图:
-/// - `env` 做成 clap 子命令: 因其参数简单 (`--action`/`--targets`), 适合命令行交互;
-/// - 其余命令 (task/servers/cookie 等) 输入复杂 (task 含完整 stages 结构), 靠
-///   input.jsonc 的 `command` 字段派发, 不做命令行子命令。
-/// - 因此「env 能从命令行触发、其他命令只能靠 input.jsonc」是不对称的, 是有意设计。
+/// - `env`/`task` 做成 clap 子命令: 参数是标量 (action/url/taskDir/queueId/stage), 适合命令行;
+///   显式传的参数覆盖 input.jsonc, 缺失保留 (混合回退), 因此可以完全不改 input.jsonc 操作。
+/// - stages 等嵌套配置仍靠 input.jsonc (不适合命令行)。
+/// - 其余命令 (servers/cookie 等) 继续靠 input.jsonc 的 `command` 字段派发。
 ///
 /// 混合策略: 每个子命令的显式参数优先, 缺失参数回退 input.jsonc, 再回退默认。
 #[derive(Parser)]
@@ -52,6 +53,27 @@ enum Command {
         /// 要检查的环境项 key (可多个; 空 → 按 input.jsonc 推断)。
         #[arg(long, num_args = 1..)]
         targets: Vec<String>,
+    },
+    /// 任务操作 (等价 input.jsonc command=task, 标量参数覆盖 input.jsonc)。
+    Task {
+        /// 任务动作: start/continue/enqueue_start/enqueue_continue/list_queue/cancel_queue/...
+        #[arg(long, value_enum)]
+        action: Option<TaskAction>,
+        /// 本地文件路径或远程/云端 url (start/enqueue_start 用)。
+        #[arg(long)]
+        url: Option<String>,
+        /// 任务目录 (continue/enqueue_continue/status 用)。
+        #[arg(long)]
+        task_dir: Option<String>,
+        /// 队列任务 ID (cancel_queue 用)。
+        #[arg(long)]
+        queue_id: Option<u64>,
+        /// 从某 stage 续跑 (continue/enqueue_continue 用)。
+        #[arg(long, value_enum)]
+        continue_from: Option<StageName>,
+        /// 跑到此 stage 后停止 (continue/enqueue_continue 用)。
+        #[arg(long, value_enum)]
+        target_stage: Option<StageName>,
     },
 }
 
@@ -80,16 +102,49 @@ fn main() {
     };
 
     // cli 子命令参数作为 Input 覆盖层: 显式传的字段才覆盖, 缺失保留 input.jsonc (混合回退)。
-    if let Some(Command::Env { action, targets }) = cli.command {
-        let mut env = input.env.clone().unwrap_or_default();
-        if let Some(a) = action {
-            env.action = a;
+    match cli.command {
+        Some(Command::Env { action, targets }) => {
+            let mut env = input.env.clone().unwrap_or_default();
+            if let Some(a) = action {
+                env.action = a;
+            }
+            if !targets.is_empty() {
+                env.targets = targets;
+            }
+            input.env = Some(env);
+            input.command = InputCommand::Env;
         }
-        if !targets.is_empty() {
-            env.targets = targets;
+        Some(Command::Task {
+            action,
+            url,
+            task_dir,
+            queue_id,
+            continue_from,
+            target_stage,
+        }) => {
+            let mut task = input.task.clone().unwrap_or_default();
+            if let Some(a) = action {
+                task.action = Some(a);
+            }
+            if let Some(u) = url {
+                task.url = Some(u);
+            }
+            if let Some(d) = task_dir {
+                task.task_dir = Some(d);
+            }
+            if let Some(q) = queue_id {
+                task.queue_id = Some(q);
+            }
+            if let Some(cf) = continue_from {
+                task.continue_from = Some(cf);
+            }
+            if let Some(ts) = target_stage {
+                task.target_stage = Some(ts);
+            }
+            input.task = Some(task);
+            input.command = InputCommand::Task;
         }
-        input.env = Some(env);
-        input.command = InputCommand::Env;
+        None => {}
     }
 
     if let Err(e) = input.validate() {

@@ -1,9 +1,13 @@
+use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 
 use crate::r#const::lang::TargetLang;
 
-/// 任务操作
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+/// 任务操作 (serde 与 clap 参数值统一为 snake_case)
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type, ValueEnum,
+)]
+#[value(rename_all = "snake_case")]
 pub enum TaskAction {
     #[serde(rename = "start")]
     Start,
@@ -28,8 +32,11 @@ pub enum TaskAction {
 }
 
 /// pipeline 阶段名 (stagesList)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type, ValueEnum,
+)]
 #[serde(rename_all = "snake_case")]
+#[value(rename_all = "snake_case")]
 pub enum StageName {
     Separate,
     SeparateAfter,
