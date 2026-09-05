@@ -30,10 +30,10 @@ pub fn read_args(ctx: &TaskCtx) -> SeparateArgs {
 /// 根据 runtime + device 选择 demucs-burn 后端 (镜像 TS `separateBurn` 的 backend 派生)。
 /// `burn-tch` → tch (device 无关); `burn` → 按 device (Cpu/Mps→cpu, Cuda→cuda,
 /// Vulkan→vulkan, Webgpu→wgpu)。须与 `cmd/env` 的 `demucs_backend_suffix` 保持一致。
-fn backend_for(runtime: args::Runtime, device: args::Device) -> &'static str {
+fn backend_for(runtime: args::SeparateRuntime, device: args::Device) -> &'static str {
     match runtime {
-        args::Runtime::BurnTch => "tch",
-        args::Runtime::Burn => match device {
+        args::SeparateRuntime::BurnTch => "tch",
+        args::SeparateRuntime::Burn => match device {
             args::Device::Cpu | args::Device::Mps => "cpu",
             args::Device::Cuda => "cuda",
             args::Device::Vulkan => "vulkan",
@@ -383,7 +383,7 @@ mod tests {
             "dub",
         );
         let cfg = read_args(&ctx);
-        assert_eq!(cfg.runtime, args::Runtime::BurnTch);
+        assert_eq!(cfg.runtime, args::SeparateRuntime::BurnTch);
         assert_eq!(cfg.device, args::Device::Cuda);
         assert!(!cfg.always);
         assert!(cfg.stems.is_empty());
@@ -413,12 +413,12 @@ mod tests {
     #[test]
     fn backend_selection() {
         assert_eq!(
-            backend_for(args::Runtime::Burn, args::Device::Webgpu),
+            backend_for(args::SeparateRuntime::Burn, args::Device::Webgpu),
             "wgpu"
         );
-        assert_eq!(backend_for(args::Runtime::Burn, args::Device::Cuda), "cuda");
+        assert_eq!(backend_for(args::SeparateRuntime::Burn, args::Device::Cuda), "cuda");
         assert_eq!(
-            backend_for(args::Runtime::BurnTch, args::Device::Cpu),
+            backend_for(args::SeparateRuntime::BurnTch, args::Device::Cpu),
             "tch"
         );
     }

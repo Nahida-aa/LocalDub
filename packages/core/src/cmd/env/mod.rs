@@ -46,7 +46,7 @@ pub fn env_list() -> Vec<&'static str> {
 /// 设计: 从「核心工具链 + 配置」基础集出发, 按各 stage 的 runtime/device 追加依赖。
 /// 这是启发式推断 (非精确依赖图), 目标是给出「跟当前配置相关」的检查项, 避免每次扫全 31 项。
 pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
-    use crate::stages::asr::args::{AsrDevice, Runtime as AsrRuntime};
+    use crate::stages::asr::args::{AsrDevice, AsrRuntime as AsrRuntime};
     use crate::stages::separate::args::Device as SepDevice;
     use crate::stages::tts::args::{TtsDevice, TtsRuntime};
     use crate::tasks::args::SubtitleSource;
@@ -158,10 +158,10 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
 
 /// separate 后端后缀: bin = demucs-burn-{suffix}。runtime 优先 (burn-tch→tch), 否则按 device 映射。
 fn demucs_backend_suffix(
-    runtime: crate::stages::separate::args::Runtime,
+    runtime: crate::stages::separate::args::SeparateRuntime,
     device: crate::stages::separate::args::Device,
 ) -> &'static str {
-    use crate::stages::separate::args::{Device as SepDevice, Runtime as SepRuntime};
+    use crate::stages::separate::args::{Device as SepDevice, SeparateRuntime as SepRuntime};
     match runtime {
         SepRuntime::BurnTch => "tch",
         SepRuntime::Burn => match device {

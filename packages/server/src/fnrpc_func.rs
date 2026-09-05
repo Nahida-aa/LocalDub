@@ -8,7 +8,7 @@ use crate::{
             list_app_directory, read_app_file_bin, read_app_file_json, read_app_file_text,
             write_app_file_json, write_app_file_text,
         },
-        other::device_info,
+        other::{device_info, get_workfolder},
         servers::{check_torch, find_server, shutdown, start_torch, start_voxcpm, stop_torch, stop_voxcpm},
         tasks::{
             cancel_queue, continue_task, enqueue_continue, enqueue_start, get_group_list,
@@ -61,6 +61,7 @@ pub fn build_fn_rpc_router() -> fnrpc::router::RpcRouter<Ctx> {
         .route_fn(stop_voxcpm)
         .route_fn(shutdown)
         .route_fn(device_info)
+        .route_fn(get_workfolder)
         .route_fn(continue_task)
         .route_fn(regen_tts)
         .route_fn(start_task)

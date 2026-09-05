@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 /// 导致运行时 `"burn-tch"` 解析失败回落默认 (see `read_args_parses_camel_case_fields`)。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "kebab-case")]
-pub enum Runtime {
+pub enum SeparateRuntime {
     Burn,
     #[default]
     BurnTch,
@@ -44,7 +44,7 @@ pub enum Stem {
 pub struct SeparateArgs {
     /// 推理运行时
     #[serde(default)]
-    pub runtime: Runtime,
+    pub runtime: SeparateRuntime,
     /// torch:cuda (NVIDIA/ROCm), mps (Apple Silicon)
     #[serde(default)]
     pub device: Device,

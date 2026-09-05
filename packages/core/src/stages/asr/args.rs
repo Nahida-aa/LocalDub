@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 /// 故用 `rename_all = "kebab-case"` (`FasterWhisper` → `"faster-whisper"`)。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "kebab-case")]
-pub enum Runtime {
+pub enum AsrRuntime {
     Ggml,
     FasterWhisper,
     #[default]
@@ -100,7 +100,7 @@ pub enum VadModel {
 pub struct AsrArgs {
     /// 推理运行时, 默认 pytorch
     #[serde(default = "default_runtime")]
-    pub runtime: Runtime,
+    pub runtime: AsrRuntime,
     /// 推理设备, 默认 cuda
     #[serde(default = "default_device")]
     pub device: AsrDevice,
@@ -175,8 +175,8 @@ impl Default for AsrArgs {
     }
 }
 
-fn default_runtime() -> Runtime {
-    Runtime::Pytorch
+fn default_runtime() -> AsrRuntime {
+    AsrRuntime::Pytorch
 }
 
 fn default_device() -> AsrDevice {
