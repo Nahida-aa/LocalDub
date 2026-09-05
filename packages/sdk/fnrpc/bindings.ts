@@ -895,7 +895,10 @@ export type SeparateArgs_Serialize = {
  */
 export type SeparateRuntime = "burn" | "burn-tch";
 
-/**  服务器操作 (镜像 packages/core/servers/input.ts 的 action 枚举) */
+/**
+ *  服务器操作 (镜像 packages/core/servers/input.ts 的 action 枚举)
+ *  (serde 与 clap 参数值统一为 lowercase)
+ */
 export type ServerAction = "status" | "start" | "stop" | "discovery";
 
 export type ServerInfo = {
@@ -909,10 +912,11 @@ export type ServerInfo = {
  * 
  *  序列化为 snake_case (voxcpm_torch_gradio), 对齐 TS 侧
  *  `packages/config/src/servers.ts` 的 serverTypeList。
+ *  (serde 与 clap 参数值统一为 snake_case)
  */
 export type ServerType = 
 /**  LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。 */
-"server" | "voxcpm_torch_gradio";
+"main" | "voxcpm_torch_gradio";
 
 /**  servers 命令参数 (镜像 packages/core/servers/input.ts 的 ServersArgsSchema) */
 export type ServersArgs = ServersArgs_Serialize | ServersArgs_Deserialize;

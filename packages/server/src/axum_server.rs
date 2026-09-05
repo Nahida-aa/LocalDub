@@ -163,7 +163,7 @@ async fn server_already_running(port: u16) -> bool {
     }
 }
 
-/// 用 mdns_sd 注册 `_ld-server._tcp.local` 服务 (主服务器, 端口 `port`)。
+/// 用 mdns_sd 注册主服务器服务 (`ServerType::Main.service_name()`, 端口 `port`)。
 /// 返回 `ServiceDaemon` 供调用方持有 (drop 即注销)。注册失败仅告警, 不影响服务器启动。
 fn register_mdns(port: u16) -> Option<mdns_sd::ServiceDaemon> {
     use mdns_sd::{ServiceDaemon, ServiceInfo};
@@ -174,11 +174,13 @@ fn register_mdns(port: u16) -> Option<mdns_sd::ServiceDaemon> {
             return None;
         }
     };
+    // service type 与 config-rs ServerType::service_name 同源, 避免 注册/发现 名字漂移。
+    let service_type = config_rs::servers::ServerType::Main.service_name();
     // ip 用空 + enable_addr_auto 让库自动探测本机地址 (镜像 mdns_sd register example)。
     let service_info = ServiceInfo::new(
-        "_ld-server._tcp.local.",
-        "ld-server",
-        "ld-server.local.",
+        &format!("{service_type}."),
+        "ld-main",
+        "ld-main.local.",
         "",
         port,
         None::<std::collections::HashMap<String, String>>,
@@ -192,7 +194,7 @@ fn register_mdns(port: u16) -> Option<mdns_sd::ServiceDaemon> {
     };
     match mdns.register(service_info) {
         Ok(receiver) => {
-            eprintln!("[mDNS] 已注册 _ld-server._tcp.local 端口 {port}");
+            eprintln!("[mDNS] 已注册 {service_type} 端口 {port}");
             // 消费 register 事件接收器, 避免未读
             let _ = receiver;
             Some(mdns)

@@ -10,7 +10,7 @@ import { findServer } from "@repo/core/servers/discovery";
 const DEFAULT_SERVER_URL = "http://127.0.0.1:19110/fnrpc";
 
 async function discoverServerUrl(): Promise<string> {
-  const info = await findServer("server");
+  const info = await findServer("main");
   return `http://${info.host}:${info.port}/fnrpc`;
 }
 

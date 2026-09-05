@@ -118,7 +118,7 @@ fn status(name: Option<ServerType>) -> anyhow::Result<String> {
 /// 探测 `http://{host}:{port}/status` 是否可连 (TS `fetchStatsRes` 简化)。
 /// 探测服务器健康: 主服务器用 fnrpc health_check, 其它类型 (voxcpm) 用 `/status`。
 fn probe_server_health(t: ServerType, host: &str, port: u16) -> &'static str {
-    let url = if t == ServerType::Server {
+    let url = if t == ServerType::Main {
         format!("http://{host}:{port}/fnrpc/health_check")
     } else {
         format!("http://{host}:{port}/status")
@@ -152,14 +152,14 @@ fn futures_block_on<T>(fut: impl std::future::Future<Output = T>) -> T {
 
 /// `start` 动作: 启动主服务器 (packages/server, Rust 二进制)。
 ///
-/// 只支持 `ServerType::Server` (主服务器)。已运行则直接返回; 否则 spawn
+/// 只支持 `ServerType::Main` (主服务器)。已运行则直接返回; 否则 spawn
 /// `target/{release,debug}/server` 二进制并轮询健康端点直到就绪。
 ///
 /// 日志: detached 进程不占终端, stdout/stderr 追加重定向到 `<base_dir>/logs/server.log`
 /// (直接继承 cli 的终端管道会在 cli 退出后触发 EPIPE, 所以不能继承)。
 fn start(name: Option<ServerType>) -> anyhow::Result<String> {
-    let t = name.unwrap_or(ServerType::Server);
-    if t != ServerType::Server {
+    let t = name.unwrap_or(ServerType::Main);
+    if t != ServerType::Main {
         return Err(anyhow::anyhow!(
             "暂仅支持启动主服务器 (server 类型), 收到 {t:?}"
         ));
@@ -206,7 +206,7 @@ fn start(name: Option<ServerType>) -> anyhow::Result<String> {
         if server_healthy() {
             return Ok(format!(
                 "主服务器已启动: http://127.0.0.1:{}/ (日志: {})",
-                ServerType::Server.default_port(),
+                ServerType::Main.default_port(),
                 log_path.display()
             ));
         }
@@ -223,7 +223,7 @@ fn start(name: Option<ServerType>) -> anyhow::Result<String> {
 ///
 /// 通过 fnrpc `/fnrpc/shutdown` 优雅停止 (AppState.shutdown 通知 axum 退出)。
 fn stop(_name: Option<ServerType>) -> anyhow::Result<String> {
-    let port = ServerType::Server.default_port();
+    let port = ServerType::Main.default_port();
     // 尝试 fnrpc shutdown (当前主服务器未提供该端点, 预留)
     let url = format!("http://127.0.0.1:{port}/fnrpc/shutdown");
     let client = reqwest::blocking::Client::builder()
@@ -247,7 +247,7 @@ fn stop(_name: Option<ServerType>) -> anyhow::Result<String> {
 /// 不依赖 mDNS (mdns_sd 注册在此环境可能不广播), 主服务器固定监听 19110,
 /// 直接 HTTP 探测最可靠。
 fn running_server() -> Option<(String, u16)> {
-    let port = ServerType::Server.default_port();
+    let port = ServerType::Main.default_port();
     if server_healthy_at("127.0.0.1", port) {
         Some(("127.0.0.1".to_string(), port))
     } else {
@@ -257,7 +257,7 @@ fn running_server() -> Option<(String, u16)> {
 
 /// 探测主服务器 fnrpc health_check (`GET /fnrpc/health_check`) 是否可连。
 fn server_healthy() -> bool {
-    server_healthy_at("127.0.0.1", ServerType::Server.default_port())
+    server_healthy_at("127.0.0.1", ServerType::Main.default_port())
 }
 
 fn server_healthy_at(host: &str, port: u16) -> bool {

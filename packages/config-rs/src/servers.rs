@@ -19,18 +19,18 @@
 #[value(rename_all = "snake_case")]
 pub enum ServerType {
     /// LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。
-    Server,
+    Main,
     VoxcpmTorchGradio,
 }
 
 impl ServerType {
     /// All known server types.
-    pub const ALL: &'static [ServerType] = &[ServerType::Server, ServerType::VoxcpmTorchGradio];
+    pub const ALL: &'static [ServerType] = &[ServerType::Main, ServerType::VoxcpmTorchGradio];
 
     /// Corresponding mDNS service name.
     pub fn service_name(self) -> &'static str {
         match self {
-            ServerType::Server => "_ld-server._tcp.local",
+            ServerType::Main => "_ld-main._tcp.local",
             ServerType::VoxcpmTorchGradio => "_ld-voxcpm-py._tcp.local",
         }
     }
@@ -38,7 +38,7 @@ impl ServerType {
     /// Default TCP port for this server type.
     pub fn default_port(self) -> u16 {
         match self {
-            ServerType::Server => 19110,
+            ServerType::Main => 19110,
             ServerType::VoxcpmTorchGradio => 19112,
         }
     }

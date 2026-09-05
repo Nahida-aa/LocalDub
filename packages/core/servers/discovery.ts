@@ -29,7 +29,7 @@ const MDNS_TIMEOUT = 3000;
 
 /** 默认端口映射 (与 Rust config-rs ServerType::default_port 对齐)。 */
 const DEFAULT_PORTS: Record<ServerType, number> = {
-  server: 19110,
+  main: 19110,
   voxcpm_torch_gradio: 19112,
 };
 
@@ -50,7 +50,7 @@ export async function findServers(type: ServerType): Promise<string[]> {
 /**
  * Discover a single LocalDub server by mDNS, falling back to default port.
  */
-export async function findServer(type: ServerType = "server"): Promise<ServerInfo> {
+export async function findServer(type: ServerType = "main"): Promise<ServerInfo> {
   console.log(`findServer(${type})`);
   const mdnsList = await findServerViaMdnsAll(type, MDNS_TIMEOUT);
   console.log(`findServer(${type}) => mdnsList=${JSON.stringify(mdnsList)}`);

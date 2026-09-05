@@ -161,8 +161,8 @@ fn http_client() -> anyhow::Result<reqwest::blocking::Client> {
 /// 再取其它可连 IPv4; 避免 link-local IPv6 (fe80::) 和 docker0 等虚拟网桥地址
 /// (本机连它们通常不通)。无发现时 fallback 到本机默认端口。
 fn discover_server() -> (String, u16) {
-    let default_port = ServerType::Server.default_port();
-    let list = futures_block_on(find_server_via_mdns_all(ServerType::Server, None));
+    let default_port = ServerType::Main.default_port();
+    let list = futures_block_on(find_server_via_mdns_all(ServerType::Main, None));
     // 1) 优先回环 127.0.0.1 (本机场景必然可连)
     for (host, port) in &list {
         if host == "127.0.0.1" || host == "::1" {
