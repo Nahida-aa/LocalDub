@@ -14,10 +14,12 @@ use std::process::exit;
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use cli::parse_repo_input;
+use config_rs::servers::ServerType;
 use ld_core::cmd::env::args::EnvAction;
 use ld_core::cmd::tasks::task::cmd_task;
 use ld_core::input::Command as InputCommand;
 use ld_core::input::Input;
+use ld_core::servers::args::ServerAction;
 use ld_core::tasks::args::{StageName, TaskAction};
 
 /// LocalDub CLI。
@@ -74,6 +76,15 @@ enum Command {
         /// 跑到此 stage 后停止 (continue/enqueue_continue 用)。
         #[arg(long, value_enum)]
         target_stage: Option<StageName>,
+    },
+    /// 服务器管理 (等价 input.jsonc command=servers)。
+    Servers {
+        /// 动作: status(默认)/start/stop/discovery。
+        #[arg(long, value_enum)]
+        action: Option<ServerAction>,
+        /// 服务器类型: server / voxcpm_torch_gradio; 缺省操作全部 (start 仅支持 server)。
+        #[arg(long, value_enum)]
+        name: Option<ServerType>,
     },
 }
 
@@ -143,6 +154,17 @@ fn main() {
             }
             input.task = Some(task);
             input.command = InputCommand::Task;
+        }
+        Some(Command::Servers { action, name }) => {
+            let mut servers = input.servers.clone().unwrap_or_default();
+            if let Some(a) = action {
+                servers.action = a;
+            }
+            if let Some(n) = name {
+                servers.name = Some(n);
+            }
+            input.servers = Some(servers);
+            input.command = InputCommand::Servers;
         }
         None => {}
     }

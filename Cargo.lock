@@ -1664,6 +1664,7 @@ dependencies = [
 name = "config-rs"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "dirs 5.0.1",
  "dotenvy",
  "serde",

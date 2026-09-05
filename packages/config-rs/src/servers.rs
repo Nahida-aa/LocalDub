@@ -2,10 +2,21 @@
 ///
 /// 序列化为 snake_case (voxcpm_torch_gradio), 对齐 TS 侧
 /// `packages/config/src/servers.ts` 的 serverTypeList。
+/// (serde 与 clap 参数值统一为 snake_case)
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, specta::Type,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
+    specta::Type,
+    clap::ValueEnum,
 )]
 #[serde(rename_all = "snake_case")]
+#[value(rename_all = "snake_case")]
 pub enum ServerType {
     /// LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。
     Server,
