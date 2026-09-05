@@ -9,7 +9,7 @@ use crate::{
             write_app_file_json, write_app_file_text,
         },
         other::{device_info, get_workfolder},
-        servers::{check_torch, find_server, shutdown, start_torch, start_voxcpm, stop_torch, stop_voxcpm},
+        servers::{check_torch, find_server, shutdown, start_main, start_torch, start_voxcpm, stop_torch, stop_voxcpm},
         tasks::{
             cancel_queue, continue_task, enqueue_continue, enqueue_start, get_group_list,
             get_task_ctx, list_queue, log::watch_task_log, regen_tts, start_task,
@@ -60,6 +60,7 @@ pub fn build_fn_rpc_router() -> fnrpc::router::RpcRouter<Ctx> {
         .route_fn(start_voxcpm)
         .route_fn(stop_voxcpm)
         .route_fn(shutdown)
+        .route_fn(start_main)
         .route_fn(device_info)
         .route_fn(get_workfolder)
         .route_fn(continue_task)

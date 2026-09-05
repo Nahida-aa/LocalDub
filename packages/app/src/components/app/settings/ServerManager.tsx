@@ -1,4 +1,4 @@
-import { createQuery, useMutation } from "@tanstack/solid-query";
+import { createQuery, useMutation, useQueryClient } from "@tanstack/solid-query";
 import { Button } from "@repo/ui-solid/base/button";
 import { CardX } from "@repo/ui-solid/custom/card";
 import { toastError } from "@repo/ui-solid/custom/toast";
@@ -10,6 +10,7 @@ import {
   startVoxCpm,
   stopVoxCpm,
 } from "#/feat/servers/servers.ts";
+import { fnrpc } from "#/integrations/fnrpc/client.ts";
 import { cn } from "@repo/shared/lib/utils";
 
 function fmtUptime(s: number): string {
@@ -40,9 +41,9 @@ function ServerCard(props: {
   error?: Error | null;
   isLoading?: boolean;
   hideActions?: boolean;
-  onStart: () => void;
-  onStop: () => void;
-  onRestart: () => void;
+  onStart?: () => void;
+  onStop?: () => void;
+  onRestart?: () => void;
 }) {
   const isLoading = () => props.isLoading ?? false;
   const status = () => {
@@ -90,28 +91,34 @@ function ServerCard(props: {
           </div>
           {props.hideActions ? null : (
             <div class="flex gap-2">
-              <Button
-                variant="ghost"
-                onClick={props.onStart}
-                disabled={props.busy || props.running}
-                class="font-medium bg-green-400 disabled:opacity-40"
-              >
-                Start
-              </Button>
-              <Button
-                onClick={props.onRestart}
-                disabled={props.busy || !props.running}
-                class="font-medium bg-amber-300 disabled:opacity-40"
-              >
-                Restart
-              </Button>
-              <Button
-                onClick={props.onStop}
-                disabled={props.busy || !props.running}
-                class="font-medium bg-red-400 disabled:opacity-40"
-              >
-                Stop
-              </Button>
+              {props.onStart ? (
+                <Button
+                  variant="ghost"
+                  onClick={props.onStart}
+                  disabled={props.busy || props.running}
+                  class="font-medium bg-green-400 disabled:opacity-40"
+                >
+                  Start
+                </Button>
+              ) : null}
+              {props.onRestart ? (
+                <Button
+                  onClick={props.onRestart}
+                  disabled={props.busy || !props.running}
+                  class="font-medium bg-amber-300 disabled:opacity-40"
+                >
+                  Restart
+                </Button>
+              ) : null}
+              {props.onStop ? (
+                <Button
+                  onClick={props.onStop}
+                  disabled={props.busy || !props.running}
+                  class="font-medium bg-red-400 disabled:opacity-40"
+                >
+                  Stop
+                </Button>
+              ) : null}
             </div>
           )}
         </div>
@@ -121,6 +128,7 @@ function ServerCard(props: {
 }
 
 export function ServerManager() {
+  const queryClient = useQueryClient();
   const mainServerHealth = createQuery(() => ({
     queryKey: ["mainServerHealth"],
     queryFn: checkMainServer,
@@ -131,6 +139,19 @@ export function ServerManager() {
     queryKey: ["voxcpm_torch_gradio_status"],
     queryFn: get_voxcpm_torch_gradio_status,
     staleTime: 3000,
+  }));
+
+  // Main Server 启停: 走 fnrpc (Tauri IPC), 复用 cli servers start 的同一份逻辑
+  // (start_main_server: 幂等检测 + spawn detached + 日志落盘)。
+  const startMain = useMutation(() => ({
+    mutationFn: () => fnrpc.start_main(),
+    onError: (e) => toastError(e),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["mainServerHealth"] }),
+  }));
+  const stopMain = useMutation(() => ({
+    mutationFn: () => fnrpc.shutdown(),
+    onError: (e) => toastError(e),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["mainServerHealth"] }),
   }));
 
   const startVox = useMutation(() => ({ mutationFn: startVoxCpm, onError: (e) => toastError(e) }));
@@ -157,11 +178,9 @@ export function ServerManager() {
           uptimeS={mainServerHealth.data?.uptime_s ?? 0}
           port={mainServerHealth.data?.port ?? 19110}
           models={{}}
-          busy={false}
-          hideActions
-          onStart={() => {}}
-          onStop={() => {}}
-          onRestart={() => {}}
+          busy={startMain.isPending || stopMain.isPending}
+          onStart={() => startMain.mutate()}
+          onStop={() => stopMain.mutate()}
         />
         <ServerCard
           name="VoxCPM PyTorch Server"

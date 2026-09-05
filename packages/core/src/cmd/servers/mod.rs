@@ -165,7 +165,18 @@ fn start(name: Option<ServerType>, foreground: bool) -> anyhow::Result<String> {
             "暂仅支持启动主服务器 (main 类型), 收到 {t:?}"
         ));
     }
+    start_main_server(foreground)
+}
 
+/// 启动主服务器 (供 CLI 与桌面端共用; 幂等, 已在运行则直接返回)。
+///
+/// - `foreground=false` (默认): spawn detached, stdout/stderr 追加重定向到
+///   `<base_dir>/logs/server.log` (直接继承调用方终端管道会在其退出后触发 EPIPE)。
+/// - `foreground=true`: 继承当前终端 stdio 阻塞运行, 日志实时可见, Ctrl+C 直接终止
+///   (不设独立进程组, 与调用方同进程组共享终端信号)。server 退出后返回。
+///
+/// 内部含阻塞操作 (健康轮询最多 15s), async 调用方需放 `spawn_blocking`。
+pub fn start_main_server(foreground: bool) -> anyhow::Result<String> {
     // 已在运行?
     if let Some((h, p)) = running_server() {
         return Ok(format!("主服务器已在运行: http://{h}:{p}/"));

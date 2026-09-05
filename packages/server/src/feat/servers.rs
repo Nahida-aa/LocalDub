@@ -39,6 +39,21 @@ pub async fn shutdown(ctx: &Ctx) -> &'static str {
     "shutting down"
 }
 
+/// 启动主服务器 (幂等, 已在运行则返回提示)。
+///
+/// 供桌面 UI 一键启动: UI 的 fnrpc 走 Tauri IPC 直连 app 进程内 router,
+/// 在 app 进程内 spawn detached 主服务器 (与 `cli servers start` 同一份逻辑,
+/// 见 `ld_core::cmd::servers::start_main_server`)。
+/// 内部含阻塞健康轮询 (最多 15s), 放 spawn_blocking 避免卡 tokio worker。
+#[fnrpc::rpc_mutate]
+pub async fn start_main() -> Result<String, String> {
+    tokio::task::spawn_blocking(|| {
+        ld_core::cmd::servers::start_main_server(false).map_err(|e| format!("{e:#}"))
+    })
+    .await
+    .map_err(|e| format!("start_main 任务崩溃: {e}"))?
+}
+
 // #[fnrpc::rpc_query]
 // pub async fn check_voxcpm(ctx: &Ctx) -> bool {
 //     commands::check_voxcpm(&ctx.state)
