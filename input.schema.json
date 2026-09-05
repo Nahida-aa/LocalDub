@@ -779,7 +779,7 @@
           "const": "ensure"
         }
       ],
-      "description": " env 动作",
+      "description": " env 动作 (也用于 clap `--action` 命令行解析)",
       "title": "EnvAction"
     },
     "EnvArgs": {
@@ -2455,6 +2455,12 @@
           "const": "enqueue_continue"
         },
         {
+          "const": "list_queue"
+        },
+        {
+          "const": "cancel_queue"
+        },
+        {
           "const": "status"
         },
         {
@@ -2462,6 +2468,9 @@
         },
         {
           "const": "get_task_ctx"
+        },
+        {
+          "const": "generate_meta"
         }
       ],
       "description": " 任务操作",
@@ -2522,9 +2531,26 @@
           ],
           "description": " 继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始"
         },
+        "downloadSubtitles": {
+          "description": " 是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。\n 注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。",
+          "type": "boolean"
+        },
         "pipeline": {
           "$ref": "#/$defs/Pipeline",
           "description": " 任务模式, dub 配音, subtitle 仅字幕"
+        },
+        "queueId": {
+          "anyOf": [
+            {
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 队列任务 ID (cancel_queue 指定要取消的队列项)"
         },
         "sourceLang": {
           "anyOf": [
@@ -2622,9 +2648,26 @@
           ],
           "description": " 继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始"
         },
+        "downloadSubtitles": {
+          "description": " 是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。\n 注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。",
+          "type": "boolean"
+        },
         "pipeline": {
           "$ref": "#/$defs/Pipeline",
           "description": " 任务模式, dub 配音, subtitle 仅字幕"
+        },
+        "queueId": {
+          "anyOf": [
+            {
+              "maximum": 18446744073709551615,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 队列任务 ID (cancel_queue 指定要取消的队列项)"
         },
         "sourceLang": {
           "anyOf": [
@@ -2702,9 +2745,11 @@
         "continueFrom",
         "targetStage",
         "taskDir",
+        "queueId",
         "stageName",
         "pipeline",
-        "subtitleSource"
+        "subtitleSource",
+        "downloadSubtitles"
       ],
       "title": "TaskArgs_Serialize",
       "type": "object"

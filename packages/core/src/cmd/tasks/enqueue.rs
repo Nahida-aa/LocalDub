@@ -32,10 +32,7 @@ pub fn enqueue_task(input: &Input, is_start: bool) -> anyhow::Result<String> {
     }
     let body = body_value;
 
-    let client = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(15))
-        .build()
-        .map_err(|e| anyhow::anyhow!("构建 HTTP client 失败: {e}"))?;
+    let client = http_client()?;
 
     let resp = client
         .post(&url)
@@ -66,6 +63,98 @@ pub fn enqueue_task(input: &Input, is_start: bool) -> anyhow::Result<String> {
         if is_start { "start" } else { "continue" }
     );
     Ok(queue_id)
+}
+
+/// 列出主服务器任务队列 (fnrpc list_queue)。
+pub fn list_queue() -> anyhow::Result<()> {
+    let (host, port) = discover_server();
+    let url = format!("http://{host}:{port}/fnrpc/list_queue");
+
+    let resp = http_client()?
+        .get(&url)
+        .send()
+        .map_err(|e| anyhow::anyhow!("调用主服务器 list_queue 失败 ({url}): {e}"))?;
+    let status = resp.status();
+    if !status.is_success() {
+        let text = resp.text().unwrap_or_default();
+        return Err(anyhow::anyhow!(
+            "主服务器 list_queue 失败 ({url}): HTTP {} {text}",
+            status.as_u16()
+        ));
+    }
+    let json: serde_json::Value = resp
+        .json()
+        .map_err(|e| anyhow::anyhow!("解析 list_queue 响应失败: {e}"))?;
+    let entries = json
+        .get("json")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    if entries.is_empty() {
+        println!("[cli] 队列为空");
+        return Ok(());
+    }
+    println!("[cli] 队列 ({} 项):", entries.len());
+    for e in &entries {
+        let id = e.get("id").and_then(|v| v.as_str()).unwrap_or("?");
+        let st = e.get("status").and_then(|v| v.as_str()).unwrap_or("?");
+        let task = e.get("input").and_then(|v| v.get("task"));
+        let action = task
+            .and_then(|t| t.get("action"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("?");
+        let target = task
+            .and_then(|t| t.get("url"))
+            .and_then(|v| v.as_str())
+            .or_else(|| task.and_then(|t| t.get("taskDir")).and_then(|v| v.as_str()))
+            .unwrap_or("-");
+        let err = e
+            .get("error")
+            .and_then(|v| v.as_str())
+            .map(|s| format!("  error={s}"))
+            .unwrap_or_default();
+        println!("  id={id:<4} {st:<8} {action:<9} {target}{err}");
+    }
+    Ok(())
+}
+
+/// 取消主服务器队列中的待执行任务 (fnrpc cancel_queue)。
+pub fn cancel_queue(id: u64) -> anyhow::Result<()> {
+    let (host, port) = discover_server();
+    let url = format!("http://{host}:{port}/fnrpc/cancel_queue");
+
+    let resp = http_client()?
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .json(&id)
+        .send()
+        .map_err(|e| anyhow::anyhow!("调用主服务器 cancel_queue 失败 ({url}): {e}"))?;
+    let status = resp.status();
+    if !status.is_success() {
+        let text = resp.text().unwrap_or_default();
+        return Err(anyhow::anyhow!(
+            "主服务器 cancel_queue 失败 ({url}): HTTP {} {text}",
+            status.as_u16()
+        ));
+    }
+    let json: serde_json::Value = resp
+        .json()
+        .map_err(|e| anyhow::anyhow!("解析 cancel_queue 响应失败: {e}"))?;
+    let ok = json.get("json").and_then(|v| v.as_bool()).unwrap_or(false);
+    if ok {
+        println!("[cli] 已取消队列任务 id={id}");
+    } else {
+        println!("[cli] 取消失败: 队列任务 id={id} 不存在或非 queued 状态");
+    }
+    Ok(())
+}
+
+fn http_client() -> anyhow::Result<reqwest::blocking::Client> {
+    reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| anyhow::anyhow!("构建 HTTP client 失败: {e}"))
 }
 
 /// 用 mDNS 发现主服务器地址。优先本机回环 127.0.0.1 (主服务器与 CLI 同机时最可靠),

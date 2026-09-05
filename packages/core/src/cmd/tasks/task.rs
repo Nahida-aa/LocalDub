@@ -33,6 +33,15 @@ pub fn cmd_task(input: &Input) -> anyhow::Result<()> {
         Some(TaskAction::EnqueueContinue) => {
             crate::cmd::tasks::enqueue::enqueue_task(input, false).context("enqueue_continue 失败")?;
         }
+        Some(TaskAction::ListQueue) => {
+            crate::cmd::tasks::enqueue::list_queue().context("list_queue 失败")?;
+        }
+        Some(TaskAction::CancelQueue) => {
+            let id = task
+                .queue_id
+                .ok_or_else(|| anyhow::anyhow!("cancel_queue 需要 input.task.queueId 指定队列任务 ID"))?;
+            crate::cmd::tasks::enqueue::cancel_queue(id).context("cancel_queue 失败")?;
+        }
         Some(TaskAction::GetGroupList) => {
             let groups = get_group_list().map_err(|e| anyhow::anyhow!("{e}"))?;
             let json = serde_json::to_string_pretty(&groups)

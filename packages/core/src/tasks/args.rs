@@ -13,6 +13,10 @@ pub enum TaskAction {
     EnqueueStart,
     #[serde(rename = "enqueue_continue")]
     EnqueueContinue,
+    #[serde(rename = "list_queue")]
+    ListQueue,
+    #[serde(rename = "cancel_queue")]
+    CancelQueue,
     #[serde(rename = "status")]
     Status,
     #[serde(rename = "get_group_list")]
@@ -80,6 +84,8 @@ pub struct TaskArgs {
     /// 目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤
     pub target_stage: Option<StageName>,
     pub task_dir: Option<String>,
+    /// 队列任务 ID (cancel_queue 指定要取消的队列项)
+    pub queue_id: Option<u64>,
     /// rerunStage 专业参数, 指定要重新运行的步骤
     pub stage_name: Option<StageName>,
     /// 任务模式, dub 配音, subtitle 仅字幕
