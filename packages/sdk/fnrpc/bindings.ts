@@ -927,6 +927,11 @@ export type ServersArgs_Deserialize = {
 	action?: ServerAction,
 	/**  指定操作的服务器, 不传则操作所有 */
 	name?: ServerType | null,
+	/**
+	 *  start 前台模式: 继承终端 stdio (日志实时可见), Ctrl+C 直接终止;
+	 *  默认 false = detach 后台 + 日志落盘 logs/server.log
+	 */
+	foreground?: boolean,
 };
 
 /**  servers 命令参数 (镜像 packages/core/servers/input.ts 的 ServersArgsSchema) */
@@ -935,6 +940,11 @@ export type ServersArgs_Serialize = {
 	action: ServerAction,
 	/**  指定操作的服务器, 不传则操作所有 */
 	name: ServerType | null,
+	/**
+	 *  start 前台模式: 继承终端 stdio (日志实时可见), Ctrl+C 直接终止;
+	 *  默认 false = detach 后台 + 日志落盘 logs/server.log
+	 */
+	foreground: boolean,
 };
 
 /**

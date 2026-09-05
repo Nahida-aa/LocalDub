@@ -82,9 +82,12 @@ enum Command {
         /// 动作: status(默认)/start/stop/discovery。
         #[arg(long, value_enum)]
         action: Option<ServerAction>,
-        /// 服务器类型: server / voxcpm_torch_gradio; 缺省操作全部 (start 仅支持 server)。
+        /// 服务器类型: main / voxcpm_torch_gradio; 缺省操作全部 (start 仅支持 main)。
         #[arg(long, value_enum)]
         name: Option<ServerType>,
+        /// start 前台模式: 日志实时打到终端, Ctrl+C 终止 (默认 detach 后台+落盘)。
+        #[arg(long)]
+        foreground: bool,
     },
 }
 
@@ -155,13 +158,20 @@ fn main() {
             input.task = Some(task);
             input.command = InputCommand::Task;
         }
-        Some(Command::Servers { action, name }) => {
+        Some(Command::Servers {
+            action,
+            name,
+            foreground,
+        }) => {
             let mut servers = input.servers.clone().unwrap_or_default();
             if let Some(a) = action {
                 servers.action = a;
             }
             if let Some(n) = name {
                 servers.name = Some(n);
+            }
+            if foreground {
+                servers.foreground = true;
             }
             input.servers = Some(servers);
             input.command = InputCommand::Servers;

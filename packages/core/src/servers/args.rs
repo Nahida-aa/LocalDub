@@ -31,6 +31,10 @@ pub struct ServersArgs {
     pub action: ServerAction,
     /// 指定操作的服务器, 不传则操作所有
     pub name: Option<ServerType>,
+    /// start 前台模式: 继承终端 stdio (日志实时可见), Ctrl+C 直接终止;
+    /// 默认 false = detach 后台 + 日志落盘 logs/server.log
+    #[serde(default)]
+    pub foreground: bool,
 }
 
 impl Default for ServersArgs {
@@ -38,6 +42,7 @@ impl Default for ServersArgs {
         Self {
             action: ServerAction::default(),
             name: None,
+            foreground: false,
         }
     }
 }

@@ -35,7 +35,7 @@ pub fn cmd_servers(input: &Input) -> anyhow::Result<String> {
     match args.action {
         ServerAction::Discovery => discovery(args.name),
         ServerAction::Status => status(args.name),
-        ServerAction::Start => start(args.name),
+        ServerAction::Start => start(args.name, args.foreground),
         ServerAction::Stop => stop(args.name),
     }
 }
@@ -152,16 +152,17 @@ fn futures_block_on<T>(fut: impl std::future::Future<Output = T>) -> T {
 
 /// `start` 动作: 启动主服务器 (packages/server, Rust 二进制)。
 ///
-/// 只支持 `ServerType::Main` (主服务器)。已运行则直接返回; 否则 spawn
-/// `target/{release,debug}/server` 二进制并轮询健康端点直到就绪。
+/// 只支持 `ServerType::Main` (主服务器)。已运行则直接返回。
 ///
-/// 日志: detached 进程不占终端, stdout/stderr 追加重定向到 `<base_dir>/logs/server.log`
-/// (直接继承 cli 的终端管道会在 cli 退出后触发 EPIPE, 所以不能继承)。
-fn start(name: Option<ServerType>) -> anyhow::Result<String> {
+/// - `foreground=false` (默认): spawn detached, stdout/stderr 追加重定向到
+///   `<base_dir>/logs/server.log` (直接继承 cli 的终端管道会在 cli 退出后触发 EPIPE)。
+/// - `foreground=true`: 继承终端 stdio 阻塞运行, 日志实时可见, Ctrl+C 直接终止
+///   (不设独立进程组, 与 cli 同进程组共享终端信号)。server 退出后返回。
+fn start(name: Option<ServerType>, foreground: bool) -> anyhow::Result<String> {
     let t = name.unwrap_or(ServerType::Main);
     if t != ServerType::Main {
         return Err(anyhow::anyhow!(
-            "暂仅支持启动主服务器 (server 类型), 收到 {t:?}"
+            "暂仅支持启动主服务器 (main 类型), 收到 {t:?}"
         ));
     }
 
@@ -174,6 +175,14 @@ fn start(name: Option<ServerType>) -> anyhow::Result<String> {
     let bin = find_release_bin("server").ok_or_else(|| {
         anyhow::anyhow!("未找到 server 二进制 (target/release/server 或 target/debug/server)")
     })?;
+
+    if foreground {
+        // 前台模式: 继承终端 stdio, 阻塞至 server 退出。
+        let status = Command::new(&bin)
+            .status()
+            .map_err(|e| anyhow::anyhow!("启动主服务器 {bin:?} 失败: {e}"))?;
+        return Ok(format!("主服务器已退出: {status}"));
+    }
 
     // detached: 独立进程组 + stdio 重定向到日志文件
     let log_path = config_rs::root::base_dir().join("logs").join("server.log");

@@ -93,7 +93,7 @@
           "type": "number"
         },
         "runtime": {
-          "$ref": "#/$defs/ld_core%3A%3Astages%3A%3Aasr%3A%3Aargs%3A%3ARuntime",
+          "$ref": "#/$defs/AsrRuntime",
           "description": " 推理运行时, 默认 pytorch"
         },
         "sidechainCompress": {
@@ -184,7 +184,7 @@
           "type": "number"
         },
         "runtime": {
-          "$ref": "#/$defs/ld_core%3A%3Astages%3A%3Aasr%3A%3Aargs%3A%3ARuntime",
+          "$ref": "#/$defs/AsrRuntime",
           "description": " 推理运行时, 默认 pytorch"
         },
         "sidechainCompress": {
@@ -624,6 +624,21 @@
       ],
       "title": "AsrOcrPreArgs_Serialize",
       "type": "object"
+    },
+    "AsrRuntime": {
+      "anyOf": [
+        {
+          "const": "ggml"
+        },
+        {
+          "const": "faster-whisper"
+        },
+        {
+          "const": "pytorch"
+        }
+      ],
+      "description": " asr 推理运行时。\n\n TS 侧为 `z.enum([\"ggml\", \"faster-whisper\", \"pytorch\"])` (kebab-case),\n 故用 `rename_all = \"kebab-case\"` (`FasterWhisper` → `\"faster-whisper\"`)。",
+      "title": "AsrRuntime"
     },
     "Command": {
       "anyOf": [
@@ -1689,7 +1704,7 @@
           "description": " torch:cuda (NVIDIA/ROCm), mps (Apple Silicon)"
         },
         "runtime": {
-          "$ref": "#/$defs/ld_core%3A%3Astages%3A%3Aseparate%3A%3Aargs%3A%3ARuntime",
+          "$ref": "#/$defs/SeparateRuntime",
           "description": " 推理运行时"
         },
         "stems": {
@@ -1715,7 +1730,7 @@
           "description": " torch:cuda (NVIDIA/ROCm), mps (Apple Silicon)"
         },
         "runtime": {
-          "$ref": "#/$defs/ld_core%3A%3Astages%3A%3Aseparate%3A%3Aargs%3A%3ARuntime",
+          "$ref": "#/$defs/SeparateRuntime",
           "description": " 推理运行时"
         },
         "stems": {
@@ -1735,6 +1750,18 @@
       "title": "SeparateArgs_Serialize",
       "type": "object"
     },
+    "SeparateRuntime": {
+      "anyOf": [
+        {
+          "const": "burn"
+        },
+        {
+          "const": "burn-tch"
+        }
+      ],
+      "description": " separate 推理运行时\n\n TS 侧为 `z.enum([\"burn\", \"burn-tch\"])` (kebab-case), 故用 `rename_all = \"kebab-case\"`\n (`BurnTch` → `\"burn-tch\"`)。原先误用 `lowercase` 会得到 `\"burntch\"`, 与 TS 对不上,\n 导致运行时 `\"burn-tch\"` 解析失败回落默认 (see `read_args_parses_camel_case_fields`)。",
+      "title": "SeparateRuntime"
+    },
     "ServerAction": {
       "anyOf": [
         {
@@ -1750,20 +1777,20 @@
           "const": "discovery"
         }
       ],
-      "description": " 服务器操作 (镜像 packages/core/servers/input.ts 的 action 枚举)",
+      "description": " 服务器操作 (镜像 packages/core/servers/input.ts 的 action 枚举)\n (serde 与 clap 参数值统一为 lowercase)",
       "title": "ServerAction"
     },
     "ServerType": {
       "anyOf": [
         {
-          "const": "server",
+          "const": "main",
           "description": " LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。"
         },
         {
           "const": "voxcpm_torch_gradio"
         }
       ],
-      "description": " Server type identifiers for mDNS discovery.\n\n 序列化为 snake_case (voxcpm_torch_gradio), 对齐 TS 侧\n `packages/config/src/servers.ts` 的 serverTypeList。",
+      "description": " Server type identifiers for mDNS discovery.\n\n 序列化为 snake_case (voxcpm_torch_gradio), 对齐 TS 侧\n `packages/config/src/servers.ts` 的 serverTypeList。\n (serde 与 clap 参数值统一为 snake_case)",
       "title": "ServerType"
     },
     "ServersArgs": {
@@ -1803,6 +1830,10 @@
           "$ref": "#/$defs/ServerAction",
           "description": " 服务器操作"
         },
+        "foreground": {
+          "description": " start 前台模式: 继承终端 stdio (日志实时可见), Ctrl+C 直接终止;\n 默认 false = detach 后台 + 日志落盘 logs/server.log",
+          "type": "boolean"
+        },
         "name": {
           "anyOf": [
             {
@@ -1825,6 +1856,10 @@
           "$ref": "#/$defs/ServerAction",
           "description": " 服务器操作"
         },
+        "foreground": {
+          "description": " start 前台模式: 继承终端 stdio (日志实时可见), Ctrl+C 直接终止;\n 默认 false = detach 后台 + 日志落盘 logs/server.log",
+          "type": "boolean"
+        },
         "name": {
           "anyOf": [
             {
@@ -1839,7 +1874,8 @@
       },
       "required": [
         "action",
-        "name"
+        "name",
+        "foreground"
       ],
       "title": "ServersArgs_Serialize",
       "type": "object"
@@ -2473,7 +2509,7 @@
           "const": "generate_meta"
         }
       ],
-      "description": " 任务操作",
+      "description": " 任务操作 (serde 与 clap 参数值统一为 snake_case)",
       "title": "TaskAction"
     },
     "TaskArgs": {
@@ -3012,33 +3048,6 @@
       ],
       "description": " whisper.cpp VAD 模型",
       "title": "VadModel"
-    },
-    "ld_core::stages::asr::args::Runtime": {
-      "anyOf": [
-        {
-          "const": "ggml"
-        },
-        {
-          "const": "faster-whisper"
-        },
-        {
-          "const": "pytorch"
-        }
-      ],
-      "description": " asr 推理运行时。\n\n TS 侧为 `z.enum([\"ggml\", \"faster-whisper\", \"pytorch\"])` (kebab-case),\n 故用 `rename_all = \"kebab-case\"` (`FasterWhisper` → `\"faster-whisper\"`)。",
-      "title": "Runtime"
-    },
-    "ld_core::stages::separate::args::Runtime": {
-      "anyOf": [
-        {
-          "const": "burn"
-        },
-        {
-          "const": "burn-tch"
-        }
-      ],
-      "description": " separate 推理运行时\n\n TS 侧为 `z.enum([\"burn\", \"burn-tch\"])` (kebab-case), 故用 `rename_all = \"kebab-case\"`\n (`BurnTch` → `\"burn-tch\"`)。原先误用 `lowercase` 会得到 `\"burntch\"`, 与 TS 对不上,\n 导致运行时 `\"burn-tch\"` 解析失败回落默认 (see `read_args_parses_camel_case_fields`)。",
-      "title": "Runtime"
     }
   },
   "$ref": "#/$defs/Input_Deserialize",
