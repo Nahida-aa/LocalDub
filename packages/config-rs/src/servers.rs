@@ -19,6 +19,11 @@
 #[value(rename_all = "snake_case")]
 pub enum ServerType {
     /// LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。
+    ///
+    /// alias "server": 历史任务 ctx.json 里持久化的 input.servers.name 是旧值,
+    /// 反序列化需兼容 (序列化输出统一 "main")。
+    #[serde(rename = "main", alias = "server")]
+    #[value(name = "main")]
     Main,
     VoxcpmTorchGradio,
 }
