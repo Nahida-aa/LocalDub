@@ -73,12 +73,15 @@ impl TaskQueue {
         let mut file = read_queue();
         // 进程重启: 之前卡在 Running 的任务实际已中断, 重置回 Queued 重新排队,
         // 避免永久卡死 (worker 只消费 Queued)。
+        let mut restored = 0usize;
         for e in file.entries.iter_mut() {
             if e.status == QueueStatus::Running {
                 e.status = QueueStatus::Queued;
+                restored += 1;
             }
         }
-        if file.entries.iter().any(|e| e.status == QueueStatus::Queued) {
+        if restored > 0 {
+            tracing::info!("[queue] 重启恢复: {restored} 个中断任务重新排队");
             write_queue(&file);
         }
         let next = file.next_id;
@@ -92,6 +95,14 @@ impl TaskQueue {
     /// 入队一个任务 (完整 input), 返回队列 ID。入队后唤醒 worker。
     pub fn enqueue(&self, input: Input) -> u64 {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
+        // 日志字段在 move 进 QueueEntry 前算好
+        let target = entry_target(&input).to_string();
+        let action = input
+            .task
+            .as_ref()
+            .and_then(|t| t.action)
+            .map(|a| format!("{a:?}"))
+            .unwrap_or_else(|| "?".into());
         {
             let mut q = self.inner.lock().unwrap();
             q.next_id = id + 1;
@@ -103,6 +114,7 @@ impl TaskQueue {
             });
             write_queue(&q);
         }
+        tracing::info!("[queue] id={id} enqueued action={action} target={target}");
         self.notify.notify_one();
         id
     }
@@ -158,17 +170,49 @@ impl TaskQueue {
             };
             let id = entry.id;
             let input = entry.input;
+            let target = entry_target(&input).to_string();
+            let action = input
+                .task
+                .as_ref()
+                .and_then(|t| t.action)
+                .map(|a| format!("{a:?}"))
+                .unwrap_or_else(|| "?".into());
+
+            tracing::info!("[queue] id={id} start action={action} target={target}");
 
             let result =
                 tokio::task::spawn_blocking(move || execute_entry(&input)).await;
 
             match result {
-                Ok(Ok(())) => self.mark(id, QueueStatus::Done, None),
-                Ok(Err(e)) => self.mark(id, QueueStatus::Failed, Some(format!("{e:#}"))),
-                Err(e) => self.mark(id, QueueStatus::Failed, Some(format!("任务崩溃: {e}"))),
+                Ok(Ok(())) => {
+                    tracing::info!("[queue] id={id} done target={target}");
+                    self.mark(id, QueueStatus::Done, None)
+                }
+                Ok(Err(e)) => {
+                    let msg = format!("{e:#}");
+                    tracing::error!("[queue] id={id} failed target={target}: {msg}");
+                    self.mark(id, QueueStatus::Failed, Some(msg))
+                }
+                Err(e) => {
+                    let msg = format!("任务崩溃: {e}");
+                    tracing::error!("[queue] id={id} failed target={target}: {msg}");
+                    self.mark(id, QueueStatus::Failed, Some(msg))
+                }
             }
         }
     }
+}
+
+/// 队列任务的日志标识: start 用 url, continue 用 taskDir。
+fn entry_target(input: &Input) -> &str {
+    let task = match input.task.as_ref() {
+        Some(t) => t,
+        None => return "-",
+    };
+    task.url
+        .as_deref()
+        .or(task.task_dir.as_deref())
+        .unwrap_or("-")
 }
 
 /// 执行一条队列任务 (同步, 在 spawn_blocking 里跑 ld_core pipeline)。
