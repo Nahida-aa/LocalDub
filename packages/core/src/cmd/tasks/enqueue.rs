@@ -13,18 +13,24 @@ use std::time::Duration;
 /// `is_start`: true → enqueue_start; false → enqueue_continue。
 /// 返回队列 ID (字符串)。
 pub fn enqueue_task(input: &Input, is_start: bool) -> anyhow::Result<String> {
+    enqueue_with(input, if is_start { "start" } else { "continue" })
+}
+
+/// 入队一个"只导入"任务 (不跑 pipeline): 批量先导入, 之后用 enqueue_continue 续跑。
+pub fn enqueue_import(input: &Input) -> anyhow::Result<String> {
+    enqueue_with(input, "import")
+}
+
+fn enqueue_with(input: &Input, action: &str) -> anyhow::Result<String> {
     // 用服务器发现找主服务器地址 (优先 IPv4, 避免 link-local IPv6 无法连接)。
     let (host, port) = discover_server();
-    let url = format!(
-        "http://{host}:{port}/fnrpc/{}",
-        if is_start { "enqueue_start" } else { "enqueue_continue" }
-    );
+    // 入队命令名与动作同名: enqueue_start / enqueue_continue / enqueue_import
+    let url = format!("http://{host}:{port}/fnrpc/enqueue_{action}");
 
     let mut body_value = serde_json::to_value(input)
         .map_err(|e| anyhow::anyhow!("序列化 input 失败: {e}"))?;
-    // 入队的是「任务本身」: 把 CLI 的 enqueue_start/enqueue_continue 命令动作
-    // 还原为 worker 实际执行的 start/continue (队列项按 action 分派执行)。
-    let action = if is_start { "start" } else { "continue" };
+    // 入队的是「任务本身」: 把 CLI 的 enqueue_* 命令动作
+    // 还原为 worker 实际执行的动作 (队列项按 action 分派执行)。
     if let Some(task) = body_value.get_mut("task") {
         if let Some(t) = task.get_mut("action") {
             *t = serde_json::Value::String(action.to_string());
@@ -58,10 +64,7 @@ pub fn enqueue_task(input: &Input, is_start: bool) -> anyhow::Result<String> {
         .and_then(|v| v.as_str())
         .map(String::from)
         .unwrap_or_else(|| "?".to_string());
-    println!(
-        "[cli] 已加入队列 (id={queue_id}): {}",
-        if is_start { "start" } else { "continue" }
-    );
+    println!("[cli] 已加入队列 (id={queue_id}): {action}");
     Ok(queue_id)
 }
 

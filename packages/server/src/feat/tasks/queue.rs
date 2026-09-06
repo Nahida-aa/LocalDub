@@ -226,6 +226,7 @@ fn execute_entry(input: &Input) -> anyhow::Result<()> {
     match action {
         Some(TaskAction::Start) => ld_core::cmd::tasks::start_task(input).map(|_| ()),
         Some(TaskAction::Continue) => ld_core::cmd::tasks::continue_task(input),
+        Some(TaskAction::Import) => ld_core::cmd::tasks::import_task(input).map(|_| ()),
         other => Err(anyhow::anyhow!(
             "队列任务仅支持 start/continue, 收到 {other:?}"
         )),

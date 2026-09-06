@@ -1783,15 +1783,62 @@
     "ServerType": {
       "anyOf": [
         {
+          "additionalProperties": false,
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/ServerType_Serialize"
+            }
+          },
+          "required": [
+            "Serialize"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/ServerType_Deserialize"
+            }
+          },
+          "required": [
+            "Deserialize"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": " Server type identifiers for mDNS discovery.\n\n 序列化为 snake_case (voxcpm_torch_gradio), 对齐 TS 侧\n `packages/config/src/servers.ts` 的 serverTypeList。\n (serde 与 clap 参数值统一为 snake_case)",
+      "title": "ServerType"
+    },
+    "ServerType_Deserialize": {
+      "anyOf": [
+        {
           "const": "main",
-          "description": " LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。"
+          "description": " LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。\n\n alias \"server\": 历史任务 ctx.json 里持久化的 input.servers.name 是旧值,\n 反序列化需兼容 (序列化输出统一 \"main\")。"
+        },
+        {
+          "const": "server",
+          "description": " LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。\n\n alias \"server\": 历史任务 ctx.json 里持久化的 input.servers.name 是旧值,\n 反序列化需兼容 (序列化输出统一 \"main\")。"
         },
         {
           "const": "voxcpm_torch_gradio"
         }
       ],
       "description": " Server type identifiers for mDNS discovery.\n\n 序列化为 snake_case (voxcpm_torch_gradio), 对齐 TS 侧\n `packages/config/src/servers.ts` 的 serverTypeList。\n (serde 与 clap 参数值统一为 snake_case)",
-      "title": "ServerType"
+      "title": "ServerType_Deserialize"
+    },
+    "ServerType_Serialize": {
+      "anyOf": [
+        {
+          "const": "main",
+          "description": " LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。\n\n alias \"server\": 历史任务 ctx.json 里持久化的 input.servers.name 是旧值,\n 反序列化需兼容 (序列化输出统一 \"main\")。"
+        },
+        {
+          "const": "voxcpm_torch_gradio"
+        }
+      ],
+      "description": " Server type identifiers for mDNS discovery.\n\n 序列化为 snake_case (voxcpm_torch_gradio), 对齐 TS 侧\n `packages/config/src/servers.ts` 的 serverTypeList。\n (serde 与 clap 参数值统一为 snake_case)",
+      "title": "ServerType_Serialize"
     },
     "ServersArgs": {
       "anyOf": [
@@ -1837,7 +1884,7 @@
         "name": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ServerType"
+              "$ref": "#/$defs/ServerType_Deserialize"
             },
             {
               "type": "null"
@@ -1863,7 +1910,7 @@
         "name": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ServerType"
+              "$ref": "#/$defs/ServerType_Serialize"
             },
             {
               "type": "null"
@@ -2485,10 +2532,17 @@
           "const": "continue"
         },
         {
+          "const": "import",
+          "description": " 只导入: 下载/拷贝视频 + 探测 + 写 ctx.json, 不跑 pipeline。\n 批量场景可先批量导入, 之后用 continue 逐个续跑重活。"
+        },
+        {
           "const": "enqueue_start"
         },
         {
           "const": "enqueue_continue"
+        },
+        {
+          "const": "enqueue_import"
         },
         {
           "const": "list_queue"

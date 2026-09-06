@@ -27,11 +27,17 @@ pub fn cmd_task(input: &Input) -> anyhow::Result<()> {
         Some(TaskAction::Start) => {
             start_task(input).context("start_task 失败")?;
         }
+        Some(TaskAction::Import) => {
+            crate::cmd::tasks::import::import_task(input).context("import_task 失败")?;
+        }
         Some(TaskAction::EnqueueStart) => {
             crate::cmd::tasks::enqueue::enqueue_task(input, true).context("enqueue_start 失败")?;
         }
         Some(TaskAction::EnqueueContinue) => {
             crate::cmd::tasks::enqueue::enqueue_task(input, false).context("enqueue_continue 失败")?;
+        }
+        Some(TaskAction::EnqueueImport) => {
+            crate::cmd::tasks::enqueue::enqueue_import(input).context("enqueue_import 失败")?;
         }
         Some(TaskAction::ListQueue) => {
             crate::cmd::tasks::enqueue::list_queue().context("list_queue 失败")?;

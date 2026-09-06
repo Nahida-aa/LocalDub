@@ -267,6 +267,16 @@ pub async fn enqueue_continue(ctx: &Ctx, input: Input) -> Result<u64, String> {
     Ok(ctx.state.queue.enqueue(input))
 }
 
+/// 入队一个"只导入"任务 (不跑 pipeline): 批量先导入, 之后用 continue 续跑。
+#[fnrpc::rpc_mutate]
+pub async fn enqueue_import(ctx: &Ctx, input: Input) -> Result<u64, String> {
+    use ld_core::tasks::args::TaskAction;
+    if input.task.as_ref().and_then(|t| t.action) != Some(TaskAction::Import) {
+        return Err("enqueue_import 需要 input.task.action = import".to_string());
+    }
+    Ok(ctx.state.queue.enqueue(input))
+}
+
 /// 列出队列中的任务 (含状态)。
 #[fnrpc::rpc_query]
 pub async fn list_queue(ctx: &Ctx) -> Vec<QueueEntry> {

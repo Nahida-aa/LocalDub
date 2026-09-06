@@ -914,8 +914,45 @@ export type ServerInfo = {
  *  `packages/config/src/servers.ts` 的 serverTypeList。
  *  (serde 与 clap 参数值统一为 snake_case)
  */
-export type ServerType = 
-/**  LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。 */
+export type ServerType = ServerType_Serialize | ServerType_Deserialize;
+
+/**
+ *  Server type identifiers for mDNS discovery.
+ * 
+ *  序列化为 snake_case (voxcpm_torch_gradio), 对齐 TS 侧
+ *  `packages/config/src/servers.ts` 的 serverTypeList。
+ *  (serde 与 clap 参数值统一为 snake_case)
+ */
+export type ServerType_Deserialize = 
+/**
+ *  LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。
+ * 
+ *  alias "server": 历史任务 ctx.json 里持久化的 input.servers.name 是旧值,
+ *  反序列化需兼容 (序列化输出统一 "main")。
+ */
+"main" | 
+/**
+ *  LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。
+ * 
+ *  alias "server": 历史任务 ctx.json 里持久化的 input.servers.name 是旧值,
+ *  反序列化需兼容 (序列化输出统一 "main")。
+ */
+"server" | "voxcpm_torch_gradio";
+
+/**
+ *  Server type identifiers for mDNS discovery.
+ * 
+ *  序列化为 snake_case (voxcpm_torch_gradio), 对齐 TS 侧
+ *  `packages/config/src/servers.ts` 的 serverTypeList。
+ *  (serde 与 clap 参数值统一为 snake_case)
+ */
+export type ServerType_Serialize = 
+/**
+ *  LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。
+ * 
+ *  alias "server": 历史任务 ctx.json 里持久化的 input.servers.name 是旧值,
+ *  反序列化需兼容 (序列化输出统一 "main")。
+ */
 "main" | "voxcpm_torch_gradio";
 
 /**  servers 命令参数 (镜像 packages/core/servers/input.ts 的 ServersArgsSchema) */
@@ -926,7 +963,7 @@ export type ServersArgs_Deserialize = {
 	/**  服务器操作 */
 	action?: ServerAction,
 	/**  指定操作的服务器, 不传则操作所有 */
-	name?: ServerType | null,
+	name?: ServerType_Deserialize | null,
 	/**
 	 *  start 前台模式: 继承终端 stdio (日志实时可见), Ctrl+C 直接终止;
 	 *  默认 false = detach 后台 + 日志落盘 logs/server.log
@@ -939,7 +976,7 @@ export type ServersArgs_Serialize = {
 	/**  服务器操作 */
 	action: ServerAction,
 	/**  指定操作的服务器, 不传则操作所有 */
-	name: ServerType | null,
+	name: ServerType_Serialize | null,
 	/**
 	 *  start 前台模式: 继承终端 stdio (日志实时可见), Ctrl+C 直接终止;
 	 *  默认 false = detach 后台 + 日志落盘 logs/server.log
@@ -1156,7 +1193,12 @@ export type TargetLang = "en" | "zh" | "vi" | "ja" | "ko" | "fr" | "de" | "es" |
 export type Task = Task_Serialize | Task_Deserialize;
 
 /**  任务操作 (serde 与 clap 参数值统一为 snake_case) */
-export type TaskAction = "start" | "continue" | "enqueue_start" | "enqueue_continue" | "list_queue" | "cancel_queue" | "status" | "get_group_list" | "get_task_ctx" | "generate_meta";
+export type TaskAction = "start" | "continue" | 
+/**
+ *  只导入: 下载/拷贝视频 + 探测 + 写 ctx.json, 不跑 pipeline。
+ *  批量场景可先批量导入, 之后用 continue 逐个续跑重活。
+ */
+"import" | "enqueue_start" | "enqueue_continue" | "enqueue_import" | "list_queue" | "cancel_queue" | "status" | "get_group_list" | "get_task_ctx" | "generate_meta";
 
 /**  任务参数 (镜像 taskArgsSchema) */
 export type TaskArgs = TaskArgs_Serialize | TaskArgs_Deserialize;
@@ -1491,6 +1533,7 @@ export type Procedures = {
   start_task: { kind: "mutate"; method: "POST"; input: string; output: string; error: RpcErr };
   enqueue_start: { kind: "mutate"; method: "POST"; input: Input; output: bigint; error: RpcErr };
   enqueue_continue: { kind: "mutate"; method: "POST"; input: Input; output: bigint; error: RpcErr };
+  enqueue_import: { kind: "mutate"; method: "POST"; input: Input; output: bigint; error: RpcErr };
   list_queue: { kind: "query"; method: "GET"; input: null; output: QueueEntry[]; error: RpcErr };
   cancel_queue: { kind: "mutate"; method: "POST"; input: bigint; output: boolean; error: RpcErr };
 }
@@ -1525,6 +1568,7 @@ export const __procedureMeta = {
   start_task: { kind: "mutate", method: "POST" },
   enqueue_start: { kind: "mutate", method: "POST" },
   enqueue_continue: { kind: "mutate", method: "POST" },
+  enqueue_import: { kind: "mutate", method: "POST" },
   list_queue: { kind: "query", method: "GET" },
   cancel_queue: { kind: "mutate", method: "POST" },
 } as const;

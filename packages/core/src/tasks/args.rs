@@ -13,10 +13,16 @@ pub enum TaskAction {
     Start,
     #[serde(rename = "continue")]
     Continue,
+    /// 只导入: 下载/拷贝视频 + 探测 + 写 ctx.json, 不跑 pipeline。
+    /// 批量场景可先批量导入, 之后用 continue 逐个续跑重活。
+    #[serde(rename = "import")]
+    Import,
     #[serde(rename = "enqueue_start")]
     EnqueueStart,
     #[serde(rename = "enqueue_continue")]
     EnqueueContinue,
+    #[serde(rename = "enqueue_import")]
+    EnqueueImport,
     #[serde(rename = "list_queue")]
     ListQueue,
     #[serde(rename = "cancel_queue")]
