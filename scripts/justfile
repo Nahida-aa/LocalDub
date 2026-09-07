@@ -26,3 +26,12 @@ convert-to input="workfolder/深宫团宠，猫狗皇子皆是我的心头崽（
 #   just duration "深宫团宠，猫狗皇子皆是我的心头崽（30集）"
 duration series="深宫团宠，猫狗皇子皆是我的心头崽（30集）":
     bun video-duration.ts "{{series}}"
+
+# 导出系列成片到 out/<系列>/，供后续抽查/交付
+# 成片来源与 Rust final_video_dir 对齐: dub_sf_ocr 优先 (sf_ocr 为最优字幕源)
+# 已存在的目标文件默认跳过, 用 --force 覆盖; 用 --all 导出全部系列
+#   just export "深宫团宠，猫狗皇子皆是我的心头崽（30集）"
+#   just export "深宫团宠，猫狗皇子皆是我的心头崽（30集）" --force
+#   just export --all
+export series="":
+    bun export-series.ts {{ if series == "" { "--all" } else { "'" + series + "'" } }}
