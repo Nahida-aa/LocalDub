@@ -34,4 +34,8 @@ duration series="深宫团宠，猫狗皇子皆是我的心头崽（30集）":
 #   just export "深宫团宠，猫狗皇子皆是我的心头崽（30集）" --force
 #   just export --all
 export series="":
-    bun export-series.ts {{ if series == "" { "--all" } else { "'" + series + "'" } }}
+    @if [ -z "{{series}}" ]; then \
+        bun export-series.ts --all; \
+    else \
+        bun export-series.ts "{{series}}"; \
+    fi
