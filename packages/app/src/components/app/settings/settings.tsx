@@ -1,11 +1,20 @@
 import { ClientOnly } from "@tanstack/solid-router";
-import { Code, Keyboard, Monitor, Palette, Settings, Server } from "lucide-solid";
+import {
+  Code,
+  Keyboard,
+  Monitor,
+  Palette,
+  Settings,
+  Server,
+  SlidersHorizontal,
+} from "lucide-solid";
 import { type Component } from "solid-js";
 import { Tabs, TabsContent, TabsIndicator, TabsList, TabsTrigger } from "@repo/ui-solid/base/tabs";
 import { Modal } from "@repo/ui-solid/custom/modal/modal";
 import type { JSX } from "solid-js";
 import { openModal } from "@repo/ui-solid/custom/modal/renderer";
 import { GeneralSettings } from "./general";
+import { InputFormSettings } from "./inputForm";
 import { ServerManager } from "./ServerManager";
 import { DeviceInfo } from "./DeviceInfo";
 // import { useClientApi } from "../api/context";
@@ -27,6 +36,11 @@ export const SettingsContent = () => {
     { value: "servers", label: "Servers", icon: Server as typeof Settings },
     { value: "device", label: "Device", icon: Monitor as typeof Settings },
     { value: "config", label: "input.jsonc", icon: Code as typeof Settings },
+    {
+      value: "input-form",
+      label: "全局输入参数",
+      icon: SlidersHorizontal as typeof Settings,
+    },
   ];
   return (
     <ClientOnly>
@@ -53,6 +67,9 @@ export const SettingsContent = () => {
         <TabsContent value="config">
           {/* 仓库根 input.jsonc: cli resolve_input_path 真正读取的配置文件 (优先于 input.json) */}
           <FileEditor path="input.jsonc" label="input.jsonc" />
+        </TabsContent>
+        <TabsContent value="input-form">
+          <InputFormSettings />
         </TabsContent>
       </Tabs>
     </ClientOnly>
