@@ -1,29 +1,53 @@
 #!/usr/bin/env bun
 import { join, resolve } from "node:path";
-import { existsSync, readdirSync, copyFileSync, mkdirSync } from "node:fs";
+import { existsSync, readdirSync, copyFileSync, mkdirSync, readFileSync } from "node:fs";
 
 const repoRoot = resolve(import.meta.dir, "..");
 const WORKFOLDER = process.env["WORKFOLDER"]
   ? resolve(repoRoot, process.env["WORKFOLDER"])
   : join(repoRoot, "workfolder");
 
-// 成片搜索候选（按优先级），与 Rust final_video_dir() 产出目录对齐
-// (packages/core/src/stages/utils/mod.rs)，再回退历史上的多种旧布局：
-// 1. dub + sf_ocr:           <集>/merge_video/dub_sf_ocr/<集>.mp4 (首选, 关键帧 OCR 最优字幕源)
-// 2. dub + asr_ocr:          <集>/merge_video/dub_asr_ocr/<集>.mp4
-// 3. dub + asr (默认):       <集>/merge_video/dub/<集>.mp4
-// 4. 无翻译变体:             <集>/merge_video/dub_sf_ocr_ntl|dub_asr_ocr_ntl/<集>.mp4
-// 5. 旧 merge_video 根:      <集>/merge_video/<集>_dub_asr_ocr.mp4
-// 6. 更老的 media:           <集>/media/<集>_dub_asr_ocr.mp4
+// 优先读 Rust 写回 ctx.json 的 final_video_path（权威成片路径），
+// 再按目录布局回退候选。当前 Rust 管线输出到 mix_video/，旧 TS/更老布局为
+// merge_video/ / media/，final_video_dir() 见
+// (packages/core/src/stages/utils/mod.rs)：
+// 1. <集>/ctx.json  final_video_path
+// 2. dub + sf_ocr:           <集>/mix_video/dub_sf_ocr/<集>.mp4 (首选, 关键帧 OCR 最优字幕源)
+// 3. dub + asr_ocr:          <集>/mix_video/dub_asr_ocr/<集>.mp4
+// 4. dub + asr (默认):       <集>/mix_video/dub/<集>.mp4
+// 5. 无翻译变体:             <集>/mix_video/dub_sf_ocr_ntl|dub_asr_ocr_ntl/<集>.mp4
+// 6. 旧 merge_video 同构布局 (TS 时代)
+// 7. 更老的 media:           <集>/media/<集>_dub_asr_ocr.mp4
 function findDub(seriesDir: string, ep: string): string | null {
+  const epDir = join(seriesDir, ep);
+  const fromCtx = (() => {
+    try {
+      const ctx = JSON.parse(readFileSync(join(epDir, "ctx.json"), "utf8")) as {
+        task?: { final_video_path?: string };
+      };
+      return ctx.task?.final_video_path;
+    } catch {
+      return undefined;
+    }
+  })();
+  if (fromCtx && existsSync(fromCtx)) return fromCtx;
+
+  const variants = [
+    ["mix_video", "dub_sf_ocr"],
+    ["mix_video", "dub_asr_ocr"],
+    ["mix_video", "dub"],
+    ["mix_video", "dub_sf_ocr_ntl"],
+    ["mix_video", "dub_asr_ocr_ntl"],
+    ["merge_video", "dub_sf_ocr"],
+    ["merge_video", "dub_asr_ocr"],
+    ["merge_video", "dub"],
+    ["merge_video", "dub_sf_ocr_ntl"],
+    ["merge_video", "dub_asr_ocr_ntl"],
+  ];
   const candidates = [
-    join(seriesDir, ep, "merge_video", "dub_sf_ocr", `${ep}.mp4`),
-    join(seriesDir, ep, "merge_video", "dub_asr_ocr", `${ep}.mp4`),
-    join(seriesDir, ep, "merge_video", "dub", `${ep}.mp4`),
-    join(seriesDir, ep, "merge_video", "dub_sf_ocr_ntl", `${ep}.mp4`),
-    join(seriesDir, ep, "merge_video", "dub_asr_ocr_ntl", `${ep}.mp4`),
-    join(seriesDir, ep, "merge_video", `${ep}_dub_asr_ocr.mp4`),
-    join(seriesDir, ep, "media", `${ep}_dub_asr_ocr.mp4`),
+    ...variants.map(([dir, sub]) => join(epDir, dir, sub, `${ep}.mp4`)),
+    join(epDir, "merge_video", `${ep}_dub_asr_ocr.mp4`),
+    join(epDir, "media", `${ep}_dub_asr_ocr.mp4`),
   ];
   return candidates.find((p) => existsSync(p)) ?? null;
 }
