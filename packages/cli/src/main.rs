@@ -201,10 +201,30 @@ fn main() {
         }
     };
 
+    // 提示音语义: 任务完成 ≠ 命令完成。
+    // - 同步任务命令 (start/continue/import, 含缺省 action 走 start):
+    //   命令完成 = 任务完成 -> task_success / task_fail。
+    // - 其它命令 (enqueue 提交/servers/查询等): 命令结束但任务未运行或无关
+    //   -> command_done; 失败仍是 task_fail。
+    let action = input.task.as_ref().and_then(|t| t.action);
+    let is_sync_task = matches!(
+        (input.command, action),
+        (
+            InputCommand::Task,
+            None | Some(
+                TaskAction::Start | TaskAction::Continue | TaskAction::Import
+            )
+        )
+    );
+
     match run_result {
         Ok(()) => {
             println!("[cli] 完成");
-            ld_core::cmd::sound::play_task_success();
+            if is_sync_task {
+                ld_core::cmd::sound::play_task_success();
+            } else {
+                ld_core::cmd::sound::play_command_done();
+            }
         }
         Err(e) => {
             eprintln!("[cli] 错误: {e:#}");

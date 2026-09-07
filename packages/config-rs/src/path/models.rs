@@ -70,6 +70,15 @@ pub fn task_success_path() -> PathBuf {
     repo_root().join("assets").join("media").join("task_success.wav")
 }
 
+/// 命令完成提示音路径 (区别于任务完成: enqueue 提交/servers 管理等
+/// 命令结束但任务尚未运行/与任务无关)。
+pub fn command_done_path() -> PathBuf {
+    repo_root()
+        .join("assets")
+        .join("media")
+        .join("命令完成.wav")
+}
+
 /// 任务失败提示音路径 (镜像 TS `task_fail_path`)。
 pub fn task_fail_path() -> PathBuf {
     repo_root().join("assets").join("media").join("error.wav")

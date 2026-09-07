@@ -414,16 +414,21 @@ impl TaskQueue {
             match result {
                 Ok(Ok(())) => {
                     tracing::info!("[queue] id={id} done target={target}");
+                    // 任务真正的完成点在队列 worker (enqueue 的命令早已返回),
+                    // 提示音在这里播而非命令退出时。
+                    ld_core::cmd::sound::play_task_success_bg();
                     self.mark(id, QueueStatus::Done, None);
                 }
                 Ok(Err(e)) => {
                     let msg = format!("{e:#}");
                     tracing::error!("[queue] id={id} failed target={target}: {msg}");
+                    ld_core::cmd::sound::play_task_fail_bg();
                     self.mark(id, QueueStatus::Failed, Some(msg));
                 }
                 Err(e) => {
                     let msg = format!("任务崩溃: {e}");
                     tracing::error!("[queue] id={id} failed target={target}: {msg}");
+                    ld_core::cmd::sound::play_task_fail_bg();
                     self.mark(id, QueueStatus::Failed, Some(msg));
                 }
             }
