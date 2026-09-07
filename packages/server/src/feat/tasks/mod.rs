@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::sync::{Mutex, OnceLock};
 
 use config_rs::{
-    root::base_dir,
+    root::repo_root,
     // servers::ServerType
 };
 
@@ -37,7 +37,7 @@ pub async fn get_group_list() -> Result<Vec<GroupInfo>, String> {
 
 #[fnrpc::rpc_query]
 pub async fn get_task_ctx(task_dir: String) -> Result<TaskCtx, String> {
-    let path = base_dir().join(&task_dir);
+    let path = repo_root().join(&task_dir);
     context::read_ctx(
         &path
             .to_str()
@@ -47,12 +47,12 @@ pub async fn get_task_ctx(task_dir: String) -> Result<TaskCtx, String> {
 
 #[fnrpc::rpc_mutate]
 pub async fn continue_task(task_dir: String, from_stage: String) -> Result<(), String> {
-    let abs_task_dir = base_dir().join(&task_dir);
+    let abs_task_dir = repo_root().join(&task_dir);
     let abs_task_dir_str = abs_task_dir
         .to_str()
         .ok_or_else(|| "invalid task_dir".to_string())?
         .to_string();
-    eprintln!("[continue_task] base_dir={} task_dir={task_dir} abs={abs_task_dir_str}", base_dir().display());
+    eprintln!("[continue_task] base_dir={} task_dir={task_dir} abs={abs_task_dir_str}", repo_root().display());
 
     // 读 ctx.json 的 input 字段作为续跑基准配置 (仅改写 task 相关字段, 其余原样保留)。
     let ctx_path = abs_task_dir.join("ctx.json");
@@ -108,7 +108,7 @@ pub async fn regen_tts(
     seg_indices: Vec<u32>,
     continue_run: bool,
 ) -> Result<(), String> {
-    let abs_task_dir = base_dir().join(&task_dir);
+    let abs_task_dir = repo_root().join(&task_dir);
     let abs_task_dir_str = abs_task_dir
         .to_str()
         .ok_or_else(|| "invalid task_dir".to_string())?
@@ -235,7 +235,7 @@ pub async fn start_task(url: String) -> Result<String, String> {
 
     // 返回相对 workfolder 的 task_dir (供前端导航 /group/<group>/<task>)。
     std::path::Path::new(&abs_task_dir)
-        .strip_prefix(base_dir())
+        .strip_prefix(repo_root())
         .map(|p| p.to_string_lossy().into_owned())
         .map_err(|_| format!("task_dir 不在 workfolder 内: {abs_task_dir}"))
 }

@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use config_rs::root::base_dir;
+use config_rs::root::repo_root;
 
 pub fn ensure_parent_dir(path: &Path) -> Result<(), String> {
     if let Some(parent) = path.parent() {
@@ -19,5 +19,5 @@ pub fn sanitize_relative_path(relative_path: &str) -> Result<PathBuf, String> {
     if cleaned.contains("..") {
         return Err("Path traversal detected".to_string());
     }
-    Ok(base_dir().join(cleaned))
+    Ok(repo_root().join(cleaned))
 }

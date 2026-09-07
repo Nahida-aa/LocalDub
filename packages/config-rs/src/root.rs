@@ -25,7 +25,7 @@ pub fn config_dir() -> PathBuf {
 pub fn resolve_path(val: &str) -> PathBuf {
     let p = Path::new(val);
     if p.is_relative() {
-        base_dir().join(p)
+        repo_root().join(p)
     } else {
         p.to_path_buf()
     }

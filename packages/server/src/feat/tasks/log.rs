@@ -1,4 +1,4 @@
-use config_rs::root::base_dir;
+use config_rs::root::repo_root;
 use futures::{Stream, StreamExt, stream};
 use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
@@ -6,7 +6,7 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt};
 #[fnrpc::rpc_subscribe]
 pub fn watch_task_log(task_dir: String) -> impl Stream<Item = String> {
     let p = if Path::new(&task_dir).is_relative() {
-        base_dir().join(&task_dir)
+        repo_root().join(&task_dir)
     } else {
         Path::new(&task_dir).to_path_buf()
     };

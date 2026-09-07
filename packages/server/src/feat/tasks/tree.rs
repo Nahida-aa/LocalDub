@@ -1,11 +1,11 @@
-use config_rs::root::base_dir;
+use config_rs::root::repo_root;
 use futures::{Stream, StreamExt, stream};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 
 /// Subscribe to real-time changes in a task (episode-level) directory tree.
 ///
-/// Watches the directory at `task_dir` (relative to `base_dir()`, or an absolute
+/// Watches the directory at `task_dir` (relative to `repo_root()`, or an absolute
 /// path) with a **recursive** OS watcher, so it covers the whole subtree — including
 /// subdirectories created *after* the watch starts (e.g. a pipeline's `mix_video/`
 /// appearing mid-run and the `.srt`/video files inside it). Emits [`fs::PathEvent`]
@@ -13,27 +13,27 @@ use std::pin::Pin;
 /// generated `.srt`/video). The event carries the path and the kind of change, but
 /// **never the file contents**; the consumer decides when to read.
 ///
-/// Paths in events are **relative to `base_dir()`** (e.g. `workfolder/<group>/<task>/asr/asr.json`),
+/// Paths in events are **relative to `repo_root()`** (e.g. `workfolder/<group>/<task>/asr/asr.json`),
 /// not absolute OS paths. The frontend issues queries with the same relative paths
-/// (it has no knowledge of the OS `base_dir()`), so this keeps both sides using one
+/// (it has no knowledge of the OS `repo_root()`), so this keeps both sides using one
 /// path vocabulary and lets the consumer `startsWith(task_dir)` / match exact query
-/// paths without guessing where `base_dir()` sits on disk.
+/// paths without guessing where `repo_root()` sits on disk.
 /// Core stream-building logic, free of the `#[fnrpc::rpc_subscribe]` macro so it
-/// can be unit-tested directly. Resolves `task_dir` (relative to `base_dir()`, or
+/// can be unit-tested directly. Resolves `task_dir` (relative to `repo_root()`, or
 /// an absolute path) and returns a watch stream, or an empty stream on failure.
 fn build_tree_stream(task_dir: String) -> Pin<Box<dyn Stream<Item = fs::PathEvent> + Send>> {
     let p = if Path::new(&task_dir).is_relative() {
-        base_dir().join(&task_dir)
+        repo_root().join(&task_dir)
     } else {
         Path::new(&task_dir).to_path_buf()
     };
 
     // The prefix to strip from each event path so the consumer sees paths relative
-    // to `base_dir()`. For a relative `task_dir` this is `base_dir()`; for an
+    // to `repo_root()`. For a relative `task_dir` this is `repo_root()`; for an
     // absolute `task_dir` it is the task dir's own parent (so the emitted path is
     // still relative to a stable root rather than an absolute OS path).
     let strip_root: PathBuf = if Path::new(&task_dir).is_relative() {
-        base_dir()
+        repo_root()
     } else {
         p.parent()
             .map(|x| x.to_path_buf())
@@ -88,9 +88,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn relative_path_resolves_via_base_dir() {
+    async fn relative_path_resolves_via_repo_root() {
         // A relative path must not be passed straight to the OS watcher; it
-        // should be resolved (joined onto base_dir). We just assert the call
+        // should be resolved (joined onto repo_root). We just assert the call
         // returns a stream object and is consumable without panicking.
         let mut stream: Pin<Box<dyn Stream<Item = fs::PathEvent>>> =
             build_tree_stream("workfolder".to_string());

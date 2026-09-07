@@ -1,7 +1,7 @@
 use std::fs;
 
 use config_rs::{
-    root::base_dir,
+    root::repo_root,
     // servers::ServerType
 };
 use ld_core::{
@@ -18,13 +18,13 @@ use specta::Type;
 
 #[fnrpc::rpc_query]
 pub async fn read_app_file_text(relative_path: String) -> Result<String, String> {
-    let path = base_dir().join(&relative_path);
+    let path = repo_root().join(&relative_path);
     fs::read_to_string(&path).map_err(|e| format!("Failed to read {}: {}", path.display(), e))
 }
 
 #[fnrpc::rpc_query]
 pub async fn read_app_file_json(relative_path: String) -> Result<serde_json::Value, String> {
-    let path = base_dir().join(&relative_path);
+    let path = repo_root().join(&relative_path);
     let text = fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
     serde_json::from_str(&text).map_err(|e| format!("Failed to parse {}: {}", path.display(), e))
@@ -32,7 +32,7 @@ pub async fn read_app_file_json(relative_path: String) -> Result<serde_json::Val
 
 #[fnrpc::rpc_query]
 pub async fn read_app_file_bin(relative_path: String) -> Result<Vec<u8>, String> {
-    let path = base_dir().join(&relative_path);
+    let path = repo_root().join(&relative_path);
     fs::read(&path).map_err(|e| format!("Failed to read {}: {}", path.display(), e))
 }
 
@@ -69,7 +69,7 @@ pub struct DirEntry {
 
 #[fnrpc::rpc_query]
 pub async fn list_app_directory(relative_path: String) -> Result<Vec<DirEntry>, String> {
-    let path = base_dir().join(&relative_path);
+    let path = repo_root().join(&relative_path);
     let entries =
         fs::read_dir(&path).map_err(|e| format!("Failed to list {}: {}", path.display(), e))?;
 

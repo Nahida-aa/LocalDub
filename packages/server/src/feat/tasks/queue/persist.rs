@@ -3,7 +3,7 @@
 use std::io::Write;
 use std::path::PathBuf;
 
-use config_rs::root::base_dir;
+use config_rs::root::repo_root;
 
 use super::event::{Checkpoint, QueueEvent};
 
@@ -11,7 +11,7 @@ use super::event::{Checkpoint, QueueEvent};
 pub(super) const ROTATE_BYTES: u64 = 5 * 1024 * 1024;
 
 pub(super) fn queue_dir() -> PathBuf {
-    base_dir().join("data").join("queue")
+    repo_root().join("data").join("queue")
 }
 pub(super) fn events_path() -> PathBuf {
     queue_dir().join("events.ndjson")

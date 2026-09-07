@@ -196,7 +196,7 @@ pub fn start_main_server(foreground: bool) -> anyhow::Result<String> {
     }
 
     // detached: 独立进程组 + stdio 重定向到日志文件
-    let log_path = config_rs::root::base_dir().join("logs").join("server.log");
+    let log_path = config_rs::root::repo_root().join("logs").join("server.log");
     if let Some(dir) = log_path.parent() {
         std::fs::create_dir_all(dir)
             .with_context(|| format!("创建日志目录 {:?} 失败", dir))?;

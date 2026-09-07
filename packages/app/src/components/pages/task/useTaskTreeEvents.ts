@@ -23,9 +23,9 @@ export interface TaskTreeHandlers {
 }
 
 /// 把事件路径规整为相对 workfolder 的路径。后端 build_tree_stream 已经把事件
-/// path 相对化到 base_dir()（即 `workfolder/group/task/...`），与前端查询用的
+/// path 相对化到 repo_root()（即 `workfolder/group/task/...`），与前端查询用的
 /// 相对路径同构。这里做一层兜底：若已以 `workfolder` 开头则直接采用；否则尝试
-/// 截取首个 `workfolder` 段；再不行则原样返回。前端不感知 OS 的 base_dir()，所以
+/// 截取首个 `workfolder` 段；再不行则原样返回。前端不感知 OS 的 repo_root()，所以
 /// 绝不应出现绝对路径到达这里。
 function toRelativePath(absOrRel: string): string {
   if (absOrRel.startsWith("workfolder")) return absOrRel;

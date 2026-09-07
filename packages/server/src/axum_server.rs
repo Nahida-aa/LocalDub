@@ -11,7 +11,7 @@ use crate::{
     ctx::{AppState, Ctx},
     fnrpc_axum::build_axum_router,
 };
-use config_rs::root::base_dir;
+use config_rs::root::repo_root;
 
 // async fn fnrpc_handle(
 //     router: &RpcRouter<Ctx>,
@@ -82,7 +82,7 @@ pub async fn start(
     // let rspc_router =
     //     rspc_axum::endpoint::<AppState, _, _, _>(procedures, move || state_for_rspc.clone());
 
-    let media_root = base_dir();
+    let media_root = repo_root();
     // 先保存 shutdown 信号 (build_axum_router 会 move state)。
     let shutdown_signal = state.shutdown.clone();
     // 启动任务队列 worker (串行执行入队的任务)。
