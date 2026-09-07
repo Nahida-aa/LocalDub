@@ -7,13 +7,21 @@ const WORKFOLDER = process.env["WORKFOLDER"]
   ? resolve(repoRoot, process.env["WORKFOLDER"])
   : join(repoRoot, "workfolder");
 
-// 成片搜索候选（按优先级），适配历史上的多种目录结构：
-// 1. 当前 pipeline 输出:    <集>/merge_video/dub_asr_ocr/<集>.mp4
-// 2. 旧 merge_video 根:    <集>/merge_video/<集>_dub_asr_ocr.mp4
-// 3. 更老的 media:         <集>/media/<集>_dub_asr_ocr.mp4
+// 成片搜索候选（按优先级），与 Rust final_video_dir() 产出目录对齐
+// (packages/core/src/stages/utils/mod.rs)，再回退历史上的多种旧布局：
+// 1. dub + sf_ocr:           <集>/merge_video/dub_sf_ocr/<集>.mp4 (首选, 关键帧 OCR 最优字幕源)
+// 2. dub + asr_ocr:          <集>/merge_video/dub_asr_ocr/<集>.mp4
+// 3. dub + asr (默认):       <集>/merge_video/dub/<集>.mp4
+// 4. 无翻译变体:             <集>/merge_video/dub_sf_ocr_ntl|dub_asr_ocr_ntl/<集>.mp4
+// 5. 旧 merge_video 根:      <集>/merge_video/<集>_dub_asr_ocr.mp4
+// 6. 更老的 media:           <集>/media/<集>_dub_asr_ocr.mp4
 function findDub(seriesDir: string, ep: string): string | null {
   const candidates = [
+    join(seriesDir, ep, "merge_video", "dub_sf_ocr", `${ep}.mp4`),
     join(seriesDir, ep, "merge_video", "dub_asr_ocr", `${ep}.mp4`),
+    join(seriesDir, ep, "merge_video", "dub", `${ep}.mp4`),
+    join(seriesDir, ep, "merge_video", "dub_sf_ocr_ntl", `${ep}.mp4`),
+    join(seriesDir, ep, "merge_video", "dub_asr_ocr_ntl", `${ep}.mp4`),
     join(seriesDir, ep, "merge_video", `${ep}_dub_asr_ocr.mp4`),
     join(seriesDir, ep, "media", `${ep}_dub_asr_ocr.mp4`),
   ];
