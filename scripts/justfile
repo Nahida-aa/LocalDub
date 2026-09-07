@@ -30,10 +30,10 @@ duration series="深宫团宠，猫狗皇子皆是我的心头崽（30集）":
 # 导出系列成片到 out/<系列>/，供后续抽查/交付
 # 成片来源与 Rust final_video_dir 对齐: dub_sf_ocr 优先 (sf_ocr 为最优字幕源)
 # 已存在的目标文件默认跳过, 用 --force 覆盖; 用 --all 导出全部系列
-#   just export "深宫团宠，猫狗皇子皆是我的心头崽（30集）"
-#   just export "深宫团宠，猫狗皇子皆是我的心头崽（30集）" --force
-#   just export --all
-export series="":
+#   just export-series "深宫团宠，猫狗皇子皆是我的心头崽（30集）"
+#   just export-series "深宫团宠，猫狗皇子皆是我的心头崽（30集）" --force
+#   just export-series --all
+export-series series="":
     @if [ -z "{{series}}" ]; then \
         bun export-series.ts --all; \
     else \
