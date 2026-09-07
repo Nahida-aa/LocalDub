@@ -8,11 +8,29 @@ dev-cli:
 dev-cli-ts:
     cd packages/cli && bun run tauri dev
 
+dev-cli-task-start *url:
+    cargo run -p cli -- task --action start --url "$url"
+
+dev-cli-discovery-server:
+    cargo run -p cli -- servers --action discovery --name main
+
+dev-cli-server:
+    cargo run -p cli -- servers --action start --name main --foreground
+
+dev-cli-stop-server:
+    cargo run -p cli -- servers --action stop --name main
+
+dev-server:
+    cargo run -p server
+
 # 启动桌面端 (Tauri + Solid 前端)。等价于 packages/app 的 `dev:desktop`:
 # 进入 packages/app 跑 `bun run tauri dev` (需先 bun install 装好依赖)。
 # 用 cd 而非 `bun --cwd`, 后者对 `run <script>` 解析不可靠。
 dev-desktop:
     cd packages/app && bun run tauri dev
+
+dev-desktop-debug:
+    cd packages/app && RUST_LOG=fs=debug bun run tauri dev
 
 gen-input-schema:
     cargo run -p ld-core --bin gen-input-schema
