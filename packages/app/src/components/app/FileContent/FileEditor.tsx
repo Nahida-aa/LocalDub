@@ -9,9 +9,46 @@ import { Show } from "solid-js/types/server/rendering.js";
 
 const AUTO_SAVE_DELAY = 2000;
 
+// jsonc 独立语言的语言服务配置 (duck-typed LanguageServiceDefaults):
+// 诊断独立于全局 json (allowComments/allowTrailingCommas 只影响 jsonc)。
+// jsonMode.setupMode 只读这些 getter, 不要求具体类型。
+let jsoncSchemas: unknown[] = [];
+let jsoncModeSetup = false;
+const jsoncDefaults = {
+  get languageId() {
+    return "jsonc";
+  },
+  get diagnosticsOptions() {
+    return {
+      validate: true,
+      allowComments: true,
+      allowTrailingCommas: true,
+      enableSchemaRequest: false, // schema 内联提供, worker 不发网络请求
+      schemas: jsoncSchemas,
+    };
+  },
+  get modeConfiguration() {
+    return {
+      completionItems: true,
+      hovers: true,
+      documentSymbols: true,
+      documentColors: true,
+      colorDecorators: true,
+      foldingRanges: true,
+      diagnostics: true,
+      selectionRanges: true,
+      documentFormattingEdits: false,
+      documentRangeFormattingEdits: false,
+    };
+  },
+  onDidChange(_cb: () => void) {
+    return { dispose() {} };
+  },
+};
+
 const EXT_LANG: Record<string, string> = {
   json: "json",
-  jsonc: "json", // jsonc: monaco json tokenizer 高亮 (含注释); 诊断/校验放宽见下
+  jsonc: "jsonc", // 独立 jsonc 语言 (onMount 里 setupMode): 支持注释/尾逗号, 不污染 json 诊断
   ts: "typescript",
   tsx: "typescript",
   js: "javascript",
@@ -122,7 +159,7 @@ export function FileEditor(props: Props) {
       monacoInitialized = true;
       (self as any).MonacoEnvironment = {
         getWorker: async (mod: string, label: string) => {
-          if (label === "json") {
+          if (label === "json" || label === "jsonc") {
             const jsonMod = await import("monaco-editor/esm/vs/language/json/json.worker?worker");
             return new jsonMod.default();
           }
@@ -151,15 +188,16 @@ export function FileEditor(props: Props) {
       }
     }
 
-    // JSON/JSONC schema 诊断: jsonc 允许注释与尾逗号; $schema 直接正则提取
-    // (jsonc 内容 JSON.parse 会失败, 不做整文件解析)。
+    // JSON/JSONC schema 诊断:
+    // - json (纯 json): jsonDefaults 全局严格诊断 + $schema 匹配
+    // - jsonc (注释/尾逗号): 注册独立语言并经 jsonMode.setupMode 挂完整
+    //   json 语言服务 (补全/诊断/hover), 诊断配置独立 (allowComments),
+    //   不污染全局 json 语义。$schema 正则提取 (jsonc 无法 JSON.parse 整文件)。
     if (lang === "json" && content) {
       try {
         const monacoJson = (monaco.languages.json as any)?.jsonDefaults;
         const diagOpts: Record<string, unknown> = {
           validate: true,
-          allowComments: true, // jsonc: 注释
-          allowTrailingCommas: true, // jsonc: 尾逗号
         };
         const schemaMatch = content.match(/"\$schema"\s*:\s*"([^"]+)"/);
         if (schemaMatch) {
@@ -178,6 +216,39 @@ export function FileEditor(props: Props) {
           }
         }
         monacoJson?.setDiagnosticsOptions(diagOpts);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (lang === "jsonc" && monaco) {
+      try {
+        // 语言只注册一次; 语言服务 (providers/worker) 也只 setup 一次
+        if (!monaco.languages.getLanguages().some((l: { id: string }) => l.id === "jsonc")) {
+          monaco.languages.register({ id: "jsonc" });
+        }
+        if (!jsoncModeSetup) {
+          jsoncModeSetup = true;
+          // esm 子路径无类型声明
+          // @ts-ignore
+          const jsonMode = await import("monaco-editor/esm/vs/language/json/jsonMode.js");
+          await jsonMode.setupMode(jsoncDefaults);
+        }
+        // $schema 提取 + 塞入 jsonc 独立诊断配置 (setupMode 前生效, worker 首建时带上)
+        const schemaMatch = content.match(/"\$schema"\s*:\s*"([^"]+)"/);
+        if (schemaMatch && !schemaMatch[1].startsWith("http")) {
+          const schemaPath = schemaMatch[1].startsWith("/")
+            ? schemaMatch[1].slice(1)
+            : resolveRelative(props.path, schemaMatch[1]);
+          try {
+            const schemaObj = JSON.parse(await fnrpc.read_app_file_text(schemaPath));
+            jsoncSchemas.splice(0, jsoncSchemas.length, {
+              uri: `file://${schemaPath}`,
+              schema: schemaObj,
+            });
+          } catch {
+            /* schema not found */
+          }
+        }
       } catch {
         /* ignore */
       }
