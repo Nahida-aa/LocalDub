@@ -23,41 +23,81 @@ import { client } from "#/integrations/fnrpc/client.ts";
 
 const INPUT_PATH = "input.jsonc";
 
-// 选项与 Rust 侧枚举同步 (ld_core TaskAction / ServerAction / ServerType)
+import type {
+  Pipeline,
+  ServerAction,
+  ServerType_Serialize,
+  StageName,
+  SubtitleSource,
+  TaskAction,
+} from "@repo/sdk/fnrpc/bindings";
+
+const keysOf = <T extends Record<string, unknown>>(o: T): string[] => Object.keys(o);
+
+// 下拉选项从 Rust 枚举派生 (specta -> bindings 类型): satisfies 全键约束保证
+// Rust 枚举加/改值 -> gen-ts-sdk -> 此处编译报错, 强制同步 (不再手写漏值)。
+
+// InputCommand 无 specta 类型, 保持手写
 const COMMANDS = ["task", "servers", "env", "cookie"];
-const TASK_ACTIONS = [
-  "start",
-  "continue",
-  "import",
-  "enqueue_start",
-  "enqueue_continue",
-  "enqueue_import",
-  "list_queue",
-  "cancel_queue",
-  "status",
-  "get_group_list",
-  "get_task_ctx",
-  "generate_meta",
-];
+
+const TASK_ACTIONS = keysOf({
+  start: "",
+  continue: "",
+  import: "",
+  enqueue_start: "",
+  enqueue_continue: "",
+  enqueue_import: "",
+  list_queue: "",
+  cancel_queue: "",
+  status: "",
+  get_group_list: "",
+  get_task_ctx: "",
+  generate_meta: "",
+} satisfies Record<TaskAction, string>);
+
 const STAGES = [
   "",
-  "separate",
-  "separate_after",
-  "asr",
-  "asr_ocr_pre",
-  "asr_ocr",
-  "asr_ocr_fix",
-  "translate",
-  "tts",
-  "split_audio",
-  "merge_audio",
-  "mix_audio",
-  "mix_video",
+  ...keysOf({
+    separate: "",
+    separate_after: "",
+    asr: "",
+    asr_fix: "",
+    sf_ocr_pre: "",
+    sf_ocr: "",
+    sf_ocr_fix: "",
+    asr_ocr_pre: "",
+    asr_ocr: "",
+    asr_ocr_fix: "",
+    translate: "",
+    split_audio: "",
+    tts: "",
+    mix_audio: "",
+    mix_video: "",
+  } satisfies Record<StageName, string>),
 ];
-const PIPELINES = ["", "dub", "subtitle"];
-const SUBTITLE_SOURCES = ["", "asr", "sf_ocr", "asr_ocr"];
-const SERVER_ACTIONS = ["", "status", "start", "stop", "discovery"];
-const SERVER_NAMES = ["", "main", "voxcpm_torch_gradio"];
+
+const PIPELINES = ["", ...keysOf({ dub: "", subtitle: "" } satisfies Record<Pipeline, string>)];
+
+const SUBTITLE_SOURCES = [
+  "",
+  ...keysOf({ asr: "", sf_ocr: "", asr_ocr: "" } satisfies Record<SubtitleSource, string>),
+];
+
+const SERVER_ACTIONS = [
+  "",
+  ...keysOf({ status: "", start: "", stop: "", discovery: "" } satisfies Record<
+    ServerAction,
+    string
+  >),
+];
+
+const SERVER_NAMES = [
+  "",
+  ...keysOf({
+    main: "",
+    voxcpm_torch_gradio: "",
+  } satisfies Record<ServerType_Serialize, string>),
+];
 
 type FormState = {
   command: string;
