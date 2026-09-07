@@ -15,6 +15,7 @@ import type { JSX } from "solid-js";
 import { openModal } from "@repo/ui-solid/custom/modal/renderer";
 import { GeneralSettings } from "./general";
 import { InputFormSettings } from "./inputForm";
+import { ScrollArea } from "@repo/ui-solid/base/scroll-area";
 import { ServerManager } from "./ServerManager";
 import { DeviceInfo } from "./DeviceInfo";
 // import { useClientApi } from "../api/context";
@@ -58,25 +59,35 @@ export const SettingsContent = () => {
             </TabsTrigger>
           ))}
         </TabsList>
-        <TabsContent value="general" class="min-h-0 overflow-y-auto">
-          <GeneralSettings />
+        <TabsContent value="general" class="h-full min-h-0">
+          <ScrollArea>
+            <GeneralSettings />
+          </ScrollArea>
         </TabsContent>
-        <TabsContent value="shortcuts" class="min-h-0 overflow-y-auto">
-          <h2>{i18n.shortcuts()}</h2>
+        <TabsContent value="shortcuts" class="h-full min-h-0">
+          <ScrollArea>
+            <h2>{i18n.shortcuts()}</h2>
+          </ScrollArea>
         </TabsContent>
-        <TabsContent value="servers" class="min-h-0 overflow-y-auto">
-          <ServerManager />
+        <TabsContent value="servers" class="h-full min-h-0">
+          <ScrollArea>
+            <ServerManager />
+          </ScrollArea>
         </TabsContent>
-        <TabsContent value="device" class="min-h-0 overflow-y-auto">
-          <DeviceInfo />
+        <TabsContent value="device" class="h-full min-h-0">
+          <ScrollArea>
+            <DeviceInfo />
+          </ScrollArea>
         </TabsContent>
-        <TabsContent value="config" class="min-h-0">
+        <TabsContent value="config" class="h-full min-h-0">
           {/* 仓库根 input.jsonc: cli resolve_input_path 真正读取的配置文件 (优先于 input.json)。
               Monaco 自带滚动, 外层不再 overflow */}
           <FileEditor path="input.jsonc" label="input.jsonc" />
         </TabsContent>
-        <TabsContent value="input-form" class="min-h-0 overflow-y-auto">
-          <InputFormSettings />
+        <TabsContent value="input-form" class="h-full min-h-0">
+          <ScrollArea>
+            <InputFormSettings />
+          </ScrollArea>
         </TabsContent>
       </Tabs>
     </ClientOnly>
