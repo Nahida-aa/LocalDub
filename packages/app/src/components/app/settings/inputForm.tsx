@@ -141,6 +141,10 @@ function parseJsonc(raw: string): Record<string, any> {
 
 type Option = { value: string; label: string };
 
+/// 空值哨兵: Kobalte 把空字符串当"无选中值" (selectedOption() 为 undefined),
+/// 需要用一个非空标记表示"未设置", 提交时再映射回空串。
+const EMPTY = "__none__";
+
 /// 下拉字段 (顶层组件: Solid 不在组件内部定义子组件)
 function SelectField(props: {
   title: string;
@@ -151,8 +155,12 @@ function SelectField(props: {
 }) {
   // Solid: JSX 属性需是"调用"才会编译成 getter —— 直接写对象字面量会被静态化,
   // signal 变化时选中项不同步 (React 靠重渲染天然正确, Solid 不行)。
-  const selected = (): Option => ({ value: props.value, label: props.value || "—" });
-  const options = (): Option[] => props.options.map((v) => ({ value: v, label: v || "—" }));
+  const selected = (): Option => ({
+    value: props.value || EMPTY,
+    label: props.value || "—",
+  });
+  const options = (): Option[] =>
+    props.options.map((v) => ({ value: v || EMPTY, label: v || "—" }));
 
   return (
     <CardX
@@ -164,12 +172,15 @@ function SelectField(props: {
           value={selected()}
           optionValue="value"
           optionTextValue="label"
-          onChange={(v) => props.onChange(v?.value ?? "")}
+          onChange={(v) => {
+            const raw = v?.value ?? EMPTY;
+            props.onChange(raw === EMPTY ? "" : raw);
+          }}
           options={options()}
           itemComponent={(p) => <SelectItem item={p.item}>{p.item.rawValue.label}</SelectItem>}
         >
           <SelectTrigger class="w-45">
-            <SelectValue<Option>>{(state) => state.selectedOption().label}</SelectValue>
+            <SelectValue<Option>>{(state) => state.selectedOption()?.label ?? "—"}</SelectValue>
           </SelectTrigger>
           <SelectContent />
         </Select>
