@@ -1,20 +1,17 @@
 //! 任务队列: CLI/桌面 通过 fnrpc 把任务加入队列, 主服务器串行 worker 执行。
 //!
-//! 持久化 (`<base_dir>/data/queue/`):
-//! - `events.ndjson`: 事件日志, **只追加**, 一行一事件
-//!   (enqueued/started/done/failed/canceled/requeued)。append 接近原子,
-//!   crash 最坏只丢最后一行, 不损历史 (半行在重放时跳过)。
-//! - `checkpoint.json`: `{ compact_offset, entries }` — compaction 时的状态
-//!   快照 + 行偏移。启动时加载快照 + 重放 [compact_offset, EOF) 得到完整状态;
-//!   原子写 (tmp + rename)。
-//! - `events.ndjson.old`: compaction 归档的老事件。
+//! 持久化 (`<base_dir>/data/queue/`), 三层职责分离:
+//! - `events.ndjson`: 事件审计日志, **只追加** (enqueued/started/done/failed/
+//!   canceled/requeued)。职责: 审计 + crash 兜底 —— checkpoint 落盘前进程死亡时,
+//!   重放 `[consumed_offset, EOF)` 补齐状态。按大小滚动归档。
+//! - `checkpoint.json`: **维护的状态 (读路径载体)** — `{ consumed_offset, active,
+//!   terminal }`, 每次状态变化原子重写 (tmp + rename)。启动直接恢复, 正常路径零重放。
+//! - 内存: 仅活跃条目 (Queued/Running, 含 Input) + 有界终态缓存 (KEEP_TERMINAL,
+//!   轻量展示字段无 Input)。**内存不随历史增长**。
 //!
-//! 事件折叠 (replay) 幂等: 重复事件对同一 id 收敛到同一状态, 因此 compaction
-//! 的截断窗口内 crash 最坏产生重复事件, 无害。
-//!
-//! 单写者: 只有 server 进程写队列 (桌面 UI 的 enqueue 走 HTTP)。
-//!
-//! worker: 全局串行, 一次跑一个任务, 为批量运行做准备。
+//! 事件日志格式: NDJSON 一行一事件。反序列化用手动分派 [`parse_event`] ——
+//! internally tagged 的 Content 缓冲重放与 Input 树不兼容 (实测报
+//! `invalid type: map, expected f64`), 不能用 serde tag 反序列化。
 
 use std::io::Write;
 use std::path::PathBuf;
@@ -24,8 +21,11 @@ use config_rs::root::base_dir;
 use ld_core::input::Input;
 use serde::{Deserialize, Serialize};
 
-/// 终态 (done/failed/canceled) 条目保留数, 超出的在 compaction 时归档到 .old
+/// 终态展示条目保留数 (checkpoint + 内存缓存), 超出丢弃最老
+/// (完整记录仍在事件日志里)。
 const KEEP_TERMINAL: usize = 500;
+/// 事件日志滚动阈值 (字节): 超过且 worker 空闲时归档开新文件。
+const ROTATE_BYTES: u64 = 5 * 1024 * 1024;
 
 // ---------------------------------------------------------------------------
 // 数据结构
@@ -47,21 +47,47 @@ impl QueueStatus {
     }
 }
 
-/// 队列中的一条任务 (对外结构: fnrpc list_queue / CLI)
+/// 队列条目 (fnrpc list_queue 对外)。
+///
+/// 活跃条目 (Queued/Running) 带 `input` (worker 执行需要);
+/// 终态条目从活跃区移出后只留展示字段 (`action`/`target`), `input` 为 None。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct QueueEntry {
     pub id: u64,
-    /// 完整任务配置 (input.task.action = start/continue/import)
-    pub input: Input,
     pub status: QueueStatus,
     pub error: Option<String>,
+    /// 活跃条目的完整任务配置; 终态条目为 None
+    pub input: Option<Input>,
+    /// 展示: start/continue/import
+    pub action: Option<String>,
+    /// 展示: start=url / continue|import=taskDir
+    pub target: Option<String>,
+}
+
+/// 终态展示条目 (checkpoint terminal 列表元素, 无 Input, 新→旧排序)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TerminalEntry {
+    id: u64,
+    action: Option<String>,
+    target: Option<String>,
+    status: QueueStatus,
+    error: Option<String>,
+    ts: u64,
+}
+
+/// checkpoint (状态快照, 原子重写)
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct Checkpoint {
+    /// 已折叠进 active/terminal 的事件行数 (事件日志从该行起为未消费增量)
+    #[serde(default)]
+    consumed_offset: u64,
+    #[serde(default)]
+    active: Vec<QueueEntry>,
+    #[serde(default)]
+    terminal: Vec<TerminalEntry>,
 }
 
 /// 队列事件 (NDJSON 一行一事件)。
-///
-/// 注意: 只 derive Serialize; **反序列化用手动分派** (`parse_event`)——
-/// internally tagged 的 Content 缓冲重放与 Input 树的字段不兼容
-/// (实测报 `invalid type: map, expected f64`), 不能用 serde tag 反序列化。
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum QueueEvent {
@@ -73,7 +99,7 @@ enum QueueEvent {
     Requeued { ts: u64, id: u64 },
 }
 
-/// 手动解析事件行 (绕开 internally tagged 的 Content 缓冲问题)。
+/// 手动解析事件行 (绕开 internally tagged 的 Content 缓冲问题, 见模块文档)。
 fn parse_event(line: &str) -> Option<QueueEvent> {
     let v: serde_json::Value = serde_json::from_str(line).ok()?;
     let ts = v.get("ts")?.as_u64()?;
@@ -96,73 +122,6 @@ fn parse_event(line: &str) -> Option<QueueEvent> {
     }
 }
 
-/// checkpoint 快照 (compaction 时写; 启动时加载后从 compact_offset 行起重放)
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-struct Checkpoint {
-    #[serde(default)]
-    compact_offset: u64,
-    #[serde(default)]
-    entries: Vec<QueueEntry>,
-}
-
-/// 内存中的折叠状态
-#[derive(Debug, Default)]
-struct QueueState {
-    entries: Vec<QueueEntry>,
-}
-
-impl QueueState {
-    fn entry_mut(&mut self, id: u64) -> Option<&mut QueueEntry> {
-        self.entries.iter_mut().find(|e| e.id == id)
-    }
-
-    fn apply(&mut self, ev: QueueEvent) {
-        match ev {
-            QueueEvent::Enqueued { input, id, .. } => self.entries.push(QueueEntry {
-                id,
-                input,
-                status: QueueStatus::Queued,
-                error: None,
-            }),
-            QueueEvent::Started { id, .. } => {
-                if let Some(e) = self.entry_mut(id) {
-                    e.status = QueueStatus::Running;
-                }
-            }
-            QueueEvent::Done { id, .. } => {
-                if let Some(e) = self.entry_mut(id) {
-                    e.status = QueueStatus::Done;
-                    e.error = None;
-                }
-            }
-            QueueEvent::Failed { id, error, .. } => {
-                if let Some(e) = self.entry_mut(id) {
-                    e.status = QueueStatus::Failed;
-                    e.error = Some(error);
-                }
-            }
-            QueueEvent::Canceled { id, .. } => {
-                if let Some(e) = self.entry_mut(id) {
-                    e.status = QueueStatus::Canceled;
-                }
-            }
-            QueueEvent::Requeued { id, .. } => {
-                if let Some(e) = self.entry_mut(id) {
-                    e.status = QueueStatus::Queued;
-                }
-            }
-        }
-    }
-
-    fn terminal_count(&self) -> usize {
-        self.entries.iter().filter(|e| e.status.is_terminal()).count()
-    }
-
-    fn next_id(&self) -> u64 {
-        self.entries.iter().map(|e| e.id + 1).max().unwrap_or(0)
-    }
-}
-
 // ---------------------------------------------------------------------------
 // 存储路径与 IO
 // ---------------------------------------------------------------------------
@@ -173,9 +132,6 @@ fn queue_dir() -> PathBuf {
 fn events_path() -> PathBuf {
     queue_dir().join("events.ndjson")
 }
-fn old_path() -> PathBuf {
-    queue_dir().join("events.ndjson.old")
-}
 fn checkpoint_path() -> PathBuf {
     queue_dir().join("checkpoint.json")
 }
@@ -184,6 +140,12 @@ fn now_ts() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+fn file_line_count() -> u64 {
+    std::fs::read_to_string(events_path())
+        .map(|r| r.lines().count() as u64)
         .unwrap_or(0)
 }
 
@@ -226,58 +188,158 @@ fn write_checkpoint(cp: &Checkpoint) {
             return;
         }
     };
-    if let Err(e) = std::fs::write(&tmp, json).and_then(|_| std::fs::rename(&tmp, checkpoint_path()))
+    if let Err(e) =
+        std::fs::write(&tmp, json).and_then(|_| std::fs::rename(&tmp, checkpoint_path()))
     {
         tracing::error!("[queue] 写 checkpoint 失败: {e}");
     }
 }
 
-/// 加载状态: checkpoint 快照 + 重放 [compact_offset, EOF) 的事件。
-/// 行解析失败 (含 crash 造成的半行) 跳过。
-fn load_state() -> QueueState {
-    let cp: Checkpoint = std::fs::read_to_string(checkpoint_path())
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default();
-    let mut st = QueueState {
-        entries: cp.entries,
-    };
+// ---------------------------------------------------------------------------
+// 状态折叠 (重放与运行共用)
+// ---------------------------------------------------------------------------
 
-    let raw = match std::fs::read_to_string(events_path()) {
-        Ok(r) => r,
-        Err(_) => return st, // 尚无事件日志
+/// 队列任务的展示字段: action ("start"/"continue"/"import") 与 target。
+fn entry_action_target(input: &Input) -> (Option<String>, Option<String>) {
+    let task = match input.task.as_ref() {
+        Some(t) => t,
+        None => return (None, None),
     };
-    for (n, line) in raw.lines().enumerate() {
-        let n = n as u64;
-        if n < cp.compact_offset {
-            continue; // 已折叠进快照
+    let action = task
+        .action
+        .map(|a| match a {
+            ld_core::tasks::args::TaskAction::Start => "start",
+            ld_core::tasks::args::TaskAction::Continue => "continue",
+            ld_core::tasks::args::TaskAction::Import => "import",
+            _ => "-",
+        })
+        .map(|s| s.to_string());
+    let target = task
+        .url
+        .as_deref()
+        .or(task.task_dir.as_deref())
+        .map(|s| s.to_string());
+    (action, target)
+}
+
+/// 终态折叠: 从活跃区移出 id, 生成轻量展示条目头插 terminal。
+fn finish_entry(
+    active: &mut Vec<QueueEntry>,
+    terminal: &mut Vec<TerminalEntry>,
+    id: u64,
+    status: QueueStatus,
+    error: Option<String>,
+    ts: u64,
+) {
+    if let Some(pos) = active.iter().position(|e| e.id == id) {
+        let e = active.remove(pos);
+        terminal.insert(
+            0,
+            TerminalEntry {
+                id,
+                action: e.action.clone(),
+                target: e.target.clone(),
+                status,
+                error: error.or(e.error),
+                ts,
+            },
+        );
+        terminal.truncate(KEEP_TERMINAL);
+    }
+}
+
+/// 事件折叠 (重放增量用)。
+fn fold(ev: QueueEvent, active: &mut Vec<QueueEntry>, terminal: &mut Vec<TerminalEntry>) {
+    match ev {
+        QueueEvent::Enqueued { input, id, .. } => {
+            let (action, target) = entry_action_target(&input);
+            active.push(QueueEntry {
+                id,
+                status: QueueStatus::Queued,
+                error: None,
+                input: Some(input),
+                action,
+                target,
+            });
         }
-        match parse_event(line) {
-            Some(ev) => st.apply(ev),
-            None => tracing::warn!("[queue] 跳过损坏的事件行 {n}"),
+        QueueEvent::Started { id, .. } => {
+            if let Some(e) = active.iter_mut().find(|e| e.id == id) {
+                e.status = QueueStatus::Running;
+            }
+        }
+        QueueEvent::Done { id, ts, .. } => {
+            finish_entry(active, terminal, id, QueueStatus::Done, None, ts)
+        }
+        QueueEvent::Failed { id, error, ts, .. } => {
+            finish_entry(active, terminal, id, QueueStatus::Failed, Some(error), ts)
+        }
+        QueueEvent::Canceled { id, ts, .. } => {
+            finish_entry(active, terminal, id, QueueStatus::Canceled, None, ts)
+        }
+        QueueEvent::Requeued { id, .. } => {
+            if let Some(e) = active.iter_mut().find(|e| e.id == id) {
+                e.status = QueueStatus::Queued;
+            }
         }
     }
-    st
 }
 
 // ---------------------------------------------------------------------------
-// TaskQueue (对外接口不变)
+// TaskQueue
 // ---------------------------------------------------------------------------
 
-/// 全局队列状态 (进程内), 持久化见模块文档。
+/// 全局队列状态 (进程内)。
+///
+/// 内存只持有活跃条目 + 有界终态缓存; 完整历史在事件日志 (审计) 与
+/// checkpoint (展示) 中, 不随任务数增长。
 pub struct TaskQueue {
-    state: Mutex<QueueState>,
+    /// 活跃条目 (Queued/Running), id 升序
+    active: Mutex<Vec<QueueEntry>>,
+    /// 最近终态 (新→旧, 有界 KEEP_TERMINAL)
+    terminal: Mutex<Vec<TerminalEntry>>,
+    /// 事件日志行数 (= checkpoint consumed_offset 的同步镜像)
+    next_line: Mutex<u64>,
     notify: tokio::sync::Notify,
 }
 
 impl TaskQueue {
     pub fn new() -> Arc<Self> {
-        let mut state = load_state();
+        let cp: Checkpoint = std::fs::read_to_string(checkpoint_path())
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default();
+        let mut active = cp.active;
+        let mut terminal = cp.terminal;
+        let file_lines = file_line_count();
+
+        // crash 兜底: checkpoint 落盘后又有事件追加 (未及写 checkpoint),
+        // 重放增量补齐。
+        if file_lines > cp.consumed_offset {
+            let raw = std::fs::read_to_string(events_path()).unwrap_or_default();
+            let mut replayed = 0u64;
+            for (n, line) in raw.lines().enumerate() {
+                if (n as u64) < cp.consumed_offset {
+                    continue;
+                }
+                match parse_event(line) {
+                    Some(ev) => {
+                        fold(ev, &mut active, &mut terminal);
+                        replayed += 1;
+                    }
+                    None => tracing::warn!("[queue] 跳过损坏的事件行 {n}"),
+                }
+            }
+            if replayed > 0 {
+                tracing::info!(
+                    "[queue] 重放增量 {replayed} 行恢复状态 (checkpoint offset={})",
+                    cp.consumed_offset
+                );
+            }
+        }
 
         // 进程重启: 重放出的 Running = 上次进程中断的任务, 重置回 Queued 重新排队
         // (worker 只消费 Queued), 并落 Requeued 事件保持日志完整。
-        let interrupted: Vec<u64> = state
-            .entries
+        let interrupted: Vec<u64> = active
             .iter()
             .filter(|e| e.status == QueueStatus::Running)
             .map(|e| e.id)
@@ -285,14 +347,61 @@ impl TaskQueue {
         for id in &interrupted {
             let ts = now_ts();
             append_event(&QueueEvent::Requeued { ts, id: *id });
-            state.apply(QueueEvent::Requeued { ts, id: *id });
+            if let Some(e) = active.iter_mut().find(|e| e.id == *id) {
+                e.status = QueueStatus::Queued;
+            }
             tracing::info!("[queue] id={id} 重启恢复, 重新排队");
         }
 
+        terminal.truncate(KEEP_TERMINAL);
+        write_checkpoint(&Checkpoint {
+            consumed_offset: file_lines,
+            active: active.clone(),
+            terminal: terminal.clone(),
+        });
+
         Arc::new(Self {
-            state: Mutex::new(state),
+            active: Mutex::new(active),
+            terminal: Mutex::new(terminal),
+            next_line: Mutex::new(file_lines),
             notify: tokio::sync::Notify::new(),
         })
+    }
+
+    fn next_id(&self) -> u64 {
+        let a = self
+            .active
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|e| e.id + 1)
+            .max()
+            .unwrap_or(0);
+        let t = self
+            .terminal
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|e| e.id + 1)
+            .max()
+            .unwrap_or(0);
+        a.max(t)
+    }
+
+    fn bump_line(&self) {
+        *self.next_line.lock().unwrap() += 1;
+    }
+
+    /// 重写 checkpoint (内存状态落盘)。
+    fn write_cp(&self) {
+        let consumed_offset = *self.next_line.lock().unwrap();
+        let active = self.active.lock().unwrap().clone();
+        let terminal = self.terminal.lock().unwrap().clone();
+        write_checkpoint(&Checkpoint {
+            consumed_offset,
+            active,
+            terminal,
+        });
     }
 
     /// 入队一个任务 (完整 input), 返回队列 ID。入队后唤醒 worker。
@@ -306,17 +415,22 @@ impl TaskQueue {
             .unwrap_or_else(|| "?".into());
 
         let ts = now_ts();
-        let id = {
-            let mut st = self.state.lock().unwrap();
-            let id = st.next_id();
-            st.apply(QueueEvent::Enqueued {
-                ts,
-                id,
-                input: input.clone(),
-            });
-            id
-        };
-        append_event(&QueueEvent::Enqueued { ts, id, input });
+        let id = self.next_id();
+        append_event(&QueueEvent::Enqueued {
+            ts,
+            id,
+            input: input.clone(),
+        });
+        self.active.lock().unwrap().push(QueueEntry {
+            id,
+            status: QueueStatus::Queued,
+            error: None,
+            input: Some(input),
+            action: Some(action.clone()),
+            target: Some(target.clone()),
+        });
+        self.bump_line();
+        self.write_cp();
         tracing::info!("[queue] id={id} enqueued action={action} target={target}");
         self.notify.notify_one();
         id
@@ -324,45 +438,35 @@ impl TaskQueue {
 
     /// worker: 取出队首待执行任务 (标记 Running 并返回)。
     fn pop_next(&self) -> Option<QueueEntry> {
-        let mut st = self.state.lock().unwrap();
-        let entry = st
-            .entries
-            .iter()
-            .find(|e| e.status == QueueStatus::Queued)?
-            .clone();
+        let entry = {
+            let mut a = self.active.lock().unwrap();
+            let e = a.iter_mut().find(|e| e.status == QueueStatus::Queued)?;
+            e.status = QueueStatus::Running;
+            e.clone()
+        };
         let ts = now_ts();
-        st.apply(QueueEvent::Started { ts, id: entry.id });
         append_event(&QueueEvent::Started { ts, id: entry.id });
+        self.bump_line();
+        self.write_cp();
         Some(entry)
     }
 
-    /// 标记任务完成/失败。
+    /// 标记任务完成/失败: 从活跃区移出 → 终态展示 + 事件落盘 + checkpoint。
     fn mark(&self, id: u64, status: QueueStatus, error: Option<String>) {
         let ts = now_ts();
         {
-            let mut st = self.state.lock().unwrap();
-            match (status, error.clone()) {
-                (QueueStatus::Done, _) => st.apply(QueueEvent::Done { ts, id }),
-                (QueueStatus::Failed, Some(err)) => {
-                    st.apply(QueueEvent::Failed { ts, id, error: err })
-                }
-                _ => tracing::error!("[queue] mark 非法组合: id={id} status={status:?}"),
-            }
+            let (mut a, mut t) = (self.active.lock().unwrap(), self.terminal.lock().unwrap());
+            finish_entry(&mut a, &mut t, id, status, error.clone(), ts);
         }
-        match status {
-            QueueStatus::Done => append_event(&QueueEvent::Done { ts, id }),
-            QueueStatus::Failed => append_event(&QueueEvent::Failed {
-                ts,
-                id,
-                error: error.unwrap_or_default(),
-            }),
+        match (status, error.clone()) {
+            (QueueStatus::Done, _) => append_event(&QueueEvent::Done { ts, id }),
+            (QueueStatus::Failed, Some(err)) => {
+                append_event(&QueueEvent::Failed { ts, id, error: err })
+            }
             _ => {}
         }
-        // 终态超量则 compaction (低频; mark 由单 worker 调用, 无锁竞争问题)
-        let terminal = self.state.lock().unwrap().terminal_count();
-        if terminal > KEEP_TERMINAL {
-            self.compact();
-        }
+        self.bump_line();
+        self.write_cp();
     }
 
     /// 等待下一个任务 (worker 阻塞)。
@@ -370,24 +474,53 @@ impl TaskQueue {
         self.notify.notified().await;
     }
 
-    /// 当前队列快照 (供 list_queue)。
+    /// 当前队列快照 (供 list_queue): 活跃条目在前 (id 升序), 终态按新→旧。
     pub fn snapshot(&self) -> Vec<QueueEntry> {
-        self.state.lock().unwrap().entries.clone()
+        let mut out = self.active.lock().unwrap().clone();
+        for t in self.terminal.lock().unwrap().iter() {
+            out.push(QueueEntry {
+                id: t.id,
+                status: t.status,
+                error: t.error.clone(),
+                input: None,
+                action: t.action.clone(),
+                target: t.target.clone(),
+            });
+        }
+        out
     }
 
     /// 取消一个待执行任务。
     pub fn cancel(&self, id: u64) -> bool {
+        let ts = now_ts();
         let ok = {
-            let mut st = self.state.lock().unwrap();
-            match st.entries.iter().find(|e| e.id == id) {
-                Some(e) if e.status == QueueStatus::Queued => {
-                    let ts = now_ts();
-                    st.apply(QueueEvent::Canceled { ts, id });
-                    append_event(&QueueEvent::Canceled { ts, id });
-                    true
-                }
-                _ => false,
+            let mut a = self.active.lock().unwrap();
+            let Some(pos) = a
+                .iter()
+                .position(|e| e.id == id && e.status == QueueStatus::Queued)
+            else {
+                return false;
+            };
+            let e = a.remove(pos);
+            {
+                let mut t = self.terminal.lock().unwrap();
+                t.insert(
+                    0,
+                    TerminalEntry {
+                        id,
+                        action: e.action.clone(),
+                        target: e.target.clone(),
+                        status: QueueStatus::Canceled,
+                        error: None,
+                        ts,
+                    },
+                );
+                t.truncate(KEEP_TERMINAL);
             }
+            append_event(&QueueEvent::Canceled { ts, id });
+            self.bump_line();
+            self.write_cp();
+            true
         };
         if ok {
             tracing::info!("[queue] id={id} canceled");
@@ -400,11 +533,19 @@ impl TaskQueue {
     pub async fn run_worker(&self) {
         loop {
             let Some(entry) = self.pop_next() else {
+                self.maybe_rotate();
                 self.wait_next().await;
                 continue;
             };
             let id = entry.id;
-            let input = entry.input;
+            let input = match entry.input {
+                Some(i) => i,
+                None => {
+                    tracing::error!("[queue] id={id} 活跃条目缺 input, 跳过");
+                    self.mark(id, QueueStatus::Failed, Some("活跃条目缺 input".into()));
+                    continue;
+                }
+            };
             let target = entry_target(&input).to_string();
 
             tracing::info!("[queue] id={id} start target={target}");
@@ -435,105 +576,32 @@ impl TaskQueue {
         }
     }
 
-    /// compaction: 终态条目超 KEEP_TERMINAL 时, 把最老的一批事件归档 .old,
-    /// 主文件截断到保留段, 并写 checkpoint 快照 (compact_offset 归零 + 全量 entries)。
-    ///
-    /// 事件折叠幂等, 截断窗口内 crash 最坏产生重复事件, 无害。
-    fn compact(&self) {
-        let raw = match std::fs::read_to_string(events_path()) {
-            Ok(r) => r,
-            Err(e) => {
-                tracing::error!("[queue] compaction 读事件日志失败: {e}");
-                return;
-            }
-        };
-
-        // pass 1: 全量折叠 (checkpoint 之上的增量), 统计终态总数
-        let cp: Checkpoint = std::fs::read_to_string(checkpoint_path())
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default();
-        let mut folded = QueueState {
-            entries: cp.entries.clone(),
-        };
-        let mut terminal_total = folded.terminal_count();
-        for line in raw.lines() {
-            if let Some(ev) = parse_event(line) {
-                let before = folded.terminal_count();
-                folded.apply(ev);
-                if folded.terminal_count() > before {
-                    terminal_total += 1;
-                }
-            }
-        }
-        let archive_target = terminal_total.saturating_sub(KEEP_TERMINAL);
-        if archive_target == 0 {
+    /// 事件日志滚动: 超过阈值且 worker 空闲 (活跃区空) 时归档开新文件。
+    /// 空闲时滚动保证活跃任务的事件不跨文件, 重放边界始终干净。
+    fn maybe_rotate(&self) {
+        let size = std::fs::metadata(events_path()).map(|m| m.len()).unwrap_or(0);
+        if size < ROTATE_BYTES {
             return;
         }
-
-        // pass 2: 定位保留段起点 = 第 archive_target 个终态事件的行尾
-        let mut folded2 = QueueState {
-            entries: cp.entries,
-        };
-        let mut terminal_passed = 0usize;
-        let mut byte_off: u64 = 0;
-        let mut keep_start: Option<u64> = None;
-        let mut total_lines = 0u64;
-        for line in raw.lines() {
-            let line_bytes = line.len() as u64 + 1;
-            total_lines += 1;
-            if keep_start.is_none() {
-                if let Some(ev) = parse_event(line) {
-                    let before = folded2.terminal_count();
-                    folded2.apply(ev);
-                    if folded2.terminal_count() > before {
-                        terminal_passed += 1;
-                        if terminal_passed == archive_target {
-                            keep_start = Some(byte_off + line_bytes);
-                        }
-                    }
-                }
+        if !self.active.lock().unwrap().is_empty() {
+            return;
+        }
+        let archived = queue_dir().join(format!("events-{}.ndjson.old", now_ts()));
+        match std::fs::rename(events_path(), &archived) {
+            Ok(_) => {
+                *self.next_line.lock().unwrap() = 0;
+                self.write_cp();
+                tracing::info!(
+                    "[queue] 事件日志已滚动: {size} bytes -> {}",
+                    archived.display()
+                );
             }
-            byte_off += line_bytes;
+            Err(e) => tracing::error!("[queue] 滚动事件日志失败: {e}"),
         }
-        let Some(keep_start) = keep_start else {
-            return; // 未找到边界 (理论不发生), 保守不 compact
-        };
-
-        // 1) [0, keep_start) 归档 .old (append)
-        if let Some(dir) = std::path::Path::new(&old_path()).parent() {
-            let _ = std::fs::create_dir_all(dir);
-        }
-        if let Ok(mut old) = std::fs::OpenOptions::new().create(true).append(true).open(old_path())
-        {
-            let mut off: u64 = 0;
-            for line in raw.lines() {
-                let line_bytes = line.len() as u64 + 1;
-                if off >= keep_start {
-                    break;
-                }
-                let _ = writeln!(old, "{line}");
-                off += line_bytes;
-            }
-        }
-        // 2) 主文件截断到保留段 (保留段是文件尾部的连续段, set_len 即可)
-        if let Ok(f) = std::fs::OpenOptions::new().write(true).open(events_path()) {
-            let _ = f.set_len(keep_start);
-        }
-        // 3) checkpoint: 截断后主文件从 0 起, 快照 = 全量折叠状态
-        let snapshot = folded2.entries.clone();
-        write_checkpoint(&Checkpoint {
-            compact_offset: 0,
-            entries: snapshot.clone(),
-        });
-        tracing::info!(
-            "[queue] compaction: 归档 {archive_target} 个终态 (共 {total_lines} 行), 快照 {} 条",
-            snapshot.len()
-        );
     }
 }
 
-/// 队列任务的日志标识: start 用 url, continue/import 用 taskDir。
+/// 队列任务的展示标识: start 用 url, continue/import 用 taskDir。
 fn entry_target(input: &Input) -> &str {
     let task = match input.task.as_ref() {
         Some(t) => t,

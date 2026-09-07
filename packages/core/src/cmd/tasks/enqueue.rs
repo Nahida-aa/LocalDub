@@ -102,16 +102,9 @@ pub fn list_queue() -> anyhow::Result<()> {
     for e in &entries {
         let id = e.get("id").and_then(|v| v.as_str()).unwrap_or("?");
         let st = e.get("status").and_then(|v| v.as_str()).unwrap_or("?");
-        let task = e.get("input").and_then(|v| v.get("task"));
-        let action = task
-            .and_then(|t| t.get("action"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("?");
-        let target = task
-            .and_then(|t| t.get("url"))
-            .and_then(|v| v.as_str())
-            .or_else(|| task.and_then(|t| t.get("taskDir")).and_then(|v| v.as_str()))
-            .unwrap_or("-");
+        // server 统一填好 action/target (活跃条目从 input 派生, 终态条目直接带)
+        let action = e.get("action").and_then(|v| v.as_str()).unwrap_or("?");
+        let target = e.get("target").and_then(|v| v.as_str()).unwrap_or("-");
         let err = e
             .get("error")
             .and_then(|v| v.as_str())

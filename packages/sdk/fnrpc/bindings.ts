@@ -780,25 +780,48 @@ export type PlatformInfo_Serialize = {
 
 export type ProbeResult = "ok" | "fail";
 
-/**  队列中的一条任务 */
+/**
+ *  队列条目 (fnrpc list_queue 对外)。
+ * 
+ *  活跃条目 (Queued/Running) 带 `input` (worker 执行需要);
+ *  终态条目从活跃区移出后只留展示字段 (`action`/`target`), `input` 为 None。
+ */
 export type QueueEntry = QueueEntry_Serialize | QueueEntry_Deserialize;
 
-/**  队列中的一条任务 */
+/**
+ *  队列条目 (fnrpc list_queue 对外)。
+ * 
+ *  活跃条目 (Queued/Running) 带 `input` (worker 执行需要);
+ *  终态条目从活跃区移出后只留展示字段 (`action`/`target`), `input` 为 None。
+ */
 export type QueueEntry_Deserialize = {
 	id: bigint,
-	/**  完整任务配置 (input.task.action = start / continue, url/taskDir/continueFrom 在内) */
-	input: Input_Deserialize,
 	status: QueueStatus,
 	error?: string | null,
+	/**  活跃条目的完整任务配置; 终态条目为 None */
+	input?: Input_Deserialize | null,
+	/**  展示: start/continue/import */
+	action?: string | null,
+	/**  展示: start=url / continue|import=taskDir */
+	target?: string | null,
 };
 
-/**  队列中的一条任务 */
+/**
+ *  队列条目 (fnrpc list_queue 对外)。
+ * 
+ *  活跃条目 (Queued/Running) 带 `input` (worker 执行需要);
+ *  终态条目从活跃区移出后只留展示字段 (`action`/`target`), `input` 为 None。
+ */
 export type QueueEntry_Serialize = {
 	id: bigint,
-	/**  完整任务配置 (input.task.action = start / continue, url/taskDir/continueFrom 在内) */
-	input: Input_Serialize,
 	status: QueueStatus,
 	error: string | null,
+	/**  活跃条目的完整任务配置; 终态条目为 None */
+	input: Input_Serialize | null,
+	/**  展示: start/continue/import */
+	action: string | null,
+	/**  展示: start=url / continue|import=taskDir */
+	target: string | null,
 };
 
 /**  队列任务状态 */
