@@ -4,9 +4,9 @@
 //! (各 stage 的详细参数) 仍走文本编辑。
 //!
 //! 保存语义: 按字段 merge 回解析出的对象再整体重写文件 —— **文件内的注释会丢失**,
-//! 因此保存前自动备份到 `input.jsonc.bak`, 并由调用方确认。
+//! 因此保存前自动备份到 `input.jsonc.bak`。
 
-import { createEffect, createSignal, For, Show } from "solid-js";
+import { createEffect, createSignal, Show } from "solid-js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/solid-query";
 import { Input } from "@repo/ui-solid/base/input";
 import { Button } from "@repo/ui-solid/base/button";
@@ -90,6 +90,7 @@ const emptyForm = (): FormState => ({
 });
 
 /// jsonc 容错解析: 去掉字符串外的 // 与 /* */ 注释及尾逗号, 便于 JSON.parse。
+/// (字符串内的 // 必须保留, 否则 http:// 会被误伤)
 function stripJsonc(text: string): string {
   let out = "";
   let inStr = false;
@@ -127,7 +128,6 @@ function stripJsonc(text: string): string {
     out += c;
     i += 1;
   }
-  // 尾逗号: , 后紧跟空白 + } 或 ]
   return out.replace(/,(\s*[}\]])/g, "$1");
 }
 
@@ -139,17 +139,84 @@ function parseJsonc(raw: string): Record<string, any> {
   }
 }
 
+type Option = { value: string; label: string };
+
+/// 下拉字段 (顶层组件: Solid 不在组件内部定义子组件)
+function SelectField(props: {
+  title: string;
+  description?: string;
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+}) {
+  // Solid: JSX 属性需是"调用"才会编译成 getter —— 直接写对象字面量会被静态化,
+  // signal 变化时选中项不同步 (React 靠重渲染天然正确, Solid 不行)。
+  const selected = (): Option => ({ value: props.value, label: props.value || "—" });
+  const options = (): Option[] => props.options.map((v) => ({ value: v, label: v || "—" }));
+
+  return (
+    <CardX
+      title={props.title}
+      description={props.description ?? ""}
+      size="sm"
+      Footer={
+        <Select<Option>
+          value={selected()}
+          optionValue="value"
+          optionTextValue="label"
+          onChange={(v) => props.onChange(v?.value ?? "")}
+          options={options()}
+          itemComponent={(p) => <SelectItem item={p.item}>{p.item.rawValue.label}</SelectItem>}
+        >
+          <SelectTrigger class="w-45">
+            <SelectValue<Option>>{(state) => state.selectedOption().label}</SelectValue>
+          </SelectTrigger>
+          <SelectContent />
+        </Select>
+      }
+    />
+  );
+}
+
+/// 文本字段 (顶层组件)
+function TextField(props: {
+  title: string;
+  description?: string;
+  value: string;
+  placeholder?: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <CardX
+      title={props.title}
+      description={props.description ?? ""}
+      size="sm"
+      Footer={
+        <Input
+          class="w-80"
+          value={props.value}
+          placeholder={props.placeholder ?? ""}
+          onInput={(e) => props.onChange(e.currentTarget.value)}
+        />
+      }
+    />
+  );
+}
+
 export function InputFormSettings() {
   const fileQ = useQuery(() => client.read_app_file_text.queryOptions(INPUT_PATH));
   const writeMut = useMutation(() => client.write_app_file_text.mutationOptions());
   const qc = useQueryClient();
   const [form, setForm] = createSignal<FormState>(emptyForm());
   const [dirty, setDirty] = createSignal(false);
+  // 只在首次读到内容时填充: 保存后 invalidate / 窗口重取会再次触发 effect,
+  // 不能覆盖用户未保存的编辑。
+  let filled = false;
 
-  // 文件内容就绪后填充表单
   createEffect(() => {
     const raw = fileQ.data;
-    if (raw == null) return;
+    if (raw == null || filled) return;
+    filled = true;
     const p = parseJsonc(raw);
     const t = (p.task ?? {}) as Record<string, any>;
     const s = (p.servers ?? {}) as Record<string, any>;
@@ -212,62 +279,6 @@ export function InputFormSettings() {
       toastError(e as Error);
     }
   }
-
-  type Option = { value: string; label: string };
-  const opts = (list: string[]): Option[] => list.map((v) => ({ value: v, label: v || "—" }));
-
-  /** 单个下拉字段 */
-  const SelectField = (props: {
-    title: string;
-    description?: string;
-    value: string;
-    options: string[];
-    onChange: (v: string) => void;
-  }) => (
-    <CardX
-      title={props.title}
-      description={props.description ?? ""}
-      size="sm"
-      Footer={
-        <Select
-          value={{ value: props.value, label: props.value || "—" }}
-          optionValue="value"
-          optionTextValue="label"
-          onChange={(v) => props.onChange(v?.value ?? "")}
-          options={opts(props.options)}
-          itemComponent={(p) => <SelectItem item={p.item}>{p.item.rawValue.label}</SelectItem>}
-        >
-          <SelectTrigger class="w-45">
-            <SelectValue<Option>>{(state) => state.selectedOption().label}</SelectValue>
-          </SelectTrigger>
-          <SelectContent />
-        </Select>
-      }
-    />
-  );
-
-  /** 单个文本字段 */
-  const TextField = (props: {
-    title: string;
-    description?: string;
-    value: string;
-    placeholder?: string;
-    onChange: (v: string) => void;
-  }) => (
-    <CardX
-      title={props.title}
-      description={props.description ?? ""}
-      size="sm"
-      Footer={
-        <Input
-          class="w-80"
-          value={props.value}
-          placeholder={props.placeholder ?? ""}
-          onInput={(e) => props.onChange(e.currentTarget.value)}
-        />
-      }
-    />
-  );
 
   return (
     <div class="space-y-4">
