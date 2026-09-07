@@ -55,7 +55,7 @@ const STAGES = [
   "mix_video",
 ];
 const PIPELINES = ["", "dub", "subtitle"];
-const SUBTITLE_SOURCES = ["", "asr_ocr", "sf_ocr"];
+const SUBTITLE_SOURCES = ["", "asr", "sf_ocr", "asr_ocr"];
 const SERVER_ACTIONS = ["", "status", "start", "stop", "discovery"];
 const SERVER_NAMES = ["", "main", "voxcpm_torch_gradio"];
 
@@ -358,7 +358,7 @@ export function InputFormSettings() {
         />
         <SelectField
           title="task.subtitleSource"
-          description="字幕来源: asr_ocr = 语音识别, sf_ocr = 关键帧"
+          description="字幕来源: asr = 语音识别(默认), sf_ocr = 关键帧 OCR, asr_ocr = 两者合并"
           value={form().subtitleSource}
           options={SUBTITLE_SOURCES}
           onChange={set("subtitleSource")}
