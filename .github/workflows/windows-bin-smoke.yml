@@ -42,7 +42,7 @@ jobs:
             curl.exe -sL -o $zip $url
             if ($LASTEXITCODE -ne 0) { throw "download failed: $asset" }
             $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
-            if ($hash -ne $a.sha256) { throw "sha256 mismatch for $asset: expect $($a.sha256), got $hash" }
+            if ($hash -ne $a.sha256) { throw "sha256 mismatch for ${asset}: expect $($a.sha256), got $hash" }
             Write-Host ">> sha256 ok: $hash"
             Expand-Archive -Path $zip -DestinationPath $bin -Force
             $exe = Join-Path $bin "$($a.name).exe"
