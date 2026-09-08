@@ -107,9 +107,10 @@ mod tests {
         let input: Input =
             serde_json::from_str(r#"{"task":{"sourceLang":"zh","targetStage":"mix_video"}}"#)
                 .unwrap();
+        // sourceLang 是开放字符串 (源语言是"事实", 不受 23 种翻译目标语言限制)
         assert_eq!(
             input.task.as_ref().unwrap().source_lang,
-            Some(crate::r#const::lang::TargetLang::Zh)
+            Some("zh".to_string())
         );
         assert_eq!(
             input.task.as_ref().unwrap().target_stage,

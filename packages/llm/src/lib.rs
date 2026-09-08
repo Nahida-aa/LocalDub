@@ -10,15 +10,35 @@ mod ocr_fix;
 pub use llm_fix_args::LlmFixArgs;
 pub use ocr_fix::{build_ocr_fix_system_prompt, ocr_llm_fix, ocr_segments_to_prompt, parse_lines};
 
-/// 语言代码 -> 展示名 (供 LLM 系统提示), 镜像 TS `t(sourceLang)` 的常用映射。
-/// 未命中时缺省 "中文"。
-pub fn lang_label(code: &str) -> &str {
+/// 语言代码 -> 展示名 (供 LLM 系统提示), 镜像 TS `t(sourceLang)`。
+/// 覆盖 const/lang.rs 的 23 种支持语言; 未命中时**透传语言码** ——
+/// LLM 认识 ISO 码, 硬塞"中文"会把外语原文误导成中文修正。
+pub fn lang_label(code: &str) -> String {
     match code {
-        "zh" => "中文",
-        "en" => "English",
-        "ja" => "日本語",
-        "ko" => "한국어",
-        _ => "中文",
+        "zh" => "中文".into(),
+        "en" => "English".into(),
+        "ja" => "日本語".into(),
+        "ko" => "한국어".into(),
+        "vi" => "Tiếng Việt".into(),
+        "fr" => "Français".into(),
+        "de" => "Deutsch".into(),
+        "es" => "Español".into(),
+        "pt" => "Português".into(),
+        "ru" => "Русский".into(),
+        "ar" => "العربية".into(),
+        "hi" => "हिन्दी".into(),
+        "th" => "ไทย".into(),
+        "id" => "Bahasa Indonesia".into(),
+        "ms" => "Bahasa Melayu".into(),
+        "tl" => "Filipino".into(),
+        "my" => "မြန်မာ".into(),
+        "km" => "ខ្មែរ".into(),
+        "lo" => "ລາວ".into(),
+        "mn" => "Монгол".into(),
+        "ne" => "नेपाली".into(),
+        "ur" => "اردو".into(),
+        "bn" => "বাংলা".into(),
+        other => other.into(),
     }
 }
 

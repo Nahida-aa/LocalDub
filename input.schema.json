@@ -2636,7 +2636,7 @@
         "sourceLang": {
           "anyOf": [
             {
-              "$ref": "#/$defs/TargetLang"
+              "type": "string"
             },
             {
               "type": "null"
@@ -2753,7 +2753,7 @@
         "sourceLang": {
           "anyOf": [
             {
-              "$ref": "#/$defs/TargetLang"
+              "type": "string"
             },
             {
               "type": "null"

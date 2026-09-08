@@ -1228,7 +1228,7 @@ export type TaskArgs_Deserialize = {
 	action?: TaskAction | null,
 	/**  本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl */
 	url?: string | null,
-	sourceLang?: TargetLang | null,
+	sourceLang?: string | null,
 	targetLang?: TargetLang | null,
 	/**  继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始 */
 	continueFrom?: StageName | null,
@@ -1256,7 +1256,7 @@ export type TaskArgs_Serialize = {
 	action: TaskAction | null,
 	/**  本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl */
 	url: string | null,
-	sourceLang: TargetLang | null,
+	sourceLang: string | null,
 	targetLang: TargetLang | null,
 	/**  继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始 */
 	continueFrom: StageName | null,

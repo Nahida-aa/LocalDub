@@ -127,7 +127,7 @@ pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
             src_texts.len(),
             args.llm_fix.llm_model
         );
-        match llm::ocr_llm_fix(&src_texts, lang_label, &args.llm_fix) {
+        match llm::ocr_llm_fix(&src_texts, &lang_label, &args.llm_fix) {
             Ok(fixed) => {
                 // 逐段回填修正文本 (保持原段结构/时间戳)
                 for (seg, text) in final_segments.iter_mut().zip(fixed.into_iter()) {

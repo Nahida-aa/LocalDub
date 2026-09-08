@@ -159,7 +159,7 @@ pub fn stage_asr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
 
 /// 语言码 -> 展示名 (镜像 TS `t(srcLang)`)。
 fn lang_label_for(code: &str) -> String {
-    llm::lang_label(code).to_string()
+    llm::lang_label(code)
 }
 
 /// 构造 LLM 修正 prompt (镜像 TS `segmentsToPrompt`)。

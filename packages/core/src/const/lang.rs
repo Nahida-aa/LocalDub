@@ -38,8 +38,11 @@ pub enum TargetLang {
     Bn,
 }
 
-/// 源语言与 TargetLang 共用同一枚举
-pub type SourceLang = TargetLang;
+/// 源语言: **开放字符串**, 不与 TargetLang (封闭枚举) 共用类型。
+///
+/// 源语言是"事实" (来自 ASR 识别或用户声明), 外部世界的语言码不限于
+/// 支持翻译的 23 种 (whisper 支持约 99 种) —— 封闭枚举会把列表外语言
+/// 丢信息; 目标语言是"承诺", 保持封闭。
 
 impl TargetLang {
     /// 语言码 (与 serde 名一致: "zh" / "en" / "ja" ...)。

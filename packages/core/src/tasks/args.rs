@@ -90,7 +90,7 @@ pub struct TaskArgs {
     pub action: Option<TaskAction>,
     /// 本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl
     pub url: Option<String>,
-    pub source_lang: Option<TargetLang>,
+    pub source_lang: Option<String>,
     pub target_lang: Option<TargetLang>,
     /// 继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始
     pub continue_from: Option<StageName>,
