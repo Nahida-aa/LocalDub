@@ -1209,15 +1209,15 @@ fn ensure_ocr_cpp_bin() -> CheckResult {
 }
 
 // ---------------------------------------------------------------------------
-// ocr-lab release 二进制 (subtitle-finder / subtitle-ocr / ocr-post):
-// 从 ocr-lab GitHub Release 下载, 校验 sha256 后写版本戳 (版本戳管理防重下)。
+// vision-lab release 二进制 (subtitle-finder / subtitle-ocr / ocr-post):
+// 从 vision-lab GitHub Release 下载, 校验 sha256 后写版本戳 (版本戳管理防重下)。
 //
 // 资产命名规范: Linux `<bin>-<target-triple>` (单文件), Windows `<bin>-<target-triple>.zip`
 // (exe + 运行时 dll 平铺), 同一 release 内多平台资产共存; 各平台 sha256 独立记录,
 // 未发布的平台为 None (check/ensure 报"待发布"而非 404)。Windows zip 经过 sha256 校验后
 // 解压到 bin_dir, 本地可执行文件名为 `<bin>.exe`。
 //
-// 模型目录默认相对仓库根: ocr-lab CLI 用 current_exe_repo_root() 上溯两级解析
+// 模型目录默认相对仓库根: vision-lab CLI 用 current_exe_repo_root() 上溯两级解析
 // (target/release 深度), data/bin 与其同深度, 故落位 data/bin 后能正确解析到
 // 仓库根 data/models/rapidocr。
 // ---------------------------------------------------------------------------
@@ -1348,7 +1348,7 @@ fn release_version_path(spec: &ReleaseBinSpec) -> PathBuf {
 /// 下载 URL (资产名与本地文件名一致)。
 fn release_bin_url(spec: &ReleaseBinSpec, asset: &str) -> String {
     format!(
-        "https://github.com/Nahida-aa/ocr-lab/releases/download/{}/{}",
+        "https://github.com/Nahida-aa/vision-lab/releases/download/{}/{}",
         spec.tag, asset
     )
 }
@@ -1390,7 +1390,7 @@ fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
         return CheckResult {
             key: spec.key.to_string(),
             status: CheckStatus::Fail,
-            data: json!({ "msg": format!("{} 暂无 {} 发布资产, 请等待 ocr-lab 发布或在此平台源码构建", spec.bin, platform_label()) }),
+            data: json!({ "msg": format!("{} 暂无 {} 发布资产, 请等待 vision-lab 发布或在此平台源码构建", spec.bin, platform_label()) }),
             required: false,
         };
     };
@@ -1450,7 +1450,7 @@ fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
         return CheckResult {
             key: spec.key.to_string(),
             status: CheckStatus::Fail,
-            data: json!({ "msg": format!("{} 暂无 {} 发布资产, 请等待 ocr-lab 发布或在此平台源码构建", spec.bin, platform_label()) }),
+            data: json!({ "msg": format!("{} 暂无 {} 发布资产, 请等待 vision-lab 发布或在此平台源码构建", spec.bin, platform_label()) }),
             required: false,
         };
     };

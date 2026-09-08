@@ -251,8 +251,8 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
     (
         "subtitle_finder_bin",
         EnvEntry {
-            zh: "关键帧筛选二进制 (data/bin/subtitle-finder, 从 ocr-lab GitHub Release 下载)",
-            en: "subtitle-finder binary (data/bin/subtitle-finder, downloaded from ocr-lab GitHub Release)",
+            zh: "关键帧筛选二进制 (data/bin/subtitle-finder, 从 vision-lab GitHub Release 下载)",
+            en: "subtitle-finder binary (data/bin/subtitle-finder, downloaded from vision-lab GitHub Release)",
             required: false,
             category: "optional",
         },
@@ -260,8 +260,8 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
     (
         "subtitle_ocr_bin",
         EnvEntry {
-            zh: "字幕 OCR 二进制 (data/bin/subtitle-ocr, 从 ocr-lab GitHub Release 下载)",
-            en: "subtitle-ocr binary (data/bin/subtitle-ocr, downloaded from ocr-lab GitHub Release)",
+            zh: "字幕 OCR 二进制 (data/bin/subtitle-ocr, 从 vision-lab GitHub Release 下载)",
+            en: "subtitle-ocr binary (data/bin/subtitle-ocr, downloaded from vision-lab GitHub Release)",
             required: false,
             category: "optional",
         },
@@ -269,8 +269,8 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
     (
         "ocr_post_bin",
         EnvEntry {
-            zh: "字幕后处理统合管线二进制 (data/bin/ocr-post, 从 ocr-lab GitHub Release 下载)",
-            en: "ocr-post binary (data/bin/ocr-post, downloaded from ocr-lab GitHub Release)",
+            zh: "字幕后处理统合管线二进制 (data/bin/ocr-post, 从 vision-lab GitHub Release 下载)",
+            en: "ocr-post binary (data/bin/ocr-post, downloaded from vision-lab GitHub Release)",
             required: false,
             category: "optional",
         },

@@ -72,7 +72,7 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
         .map(|t| t.subtitle_source)
         .unwrap_or(SubtitleSource::Asr);
 
-    // --- sf_ocr: 关键帧筛选 + 逐帧 OCR + 后处理均走 ocr-lab release 二进制 ---
+    // --- sf_ocr: 关键帧筛选 + 逐帧 OCR + 后处理均走 vision-lab release 二进制 ---
     if subtitle_source == SubtitleSource::SfOcr {
         add("subtitle_finder_bin", &mut set);
         add("subtitle_ocr_bin", &mut set);

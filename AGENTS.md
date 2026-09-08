@@ -18,7 +18,7 @@ Before editing files for a substantial task:
 - 修改代码后, 如果认为适合提交, 就自行提交
 - 测试/实验/探索一律不用 `/tmp`，写到 `tmp/` 或 `packages/tmp/`
 - 类型检查: `bun tsc`, `cargo check`
-- 可以使用 `gh` 来操作 github, git push 默认由人类进行操作
+- 可以使用 `gh` 来操作 github
 - 调试日志使用 tracing, 调试之后可以不用清除日志
 - 先查清楚问题再讨论如何解决, 不要一开始就想着使错误不发生, 错误是不需要规避的事情
 
@@ -29,7 +29,8 @@ Before editing files for a substantial task:
 - `packages/cli/src/ml/` — 模型实现（whisper、demucs 等）
 - `packages/cli/src/ml/ocr/ocr.ts` — OCR 二进制调用（ort-cpp），使用 `pythonBin()`（config.ts）而非内联 VIRTUAL_ENV
 - `packages/subtitle-ocr/` — 字幕专用 OCR 包（ort-cpp、subtitle-node.ts、subtitle-py.py）
-- `packages/sf-ocr/` — 关键帧 OCR 策略入口（消费 ocr-lab：subtitle-finder 提关键帧 → subtitle-ocr 识别）
+- `packages/core/src/cmd/env/` — env 检查/ensure（含从 vision-lab GitHub Release 下载 OCR 二进制）；`items.rs` 的 ReleaseBinSpec 定义三平台资产 + sha256
+- `packages/core/src/stages/sf_ocr/` — 关键帧 OCR 策略入口（消费 vision-lab release 二进制：subtitle-finder 提关键帧 → subtitle-ocr 识别）
 - `packages/benchmark/` — 性能测试与参数对比
 - `packages/benchmark/ocr/compute/` — OCR 基准测试脚本
 - `packages/benchmark/ocr/compute/postprocess_det.py` — 引用了 `packages/subtitle-ocr/ppocr_keys.json`

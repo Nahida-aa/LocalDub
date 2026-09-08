@@ -53,7 +53,7 @@ indicatif = "0.17"
 mdns-sd-discovery = "0.3"
 image = "0.25"
 ndarray = "0.17"
-# ocr-segment-adjust 用 ffmpeg 读视频像素高度（Y 偏移惩罚归一化分母），版本对齐 ocr-lab。
+# ocr-segment-adjust 用 ffmpeg 读视频像素高度（Y 偏移惩罚归一化分母），版本对齐 vision-lab。
 ffmpeg-next = "9.0.0"
 voxcpm-rs = { version = "0.5.0", default-features = false }
 # 哈希与编码（用于二进制校验下载完整性）。
@@ -62,7 +62,7 @@ hex = "0.4"
 # Windows 资产为 zip（exe+dll 平铺），需解压后才能运行。
 zip = { version = "0.6", default-features = false, features = ["deflate"] }
 
-# ffmpeg 探测视频高度/帧率（ocr-post 由 ocr-lab release 二进制提供）。
+# ffmpeg 探测视频高度/帧率（ocr-post 由 vision-lab release 二进制提供）。
 
 [profile.release]
 lto = "fat"

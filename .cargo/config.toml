@@ -1,5 +1,5 @@
 # 让 release 构建针对本机 CPU 优化（开启 AVX2 等），使标量循环被 LLVM 自动向量化，
-# 并对齐 ocr-lab 的构建方式（geometry::imgproc 的双线性缩放 SIMD 路径依赖 target-cpu）。
+# 并对齐 vision-lab 的构建方式（geometry::imgproc 的双线性缩放 SIMD 路径依赖 target-cpu）。
 #
 # 背景（2026-08）：缺 target-cpu=native 时，subtitle-ocr 在 bottom_only ROI（det 目标
 # 尺寸可达 736×3264）上双线性缩放像素差会把置信度边缘的字幕框翻成漏检。
