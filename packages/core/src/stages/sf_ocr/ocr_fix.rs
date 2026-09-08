@@ -99,7 +99,29 @@ pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
             .iter()
             .filter_map(|s| s.get("text").and_then(|t| t.as_str()).map(String::from))
             .collect();
-        let lang_label = llm::lang_label(&args.source_lang);
+        // 源语言: ASR 实测 (ctx.asr_language) > input.task.sourceLang > 默认 zh。
+        // (stage 级 sf_ocr_fix.sourceLang 已移除, 统一到任务级)
+        let legacy = ctx
+            .input
+            .get("stages")
+            .and_then(|v| v.get("sfOcrFix"))
+            .and_then(|v| v.get("sourceLang"))
+            .is_some();
+        if legacy {
+            tracing::warn!(target: "sf_ocr", "stages.sfOcrFix.sourceLang 已移除, 请在 task.sourceLang 配置源语言");
+        }
+        let src_lang = ctx
+            .asr_language
+            .clone()
+            .or_else(|| {
+                ctx.input
+                    .get("task")
+                    .and_then(|v| v.get("sourceLang"))
+                    .and_then(|v| v.as_str())
+                    .map(String::from)
+            })
+            .unwrap_or_else(|| "zh".to_string());
+        let lang_label = llm::lang_label(&src_lang);
         tracing::info!(target: "sf_ocr", 
             "sf_ocr_fix: LLM 修正 {} segs (model={})",
             src_texts.len(),
@@ -182,7 +204,6 @@ mod tests {
         let cfg = read_args(&ctx);
         assert_eq!(cfg.adjusted_confidence_threshold, 0.45);
         assert!(!cfg.llm_fix.llm_fix);
-        assert_eq!(cfg.source_lang, "zh");
     }
 
     #[test]

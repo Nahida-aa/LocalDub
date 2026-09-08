@@ -674,8 +674,6 @@ export type OcrFixArgs_Deserialize = {
 	isMergeSubstring?: boolean,
 	/**  dedupOverlap 的编辑距离阈值: edit_distance ≤ 此值则合并; 默认 1 */
 	dedupEditDistance?: number,
-	/**  源语言代码 (供 LLM 系统提示, 镜像 TS `ctx.input.task.sourceLang`); 默认 "zh" */
-	sourceLang?: string,
 } & LlmFixArgs_Deserialize;
 
 /**
@@ -702,8 +700,6 @@ export type OcrFixArgs_Serialize = {
 	isMergeSubstring: boolean,
 	/**  dedupOverlap 的编辑距离阈值: edit_distance ≤ 此值则合并; 默认 1 */
 	dedupEditDistance: number,
-	/**  源语言代码 (供 LLM 系统提示, 镜像 TS `ctx.input.task.sourceLang`); 默认 "zh" */
-	sourceLang: string,
 } & LlmFixArgs_Serialize;
 
 /**  OCR 推理运行时。 */
@@ -1395,6 +1391,10 @@ export type Task_Serialize = {
  * 
  *  枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),
  *  这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。
+ * 
+ *  目标语言统一在 `input.task.targetLang` 配置 (任务级概念: 一个任务只有一个翻译
+ *  阶段, 不需要 stage 级覆盖)。旧的 `stages.translate.targetLang` 已移除,
+ *  deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。
  */
 export type TranslateArgs = TranslateArgs_Serialize | TranslateArgs_Deserialize;
 
@@ -1403,14 +1403,16 @@ export type TranslateArgs = TranslateArgs_Serialize | TranslateArgs_Deserialize;
  * 
  *  枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),
  *  这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。
+ * 
+ *  目标语言统一在 `input.task.targetLang` 配置 (任务级概念: 一个任务只有一个翻译
+ *  阶段, 不需要 stage 级覆盖)。旧的 `stages.translate.targetLang` 已移除,
+ *  deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。
  */
 export type TranslateArgs_Deserialize = {
 	/**  OpenAI 兼容端点 */
 	apiBase?: string,
 	/**  翻译模型 */
 	model?: string,
-	/**  目标语言; 不填则按逻辑: 源语言 zh -> en, 否则 any -> zh */
-	targetLang?: TargetLang | null,
 	/**  设为 false 跳过翻译, 直接使用原始识别文本 */
 	enabled?: boolean,
 };
@@ -1420,14 +1422,16 @@ export type TranslateArgs_Deserialize = {
  * 
  *  枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),
  *  这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。
+ * 
+ *  目标语言统一在 `input.task.targetLang` 配置 (任务级概念: 一个任务只有一个翻译
+ *  阶段, 不需要 stage 级覆盖)。旧的 `stages.translate.targetLang` 已移除,
+ *  deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。
  */
 export type TranslateArgs_Serialize = {
 	/**  OpenAI 兼容端点 */
 	apiBase: string,
 	/**  翻译模型 */
 	model: string,
-	/**  目标语言; 不填则按逻辑: 源语言 zh -> en, 否则 any -> zh */
-	targetLang: TargetLang | null,
 	/**  设为 false 跳过翻译, 直接使用原始识别文本 */
 	enabled: boolean,
 };

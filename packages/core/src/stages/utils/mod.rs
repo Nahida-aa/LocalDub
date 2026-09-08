@@ -670,14 +670,16 @@ pub fn read_translation_result(ctx: &crate::context::TaskCtx) -> anyhow::Result<
         .map_err(|e| anyhow::anyhow!("解析翻译文件 {} 失败: {}", file.display(), e))
 }
 
-/// 解析目标语言: input > auto 推断 (源语言 zh -> en, 否则 any -> zh)。
+/// 解析目标语言: input.task.targetLang > auto 推断 (源语言 zh -> en, 否则 -> zh)。
 /// 与 TS `resolveLanguage` 一致: 若解析出的目标语言与 ctx.target_language 不同, 写回
 /// ctx.json 的 target_language (通过 [`set_task`])。返回 (srcLang, targetLang)。
+///
+/// 目标语言是任务级概念 (一个任务只有一个翻译阶段), 配置入口统一为
+/// `input.task.targetLang`; 旧 `stages.translate.targetLang` 已移除。
 pub fn resolve_language(ctx: &crate::context::TaskCtx) -> anyhow::Result<(String, String)> {
     let input_target = ctx
         .input
-        .get("stages")
-        .and_then(|v| v.get("translate"))
+        .get("task")
         .and_then(|v| v.get("targetLang"))
         .and_then(|v| v.as_str())
         .map(String::from);

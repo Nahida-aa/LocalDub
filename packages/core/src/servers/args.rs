@@ -55,7 +55,7 @@ mod tests {
     fn wire_shape() {
         assert_eq!(
             serde_json::to_string(&ServersArgs::default()).unwrap(),
-            r#"{"action":"status","name":null}"#
+            r#"{"action":"status","name":null,"foreground":false}"#
         );
         let v: ServersArgs = serde_json::from_str(r#"{"name":"voxcpm_torch_gradio"}"#).unwrap();
         assert_eq!(v.action, ServerAction::Status);
