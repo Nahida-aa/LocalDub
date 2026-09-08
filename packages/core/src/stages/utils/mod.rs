@@ -683,7 +683,20 @@ pub fn resolve_language(ctx: &crate::context::TaskCtx) -> anyhow::Result<(String
         .and_then(|v| v.get("targetLang"))
         .and_then(|v| v.as_str())
         .map(String::from);
-    let src_lang = ctx.asr_language.clone().unwrap_or_else(|| "zh".to_string());
+    // 源语言: ASR 实测 (ctx.asr_language) > input.task.sourceLang > 默认 zh。
+    // (纯 OCR / subtitle 路径没有 ASR, 必须回落到配置的 sourceLang, 否则日语
+    //  任务会被当成 zh -> 目标语言错误推断为 en)
+    let src_lang = ctx
+        .asr_language
+        .clone()
+        .or_else(|| {
+            ctx.input
+                .get("task")
+                .and_then(|v| v.get("sourceLang"))
+                .and_then(|v| v.as_str())
+                .map(String::from)
+        })
+        .unwrap_or_else(|| "zh".to_string());
     let existing_dst = ctx
         .target_language
         .clone()

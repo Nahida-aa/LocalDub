@@ -696,6 +696,21 @@ mod tests {
         let _ = ctx2;
     }
 
+    /// 无 ASR (纯 OCR / subtitle 路径) 时源语言回落到 input.task.sourceLang,
+    /// 否则日语任务会被当成 zh -> 目标语言错误推断为 en。
+    #[test]
+    fn resolve_src_lang_falls_back_to_task_source_lang() {
+        let ctx = read_ctx_from_value(json!({
+            "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                     "status":"running","created_at":"2024-01-01T00:00:00Z"},
+            "input": {"task": {"sourceLang": "ja"}}
+        }))
+        .unwrap();
+        let (src, dst) = resolve_language(&ctx).unwrap();
+        assert_eq!(src, "ja");
+        assert_eq!(dst, "zh");
+    }
+
     #[test]
     fn missing_subtitle_errors() {
         let dir = std::env::temp_dir()
