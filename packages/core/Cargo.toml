@@ -20,7 +20,7 @@ anyhow.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }
 ffmpeg-next.workspace = true
-voxcpm-cloud = { git = "https://github.com/Nahida-aa/vox-lab", tag = "v0.1.0" }
+voxcpm-cloud = { git = "https://github.com/Nahida-aa/vox-lab", tag = "v0.1.1" }
 pacer-rs.workspace = true
 reqwest.workspace = true
 indicatif.workspace = true
