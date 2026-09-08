@@ -30,7 +30,7 @@ const MIN_REF_BYTES: u64 = 1200 * 16 * 2;
 /// refAudioX2 触发阈值: 参考音短于此则拼接自身翻倍。
 const MIN_REF_DURATION_MS: u64 = 2500;
 
-/// TTS 静音段统一采样率。VoxCPM cloud 归一化到 48000Hz (`voxlab::TARGET_SAMPLE_RATE`),
+/// TTS 静音段统一采样率。VoxCPM cloud 归一化到 48000Hz (`voxcpm_cloud::TARGET_SAMPLE_RATE`),
 /// 本地二进制输出也为 48k, 故静音占位统一用 48000Hz 以保证与合成段、mix_audio 探测一致。
 const SILENT_SAMPLE_RATE: u32 = 48000;
 
@@ -46,7 +46,7 @@ const MIN_TTS_DURATION_MS: u64 = 100;
 ///
 /// 合法静音 wav 可被 ffprobe 正常探测到 48000Hz, 且时长 0ms, mix_audio 会自然跳过该段。
 fn write_silent_wav(out_path: &str) -> anyhow::Result<()> {
-    voxlab::write_wav(&[], SILENT_SAMPLE_RATE, out_path)
+    voxcpm_cloud::write_wav(&[], SILENT_SAMPLE_RATE, out_path)
         .map_err(|e| anyhow::anyhow!("写静音 wav {} 失败: {e}", out_path))
 }
 
@@ -127,11 +127,11 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
         return Err(anyhow::anyhow!("split_audio/timings.json 无 segments"));
     }
 
-    // cloud 运行时走 HTTP gradio (voxlab::VoxCPMCloud), 不 spawn 本地二进制。
+    // cloud 运行时走 HTTP gradio (voxcpm_cloud::VoxCPMCloud), 不 spawn 本地二进制。
     // 镜像 TS: runtime === "cloud" -> new VoxCPMCloud() (而非本地 onnx/pytorch 引擎)。
     let use_cloud = args.runtime == TtsRuntime::Cloud;
     let cloud = if use_cloud {
-        Some(voxlab::VoxCPMCloud::new(voxlab::VoxCPMCloudConfig {
+        Some(voxcpm_cloud::VoxCPMCloud::new(voxcpm_cloud::VoxCPMCloudConfig {
             api_url: None,
             control_instruction: None,
         })?)
@@ -448,7 +448,7 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
                 let samples = cloud
                     .generate(&text, &ref_for_tts, Some(&item_text), 2.0)
                     .map_err(|e| anyhow::anyhow!("voxcpm cloud 段 {idx} 失败: {e}"))?;
-                voxlab::write_wav(&samples.samples, samples.sample_rate, &out_path_synth)
+                voxcpm_cloud::write_wav(&samples.samples, samples.sample_rate, &out_path_synth)
                     .map_err(|e| anyhow::anyhow!("写 cloud tts wav 段 {idx} 失败: {e}"))?;
             } else {
                 let bin = bin

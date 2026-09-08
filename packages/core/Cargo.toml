@@ -20,12 +20,13 @@ anyhow.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }
 ffmpeg-next.workspace = true
-voxlab.workspace = true
+voxcpm-cloud = { git = "https://github.com/Nahida-aa/vox-lab", tag = "v0.1.0" }
 pacer-rs.workspace = true
 reqwest.workspace = true
 indicatif.workspace = true
 sha2.workspace = true
 hex.workspace = true
+zip.workspace = true
 mdns-sd-discovery.workspace = true
 # mdns-sd-discovery (avahi D-Bus) 需要 tokio runtime 跑 browse
 tokio = { version = "1", default-features = false, features = ["rt", "sync", "time"] }

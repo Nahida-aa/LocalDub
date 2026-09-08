@@ -4,7 +4,7 @@ members = [
     "packages/bridge", "packages/config-rs", "packages/core", "packages/device-rs",
     "packages/demucs_burn", "packages/time", "packages/voxcpm-burn", "packages/app/src-tauri",
     "packages/fs", "packages/server", "packages/tts",
-    "packages/sdk", "packages/cli", "packages/env", "packages/subtitle-asr", "packages/llm", "packages/pacer-rs", "packages/voxlab",
+    "packages/sdk", "packages/cli", "packages/env", "packages/subtitle-asr", "packages/llm", "packages/pacer-rs",
 ]
 
 [workspace.package]
@@ -24,7 +24,7 @@ llm = { path = "packages/llm" }
 pacer-rs = { path = "packages/pacer-rs" }
 server = { path = "packages/server" }
 time = { path = "packages/time" }
-voxlab = { path = "packages/voxlab" }
+voxcpm-cloud = { git = "https://github.com/Nahida-aa/vox-lab", tag = "v0.1.0" }
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 mdns-sd = "0.21"
@@ -59,6 +59,8 @@ voxcpm-rs = { version = "0.5.0", default-features = false }
 # 哈希与编码（用于二进制校验下载完整性）。
 sha2 = "0.10"
 hex = "0.4"
+# Windows 资产为 zip（exe+dll 平铺），需解压后才能运行。
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
 
 # ffmpeg 探测视频高度/帧率（ocr-post 由 ocr-lab release 二进制提供）。
 
