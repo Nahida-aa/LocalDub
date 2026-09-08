@@ -1,0 +1,63 @@
+name: windows-bin-smoke
+
+# 冒烟验证 Windows release 消费路径: 按 items.rs 的 URL + sha256 下载三个
+# vision-lab 资产 zip → 校验 → 平铺解压到 bin 目录 → 启动 exe (`--help` 退出码 0
+# 证明 dll 齐全). 与 `env --action ensure` 的核心逻辑一致, 但避免在 CI 编译整个
+# workspace (ffmpeg-next/vcpkg 太重). sha256 需与 packages/core/src/cmd/env/items.rs
+# 的 ReleaseBinSpec.windows_sha256 保持一致.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - packages/core/src/cmd/env/items.rs
+      - .github/workflows/windows-bin-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: download + verify + extract vision-lab windows assets
+        shell: pwsh
+        run: |
+          # tag:sha256 (asset 名统一 <bin>-x86_64-pc-windows-msvc.zip)
+          $assets = @(
+            @{ name = "subtitle-finder"; tag = "subtitle-finder-v0.1.0"; sha256 = "9dece5e3cd2a9d72716d5fab5ecec256406b5113e38a479f55c76c43635396cc" },
+            @{ name = "subtitle-ocr";     tag = "subtitle-ocr-v0.1.0";     sha256 = "bd2880bc2d7e63383fbd580b69619631343298d71fa037bf97fc976a8733e079" },
+            @{ name = "ocr-post";         tag = "subtitle-ocr-v0.1.0";     sha256 = "a2aaeda6cd4cc8861a6c5747216bf95361250bb32c86a8f19a8187eb888c0e2d" }
+          )
+          $bin = Join-Path $env:RUNNER_TEMP "bin"
+          New-Item -ItemType Directory -Force -Path $bin | Out-Null
+          foreach ($a in $assets) {
+            $asset = "$($a.name)-x86_64-pc-windows-msvc.zip"
+            $url = "https://github.com/Nahida-aa/vision-lab/releases/download/$($a.tag)/$asset"
+            $zip = Join-Path $env:RUNNER_TEMP $asset
+            Write-Host ">> download $url"
+            curl.exe -sL -o $zip $url
+            if ($LASTEXITCODE -ne 0) { throw "download failed: $asset" }
+            $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+            if ($hash -ne $a.sha256) { throw "sha256 mismatch for $asset: expect $($a.sha256), got $hash" }
+            Write-Host ">> sha256 ok: $hash"
+            Expand-Archive -Path $zip -DestinationPath $bin -Force
+            $exe = Join-Path $bin "$($a.name).exe"
+            if (-not (Test-Path $exe)) { throw "extracted exe missing: $exe" }
+          }
+          Write-Host ">> extracted:"
+          Get-ChildItem $bin | Select-Object Name, Length
+
+      - name: smoke (exe 可启动, dll 齐全)
+        shell: pwsh
+        run: |
+          $bin = Join-Path $env:RUNNER_TEMP "bin"
+          foreach ($name in @("subtitle-finder", "subtitle-ocr", "ocr-post")) {
+            $exe = Join-Path $bin "$name.exe"
+            & $exe --help *> $null
+            if ($LASTEXITCODE -ne 0) { throw "$name.exe failed to start (missing dll?) exit=$LASTEXITCODE" }
+            Write-Host "$name.exe OK (exit=0)"
+          }
