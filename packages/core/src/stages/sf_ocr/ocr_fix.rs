@@ -120,7 +120,7 @@ pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
                     .and_then(|v| v.as_str())
                     .map(String::from)
             })
-            .unwrap_or_else(|| "zh".to_string());
+            .unwrap_or_else(|| crate::r#const::lang::DEFAULT_LANG.as_str().to_string());
         let lang_label = llm::lang_label(&src_lang);
         tracing::info!(target: "sf_ocr", 
             "sf_ocr_fix: LLM 修正 {} segs (model={})",

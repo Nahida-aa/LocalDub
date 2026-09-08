@@ -40,3 +40,82 @@ pub enum TargetLang {
 
 /// 源语言与 TargetLang 共用同一枚举
 pub type SourceLang = TargetLang;
+
+impl TargetLang {
+    /// 语言码 (与 serde 名一致: "zh" / "en" / "ja" ...)。
+    /// 替代代码里散落的裸字符串字面量。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            TargetLang::En => "en",
+            TargetLang::Zh => "zh",
+            TargetLang::Vi => "vi",
+            TargetLang::Ja => "ja",
+            TargetLang::Ko => "ko",
+            TargetLang::Fr => "fr",
+            TargetLang::De => "de",
+            TargetLang::Es => "es",
+            TargetLang::Pt => "pt",
+            TargetLang::Ru => "ru",
+            TargetLang::Ar => "ar",
+            TargetLang::Hi => "hi",
+            TargetLang::Th => "th",
+            TargetLang::Id => "id",
+            TargetLang::Ms => "ms",
+            TargetLang::Tl => "tl",
+            TargetLang::My => "my",
+            TargetLang::Km => "km",
+            TargetLang::Lo => "lo",
+            TargetLang::Mn => "mn",
+            TargetLang::Ne => "ne",
+            TargetLang::Ur => "ur",
+            TargetLang::Bn => "bn",
+        }
+    }
+
+    /// 从语言码解析 (未知码返回 None, 供 ASR 输出等运行时字符串容错)。
+    pub fn from_code(code: &str) -> Option<Self> {
+        match code {
+            "en" => Some(TargetLang::En),
+            "zh" => Some(TargetLang::Zh),
+            "vi" => Some(TargetLang::Vi),
+            "ja" => Some(TargetLang::Ja),
+            "ko" => Some(TargetLang::Ko),
+            "fr" => Some(TargetLang::Fr),
+            "de" => Some(TargetLang::De),
+            "es" => Some(TargetLang::Es),
+            "pt" => Some(TargetLang::Pt),
+            "ru" => Some(TargetLang::Ru),
+            "ar" => Some(TargetLang::Ar),
+            "hi" => Some(TargetLang::Hi),
+            "th" => Some(TargetLang::Th),
+            "id" => Some(TargetLang::Id),
+            "ms" => Some(TargetLang::Ms),
+            "tl" => Some(TargetLang::Tl),
+            "my" => Some(TargetLang::My),
+            "km" => Some(TargetLang::Km),
+            "lo" => Some(TargetLang::Lo),
+            "mn" => Some(TargetLang::Mn),
+            "ne" => Some(TargetLang::Ne),
+            "ur" => Some(TargetLang::Ur),
+            "bn" => Some(TargetLang::Bn),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for TargetLang {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// 兜底语言 (源语言未知 / 目标语言 auto 推断失败时用 zh)
+pub const DEFAULT_LANG: TargetLang = TargetLang::Zh;
+
+/// auto 推断目标语言: 源 zh -> en, 其它 -> zh (只看"是否 zh")
+pub fn infer_target_lang(src: TargetLang) -> TargetLang {
+    match src {
+        TargetLang::Zh => TargetLang::En,
+        _ => TargetLang::Zh,
+    }
+}

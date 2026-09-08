@@ -17,6 +17,7 @@ use std::{
 use chrono::Utc;
 use serde::Serialize;
 
+use crate::r#const::lang::{infer_target_lang, DEFAULT_LANG, TargetLang};
 use crate::context::{TaskStage, read_ctx, write_ctx};
 
 /// RFC3339 时间戳, 去毫秒 (镜像 TS `nowISO`, 形如 `2024-01-01T00:00:00Z`)。
@@ -683,10 +684,10 @@ pub fn resolve_language(ctx: &crate::context::TaskCtx) -> anyhow::Result<(String
         .and_then(|v| v.get("targetLang"))
         .and_then(|v| v.as_str())
         .map(String::from);
-    // 源语言: ASR 实测 (ctx.asr_language) > input.task.sourceLang > 默认 zh。
-    // (纯 OCR / subtitle 路径没有 ASR, 必须回落到配置的 sourceLang, 否则日语
+    // 源语言: ASR 实测 (ctx.asr_language) > input.task.sourceLang > DEFAULT_LANG。
+    // (纯 OCR / subtitle 路径没有 ASR, 必须回落到配置的 sourceLang, 否则非中文
     //  任务会被当成 zh -> 目标语言错误推断为 en)
-    let src_lang = ctx
+    let src_code = ctx
         .asr_language
         .clone()
         .or_else(|| {
@@ -696,20 +697,23 @@ pub fn resolve_language(ctx: &crate::context::TaskCtx) -> anyhow::Result<(String
                 .and_then(|v| v.as_str())
                 .map(String::from)
         })
-        .unwrap_or_else(|| "zh".to_string());
+        .unwrap_or_else(|| DEFAULT_LANG.as_str().to_string());
+    // 运行时字符串 (ASR 输出) 可能不在支持列表 -> 容错回落到 DEFAULT_LANG
+    let src_lang = TargetLang::from_code(&src_code).unwrap_or_else(|| {
+        tracing::warn!(target: "pipeline", "未知源语言码 {src_code:?}, 回落到 {}", DEFAULT_LANG);
+        DEFAULT_LANG
+    });
     let existing_dst = ctx
         .target_language
         .clone()
-        .unwrap_or_else(|| "zh".to_string());
-    let resolved = input_target
-        .or_else(|| {
-            if src_lang == "zh" {
-                Some("en".to_string())
-            } else {
-                Some("zh".to_string())
-            }
-        })
-        .unwrap();
+        .unwrap_or_else(|| DEFAULT_LANG.as_str().to_string());
+    // 目标语言: input.task.targetLang > auto 推断 (源 zh -> en, 其它 -> zh)
+    let resolved: TargetLang = input_target
+        .as_deref()
+        .and_then(TargetLang::from_code)
+        .unwrap_or_else(|| infer_target_lang(src_lang));
+    let resolved = resolved.as_str().to_string();
+    let src_lang = src_lang.as_str().to_string();
     if resolved != existing_dst {
         // 写回 ctx.target_language, 供后续翻译文件命名 / split_audio 读取 (best-effort:
         // ctx.json 不存在时仅告警, 不影响当前 stage 返回解析结果)
