@@ -83,7 +83,7 @@ pub struct TaskCtx {
     pub run_info: Option<RunInfo>,
     pub video_source_path: Option<String>,
     pub audio_source_path: Option<String>,
-    pub asr_language: Option<String>,
+    pub asr_language: Option<crate::r#const::lang::Language>,
     pub target_language: Option<String>,
 }
 
@@ -145,7 +145,7 @@ pub fn read_ctx_from_value(json: serde_json::Value) -> Result<TaskCtx, String> {
         asr_language: json
             .get("asr_language")
             .and_then(|v| v.as_str())
-            .map(String::from),
+            .map(crate::r#const::lang::Language::from),
         target_language: json
             .get("target_language")
             .and_then(|v| v.as_str())

@@ -168,16 +168,10 @@ pub fn import_video(input: &Input) -> anyhow::Result<TaskCtx> {
         run_info: None,
         video_source_path: Some(downloaded.video_path.clone()),
         audio_source_path: Some(downloaded.audio_path.clone()),
-        asr_language: args.source_lang.and_then(|l| {
-            serde_json::to_value(l)
-                .ok()
-                .and_then(|v| v.as_str().map(|s| s.to_string()))
-        }),
-        target_language: args.target_lang.and_then(|l| {
-            serde_json::to_value(l)
-                .ok()
-                .and_then(|v| v.as_str().map(|s| s.to_string()))
-        }),
+        asr_language: args.source_lang.clone(),
+        target_language: args
+            .target_lang
+            .map(|l| l.as_str().to_string()),
     };
 
     write_ctx(&task_dir.to_string_lossy(), &ctx).map_err(anyhow::Error::msg)?;

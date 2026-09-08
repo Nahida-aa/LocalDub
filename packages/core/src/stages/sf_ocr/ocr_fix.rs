@@ -110,7 +110,7 @@ pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
         if legacy {
             tracing::warn!(target: "sf_ocr", "stages.sfOcrFix.sourceLang 已移除, 请在 task.sourceLang 配置源语言");
         }
-        let src_lang = ctx
+        let src_lang: crate::r#const::lang::Language = ctx
             .asr_language
             .clone()
             .or_else(|| {
@@ -118,10 +118,10 @@ pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
                     .get("task")
                     .and_then(|v| v.get("sourceLang"))
                     .and_then(|v| v.as_str())
-                    .map(String::from)
+                    .map(crate::r#const::lang::Language::from)
             })
-            .unwrap_or_else(|| crate::r#const::lang::DEFAULT_LANG.as_str().to_string());
-        let lang_label = llm::lang_label(&src_lang);
+            .unwrap_or_else(crate::r#const::lang::default_lang);
+        let lang_label = llm::lang_label(src_lang.code());
         tracing::info!(target: "sf_ocr", 
             "sf_ocr_fix: LLM 修正 {} segs (model={})",
             src_texts.len(),

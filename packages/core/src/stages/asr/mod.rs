@@ -339,7 +339,7 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
 /// 把检测语言写回 ctx.json (镜像 TS `setCtx(taskDir, { asr_language })`)。
 fn set_asr_language(task_dir: &str, lang: &str) -> anyhow::Result<()> {
     let mut ctx = crate::context::read_ctx(task_dir).map_err(anyhow::Error::msg)?;
-    ctx.asr_language = Some(lang.to_string());
+    ctx.asr_language = Some(crate::r#const::lang::Language::new(lang));
     write_ctx(task_dir, &ctx).map_err(anyhow::Error::msg)
 }
 

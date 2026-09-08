@@ -1021,6 +1021,11 @@
       "title": "Input_Serialize",
       "type": "object"
     },
+    "Language": {
+      "description": " 语言标识基础类型: **内部是开放字符串 (事实), 对外提供已知语言视图 (枚举)**。\n\n 源语言是\"事实\" (来自 ASR 识别或用户声明), 值域开放 —— whisper 支持约\n 99 种语言, 超出支持翻译的 23 种 [`TargetLang`] 列表; 若用封闭枚举建模,\n 列表外语言 (it/uk/nl/...) 会被截断丢信息。用 newtype 包字符串:\n - serde 透明 (序列化为 \"it\" 这样的字符串), 任何语言码原样进出\n - [`Language::as_known`] 提供封闭 [`TargetLang`] 视图 (目标语言是\n   \"承诺\", 必须落在支持翻译的语言内, 保持封闭)",
+      "title": "Language",
+      "type": "string"
+    },
     "LlmFixArgs": {
       "anyOf": [
         {
@@ -2636,7 +2641,7 @@
         "sourceLang": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/Language"
             },
             {
               "type": "null"
@@ -2753,7 +2758,7 @@
         "sourceLang": {
           "anyOf": [
             {
-              "type": "string"
+              "$ref": "#/$defs/Language"
             },
             {
               "type": "null"

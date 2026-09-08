@@ -38,11 +38,72 @@ pub enum TargetLang {
     Bn,
 }
 
-/// 源语言: **开放字符串**, 不与 TargetLang (封闭枚举) 共用类型。
+/// 语言标识基础类型: **内部是开放字符串 (事实), 对外提供已知语言视图 (枚举)**。
 ///
-/// 源语言是"事实" (来自 ASR 识别或用户声明), 外部世界的语言码不限于
-/// 支持翻译的 23 种 (whisper 支持约 99 种) —— 封闭枚举会把列表外语言
-/// 丢信息; 目标语言是"承诺", 保持封闭。
+/// 源语言是"事实" (来自 ASR 识别或用户声明), 值域开放 —— whisper 支持约
+/// 99 种语言, 超出支持翻译的 23 种 [`TargetLang`] 列表; 若用封闭枚举建模,
+/// 列表外语言 (it/uk/nl/...) 会被截断丢信息。用 newtype 包字符串:
+/// - serde 透明 (序列化为 "it" 这样的字符串), 任何语言码原样进出
+/// - [`Language::as_known`] 提供封闭 [`TargetLang`] 视图 (目标语言是
+///   "承诺", 必须落在支持翻译的语言内, 保持封闭)
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, specta::Type)]
+pub struct Language(String);
+
+impl Language {
+    pub fn new(code: impl Into<String>) -> Self {
+        Self(code.into())
+    }
+
+    /// 语言码 (与 serde 名一致: "zh" / "en" / "ja" / 列表外的 "it" ...)
+    pub fn code(&self) -> &str {
+        &self.0
+    }
+
+    /// 已知语言视图: 语言码在支持翻译的列表内时给出 [`TargetLang`]。
+    /// 列表外语言返回 None —— 事实原样保留, 但它不是可用的翻译目标。
+    pub fn as_known(&self) -> Option<TargetLang> {
+        TargetLang::from_code(&self.0)
+    }
+}
+
+impl From<TargetLang> for Language {
+    fn from(t: TargetLang) -> Self {
+        Self(t.as_str().to_string())
+    }
+}
+
+impl From<&str> for Language {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
+impl From<String> for Language {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl std::fmt::Display for Language {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+/// 兜底语言声明 (源语言未知时)。String::new 非 const, 用函数。
+pub fn default_lang() -> Language {
+    Language(String::new())
+}
+
+/// auto 推断目标语言: 源 zh -> en, 其它 -> zh (只看"是否 zh")。
+/// 源语言是开放事实, 不受翻译目标列表约束。
+pub fn infer_target_lang(src: &Language) -> TargetLang {
+    if src.code() == "zh" {
+        TargetLang::En
+    } else {
+        TargetLang::Zh
+    }
+}
 
 impl TargetLang {
     /// 语言码 (与 serde 名一致: "zh" / "en" / "ja" ...)。
@@ -115,12 +176,4 @@ impl std::fmt::Display for TargetLang {
 /// 兜底语言 (源语言未知 / 目标语言 auto 推断失败时用 zh)
 pub const DEFAULT_LANG: TargetLang = TargetLang::Zh;
 
-/// auto 推断目标语言: 源 zh -> en, 其它 -> zh (只看"是否 zh")。
-/// 参数为开放字符串 (源语言是事实, 不受翻译目标列表约束)。
-pub fn infer_target_lang(src_code: &str) -> TargetLang {
-    if src_code == "zh" {
-        TargetLang::En
-    } else {
-        TargetLang::Zh
-    }
-}
+

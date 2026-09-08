@@ -642,7 +642,7 @@ mod tests {
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.task.task_dir = dir.to_string();
         ctx.pipeline = "dub".to_string();
-        ctx.asr_language = Some("zh".to_string());
+        ctx.asr_language = Some(crate::r#const::lang::Language::from("zh"));
         ctx
     }
 

@@ -110,7 +110,7 @@ mod tests {
         // sourceLang 是开放字符串 (源语言是"事实", 不受 23 种翻译目标语言限制)
         assert_eq!(
             input.task.as_ref().unwrap().source_lang,
-            Some("zh".to_string())
+            Some(crate::r#const::lang::Language::from("zh"))
         );
         assert_eq!(
             input.task.as_ref().unwrap().target_stage,

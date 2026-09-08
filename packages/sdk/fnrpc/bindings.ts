@@ -426,6 +426,18 @@ export type Input_Serialize = {
 	stages: Stages_Serialize,
 };
 
+/**
+ *  语言标识基础类型: **内部是开放字符串 (事实), 对外提供已知语言视图 (枚举)**。
+ * 
+ *  源语言是"事实" (来自 ASR 识别或用户声明), 值域开放 —— whisper 支持约
+ *  99 种语言, 超出支持翻译的 23 种 [`TargetLang`] 列表; 若用封闭枚举建模,
+ *  列表外语言 (it/uk/nl/...) 会被截断丢信息。用 newtype 包字符串:
+ *  - serde 透明 (序列化为 "it" 这样的字符串), 任何语言码原样进出
+ *  - [`Language::as_known`] 提供封闭 [`TargetLang`] 视图 (目标语言是
+ *    "承诺", 必须落在支持翻译的语言内, 保持封闭)
+ */
+export type Language = string;
+
 /**  LLM 修正参数。 */
 export type LlmFixArgs = LlmFixArgs_Serialize | LlmFixArgs_Deserialize;
 
@@ -1228,7 +1240,7 @@ export type TaskArgs_Deserialize = {
 	action?: TaskAction | null,
 	/**  本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl */
 	url?: string | null,
-	sourceLang?: string | null,
+	sourceLang?: Language | null,
 	targetLang?: TargetLang | null,
 	/**  继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始 */
 	continueFrom?: StageName | null,
@@ -1256,7 +1268,7 @@ export type TaskArgs_Serialize = {
 	action: TaskAction | null,
 	/**  本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl */
 	url: string | null,
-	sourceLang: string | null,
+	sourceLang: Language | null,
 	targetLang: TargetLang | null,
 	/**  继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始 */
 	continueFrom: StageName | null,
@@ -1314,7 +1326,7 @@ export type TaskCtx_Deserialize = {
 	run_info?: RunInfo_Deserialize | null,
 	video_source_path?: string | null,
 	audio_source_path?: string | null,
-	asr_language?: string | null,
+	asr_language?: Language | null,
 	target_language?: string | null,
 };
 
@@ -1328,7 +1340,7 @@ export type TaskCtx_Serialize = {
 	run_info: RunInfo_Serialize | null,
 	video_source_path: string | null,
 	audio_source_path: string | null,
-	asr_language: string | null,
+	asr_language: Language | null,
 	target_language: string | null,
 };
 
