@@ -6,10 +6,11 @@ import { emitLog, nowISO, video_source_path } from "@repo/core/stages/utils/util
 import { TaskCtx, setStage } from "@repo/core/context/context.ts";
 import { startLog } from "../utils/log.ts";
 import { REPO_ROOT } from "@repo/config/root";
+import { DATA_DIR } from "@repo/config/path/paths";
 import { log } from "@repo/util/log";
 
-// 关键帧策略前处理：调 sf-cli（subtitle-finder 封装）找字幕关键帧。
-// 落盘 `<taskDir>/sf_ocr_pre/`：frames/（原始关键帧 PNG）、mask/（去背景掩码）、
+// 关键帧策略前处理：调 subtitle-finder（从 data/bin 下载，见 env ensure subtitle_finder_bin）
+// 找字幕关键帧。落盘 `<taskDir>/sf_ocr_pre/`：frames/（原始关键帧 PNG）、mask/（去背景掩码）、
 // timeline.txt、keyframes.json。OCR 识别是下游 sf_ocr stage 的事。
 export async function stageSfOcrPre(ctx: TaskCtx) {
   const taskDir = ctx.task.task_dir;
@@ -24,18 +25,22 @@ export async function stageSfOcrPre(ctx: TaskCtx) {
     throw new Error(`OCR input not found: ${videoPath}`);
   }
 
-  const sfBin = join(REPO_ROOT, "target", "release", "sf-cli");
+  const sfBin = join(DATA_DIR, "bin", "subtitle-finder");
   if (!existsSync(sfBin)) {
-    log(`[sf_ocr_pre] sf-cli 未构建，自动编译...`);
-    const build = await $`cargo build --release -p sf-cli --bin sf-cli`.cwd(REPO_ROOT).nothrow();
-    if (build.exitCode !== 0) {
-      throw new Error(`sf-cli 编译失败 (exit ${build.exitCode}):\n${build.stderr}`);
+    log(`[sf_ocr_pre] subtitle-finder 未下载，调用 env ensure...`);
+    const ensure = await $`cargo run -p cli -- env ensure subtitle_finder_bin`
+      .cwd(REPO_ROOT)
+      .nothrow();
+    if (ensure.exitCode !== 0 || !existsSync(sfBin)) {
+      throw new Error(
+        `subtitle-finder 未就绪 (exit ${ensure.exitCode}):\n${ensure.stderr}\n请手动执行: just run-env-ensure subtitle_finder_bin`,
+      );
     }
   }
 
   const outDir = resolve(taskDir, "sf_ocr_pre");
 
-  log(`sf-cli ${videoPath} --out ${outDir}`);
+  log(`subtitle-finder ${videoPath} --out ${outDir}`);
   const proc = spawn([sfBin, videoPath, "--out", outDir], {
     cwd: REPO_ROOT,
     stdout: "inherit",
@@ -43,12 +48,12 @@ export async function stageSfOcrPre(ctx: TaskCtx) {
   });
   const exitCode = await proc.exited;
   if (exitCode !== 0) {
-    throw new Error(`sf-cli failed with exit code ${exitCode}`);
+    throw new Error(`subtitle-finder failed with exit code ${exitCode}`);
   }
 
   const frameDir = join(outDir, "frames");
   if (!existsSync(frameDir)) {
-    throw new Error(`sf-cli 未产出关键帧目录: ${frameDir}`);
+    throw new Error(`subtitle-finder 未产出关键帧目录: ${frameDir}`);
   }
   const kfJson = join(outDir, "keyframes.json");
   const keyframes = existsSync(kfJson) ? JSON.parse(readFileSync(kfJson, "utf-8")) : [];

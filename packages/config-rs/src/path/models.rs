@@ -47,6 +47,14 @@ pub fn model_cache_dir() -> PathBuf {
     data_dir().join("models")
 }
 
+/// 运行时下载的可执行文件目录 (镜像数据目录 `data/bin`)。
+///
+/// 与 `model_cache_dir` 并列: 关键帧筛选/OCR 等经 GitHub Release 下载的二进制
+/// 落于此, 带版本戳 `.version.json` (见 env ensure)。
+pub fn bin_dir() -> PathBuf {
+    data_dir().join("bin")
+}
+
 pub fn demucs_model_dir() -> PathBuf {
     model_cache_dir().join("demucs")
 }

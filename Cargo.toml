@@ -3,7 +3,7 @@ resolver = "3"
 members = [
     "packages/bridge", "packages/config-rs", "packages/core", "packages/device-rs",
     "packages/demucs_burn", "packages/time", "packages/voxcpm-burn", "packages/app/src-tauri",
-    "packages/fs", "packages/sf-cli", "packages/subtitle-ocr-cli", "packages/server", "packages/tts",
+    "packages/fs", "packages/subtitle-ocr-cli", "packages/server", "packages/tts",
     "packages/sdk", "packages/cli", "packages/env", "packages/subtitle-asr", "packages/llm", "packages/pacer-rs", "packages/voxlab",
 ]
 
@@ -56,9 +56,12 @@ ndarray = "0.17"
 # ocr-segment-adjust 用 ffmpeg 读视频像素高度（Y 偏移惩罚归一化分母），版本对齐 ocr-lab。
 ffmpeg-next = "9.0.0"
 voxcpm-rs = { version = "0.5.0", default-features = false }
+# 哈希与编码（用于二进制校验下载完整性）。
+sha2 = "0.10"
+hex = "0.4"
+
 # OCR 核心（从本仓库拆出的 ocr-lab）。git 源由 cargo 自动拉取/解析其内部
 # workspace 依赖与 [patch]，LocalDub 侧零镜像；版本以 ocr-lab 为准。
-subtitle-finder = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "81396471da2cf864d76b405bf7e98e4aa072cab1" }
 subtitle-ocr = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "81396471da2cf864d76b405bf7e98e4aa072cab1" }
 rapidocr-ort = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "81396471da2cf864d76b405bf7e98e4aa072cab1" }
 

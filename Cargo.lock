@@ -5159,6 +5159,7 @@ dependencies = [
  "config-rs",
  "ffmpeg-next",
  "futures",
+ "hex",
  "indicatif",
  "llm",
  "mdns-sd",
@@ -5167,6 +5168,7 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "sha2",
  "specta",
  "specta-jsonschema",
  "specta-serde",
@@ -8299,20 +8301,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sf-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "image",
- "indicatif",
- "ndarray 0.17.2",
- "subtitle-finder",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "sha1"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8739,24 +8727,6 @@ dependencies = [
 [[package]]
 name = "subtitle-asr"
 version = "0.1.0"
-
-[[package]]
-name = "subtitle-finder"
-version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/ocr-lab.git?rev=81396471da2cf864d76b405bf7e98e4aa072cab1#81396471da2cf864d76b405bf7e98e4aa072cab1"
-dependencies = [
- "anyhow",
- "clap",
- "geometry",
- "image",
- "indicatif",
- "ndarray 0.17.2",
- "opencv",
- "serde",
- "serde_json",
- "tracing",
- "tracing-subscriber",
-]
 
 [[package]]
 name = "subtitle-ocr"

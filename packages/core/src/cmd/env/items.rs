@@ -13,9 +13,11 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use serde_json::json;
+use sha2::Sha256;
+use chrono;
 
 use config_rs::env::{openai_api_key, openai_base_url};
-use config_rs::path::models::{demucs_model_dir, voxcpm_model_dir, whisper_model_dir};
+use config_rs::path::models::{bin_dir, demucs_model_dir, voxcpm_model_dir, whisper_model_dir};
 use config_rs::root::repo_root;
 
 use crate::cmd::env::{CheckResult, CheckStatus};
@@ -1208,6 +1210,251 @@ fn ensure_ocr_cpp_bin() -> CheckResult {
 }
 
 // ---------------------------------------------------------------------------
+// subtitle_finder_bin: 从 ocr-lab GitHub Release 下载关键帧筛选二进制
+// ---------------------------------------------------------------------------
+
+const SUBTITLE_FINDER_TAG: &str = "subtitle-finder-v0.1.0";
+const SUBTITLE_FINDER_SHA256: &str = "b08778b2e066a35f8c9b3c0457e3e05a1379a6452341b932d82c22175cba9923";
+const SUBTITLE_FINDER_URL: &str = "https://github.com/Nahida-aa/ocr-lab/releases/download/subtitle-finder-v0.1.0/subtitle-finder";
+
+/// 版本戳文件路径
+fn subtitle_finder_version_path() -> PathBuf {
+    bin_dir().join(".subtitle_finder.version.json")
+}
+
+/// 目标二进制路径
+fn subtitle_finder_bin_path() -> PathBuf {
+    let name = if cfg!(windows) { "subtitle-finder.exe" } else { "subtitle-finder" };
+    bin_dir().join(name)
+}
+
+/// 读取版本戳
+fn read_version_stamp() -> Option<serde_json::Value> {
+    let path = subtitle_finder_version_path();
+    if path.exists() {
+        std::fs::read_to_string(&path).ok().and_then(|s| serde_json::from_str(&s).ok())
+    } else {
+        None
+    }
+}
+
+/// 写入版本戳
+fn write_version_stamp(tag: &str, sha256: &str) -> anyhow::Result<()> {
+    let path = subtitle_finder_version_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let stamp = serde_json::json!({
+        "tag": tag,
+        "sha256": sha256,
+        "downloaded_at": chrono::Utc::now().to_rfc3339(),
+    });
+    std::fs::write(&path, serde_json::to_string_pretty(&stamp)?)?;
+    Ok(())
+}
+
+/// 计算文件 sha256
+fn file_sha256(path: &Path) -> anyhow::Result<String> {
+    use sha2::{Digest, Sha256};
+    let data = std::fs::read(path)?;
+    let mut hasher = Sha256::new();
+    hasher.update(&data);
+    Ok(hex::encode(hasher.finalize()))
+}
+
+pub fn check_subtitle_finder_bin() -> CheckResult {
+    let path = subtitle_finder_bin_path();
+    if !path.exists() {
+        return CheckResult {
+            key: "subtitle_finder_bin".into(),
+            status: CheckStatus::Fail,
+            data: json!({ "msg": "subtitle-finder 二进制不存在" }),
+            required: false,
+        };
+    }
+
+    // ldd 检查 (仅 Linux)
+    if cfg!(target_os = "linux") {
+        let (ok, out, _) = try_exec("ldd", &[path.to_str().unwrap()], None);
+        if ok && out.contains("not found") {
+            return CheckResult {
+                key: "subtitle_finder_bin".into(),
+                status: CheckStatus::Warn,
+                data: json!({ "path": path.display().to_string(), "runtime": "missing_libs", "msg": "动态库缺失 (ldd not found)" }),
+                required: false,
+            };
+        }
+    }
+
+    // 版本戳校验
+    let stamp = read_version_stamp();
+    let tag_ok = stamp.as_ref().and_then(|v| v.get("tag").and_then(|t| t.as_str())) == Some(SUBTITLE_FINDER_TAG);
+    let sha_ok = stamp.as_ref().and_then(|v| v.get("sha256").and_then(|s| s.as_str())) == Some(SUBTITLE_FINDER_SHA256);
+
+    if !tag_ok || !sha_ok {
+        let missing = match (tag_ok, sha_ok) {
+            (false, false) => "版本戳缺失/不匹配",
+            (false, true) => "tag 不匹配",
+            (true, false) => "sha256 不匹配",
+            _ => "版本不匹配",
+        };
+        return CheckResult {
+            key: "subtitle_finder_bin".into(),
+            status: CheckStatus::Warn,
+            data: json!({ "path": path.display().to_string(), "msg": missing, "stale": true }),
+            required: false,
+        };
+    }
+
+    CheckResult {
+        key: "subtitle_finder_bin".into(),
+        status: CheckStatus::Pass,
+        data: json!({ "path": path.display().to_string(), "msg": "已就绪" }),
+        required: false,
+    }
+}
+
+fn ensure_subtitle_finder_bin() -> CheckResult {
+    let bin_path = subtitle_finder_bin_path();
+    if let Some(parent) = bin_path.parent() {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            return CheckResult {
+                key: "subtitle_finder_bin".into(),
+                status: CheckStatus::Fail,
+                data: json!({ "msg": format!("创建目录失败: {e}") }),
+                required: false,
+            };
+        }
+    }
+
+    tracing::info!(target: "sf_ocr", "正在下载 subtitle-finder 从 {}", SUBTITLE_FINDER_URL);
+
+    let client = match reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build() {
+        Ok(c) => c,
+        Err(e) => {
+            return CheckResult {
+                key: "subtitle_finder_bin".into(),
+                status: CheckStatus::Fail,
+                data: json!({ "msg": format!("构建 HTTP 客户端失败: {e}") }),
+                required: false,
+            };
+        }
+    };
+
+    let mut resp = match client.get(SUBTITLE_FINDER_URL).send() {
+        Ok(r) => r,
+        Err(e) => {
+            return CheckResult {
+                key: "subtitle_finder_bin".into(),
+                status: CheckStatus::Fail,
+                data: json!({ "msg": format!("下载请求失败: {e}") }),
+                required: false,
+            };
+        }
+    };
+
+    if !resp.status().is_success() {
+        return CheckResult {
+            key: "subtitle_finder_bin".into(),
+            status: CheckStatus::Fail,
+            data: json!({ "msg": format!("下载失败: HTTP {}", resp.status()) }),
+            required: false,
+        };
+    }
+
+    let total = resp.content_length().unwrap_or(0);
+    let pb = indicatif::ProgressBar::new(total);
+    pb.set_style(
+        indicatif::ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+            .unwrap()
+            .progress_chars("#>-"),
+    );
+
+    let mut file = match std::fs::File::create(&bin_path) {
+        Ok(f) => f,
+        Err(e) => {
+            return CheckResult {
+                key: "subtitle_finder_bin".into(),
+                status: CheckStatus::Fail,
+                data: json!({ "msg": format!("创建文件失败: {e}") }),
+                required: false,
+            };
+        }
+    };
+
+    let mut downloaded = 0u64;
+    let mut buf = [0u8; 8192];
+    while let Ok(n) = std::io::Read::read(&mut resp, &mut buf) {
+        if n == 0 {
+            break;
+        }
+        if let Err(e) = std::io::Write::write_all(&mut file, &buf[..n]) {
+            return CheckResult {
+                key: "subtitle_finder_bin".into(),
+                status: CheckStatus::Fail,
+                data: json!({ "msg": format!("写入失败: {e}") }),
+                required: false,
+            };
+        }
+        downloaded += n as u64;
+        pb.set_position(downloaded);
+    }
+    pb.finish_with_message("下载完成");
+
+    // 校验 sha256
+    let sha = match file_sha256(&bin_path) {
+        Ok(s) => s,
+        Err(e) => {
+            return CheckResult {
+                key: "subtitle_finder_bin".into(),
+                status: CheckStatus::Fail,
+                data: json!({ "msg": format!("sha256 计算失败: {e}") }),
+                required: false,
+            };
+        }
+    };
+    if sha != SUBTITLE_FINDER_SHA256 {
+        let _ = std::fs::remove_file(&bin_path);
+        return CheckResult {
+            key: "subtitle_finder_bin".into(),
+            status: CheckStatus::Fail,
+            data: json!({ "msg": format!("sha256 校验失败: 期望 {} 实际 {}", SUBTITLE_FINDER_SHA256, sha) }),
+            required: false,
+        };
+    }
+
+    // 执行权限
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(mut perms) = std::fs::metadata(&bin_path).map(|m| m.permissions()) {
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&bin_path, perms).ok();
+        }
+    }
+
+    // 写版本戳
+    if let Err(e) = write_version_stamp(SUBTITLE_FINDER_TAG, SUBTITLE_FINDER_SHA256) {
+        return CheckResult {
+            key: "subtitle_finder_bin".into(),
+            status: CheckStatus::Fail,
+            data: json!({ "msg": format!("写版本戳失败: {e}") }),
+            required: false,
+        };
+    }
+
+    CheckResult {
+        key: "subtitle_finder_bin".into(),
+        status: CheckStatus::Pass,
+        data: json!({ "path": bin_path.display().to_string(), "msg": "下载并校验成功" }),
+        required: false,
+    }
+}
+
+// ---------------------------------------------------------------------------
 // ensure: dotenv
 // ---------------------------------------------------------------------------
 
@@ -1280,6 +1527,7 @@ pub fn all_checks() -> HashMap<&'static str, fn() -> CheckResult> {
     m.insert("voxcpm_burn_bin", || check_voxcpm_burn_bin(None));
     m.insert("demucs_burn_bin", || check_demucs_burn_bin(None));
     m.insert("ocr_cpp_bin", check_ocr_cpp_bin);
+    m.insert("subtitle_finder_bin", check_subtitle_finder_bin);
     m.insert("cmake", check_cmake);
     m.insert("git", check_git);
     m.insert("dotenv", check_dotenv);
@@ -1293,5 +1541,6 @@ pub fn ensure_fns() -> HashMap<&'static str, fn() -> CheckResult> {
     m.insert("dotenv", ensure_dotenv);
     m.insert("openai", ensure_openai);
     m.insert("ocr_cpp_bin", ensure_ocr_cpp_bin);
+    m.insert("subtitle_finder_bin", ensure_subtitle_finder_bin);
     m
 }

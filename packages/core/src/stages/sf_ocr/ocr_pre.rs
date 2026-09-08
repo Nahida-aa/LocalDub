@@ -1,11 +1,12 @@
-//! sf_ocr_pre: 关键帧策略前处理, 调 sf-cli 找字幕关键帧。
+//! sf_ocr_pre: 关键帧策略前处理, 调 subtitle-finder (通过 env 管理) 找字幕关键帧。
 //!
 //! 镜像 TS `packages/core/stages/sf_ocr/ocr_pre.ts` (stageSfOcrPre)。
 //! 落盘 `<taskDir>/sf_ocr_pre/`: frames/(PNG) / mask/ / timeline.txt / keyframes.json。
 
+use crate::cmd::env::ensure_bin;
 use crate::context::TaskCtx;
 use crate::stages::utils::{
-    StagePatch, StageStatus, cargo_build_bin, ensure_dir, find_release_bin, now_iso,
+    StagePatch, StageStatus, ensure_dir, now_iso,
     set_stage_anyhow, sf_ocr_pre_dir, video_source_path,
 };
 use std::process::Command;
@@ -30,32 +31,25 @@ pub fn stage_sf_ocr_pre(ctx: &TaskCtx) -> anyhow::Result<()> {
         return Err(anyhow::anyhow!("OCR input not found: {video_path}"));
     }
 
-    let bin = match find_release_bin("sf-cli") {
-        Some(p) => p,
-        None => {
-            // 阶段内自动编译缺失二进制 (用户选项: 阶段内自动编译)
-            tracing::info!(target: "sf_ocr", "未找到 sf-cli, 尝试自动编译...");
-            cargo_build_bin("sf-cli", "sf-cli", &[], true).map_err(|e| {
-                anyhow::anyhow!(
-                    "{e}\n若编译失败, 请手动执行: cargo build --release -p sf-cli --bin sf-cli"
-                )
-            })?
-        }
-    };
+    let bin = ensure_bin("subtitle_finder_bin").map_err(|e| {
+        anyhow::anyhow!(
+            "{e}\n若下载失败, 请手动执行: just run-env-ensure subtitle_finder_bin"
+        )
+    })?;
 
     let out_dir = sf_ocr_pre_dir(&task_dir);
     ensure_dir(&out_dir)?;
 
-    tracing::info!(target: "sf_ocr", "sf-cli {video_path} --out {}", out_dir.display());
+    tracing::info!(target: "sf_ocr", "subtitle-finder {video_path} --out {}", out_dir.display());
     let status = Command::new(&bin)
         .arg(&video_path)
         .arg("--out")
         .arg(&out_dir)
         .status()
-        .map_err(|e| anyhow::anyhow!("spawn sf-cli 失败: {e}"))?;
+        .map_err(|e| anyhow::anyhow!("spawn subtitle-finder 失败: {e}"))?;
     if !status.success() {
         return Err(anyhow::anyhow!(
-            "sf-cli failed with exit code {:?}",
+            "subtitle-finder failed with exit code {:?}",
             status.code()
         ));
     }
@@ -135,9 +129,11 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    #[test]
+#[test]
     fn missing_bin_reports_unbuilt() {
-        // 放一个真实存在的视频文件, 让 video 检查通过, 触发二进制缺失报错
+        // 放一个真实存在的视频文件, 让 video 检查通过, 触发二进制缺失报错。
+        // 预置 data/bin 一个"假" subtitle-finder + 版本戳, 让 check 通过 (避免触发真实下载),
+        // 随后 spawn 在假视频上失败 → 报 subtitle-finder failed。
         let dir = std::env::temp_dir()
             .join(format!("ld_sfpre_bin_{}", std::process::id()))
             .to_string_lossy()
@@ -146,16 +142,36 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let video = format!("{dir}/video.mp4");
         std::fs::write(&video, b"fake").unwrap();
+
+        // 预置假二进制 + 版本戳, 使 check 通过而无需网络
+        let bin_dir = config_rs::path::models::bin_dir();
+        std::fs::create_dir_all(&bin_dir).unwrap();
+        let fake_bin = bin_dir.join("subtitle-finder");
+        std::fs::write(&fake_bin, b"#!/bin/sh\nexit 1\n").unwrap();
+        let stamp = serde_json::json!({
+            "tag": "subtitle-finder-v0.1.0",
+            "sha256": "b08778b2e066a35f8c9b3c0457e3e05a1379a6452341b932d82c22175cba9923",
+            "downloaded_at": "2026-09-08T00:00:00Z",
+        });
+        std::fs::write(
+            bin_dir.join(".subtitle_finder.version.json"),
+            serde_json::to_string_pretty(&stamp).unwrap(),
+        )
+        .unwrap();
+
         let mut ctx = ctx_at(&dir);
         ctx.video_source_path = Some(video);
         crate::context::write_ctx(&dir, &ctx).unwrap();
         let res = stage_sf_ocr_pre(&ctx);
+        // 清理假二进制, 避免影响真实 env ensure
+        let _ = std::fs::remove_file(&fake_bin);
+        let _ = std::fs::remove_file(bin_dir.join(".subtitle_finder.version.json"));
         assert!(res.is_err());
         let msg = res.unwrap_err().to_string();
-        // 二进制缺失时 → "sf-cli 未构建"; 已构建但视频非法则 → "sf-cli failed"
+        // 二进制就绪但视频非法 → subtitle-finder 运行失败
         assert!(
-            msg.contains("sf-cli 未构建") || msg.contains("sf-cli failed"),
-            "应报 sf-cli 未构建或运行失败, 实际: {msg}"
+            msg.contains("subtitle-finder"),
+            "应提示 subtitle-finder 运行失败, 实际: {msg}"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }

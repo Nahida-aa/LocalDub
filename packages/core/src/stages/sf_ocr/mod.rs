@@ -1,7 +1,7 @@
 //! sf_ocr 阶段 (镜像 TS `packages/core/stages/sf_ocr/`)。
 //!
 //! 关键帧策略: sf_ocr_pre (找关键帧) → sf_ocr (逐帧 OCR) → sf_ocr_fix (合并/修正)。
-//! 三者均为 spawn 已构建的 Rust 二进制 (sf-cli / subtitle-ocr / ocr-post) 的编排。
+//! 三者均为 spawn 已构建的二进制 (subtitle-finder [env 管理] / subtitle-ocr / ocr-post) 的编排。
 
 pub mod args;
 pub mod fix_args;

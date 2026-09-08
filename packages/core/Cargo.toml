@@ -24,6 +24,8 @@ voxlab.workspace = true
 pacer-rs.workspace = true
 reqwest.workspace = true
 indicatif.workspace = true
+sha2.workspace = true
+hex.workspace = true
 mdns-sd-discovery.workspace = true
 # mdns-sd-discovery (avahi D-Bus) 需要 tokio runtime 跑 browse
 tokio = { version = "1", default-features = false, features = ["rt", "sync", "time"] }

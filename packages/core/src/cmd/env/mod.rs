@@ -10,6 +10,7 @@ pub mod items;
 
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 
 use crate::cmd::env::input::{env_names, zh_desc};
 use crate::cmd::env::items::{all_checks, ensure_fns};
@@ -69,11 +70,11 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
         .map(|t| t.subtitle_source)
         .unwrap_or(SubtitleSource::Asr);
 
-    // --- sf_ocr / asr_ocr: OCR 阶段需要 ocr_cpp_bin (cmake 已在基础集) ---
+    // --- sf_ocr: 关键帧筛选需要 subtitle_finder_bin (ocr-lab GitHub Release) ---
     if subtitle_source == SubtitleSource::SfOcr {
-        add("ocr_cpp_bin", &mut set);
+        add("subtitle_finder_bin", &mut set);
     }
-    // asr_ocr 阶段 (flatten 复用 SfOcrArgs, 无 enabled 开关) → 同样需要 ocr_cpp_bin
+    // asr_ocr 阶段 (flatten 复用 SfOcrArgs, 无 enabled 开关) → 旧 TS 路径仍用 ocr_cpp_bin
     // 仅当 subtitle_source 非纯 asr 时纳入 (asr 流程也会跑 asr_ocr 做校正)
     if subtitle_source != SubtitleSource::Asr {
         add("ocr_cpp_bin", &mut set);
@@ -198,6 +199,58 @@ fn resolve_targets(targets: &[String]) -> Vec<String> {
         return env_names().iter().map(|s| s.to_string()).collect();
     }
     valid
+}
+
+/// 确保指定的二进制存在 (幂等: 已存在且新鲜直接返回路径; 否则触发 ensure 下载/构建)。
+///
+/// 供阶段消费方调用, 替代 `find_release_bin` + `cargo_build_bin`。
+pub fn ensure_bin(key: &str) -> anyhow::Result<PathBuf> {
+    // 先 check
+    let checks = all_checks();
+    let check_fn = checks.get(key).ok_or_else(|| anyhow::anyhow!("未知环境项: {}", key))?;
+    let check_result = check_fn();
+    if check_result.status == CheckStatus::Pass {
+        // 通过 items 中的 path 解析函数获取路径
+        return Ok(bin_path_from_key(key));
+    }
+    // 不通过则 ensure
+    let fns = ensure_fns();
+    let ensure_fn = fns.get(key).ok_or_else(|| anyhow::anyhow!("环境项 {} 无 ensure 实现", key))?;
+    let ensure_result = ensure_fn();
+    if ensure_result.status != CheckStatus::Pass {
+        return Err(anyhow::anyhow!(
+            "ensure {} 失败: {}",
+            key,
+            ensure_result.data.get("msg").and_then(|v| v.as_str()).unwrap_or("未知错误")
+        ));
+    }
+    Ok(bin_path_from_key(key))
+}
+
+/// 根据 env key 推断二进制路径 (与 items.rs 中的 *_bin_path 对应)。
+fn bin_path_from_key(key: &str) -> PathBuf {
+    use config_rs::path::models::{bin_dir, whisper_vulkan_path};
+    match key {
+        "subtitle_finder_bin" => {
+            let name = if cfg!(windows) { "subtitle-finder.exe" } else { "subtitle-finder" };
+            bin_dir().join(name)
+        }
+        "ocr_cpp_bin" => {
+            let name = if cfg!(windows) { "subtitle_ocr_ort_cpp.exe" } else { "subtitle_ocr_ort_cpp" };
+            let base = config_rs::root::repo_root()
+                .join("packages")
+                .join("subtitle-ocr")
+                .join("ort-cpp")
+                .join("build");
+            if base.join("Release").join(&name).exists() {
+                base.join("Release").join(name)
+            } else {
+                base.join(name)
+            }
+        }
+        "whisper_bin" => whisper_vulkan_path(),
+        _ => PathBuf::from(key), // 兜底
+    }
 }
 
 /// 运行检查 (镜像 TS `runCheck`)。
