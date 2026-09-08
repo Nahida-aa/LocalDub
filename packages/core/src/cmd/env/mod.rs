@@ -13,7 +13,9 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use crate::cmd::env::input::{env_names, zh_desc};
-use crate::cmd::env::items::{all_checks, ensure_fns};
+use crate::cmd::env::items::{
+    all_checks, ensure_fns, ocr_post_bin_path, subtitle_finder_bin_path, subtitle_ocr_bin_path,
+};
 use crate::input::Input;
 use crate::stages::tts::args::TtsDevice;
 
@@ -229,22 +231,13 @@ pub fn ensure_bin(key: &str) -> anyhow::Result<PathBuf> {
     Ok(bin_path_from_key(key))
 }
 
-/// 根据 env key 推断二进制路径 (与 items.rs 中的 *_bin_path 对应)。
+/// 根据 env key 推断二进制路径 (委托 items.rs, 与下载/check 路径保持一致)。
 fn bin_path_from_key(key: &str) -> PathBuf {
     use config_rs::path::models::{bin_dir, whisper_vulkan_path};
     match key {
-        "subtitle_finder_bin" => {
-            let name = if cfg!(windows) { "subtitle-finder.exe" } else { "subtitle-finder" };
-            bin_dir().join(name)
-        }
-        "subtitle_ocr_bin" => {
-            let name = if cfg!(windows) { "subtitle-ocr.exe" } else { "subtitle-ocr" };
-            bin_dir().join(name)
-        }
-        "ocr_post_bin" => {
-            let name = if cfg!(windows) { "ocr-post.exe" } else { "ocr-post" };
-            bin_dir().join(name)
-        }
+        "subtitle_finder_bin" => subtitle_finder_bin_path(),
+        "subtitle_ocr_bin" => subtitle_ocr_bin_path(),
+        "ocr_post_bin" => ocr_post_bin_path(),
         "ocr_cpp_bin" => {
             let name = if cfg!(windows) { "subtitle_ocr_ort_cpp.exe" } else { "subtitle_ocr_ort_cpp" };
             let base = config_rs::root::repo_root()

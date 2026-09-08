@@ -1212,61 +1212,96 @@ fn ensure_ocr_cpp_bin() -> CheckResult {
 // ocr-lab release 二进制 (subtitle-finder / subtitle-ocr / ocr-post):
 // 从 ocr-lab GitHub Release 下载, 校验 sha256 后写版本戳 (版本戳管理防重下)。
 //
+// 资产命名规范: `<bin>-<target-triple>` (Windows 追加 .exe), 同一 release 内
+// 多平台资产共存; 各平台 sha256 独立记录, 未发布的平台为 None (check/ensure
+// 报"待发布"而非 404)。
+//
 // 模型目录默认相对仓库根: ocr-lab CLI 用 current_exe_repo_root() 上溯两级解析
 // (target/release 深度), data/bin 与其同深度, 故落位 data/bin 后能正确解析到
 // 仓库根 data/models/rapidocr。
 // ---------------------------------------------------------------------------
 
-/// 单个 release 二进制的下载描述。
+/// 单个 release 二进制的下载描述 (按平台区分资产 + sha256)。
 struct ReleaseBinSpec {
     /// 环境项 key (check/ensure 调度键)。
     key: &'static str,
+    /// 二进制名 (日志/错误展示用, 如 "subtitle-ocr")。
+    bin: &'static str,
     /// GitHub Release tag。
     tag: &'static str,
-    /// 资产 sha256 (校验下载完整性)。
-    sha256: &'static str,
-    /// 发行资产基名 (Windows 追加 .exe, 同时作为 data/bin 下本地文件名)。
-    asset: &'static str,
+    /// Linux x86_64 (+avx2 基线) 资产名 + sha256。
+    linux_asset: &'static str,
+    linux_sha256: &'static str,
+    /// Windows x86_64 资产名 (含 .exe) + sha256; 未发布为 None。
+    windows_asset: Option<&'static str>,
+    windows_sha256: Option<&'static str>,
     /// 版本戳文件名 (与二进制同目录)。
     stamp: &'static str,
 }
 
 const SUBTITLE_FINDER: ReleaseBinSpec = ReleaseBinSpec {
     key: "subtitle_finder_bin",
+    bin: "subtitle-finder",
     tag: "subtitle-finder-v0.1.0",
-    sha256: "b08778b2e066a35f8c9b3c0457e3e05a1379a6452341b932d82c22175cba9923",
-    asset: "subtitle-finder",
+    linux_asset: "subtitle-finder-x86_64-unknown-linux-gnu",
+    linux_sha256: "b08778b2e066a35f8c9b3c0457e3e05a1379a6452341b932d82c22175cba9923",
+    windows_asset: None,
+    windows_sha256: None,
     stamp: ".subtitle_finder.version.json",
 };
 
 const SUBTITLE_OCR: ReleaseBinSpec = ReleaseBinSpec {
     key: "subtitle_ocr_bin",
+    bin: "subtitle-ocr",
     tag: "subtitle-ocr-v0.1.0",
-    sha256: "5e4dc400e52fd9b9759d9a4e8a5714aa0622078cd8a52a7035178d8bd91ba6ca",
-    asset: "subtitle-ocr",
+    linux_asset: "subtitle-ocr-x86_64-unknown-linux-gnu",
+    linux_sha256: "5e4dc400e52fd9b9759d9a4e8a5714aa0622078cd8a52a7035178d8bd91ba6ca",
+    windows_asset: None,
+    windows_sha256: None,
     stamp: ".subtitle_ocr.version.json",
 };
 
 const OCR_POST: ReleaseBinSpec = ReleaseBinSpec {
     key: "ocr_post_bin",
+    bin: "ocr-post",
     tag: "subtitle-ocr-v0.1.0",
-    sha256: "107187c94051c8fda46f2fc18d6c6e8835593caa4fa8703a9fc3b41d1473a101",
-    asset: "ocr-post",
+    linux_asset: "ocr-post-x86_64-unknown-linux-gnu",
+    linux_sha256: "107187c94051c8fda46f2fc18d6c6e8835593caa4fa8703a9fc3b41d1473a101",
+    windows_asset: None,
+    windows_sha256: None,
     stamp: ".ocr_post.version.json",
 };
 
-/// 平台上实际的文件名 (Windows 追加 .exe)。
-fn release_bin_name(asset: &str) -> String {
+/// 当前平台的资产 (asset 名, sha256); 平台未发布返回 None。
+fn current_platform_asset(spec: &ReleaseBinSpec) -> Option<(&'static str, &'static str)> {
     if cfg!(windows) {
-        format!("{asset}.exe")
+        match (spec.windows_asset, spec.windows_sha256) {
+            (Some(a), Some(s)) => Some((a, s)),
+            _ => None,
+        }
     } else {
-        asset.to_string()
+        Some((spec.linux_asset, spec.linux_sha256))
     }
 }
 
-/// 目标二进制路径
+/// 当前平台标签 (用于未发布提示)。
+fn platform_label() -> &'static str {
+    if cfg!(windows) {
+        "Windows x86_64"
+    } else if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else {
+        "linux x86_64"
+    }
+}
+
+/// 目标二进制路径 (资产名即本地文件名)。
 fn release_bin_path(spec: &ReleaseBinSpec) -> PathBuf {
-    bin_dir().join(release_bin_name(spec.asset))
+    bin_dir().join(if cfg!(windows) {
+        spec.windows_asset.unwrap_or(spec.linux_asset)
+    } else {
+        spec.linux_asset
+    })
 }
 
 /// 版本戳文件路径
@@ -1275,11 +1310,10 @@ fn release_version_path(spec: &ReleaseBinSpec) -> PathBuf {
 }
 
 /// 下载 URL (资产名与本地文件名一致)。
-fn release_bin_url(spec: &ReleaseBinSpec) -> String {
+fn release_bin_url(spec: &ReleaseBinSpec, asset: &str) -> String {
     format!(
         "https://github.com/Nahida-aa/ocr-lab/releases/download/{}/{}",
-        spec.tag,
-        release_bin_name(spec.asset)
+        spec.tag, asset
     )
 }
 
@@ -1316,12 +1350,20 @@ fn file_sha256(path: &Path) -> anyhow::Result<String> {
 }
 
 fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
+    let Some((asset, sha256)) = current_platform_asset(spec) else {
+        return CheckResult {
+            key: spec.key.to_string(),
+            status: CheckStatus::Fail,
+            data: json!({ "msg": format!("{} 暂无 {} 发布资产, 请等待 ocr-lab 发布或在此平台源码构建", spec.bin, platform_label()) }),
+            required: false,
+        };
+    };
     let path = release_bin_path(spec);
     if !path.exists() {
         return CheckResult {
             key: spec.key.to_string(),
             status: CheckStatus::Fail,
-            data: json!({ "msg": format!("{} 二进制不存在", spec.asset) }),
+            data: json!({ "msg": format!("{} 二进制不存在", asset) }),
             required: false,
         };
     }
@@ -1342,7 +1384,7 @@ fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
     // 版本戳校验
     let stamp = read_version_stamp(&release_version_path(spec));
     let tag_ok = stamp.as_ref().and_then(|v| v.get("tag").and_then(|t| t.as_str())) == Some(spec.tag);
-    let sha_ok = stamp.as_ref().and_then(|v| v.get("sha256").and_then(|s| s.as_str())) == Some(spec.sha256);
+    let sha_ok = stamp.as_ref().and_then(|v| v.get("sha256").and_then(|s| s.as_str())) == Some(sha256);
 
     if !tag_ok || !sha_ok {
         let missing = match (tag_ok, sha_ok) {
@@ -1368,6 +1410,14 @@ fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
 }
 
 fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
+    let Some((asset, sha256)) = current_platform_asset(spec) else {
+        return CheckResult {
+            key: spec.key.to_string(),
+            status: CheckStatus::Fail,
+            data: json!({ "msg": format!("{} 暂无 {} 发布资产, 请等待 ocr-lab 发布或在此平台源码构建", spec.bin, platform_label()) }),
+            required: false,
+        };
+    };
     let bin_path = release_bin_path(spec);
     if let Some(parent) = bin_path.parent() {
         if let Err(e) = std::fs::create_dir_all(parent) {
@@ -1380,8 +1430,8 @@ fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
         }
     }
 
-    let url = release_bin_url(spec);
-    tracing::info!(target: "sf_ocr", "正在下载 {} 从 {}", spec.asset, url);
+    let url = release_bin_url(spec, asset);
+    tracing::info!(target: "sf_ocr", "正在下载 {} 从 {}", asset, url);
 
     let client = match reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
@@ -1470,12 +1520,12 @@ fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
             };
         }
     };
-    if sha != spec.sha256 {
+    if sha != sha256 {
         let _ = std::fs::remove_file(&bin_path);
         return CheckResult {
             key: spec.key.to_string(),
             status: CheckStatus::Fail,
-            data: json!({ "msg": format!("sha256 校验失败: 期望 {} 实际 {}", spec.sha256, sha) }),
+            data: json!({ "msg": format!("sha256 校验失败: 期望 {} 实际 {}", sha256, sha) }),
             required: false,
         };
     }
@@ -1491,7 +1541,7 @@ fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
     }
 
     // 写版本戳
-    if let Err(e) = write_version_stamp(&release_version_path(spec), spec.tag, spec.sha256) {
+    if let Err(e) = write_version_stamp(&release_version_path(spec), spec.tag, sha256) {
         return CheckResult {
             key: spec.key.to_string(),
             status: CheckStatus::Fail,
@@ -1525,6 +1575,17 @@ fn ensure_subtitle_ocr_bin() -> CheckResult {
 }
 fn ensure_ocr_post_bin() -> CheckResult {
     ensure_release_bin(&OCR_POST)
+}
+
+/// 当前平台的目标二进制路径 (供 `bin_path_from_key` 复用, 与下载路径保持一致)。
+pub fn subtitle_finder_bin_path() -> PathBuf {
+    release_bin_path(&SUBTITLE_FINDER)
+}
+pub fn subtitle_ocr_bin_path() -> PathBuf {
+    release_bin_path(&SUBTITLE_OCR)
+}
+pub fn ocr_post_bin_path() -> PathBuf {
+    release_bin_path(&OCR_POST)
 }
 
 // ---------------------------------------------------------------------------
