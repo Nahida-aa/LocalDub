@@ -4,11 +4,11 @@
 //! 只写出 `<taskDir>/sf_ocr/frames.json` (OcrFramesResult 原始逐帧结果);
 //! 段合并 / 时间调整 / LLM 修正由下游 sf_ocr_fix 负责。
 
+use crate::cmd::env::ensure_bin;
 use crate::context::TaskCtx;
 use crate::stages::sf_ocr::args::SfOcrArgs;
 use crate::stages::utils::{
-    StagePatch, StageStatus, cargo_build_bin, find_release_bin, now_iso,
-    set_stage_anyhow, sf_ocr_dir, sf_ocr_pre_dir,
+    StagePatch, StageStatus, now_iso, set_stage_anyhow, sf_ocr_dir, sf_ocr_pre_dir,
 };
 use std::process::Command;
 
@@ -46,18 +46,11 @@ pub fn stage_sf_ocr(ctx: &TaskCtx) -> anyhow::Result<()> {
         ));
     }
 
-    let bin = match find_release_bin("subtitle-ocr") {
-        Some(p) => p,
-        None => {
-            // 阶段内自动编译缺失二进制 (用户选项: 阶段内自动编译)
-            tracing::info!(target: "sf_ocr", "未找到 subtitle-ocr, 尝试自动编译...");
-            cargo_build_bin("subtitle-ocr-cli", "subtitle-ocr", &[], true).map_err(|e| {
-                anyhow::anyhow!(
-                    "{e}\n若编译失败, 请手动执行: cargo build --release -p subtitle-ocr-cli --bin subtitle-ocr"
-                )
-            })?
-        }
-    };
+    let bin = ensure_bin("subtitle_ocr_bin").map_err(|e| {
+        anyhow::anyhow!(
+            "{e}\n若下载失败, 请手动执行: cargo run -p cli -- env --action ensure --targets subtitle_ocr_bin"
+        )
+    })?;
 
     let out_dir = sf_ocr_dir(&task_dir);
     std::fs::create_dir_all(&out_dir)

@@ -423,7 +423,7 @@ pub fn extract_audio(video: &str, audio: &str) -> anyhow::Result<()> {
     )
 }
 
-/// 用 ffmpeg-next 探测视频帧率 (对齐 subtitle-ocr-cli 的 probe 用法)。
+/// 用 ffmpeg-next 探测视频帧率 (对齐 ocr-lab subtitle-ocr 的 probe 用法)。
 pub fn probe_frame_rate(video: &str) -> time::FrameRate {
     if ffmpeg_next::init().is_err() {
         return time::FrameRate::FPS_30;

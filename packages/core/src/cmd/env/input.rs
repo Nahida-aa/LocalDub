@@ -98,8 +98,8 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
     (
         "whisper_ggml",
         EnvEntry {
-            zh: "whisper.cpp ggml 模型 (models/whisper/ggml-large-v3-turbo.bin)",
-            en: "whisper.cpp ggml model (models/whisper/ggml-large-v3-turbo.bin)",
+            zh: "whisper.cpp ggml 模型 (data/models/whisper/ggml-large-v3-turbo.bin)",
+            en: "whisper.cpp ggml model (data/models/whisper/ggml-large-v3-turbo.bin)",
             required: false,
             category: "optional",
         },
@@ -107,8 +107,8 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
     (
         "whisper_vad",
         EnvEntry {
-            zh: "silero VAD 模型 (models/whisper/ggml-silero-v6.2.0.bin)",
-            en: "silero VAD model (models/whisper/ggml-silero-v6.2.0.bin)",
+            zh: "silero VAD 模型 (data/models/whisper/ggml-silero-v6.2.0.bin)",
+            en: "silero VAD model (data/models/whisper/ggml-silero-v6.2.0.bin)",
             required: false,
             category: "optional",
         },
@@ -116,8 +116,8 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
     (
         "whisper_sherpa",
         EnvEntry {
-            zh: "sherpa-onnx whisper 模型 (models/whisper/sherpa_onnx/)",
-            en: "sherpa-onnx whisper model (models/whisper/sherpa_onnx/)",
+            zh: "sherpa-onnx whisper 模型 (data/models/whisper/sherpa_onnx/)",
+            en: "sherpa-onnx whisper model (data/models/whisper/sherpa_onnx/)",
             required: false,
             category: "optional",
         },
@@ -125,8 +125,8 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
     (
         "whisper_onnx",
         EnvEntry {
-            zh: "onnx-community whisper 模型 (models/whisper/encoder_model.onnx)",
-            en: "onnx-community whisper model (models/whisper/encoder_model.onnx)",
+            zh: "onnx-community whisper 模型 (data/models/whisper/encoder_model.onnx)",
+            en: "onnx-community whisper model (data/models/whisper/encoder_model.onnx)",
             required: false,
             category: "optional",
         },
@@ -152,8 +152,8 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
     (
         "demucs_ggml",
         EnvEntry {
-            zh: "demucs ggml 模型 (models/demucs/ggml-model-htdemucs-4s-f16.bin)",
-            en: "demucs ggml model (models/demucs/ggml-model-htdemucs-4s-f16.bin)",
+            zh: "demucs ggml 模型 (data/models/demucs/ggml-model-htdemucs-4s-f16.bin)",
+            en: "demucs ggml model (data/models/demucs/ggml-model-htdemucs-4s-f16.bin)",
             required: false,
             category: "optional",
         },
@@ -253,6 +253,24 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
         EnvEntry {
             zh: "关键帧筛选二进制 (data/bin/subtitle-finder, 从 ocr-lab GitHub Release 下载)",
             en: "subtitle-finder binary (data/bin/subtitle-finder, downloaded from ocr-lab GitHub Release)",
+            required: false,
+            category: "optional",
+        },
+    ),
+    (
+        "subtitle_ocr_bin",
+        EnvEntry {
+            zh: "字幕 OCR 二进制 (data/bin/subtitle-ocr, 从 ocr-lab GitHub Release 下载)",
+            en: "subtitle-ocr binary (data/bin/subtitle-ocr, downloaded from ocr-lab GitHub Release)",
+            required: false,
+            category: "optional",
+        },
+    ),
+    (
+        "ocr_post_bin",
+        EnvEntry {
+            zh: "字幕后处理统合管线二进制 (data/bin/ocr-post, 从 ocr-lab GitHub Release 下载)",
+            en: "ocr-post binary (data/bin/ocr-post, downloaded from ocr-lab GitHub Release)",
             required: false,
             category: "optional",
         },

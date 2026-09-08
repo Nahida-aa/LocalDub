@@ -6,11 +6,12 @@
 //! 注意: LLM 修正通过 `llm` crate 的 `chat_completions` + `ocr_llm_fix` 实现 (`llmFix=true` 时),
 //! 失败时 warn 并保留原文 (不中断 stage)。
 
+use crate::cmd::env::ensure_bin;
 use crate::context::TaskCtx;
 use crate::stages::sf_ocr::fix_args::OcrFixArgs;
 use crate::stages::utils::{
-    StagePatch, StageStatus, cargo_build_bin, find_release_bin, now_iso,
-    set_stage_anyhow, sf_ocr_dir, sf_ocr_fix_dir, video_source_path,
+    StagePatch, StageStatus, now_iso, set_stage_anyhow, sf_ocr_dir, sf_ocr_fix_dir,
+    video_source_path,
 };
 use std::process::Command;
 
@@ -42,18 +43,11 @@ pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
 
     let args = read_args(ctx);
 
-    let bin = match find_release_bin("ocr-post") {
-        Some(p) => p,
-        None => {
-            // 阶段内自动编译缺失二进制 (用户选项: 阶段内自动编译)
-            tracing::info!(target: "sf_ocr", "未找到 ocr-post, 尝试自动编译...");
-            cargo_build_bin("subtitle-ocr-cli", "ocr-post", &[], true).map_err(|e| {
-                anyhow::anyhow!(
-                    "{e}\n若编译失败, 请手动执行: cargo build --release -p subtitle-ocr-cli --bin ocr-post"
-                )
-            })?
-        }
-    };
+    let bin = ensure_bin("ocr_post_bin").map_err(|e| {
+        anyhow::anyhow!(
+            "{e}\n若下载失败, 请手动执行: cargo run -p cli -- env --action ensure --targets ocr_post_bin"
+        )
+    })?;
 
     let post_args = [
         "--frames".to_string(),

@@ -33,7 +33,7 @@ pub fn stage_sf_ocr_pre(ctx: &TaskCtx) -> anyhow::Result<()> {
 
     let bin = ensure_bin("subtitle_finder_bin").map_err(|e| {
         anyhow::anyhow!(
-            "{e}\n若下载失败, 请手动执行: just run-env-ensure subtitle_finder_bin"
+            "{e}\n若下载失败, 请手动执行: cargo run -p cli -- env --action ensure --targets subtitle_finder_bin"
         )
     })?;
 
@@ -134,6 +134,9 @@ mod tests {
         // 放一个真实存在的视频文件, 让 video 检查通过, 触发二进制缺失报错。
         // 预置 data/bin 一个"假" subtitle-finder + 版本戳, 让 check 通过 (避免触发真实下载),
         // 随后 spawn 在假视频上失败 → 报 subtitle-finder failed。
+        //
+        // 注意: env ensure 的落盘目录是真实 data/bin (bin_dir 无 env 覆盖), 故测试
+        // 先备份现场、结束后恢复, 避免破坏真实下载的二进制。
         let dir = std::env::temp_dir()
             .join(format!("ld_sfpre_bin_{}", std::process::id()))
             .to_string_lossy()
@@ -143,18 +146,25 @@ mod tests {
         let video = format!("{dir}/video.mp4");
         std::fs::write(&video, b"fake").unwrap();
 
-        // 预置假二进制 + 版本戳, 使 check 通过而无需网络
+        // 备份 data/bin 现场
         let bin_dir = config_rs::path::models::bin_dir();
         std::fs::create_dir_all(&bin_dir).unwrap();
-        let fake_bin = bin_dir.join("subtitle-finder");
-        std::fs::write(&fake_bin, b"#!/bin/sh\nexit 1\n").unwrap();
+        let bin_path = bin_dir.join("subtitle-finder");
+        let stamp_path = bin_dir.join(".subtitle_finder.version.json");
+        let backup_bin = std::fs::read(&bin_path).ok();
+        let backup_stamp = std::fs::read(&stamp_path).ok();
+        let had_bin = bin_path.exists();
+        let had_stamp = stamp_path.exists();
+
+        // 预置假二进制 + 版本戳, 使 check 通过而无需网络
+        std::fs::write(&bin_path, b"#!/bin/sh\nexit 1\n").unwrap();
         let stamp = serde_json::json!({
             "tag": "subtitle-finder-v0.1.0",
             "sha256": "b08778b2e066a35f8c9b3c0457e3e05a1379a6452341b932d82c22175cba9923",
             "downloaded_at": "2026-09-08T00:00:00Z",
         });
         std::fs::write(
-            bin_dir.join(".subtitle_finder.version.json"),
+            &stamp_path,
             serde_json::to_string_pretty(&stamp).unwrap(),
         )
         .unwrap();
@@ -163,9 +173,21 @@ mod tests {
         ctx.video_source_path = Some(video);
         crate::context::write_ctx(&dir, &ctx).unwrap();
         let res = stage_sf_ocr_pre(&ctx);
-        // 清理假二进制, 避免影响真实 env ensure
-        let _ = std::fs::remove_file(&fake_bin);
-        let _ = std::fs::remove_file(bin_dir.join(".subtitle_finder.version.json"));
+
+        // 清理假二进制, 恢复现场
+        let _ = std::fs::remove_file(&bin_path);
+        let _ = std::fs::remove_file(&stamp_path);
+        if had_bin {
+            if let Some(bytes) = backup_bin {
+                std::fs::write(&bin_path, bytes).unwrap();
+            }
+        }
+        if had_stamp {
+            if let Some(bytes) = backup_stamp {
+                std::fs::write(&stamp_path, bytes).unwrap();
+            }
+        }
+
         assert!(res.is_err());
         let msg = res.unwrap_err().to_string();
         // 二进制就绪但视频非法 → subtitle-finder 运行失败

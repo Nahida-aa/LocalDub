@@ -13,7 +13,6 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use serde_json::json;
-use sha2::Sha256;
 use chrono;
 
 use config_rs::env::{openai_api_key, openai_base_url};
@@ -1210,37 +1209,91 @@ fn ensure_ocr_cpp_bin() -> CheckResult {
 }
 
 // ---------------------------------------------------------------------------
-// subtitle_finder_bin: 从 ocr-lab GitHub Release 下载关键帧筛选二进制
+// ocr-lab release 二进制 (subtitle-finder / subtitle-ocr / ocr-post):
+// 从 ocr-lab GitHub Release 下载, 校验 sha256 后写版本戳 (版本戳管理防重下)。
+//
+// 模型目录默认相对仓库根: ocr-lab CLI 用 current_exe_repo_root() 上溯两级解析
+// (target/release 深度), data/bin 与其同深度, 故落位 data/bin 后能正确解析到
+// 仓库根 data/models/rapidocr。
 // ---------------------------------------------------------------------------
 
-const SUBTITLE_FINDER_TAG: &str = "subtitle-finder-v0.1.0";
-const SUBTITLE_FINDER_SHA256: &str = "b08778b2e066a35f8c9b3c0457e3e05a1379a6452341b932d82c22175cba9923";
-const SUBTITLE_FINDER_URL: &str = "https://github.com/Nahida-aa/ocr-lab/releases/download/subtitle-finder-v0.1.0/subtitle-finder";
+/// 单个 release 二进制的下载描述。
+struct ReleaseBinSpec {
+    /// 环境项 key (check/ensure 调度键)。
+    key: &'static str,
+    /// GitHub Release tag。
+    tag: &'static str,
+    /// 资产 sha256 (校验下载完整性)。
+    sha256: &'static str,
+    /// 发行资产基名 (Windows 追加 .exe, 同时作为 data/bin 下本地文件名)。
+    asset: &'static str,
+    /// 版本戳文件名 (与二进制同目录)。
+    stamp: &'static str,
+}
 
-/// 版本戳文件路径
-fn subtitle_finder_version_path() -> PathBuf {
-    bin_dir().join(".subtitle_finder.version.json")
+const SUBTITLE_FINDER: ReleaseBinSpec = ReleaseBinSpec {
+    key: "subtitle_finder_bin",
+    tag: "subtitle-finder-v0.1.0",
+    sha256: "b08778b2e066a35f8c9b3c0457e3e05a1379a6452341b932d82c22175cba9923",
+    asset: "subtitle-finder",
+    stamp: ".subtitle_finder.version.json",
+};
+
+const SUBTITLE_OCR: ReleaseBinSpec = ReleaseBinSpec {
+    key: "subtitle_ocr_bin",
+    tag: "subtitle-ocr-v0.1.0",
+    sha256: "5e4dc400e52fd9b9759d9a4e8a5714aa0622078cd8a52a7035178d8bd91ba6ca",
+    asset: "subtitle-ocr",
+    stamp: ".subtitle_ocr.version.json",
+};
+
+const OCR_POST: ReleaseBinSpec = ReleaseBinSpec {
+    key: "ocr_post_bin",
+    tag: "subtitle-ocr-v0.1.0",
+    sha256: "107187c94051c8fda46f2fc18d6c6e8835593caa4fa8703a9fc3b41d1473a101",
+    asset: "ocr-post",
+    stamp: ".ocr_post.version.json",
+};
+
+/// 平台上实际的文件名 (Windows 追加 .exe)。
+fn release_bin_name(asset: &str) -> String {
+    if cfg!(windows) {
+        format!("{asset}.exe")
+    } else {
+        asset.to_string()
+    }
 }
 
 /// 目标二进制路径
-fn subtitle_finder_bin_path() -> PathBuf {
-    let name = if cfg!(windows) { "subtitle-finder.exe" } else { "subtitle-finder" };
-    bin_dir().join(name)
+fn release_bin_path(spec: &ReleaseBinSpec) -> PathBuf {
+    bin_dir().join(release_bin_name(spec.asset))
+}
+
+/// 版本戳文件路径
+fn release_version_path(spec: &ReleaseBinSpec) -> PathBuf {
+    bin_dir().join(spec.stamp)
+}
+
+/// 下载 URL (资产名与本地文件名一致)。
+fn release_bin_url(spec: &ReleaseBinSpec) -> String {
+    format!(
+        "https://github.com/Nahida-aa/ocr-lab/releases/download/{}/{}",
+        spec.tag,
+        release_bin_name(spec.asset)
+    )
 }
 
 /// 读取版本戳
-fn read_version_stamp() -> Option<serde_json::Value> {
-    let path = subtitle_finder_version_path();
+fn read_version_stamp(path: &Path) -> Option<serde_json::Value> {
     if path.exists() {
-        std::fs::read_to_string(&path).ok().and_then(|s| serde_json::from_str(&s).ok())
+        std::fs::read_to_string(path).ok().and_then(|s| serde_json::from_str(&s).ok())
     } else {
         None
     }
 }
 
 /// 写入版本戳
-fn write_version_stamp(tag: &str, sha256: &str) -> anyhow::Result<()> {
-    let path = subtitle_finder_version_path();
+fn write_version_stamp(path: &Path, tag: &str, sha256: &str) -> anyhow::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -1249,7 +1302,7 @@ fn write_version_stamp(tag: &str, sha256: &str) -> anyhow::Result<()> {
         "sha256": sha256,
         "downloaded_at": chrono::Utc::now().to_rfc3339(),
     });
-    std::fs::write(&path, serde_json::to_string_pretty(&stamp)?)?;
+    std::fs::write(path, serde_json::to_string_pretty(&stamp)?)?;
     Ok(())
 }
 
@@ -1262,13 +1315,13 @@ fn file_sha256(path: &Path) -> anyhow::Result<String> {
     Ok(hex::encode(hasher.finalize()))
 }
 
-pub fn check_subtitle_finder_bin() -> CheckResult {
-    let path = subtitle_finder_bin_path();
+fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
+    let path = release_bin_path(spec);
     if !path.exists() {
         return CheckResult {
-            key: "subtitle_finder_bin".into(),
+            key: spec.key.to_string(),
             status: CheckStatus::Fail,
-            data: json!({ "msg": "subtitle-finder 二进制不存在" }),
+            data: json!({ "msg": format!("{} 二进制不存在", spec.asset) }),
             required: false,
         };
     }
@@ -1278,7 +1331,7 @@ pub fn check_subtitle_finder_bin() -> CheckResult {
         let (ok, out, _) = try_exec("ldd", &[path.to_str().unwrap()], None);
         if ok && out.contains("not found") {
             return CheckResult {
-                key: "subtitle_finder_bin".into(),
+                key: spec.key.to_string(),
                 status: CheckStatus::Warn,
                 data: json!({ "path": path.display().to_string(), "runtime": "missing_libs", "msg": "动态库缺失 (ldd not found)" }),
                 required: false,
@@ -1287,9 +1340,9 @@ pub fn check_subtitle_finder_bin() -> CheckResult {
     }
 
     // 版本戳校验
-    let stamp = read_version_stamp();
-    let tag_ok = stamp.as_ref().and_then(|v| v.get("tag").and_then(|t| t.as_str())) == Some(SUBTITLE_FINDER_TAG);
-    let sha_ok = stamp.as_ref().and_then(|v| v.get("sha256").and_then(|s| s.as_str())) == Some(SUBTITLE_FINDER_SHA256);
+    let stamp = read_version_stamp(&release_version_path(spec));
+    let tag_ok = stamp.as_ref().and_then(|v| v.get("tag").and_then(|t| t.as_str())) == Some(spec.tag);
+    let sha_ok = stamp.as_ref().and_then(|v| v.get("sha256").and_then(|s| s.as_str())) == Some(spec.sha256);
 
     if !tag_ok || !sha_ok {
         let missing = match (tag_ok, sha_ok) {
@@ -1299,7 +1352,7 @@ pub fn check_subtitle_finder_bin() -> CheckResult {
             _ => "版本不匹配",
         };
         return CheckResult {
-            key: "subtitle_finder_bin".into(),
+            key: spec.key.to_string(),
             status: CheckStatus::Warn,
             data: json!({ "path": path.display().to_string(), "msg": missing, "stale": true }),
             required: false,
@@ -1307,19 +1360,19 @@ pub fn check_subtitle_finder_bin() -> CheckResult {
     }
 
     CheckResult {
-        key: "subtitle_finder_bin".into(),
+        key: spec.key.to_string(),
         status: CheckStatus::Pass,
         data: json!({ "path": path.display().to_string(), "msg": "已就绪" }),
         required: false,
     }
 }
 
-fn ensure_subtitle_finder_bin() -> CheckResult {
-    let bin_path = subtitle_finder_bin_path();
+fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
+    let bin_path = release_bin_path(spec);
     if let Some(parent) = bin_path.parent() {
         if let Err(e) = std::fs::create_dir_all(parent) {
             return CheckResult {
-                key: "subtitle_finder_bin".into(),
+                key: spec.key.to_string(),
                 status: CheckStatus::Fail,
                 data: json!({ "msg": format!("创建目录失败: {e}") }),
                 required: false,
@@ -1327,7 +1380,8 @@ fn ensure_subtitle_finder_bin() -> CheckResult {
         }
     }
 
-    tracing::info!(target: "sf_ocr", "正在下载 subtitle-finder 从 {}", SUBTITLE_FINDER_URL);
+    let url = release_bin_url(spec);
+    tracing::info!(target: "sf_ocr", "正在下载 {} 从 {}", spec.asset, url);
 
     let client = match reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
@@ -1335,7 +1389,7 @@ fn ensure_subtitle_finder_bin() -> CheckResult {
         Ok(c) => c,
         Err(e) => {
             return CheckResult {
-                key: "subtitle_finder_bin".into(),
+                key: spec.key.to_string(),
                 status: CheckStatus::Fail,
                 data: json!({ "msg": format!("构建 HTTP 客户端失败: {e}") }),
                 required: false,
@@ -1343,11 +1397,11 @@ fn ensure_subtitle_finder_bin() -> CheckResult {
         }
     };
 
-    let mut resp = match client.get(SUBTITLE_FINDER_URL).send() {
+    let mut resp = match client.get(url).send() {
         Ok(r) => r,
         Err(e) => {
             return CheckResult {
-                key: "subtitle_finder_bin".into(),
+                key: spec.key.to_string(),
                 status: CheckStatus::Fail,
                 data: json!({ "msg": format!("下载请求失败: {e}") }),
                 required: false,
@@ -1357,7 +1411,7 @@ fn ensure_subtitle_finder_bin() -> CheckResult {
 
     if !resp.status().is_success() {
         return CheckResult {
-            key: "subtitle_finder_bin".into(),
+            key: spec.key.to_string(),
             status: CheckStatus::Fail,
             data: json!({ "msg": format!("下载失败: HTTP {}", resp.status()) }),
             required: false,
@@ -1377,7 +1431,7 @@ fn ensure_subtitle_finder_bin() -> CheckResult {
         Ok(f) => f,
         Err(e) => {
             return CheckResult {
-                key: "subtitle_finder_bin".into(),
+                key: spec.key.to_string(),
                 status: CheckStatus::Fail,
                 data: json!({ "msg": format!("创建文件失败: {e}") }),
                 required: false,
@@ -1393,7 +1447,7 @@ fn ensure_subtitle_finder_bin() -> CheckResult {
         }
         if let Err(e) = std::io::Write::write_all(&mut file, &buf[..n]) {
             return CheckResult {
-                key: "subtitle_finder_bin".into(),
+                key: spec.key.to_string(),
                 status: CheckStatus::Fail,
                 data: json!({ "msg": format!("写入失败: {e}") }),
                 required: false,
@@ -1409,19 +1463,19 @@ fn ensure_subtitle_finder_bin() -> CheckResult {
         Ok(s) => s,
         Err(e) => {
             return CheckResult {
-                key: "subtitle_finder_bin".into(),
+                key: spec.key.to_string(),
                 status: CheckStatus::Fail,
                 data: json!({ "msg": format!("sha256 计算失败: {e}") }),
                 required: false,
             };
         }
     };
-    if sha != SUBTITLE_FINDER_SHA256 {
+    if sha != spec.sha256 {
         let _ = std::fs::remove_file(&bin_path);
         return CheckResult {
-            key: "subtitle_finder_bin".into(),
+            key: spec.key.to_string(),
             status: CheckStatus::Fail,
-            data: json!({ "msg": format!("sha256 校验失败: 期望 {} 实际 {}", SUBTITLE_FINDER_SHA256, sha) }),
+            data: json!({ "msg": format!("sha256 校验失败: 期望 {} 实际 {}", spec.sha256, sha) }),
             required: false,
         };
     }
@@ -1437,9 +1491,9 @@ fn ensure_subtitle_finder_bin() -> CheckResult {
     }
 
     // 写版本戳
-    if let Err(e) = write_version_stamp(SUBTITLE_FINDER_TAG, SUBTITLE_FINDER_SHA256) {
+    if let Err(e) = write_version_stamp(&release_version_path(spec), spec.tag, spec.sha256) {
         return CheckResult {
-            key: "subtitle_finder_bin".into(),
+            key: spec.key.to_string(),
             status: CheckStatus::Fail,
             data: json!({ "msg": format!("写版本戳失败: {e}") }),
             required: false,
@@ -1447,11 +1501,30 @@ fn ensure_subtitle_finder_bin() -> CheckResult {
     }
 
     CheckResult {
-        key: "subtitle_finder_bin".into(),
+        key: spec.key.to_string(),
         status: CheckStatus::Pass,
         data: json!({ "path": bin_path.display().to_string(), "msg": "下载并校验成功" }),
         required: false,
     }
+}
+
+pub fn check_subtitle_finder_bin() -> CheckResult {
+    check_release_bin(&SUBTITLE_FINDER)
+}
+pub fn check_subtitle_ocr_bin() -> CheckResult {
+    check_release_bin(&SUBTITLE_OCR)
+}
+pub fn check_ocr_post_bin() -> CheckResult {
+    check_release_bin(&OCR_POST)
+}
+fn ensure_subtitle_finder_bin() -> CheckResult {
+    ensure_release_bin(&SUBTITLE_FINDER)
+}
+fn ensure_subtitle_ocr_bin() -> CheckResult {
+    ensure_release_bin(&SUBTITLE_OCR)
+}
+fn ensure_ocr_post_bin() -> CheckResult {
+    ensure_release_bin(&OCR_POST)
 }
 
 // ---------------------------------------------------------------------------
@@ -1528,6 +1601,8 @@ pub fn all_checks() -> HashMap<&'static str, fn() -> CheckResult> {
     m.insert("demucs_burn_bin", || check_demucs_burn_bin(None));
     m.insert("ocr_cpp_bin", check_ocr_cpp_bin);
     m.insert("subtitle_finder_bin", check_subtitle_finder_bin);
+    m.insert("subtitle_ocr_bin", check_subtitle_ocr_bin);
+    m.insert("ocr_post_bin", check_ocr_post_bin);
     m.insert("cmake", check_cmake);
     m.insert("git", check_git);
     m.insert("dotenv", check_dotenv);
@@ -1542,5 +1617,7 @@ pub fn ensure_fns() -> HashMap<&'static str, fn() -> CheckResult> {
     m.insert("openai", ensure_openai);
     m.insert("ocr_cpp_bin", ensure_ocr_cpp_bin);
     m.insert("subtitle_finder_bin", ensure_subtitle_finder_bin);
+    m.insert("subtitle_ocr_bin", ensure_subtitle_ocr_bin);
+    m.insert("ocr_post_bin", ensure_ocr_post_bin);
     m
 }

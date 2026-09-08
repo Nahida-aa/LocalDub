@@ -3,7 +3,7 @@ resolver = "3"
 members = [
     "packages/bridge", "packages/config-rs", "packages/core", "packages/device-rs",
     "packages/demucs_burn", "packages/time", "packages/voxcpm-burn", "packages/app/src-tauri",
-    "packages/fs", "packages/subtitle-ocr-cli", "packages/server", "packages/tts",
+    "packages/fs", "packages/server", "packages/tts",
     "packages/sdk", "packages/cli", "packages/env", "packages/subtitle-asr", "packages/llm", "packages/pacer-rs", "packages/voxlab",
 ]
 
@@ -60,10 +60,7 @@ voxcpm-rs = { version = "0.5.0", default-features = false }
 sha2 = "0.10"
 hex = "0.4"
 
-# OCR 核心（从本仓库拆出的 ocr-lab）。git 源由 cargo 自动拉取/解析其内部
-# workspace 依赖与 [patch]，LocalDub 侧零镜像；版本以 ocr-lab 为准。
-subtitle-ocr = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "81396471da2cf864d76b405bf7e98e4aa072cab1" }
-rapidocr-ort = { git = "https://github.com/Nahida-aa/ocr-lab.git", rev = "81396471da2cf864d76b405bf7e98e4aa072cab1" }
+# ffmpeg 探测视频高度/帧率（ocr-post 由 ocr-lab release 二进制提供）。
 
 [profile.release]
 lto = "fat"

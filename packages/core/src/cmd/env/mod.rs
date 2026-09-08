@@ -70,9 +70,11 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
         .map(|t| t.subtitle_source)
         .unwrap_or(SubtitleSource::Asr);
 
-    // --- sf_ocr: 关键帧筛选需要 subtitle_finder_bin (ocr-lab GitHub Release) ---
+    // --- sf_ocr: 关键帧筛选 + 逐帧 OCR + 后处理均走 ocr-lab release 二进制 ---
     if subtitle_source == SubtitleSource::SfOcr {
         add("subtitle_finder_bin", &mut set);
+        add("subtitle_ocr_bin", &mut set);
+        add("ocr_post_bin", &mut set);
     }
     // asr_ocr 阶段 (flatten 复用 SfOcrArgs, 无 enabled 开关) → 旧 TS 路径仍用 ocr_cpp_bin
     // 仅当 subtitle_source 非纯 asr 时纳入 (asr 流程也会跑 asr_ocr 做校正)
@@ -233,6 +235,14 @@ fn bin_path_from_key(key: &str) -> PathBuf {
     match key {
         "subtitle_finder_bin" => {
             let name = if cfg!(windows) { "subtitle-finder.exe" } else { "subtitle-finder" };
+            bin_dir().join(name)
+        }
+        "subtitle_ocr_bin" => {
+            let name = if cfg!(windows) { "subtitle-ocr.exe" } else { "subtitle-ocr" };
+            bin_dir().join(name)
+        }
+        "ocr_post_bin" => {
+            let name = if cfg!(windows) { "ocr-post.exe" } else { "ocr-post" };
             bin_dir().join(name)
         }
         "ocr_cpp_bin" => {
