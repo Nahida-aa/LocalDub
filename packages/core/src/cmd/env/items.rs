@@ -1212,9 +1212,10 @@ fn ensure_ocr_cpp_bin() -> CheckResult {
 // ocr-lab release 二进制 (subtitle-finder / subtitle-ocr / ocr-post):
 // 从 ocr-lab GitHub Release 下载, 校验 sha256 后写版本戳 (版本戳管理防重下)。
 //
-// 资产命名规范: `<bin>-<target-triple>` (Windows 追加 .exe), 同一 release 内
-// 多平台资产共存; 各平台 sha256 独立记录, 未发布的平台为 None (check/ensure
-// 报"待发布"而非 404)。
+// 资产命名规范: Linux `<bin>-<target-triple>` (单文件), Windows `<bin>-<target-triple>.zip`
+// (exe + 运行时 dll 平铺), 同一 release 内多平台资产共存; 各平台 sha256 独立记录,
+// 未发布的平台为 None (check/ensure 报"待发布"而非 404)。Windows zip 经过 sha256 校验后
+// 解压到 bin_dir, 本地可执行文件名为 `<bin>.exe`。
 //
 // 模型目录默认相对仓库根: ocr-lab CLI 用 current_exe_repo_root() 上溯两级解析
 // (target/release 深度), data/bin 与其同深度, 故落位 data/bin 后能正确解析到
@@ -1245,8 +1246,8 @@ const SUBTITLE_FINDER: ReleaseBinSpec = ReleaseBinSpec {
     tag: "subtitle-finder-v0.1.0",
     linux_asset: "subtitle-finder-x86_64-unknown-linux-gnu",
     linux_sha256: "b08778b2e066a35f8c9b3c0457e3e05a1379a6452341b932d82c22175cba9923",
-    windows_asset: None,
-    windows_sha256: None,
+    windows_asset: Some("subtitle-finder-x86_64-pc-windows-msvc.zip"),
+    windows_sha256: Some("9dece5e3cd2a9d72716d5fab5ecec256406b5113e38a479f55c76c43635396cc"),
     stamp: ".subtitle_finder.version.json",
 };
 
@@ -1256,8 +1257,8 @@ const SUBTITLE_OCR: ReleaseBinSpec = ReleaseBinSpec {
     tag: "subtitle-ocr-v0.1.0",
     linux_asset: "subtitle-ocr-x86_64-unknown-linux-gnu",
     linux_sha256: "5e4dc400e52fd9b9759d9a4e8a5714aa0622078cd8a52a7035178d8bd91ba6ca",
-    windows_asset: None,
-    windows_sha256: None,
+    windows_asset: Some("subtitle-ocr-x86_64-pc-windows-msvc.zip"),
+    windows_sha256: Some("bd2880bc2d7e63383fbd580b69619631343298d71fa037bf97fc976a8733e079"),
     stamp: ".subtitle_ocr.version.json",
 };
 
@@ -1267,8 +1268,8 @@ const OCR_POST: ReleaseBinSpec = ReleaseBinSpec {
     tag: "subtitle-ocr-v0.1.0",
     linux_asset: "ocr-post-x86_64-unknown-linux-gnu",
     linux_sha256: "107187c94051c8fda46f2fc18d6c6e8835593caa4fa8703a9fc3b41d1473a101",
-    windows_asset: None,
-    windows_sha256: None,
+    windows_asset: Some("ocr-post-x86_64-pc-windows-msvc.zip"),
+    windows_sha256: Some("a2aaeda6cd4cc8861a6c5747216bf95361250bb32c86a8f19a8187eb888c0e2d"),
     stamp: ".ocr_post.version.json",
 };
 
@@ -1295,13 +1296,48 @@ fn platform_label() -> &'static str {
     }
 }
 
-/// 目标二进制路径 (资产名即本地文件名)。
+/// 目标二进制路径:
+/// - Linux: `bin_dir/<linux_asset>` (资产名即本地文件名);
+/// - Windows: `bin_dir/<bin>.exe` (zip 解压平铺后的可执行文件)。
 fn release_bin_path(spec: &ReleaseBinSpec) -> PathBuf {
-    bin_dir().join(if cfg!(windows) {
-        spec.windows_asset.unwrap_or(spec.linux_asset)
+    if cfg!(windows) {
+        bin_dir().join(format!("{}.exe", spec.bin))
     } else {
-        spec.linux_asset
-    })
+        bin_dir().join(spec.linux_asset)
+    }
+}
+
+/// 下载目标路径: Windows 落 zip 本身 (解压前先校验 sha256), Linux 直接落二进制。
+fn release_download_path(spec: &ReleaseBinSpec) -> PathBuf {
+    if cfg!(windows) {
+        bin_dir().join(spec.windows_asset.unwrap_or(spec.linux_asset))
+    } else {
+        bin_dir().join(spec.linux_asset)
+    }
+}
+
+/// 解压 Windows zip 资产到 bin_dir (zip 内文件平铺: `<bin>.exe` + 全部 dll)。
+/// 只取 file_name, 防 zip-slip; 忽略目录条目; 已存在文件直接覆盖 (重新 ensure 时刷新)。
+#[cfg(windows)]
+fn extract_windows_zip(zip_path: &Path) -> Result<(), String> {
+    let file = std::fs::File::open(zip_path).map_err(|e| e.to_string())?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
+        if entry.is_dir() {
+            continue;
+        }
+        let name = entry.name().to_string();
+        let fname = Path::new(&name)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .filter(|s| !s.is_empty() && *s != "." && *s != "..")
+            .ok_or_else(|| format!("zip 条目非法: {name}"))?;
+        let out = bin_dir().join(fname);
+        let mut out_f = std::fs::File::create(&out).map_err(|e| e.to_string())?;
+        std::io::copy(&mut entry, &mut out_f).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 /// 版本戳文件路径
@@ -1419,7 +1455,8 @@ fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
         };
     };
     let bin_path = release_bin_path(spec);
-    if let Some(parent) = bin_path.parent() {
+    let dl_path = release_download_path(spec);
+    if let Some(parent) = dl_path.parent() {
         if let Err(e) = std::fs::create_dir_all(parent) {
             return CheckResult {
                 key: spec.key.to_string(),
@@ -1477,7 +1514,7 @@ fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
             .progress_chars("#>-"),
     );
 
-    let mut file = match std::fs::File::create(&bin_path) {
+    let mut file = match std::fs::File::create(&dl_path) {
         Ok(f) => f,
         Err(e) => {
             return CheckResult {
@@ -1509,7 +1546,7 @@ fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
     pb.finish_with_message("下载完成");
 
     // 校验 sha256
-    let sha = match file_sha256(&bin_path) {
+    let sha = match file_sha256(&dl_path) {
         Ok(s) => s,
         Err(e) => {
             return CheckResult {
@@ -1521,13 +1558,28 @@ fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
         }
     };
     if sha != sha256 {
-        let _ = std::fs::remove_file(&bin_path);
+        let _ = std::fs::remove_file(&dl_path);
         return CheckResult {
             key: spec.key.to_string(),
             status: CheckStatus::Fail,
             data: json!({ "msg": format!("sha256 校验失败: 期望 {} 实际 {}", sha256, sha) }),
             required: false,
         };
+    }
+
+    // Windows: 解压 zip 平铺到 bin_dir, 校验通过后删除归档
+    #[cfg(windows)]
+    {
+        if let Err(e) = extract_windows_zip(&dl_path) {
+            let _ = std::fs::remove_file(&dl_path);
+            return CheckResult {
+                key: spec.key.to_string(),
+                status: CheckStatus::Fail,
+                data: json!({ "msg": format!("解压失败: {e}") }),
+                required: false,
+            };
+        }
+        let _ = std::fs::remove_file(&dl_path);
     }
 
     // 执行权限
