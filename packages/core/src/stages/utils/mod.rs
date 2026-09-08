@@ -687,7 +687,8 @@ pub fn resolve_language(ctx: &crate::context::TaskCtx) -> anyhow::Result<(String
     // 源语言: ASR 实测 (ctx.asr_language) > input.task.sourceLang > DEFAULT_LANG。
     // (纯 OCR / subtitle 路径没有 ASR, 必须回落到配置的 sourceLang, 否则非中文
     //  任务会被当成 zh -> 目标语言错误推断为 en)
-    let src_code = ctx
+    // 源语言是开放字符串 (事实), 不做枚举截断/回落 —— 列表外语言如实透传。
+    let src_lang = ctx
         .asr_language
         .clone()
         .or_else(|| {
@@ -698,22 +699,18 @@ pub fn resolve_language(ctx: &crate::context::TaskCtx) -> anyhow::Result<(String
                 .map(String::from)
         })
         .unwrap_or_else(|| DEFAULT_LANG.as_str().to_string());
-    // 运行时字符串 (ASR 输出) 可能不在支持列表 -> 容错回落到 DEFAULT_LANG
-    let src_lang = TargetLang::from_code(&src_code).unwrap_or_else(|| {
-        tracing::warn!(target: "pipeline", "未知源语言码 {src_code:?}, 回落到 {}", DEFAULT_LANG);
-        DEFAULT_LANG
-    });
     let existing_dst = ctx
         .target_language
         .clone()
         .unwrap_or_else(|| DEFAULT_LANG.as_str().to_string());
-    // 目标语言: input.task.targetLang > auto 推断 (源 zh -> en, 其它 -> zh)
+    // 目标语言: input.task.targetLang > auto 推断 (源 zh -> en, 其它 -> zh)。
+    // 目标必须是支持的翻译语言: 显式值经 TargetLang 校验 (非法回落 auto),
+    // auto 推断用字符串比较 (只看"是否 zh")。
     let resolved: TargetLang = input_target
         .as_deref()
         .and_then(TargetLang::from_code)
-        .unwrap_or_else(|| infer_target_lang(src_lang));
+        .unwrap_or_else(|| infer_target_lang(&src_lang));
     let resolved = resolved.as_str().to_string();
-    let src_lang = src_lang.as_str().to_string();
     if resolved != existing_dst {
         // 写回 ctx.target_language, 供后续翻译文件命名 / split_audio 读取 (best-effort:
         // ctx.json 不存在时仅告警, 不影响当前 stage 返回解析结果)

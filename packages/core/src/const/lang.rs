@@ -115,10 +115,12 @@ impl std::fmt::Display for TargetLang {
 /// 兜底语言 (源语言未知 / 目标语言 auto 推断失败时用 zh)
 pub const DEFAULT_LANG: TargetLang = TargetLang::Zh;
 
-/// auto 推断目标语言: 源 zh -> en, 其它 -> zh (只看"是否 zh")
-pub fn infer_target_lang(src: TargetLang) -> TargetLang {
-    match src {
-        TargetLang::Zh => TargetLang::En,
-        _ => TargetLang::Zh,
+/// auto 推断目标语言: 源 zh -> en, 其它 -> zh (只看"是否 zh")。
+/// 参数为开放字符串 (源语言是事实, 不受翻译目标列表约束)。
+pub fn infer_target_lang(src_code: &str) -> TargetLang {
+    if src_code == "zh" {
+        TargetLang::En
+    } else {
+        TargetLang::Zh
     }
 }
