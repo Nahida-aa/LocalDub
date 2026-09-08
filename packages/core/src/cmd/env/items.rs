@@ -1318,8 +1318,9 @@ fn release_download_path(spec: &ReleaseBinSpec) -> PathBuf {
 
 /// 解压 Windows zip 资产到 bin_dir (zip 内文件平铺: `<bin>.exe` + 全部 dll)。
 /// 只取 file_name, 防 zip-slip; 忽略目录条目; 已存在文件直接覆盖 (重新 ensure 时刷新)。
-#[cfg(windows)]
-fn extract_windows_zip(zip_path: &Path) -> Result<(), String> {
+/// 解压 zip 平铺到 `dest_dir`: 只取各条目 file_name (忽略目录), 防 zip-slip (拒绝
+/// `.`/`..`/空名), 已存在文件直接覆盖 (重新 ensure 时刷新)。平台无关, 便于单测。
+fn extract_zip_flat(dest_dir: &Path, zip_path: &Path) -> Result<(), String> {
     let file = std::fs::File::open(zip_path).map_err(|e| e.to_string())?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
     for i in 0..archive.len() {
@@ -1333,11 +1334,17 @@ fn extract_windows_zip(zip_path: &Path) -> Result<(), String> {
             .and_then(|s| s.to_str())
             .filter(|s| !s.is_empty() && *s != "." && *s != "..")
             .ok_or_else(|| format!("zip 条目非法: {name}"))?;
-        let out = bin_dir().join(fname);
+        let out = dest_dir.join(fname);
         let mut out_f = std::fs::File::create(&out).map_err(|e| e.to_string())?;
         std::io::copy(&mut entry, &mut out_f).map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+/// 解压 Windows zip 资产到 bin_dir (zip 内文件平铺: `<bin>.exe` + 全部 dll)。
+#[cfg(windows)]
+fn extract_windows_zip(zip_path: &Path) -> Result<(), String> {
+    extract_zip_flat(&bin_dir(), zip_path)
 }
 
 /// 版本戳文件路径
@@ -1402,6 +1409,23 @@ fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
             data: json!({ "msg": format!("{} 二进制不存在", asset) }),
             required: false,
         };
+    }
+
+    // 执行位自愈 (仅 Linux): 下载/复制可能丢失 +x。若 check 走 Pass 分支, ensure_bin
+    // 不会触发重新下载 (版本戳匹配), 这里直接补上执行位, 避免 spawn 报 EACCES。
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = std::fs::metadata(&path) {
+            let mode = meta.permissions().mode();
+            let has_exec = mode & 0o111 != 0;
+            if cfg!(target_os = "linux") && !has_exec {
+                let mut perm = meta.permissions();
+                perm.set_mode(mode | 0o700);
+                std::fs::set_permissions(&path, perm).ok();
+                tracing::info!(target: "sf_ocr", "{} 缺执行位, 已补 0o700", path.display());
+            }
+        }
     }
 
     // ldd 检查 (仅 Linux)
@@ -1733,4 +1757,101 @@ pub fn ensure_fns() -> HashMap<&'static str, fn() -> CheckResult> {
     m.insert("subtitle_ocr_bin", ensure_subtitle_ocr_bin);
     m.insert("ocr_post_bin", ensure_ocr_post_bin);
     m
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write as _;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static TMP_ID: AtomicUsize = AtomicUsize::new(0);
+
+    fn tmp_dir(tag: &str) -> PathBuf {
+        let id = TMP_ID.fetch_add(1, Ordering::SeqCst);
+        let dir = std::env::temp_dir().join(format!("ld_env_items_{}_{}", tag, id));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// 用 zip crate 合成 zip 到 `zip_path`。
+    fn write_zip(zip_path: &Path, entries: &[(&str, &[u8])]) -> Result<(), String> {
+        use zip::write::FileOptions;
+        let file = std::fs::File::create(zip_path).map_err(|e| e.to_string())?;
+        let mut zw = zip::ZipWriter::new(file);
+        for (name, data) in entries {
+            zw.start_file(*name, FileOptions::default()).map_err(|e| e.to_string())?;
+            zw.write_all(data).map_err(|e| e.to_string())?;
+        }
+        zw.finish().map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    #[test]
+    fn extract_zip_flat_flattens_and_skips_dirs() {
+        let dir = tmp_dir("flat");
+        let zip_path = dir.join("a.zip");
+        // 顶层 exe + 子目录内 dll + 纯目录条目
+        write_zip(
+            &zip_path,
+            &[
+                ("subtitle-ocr.exe", b"exe-data"),
+                ("nested/sub/dir/foo.dll", b"dll-data"),
+                ("empty-dir/", b""),
+            ],
+        )
+        .unwrap();
+
+        extract_zip_flat(&dir, &zip_path).unwrap();
+
+        // exe 平铺到 dest 根
+        let exe = dir.join("subtitle-ocr.exe");
+        assert!(exe.exists(), "exe 应解到目标根目录");
+        assert_eq!(std::fs::read(&exe).unwrap(), b"exe-data");
+        // 子目录内文件丢掉 目录前缀, 直接平铺到根
+        let dll = dir.join("foo.dll");
+        assert!(dll.exists(), "深层条目应平铺到根");
+        assert_eq!(std::fs::read(&dll).unwrap(), b"dll-data");
+        // 纯目录条目被跳过, 不产生 empty-dir 文件
+        assert!(!dir.join("empty-dir").exists());
+    }
+
+    #[test]
+    fn extract_zip_flat_flattens_escaping_paths_safely() {
+        let dir = tmp_dir("escape");
+        let zip_path = dir.join("b.zip");
+        // 含 ../ 或绝对路径的条目: file_name() 会剥离目录前缀, 只平铺 basename, 无法逃逸。
+        write_zip(&zip_path, &[("../../evil.exe", b"evil"), ("/abs/path.dll", b"abs")]).unwrap();
+
+        extract_zip_flat(&dir, &zip_path).unwrap();
+        // 全部落在目标目录内, 没有逃逸到临时目录上层
+        assert_eq!(std::fs::read(dir.join("evil.exe")).unwrap(), b"evil");
+        assert_eq!(std::fs::read(dir.join("path.dll")).unwrap(), b"abs");
+        let parent = dir.parent().unwrap();
+        assert!(!parent.join("evil.exe").exists(), "不得逃逸到上级目录");
+        assert!(!parent.join("path.dll").exists(), "不得逃逸到上级目录");
+    }
+
+    #[test]
+    fn extract_zip_flat_rejects_dotdot_basename() {
+        let dir = tmp_dir("dotdot");
+        let zip_path = dir.join("c.zip");
+        // basename 就是 .. (如条目名 "..") → 拒绝
+        write_zip(&zip_path, &[("..", b"x")]).unwrap();
+        let err = extract_zip_flat(&dir, &zip_path).unwrap_err();
+        assert!(err.contains("zip 条目非法"), "应拒绝 => basename, got: {err}");
+    }
+
+    #[test]
+    fn extract_zip_flat_overwrites_existing() {
+        let dir = tmp_dir("overwrite");
+        std::fs::write(dir.join("subtitle-ocr.exe"), b"stale").unwrap();
+        let zip_path = dir.join("d.zip");
+        write_zip(&zip_path, &[("subtitle-ocr.exe", b"fresh")]).unwrap();
+
+        extract_zip_flat(&dir, &zip_path).unwrap();
+        assert_eq!(std::fs::read(dir.join("subtitle-ocr.exe")).unwrap(), b"fresh");
+    }
 }
