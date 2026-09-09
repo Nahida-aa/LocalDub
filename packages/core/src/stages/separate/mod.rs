@@ -294,12 +294,11 @@ pub fn stage_separate(ctx: &TaskCtx) -> anyhow::Result<()> {
     }
 
     let backend = backend_for(cfg.runtime, cfg.device);
-    let bin_name = format!("demucs-burn-{backend}");
     let bin_path = match demucs_bin_path(backend) {
         Some(p) => p,
         None => {
-            // 已发布后端 (tch/wgpu): 经 env ensure 走 release 下载; 其余后端保留
-            // 阶段内自动编译 (仅源码构建, 无发布资产)。
+            // 已发布后端 (tch/wgpu): 经 env ensure 走 release 下载; 其余后端无发布资产
+            // (cpu/cuda/vulkan 源码构建路径已随 demucs_burn 迁移而移除)。
             match backend {
                 "tch" => {
                     let p = crate::cmd::env::ensure_bin("demucs_burn_tch_bin")?;
@@ -309,13 +308,11 @@ pub fn stage_separate(ctx: &TaskCtx) -> anyhow::Result<()> {
                     p
                 }
                 "wgpu" => crate::cmd::env::ensure_bin("demucs_burn_wgpu_bin")?,
-                _ => {
-                    tracing::info!(target: "separate", "未找到 {bin_name}, 尝试自动编译...");
-                    cargo_build_bin("demucs-burn", &bin_name, &[backend], false).map_err(|e| {
-                        anyhow::anyhow!(
-                            "{e}\n若编译失败, 请手动执行: cargo build -p demucs-burn --bin {bin_name} --no-default-features --features {backend}"
-                        )
-                    })?
+                other => {
+                    return Err(anyhow::anyhow!(
+                        "demucs-burn 后端 {other} 暂无发布资产。请切换 separate.runtime/device 到 \
+                         burn-tch (tch) 或 burn+webgpu (wgpu)。"
+                    ));
                 }
             }
         }

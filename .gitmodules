@@ -20,9 +20,6 @@
 [submodule "submodule/vcpkg"]
 	path = submodule/vcpkg
 	url = https://github.com/microsoft/vcpkg.git
-[submodule "submodule/demucs-rs"]
-	path = submodule/demucs-rs
-	url = git@github.com:Nahida-aa/demucs-rs.git
 [submodule "submodule/voxcpm-rs"]
 	path = submodule/voxcpm-rs
 	url = git@github.com:Nahida-aa/voxcpm-rs.git

@@ -15,23 +15,27 @@ All benchmarks on `htdemucs_ft`, `tasks_max=1`. CPU: Ryzen 7 7840HS. GPU: Radeon
 
 ## Burn wgpu
 
-`packages/demucs_burn/` — Thin Rust binary wrapping demucs-core with Burn backend.
+`vox-lab/packages/demucs-burn/` — Thin Rust binary wrapping demucs-core with Burn backend.
 
-### Build
+### Install (demucs-burn 已迁至 vox-lab, 经 GitHub Release 下载)
+
+```bash
+# 已发布后端: tch / wgpu (下载 + 校验 sha256, 平铺到 data/bin, 见 env ensure)
+cargo run -p cli -- env ensure demucs_burn_tch_bin   # tch (libtorch CPU/MKL, 含 libtorch.so 平铺)
+cargo run -p cli -- env ensure demucs_burn_wgpu_bin  # wgpu (GPU via Vulkan/Metal/DX12)
+
+# 未发布后端 (cpu/cuda/vulkan/rocm) 无 release 资产, 不支持
+```
+
+源码仓库: `vox-lab/packages/demucs-burn`（依赖 `vox-lab/submodule/demucs-rs`）。如需本地编译:
 
 ```bash
 # wgpu (GPU via Vulkan/Metal/DX12, default) — works
-cargo build --release --bin demucs-burn-wgpu
-
-# cpu (CubeCL CPU via MLIR — experimental, very slow for demucs)
-cargo build --release --bin demucs-burn-cpu --no-default-features --features cpu
-
-# rocm (AMD ROCm HIP — MES hang on 780M, requires gfx9+ with stable ROCm)
-cargo build --release --bin demucs-burn-rocm --no-default-features --features rocm
+cargo build --release -p demucs-burn --bin demucs-burn-wgpu --no-default-features --features wgpu
 
 # tch (libtorch CPU via MKL — best CPU path, requires LD_LIBRARY_PATH)
 LIBTORCH_DIR=$(find target/release/build/torch-sys-*/out/libtorch/libtorch/lib -maxdepth 0)
-LIBTORCH_DIR=$LIBTORCH_DIR cargo build --release --bin demucs-burn-tch --no-default-features --features tch
+LIBTORCH_DIR=$LIBTORCH_DIR cargo build --release -p demucs-burn --bin demucs-burn-tch --no-default-features --features tch
 ```
 
 | Binary | Size | RTF (medium, 60s) | RTF +fusion | Notes |

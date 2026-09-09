@@ -456,9 +456,6 @@ pub fn check_submodule_whisper_cpp() -> CheckResult {
 pub fn check_submodule_demucs_cpp() -> CheckResult {
     check_submodule("submodule/demucs.cpp", "submodule_demucs_cpp")
 }
-pub fn check_submodule_demucs_rs() -> CheckResult {
-    check_submodule("submodule/demucs-rs", "submodule_demucs_rs")
-}
 pub fn check_submodule_voxcpm_rs() -> CheckResult {
     check_submodule("submodule/voxcpm-rs", "submodule_voxcpm_rs")
 }
@@ -655,19 +652,15 @@ pub fn check_voxcpm_burn_bin(required: Option<&str>) -> CheckResult {
 }
 
 pub fn check_demucs_burn_bin(required: Option<&str>) -> CheckResult {
-    check_burn_bins(
-        "demucs_burn_bin",
-        "demucs-burn-",
-        &[
-            "demucs-burn-wgpu",
-            "demucs-burn-cpu",
-            "demucs-burn-tch",
-            "demucs-burn-rocm",
-            "demucs-burn-cuda",
-        ],
-        &["packages/demucs_burn/", "submodule/demucs-rs/"],
-        required,
-    )
+    // demucs-burn 已迁至 vox-lab, 仅 tch/wgpu 有 release 资产 (经 demucs_burn_{tch,wgpu}_bin
+    // 检查)。cpu/cuda/vulkan/rocm 等后端暂无发布资产, 源码构建路径也已移除。
+    let _ = required;
+    CheckResult {
+        key: "demucs_burn_bin".into(),
+        status: CheckStatus::Fail,
+        data: json!({ "msg": "demucs-burn 仅发布 tch/wgpu 后端, 请切换 separate.runtime/device 到 burn-tch (tch) 或 burn+webgpu (wgpu)" }),
+        required: false,
+    }
 }
 
 pub fn check_cmake() -> CheckResult {
@@ -1793,7 +1786,6 @@ pub fn all_checks() -> HashMap<&'static str, fn() -> CheckResult> {
     m.insert("voxcpm2_pth", check_voxcpm2_pth);
     m.insert("submodule_whisper_cpp", check_submodule_whisper_cpp);
     m.insert("submodule_demucs_cpp", check_submodule_demucs_cpp);
-    m.insert("submodule_demucs_rs", check_submodule_demucs_rs);
     m.insert("submodule_voxcpm_rs", check_submodule_voxcpm_rs);
     m.insert("whisper_bin", check_whisper_bin);
     m.insert("demucs_ggml_bin", check_demucs_ggml_bin);

@@ -109,15 +109,14 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
     // asr.useSeparated 或 separate.always 表示需要人声分离
     if stages.asr.use_separated || stages.separate.always {
         add("demucs_pth", &mut set);
-        // release 下载: 已发布 tch/wgpu 两个后端 (vox-lab demucs-burn-v0.1.0);
-        // 其余后端 (cpu/cuda/vulkan) 暂无发布资产, 保留源码构建检查 demucs_burn_bin 兜底。
+        // demucs-burn 已迁至 vox-lab: 仅 tch/wgpu 有 release 资产;
+        // 其余后端 (cpu/cuda/vulkan) 无发布资产, demucs_burn_bin 检查会报「暂无资产」。
         let suffix = demucs_backend_suffix(stages.separate.runtime, stages.separate.device);
         match suffix {
             "tch" => add("demucs_burn_tch_bin", &mut set),
             "wgpu" => add("demucs_burn_wgpu_bin", &mut set),
             other => {
                 add("demucs_burn_bin", &mut set);
-                // 本次配置实际需要的 demucs 后端后缀 (bin = demucs-burn-{suffix})
                 desired.insert("demucs_burn_bin".to_string(), other.to_string());
             }
         }

@@ -225,10 +225,6 @@ export async function checkSubmoduleDemucsCpp(): Promise<CheckResult> {
   return checkSubmodule(join(REPO_ROOT, "submodule", "demucs.cpp"), "submodule_demucs_cpp");
 }
 
-export async function checkSubmoduleDemucsRs(): Promise<CheckResult> {
-  return checkSubmodule(join(REPO_ROOT, "submodule", "demucs-rs"), "submodule_demucs_rs");
-}
-
 export async function checkSubmoduleVoxcpmRs(): Promise<CheckResult> {
   return checkSubmodule(join(REPO_ROOT, "submodule", "voxcpm-rs"), "submodule_voxcpm_rs");
 }
@@ -302,52 +298,11 @@ export async function checkVoxcpmBurnBin(): Promise<CheckResult> {
 }
 
 export async function checkDemucsBurnBin(): Promise<CheckResult> {
-  const dir = join(REPO_ROOT, "target", "release");
-  if (!existsSync(dir))
-    return { key: "demucs_burn_bin", status: "fail", data: {}, required: false };
-  const files = readdirSync(dir).filter(
-    (f: string) => f.startsWith("demucs-burn-") && !f.endsWith(".d"),
-  );
-
-  const expected = [
-    "demucs-burn-wgpu",
-    "demucs-burn-cpu",
-    "demucs-burn-tch",
-    "demucs-burn-rocm",
-    "demucs-burn-cuda",
-  ];
-  const existing = new Set(files);
-  const missingBins = expected.filter((e) => !existing.has(e));
-
-  if (files.length === 0)
-    return {
-      key: "demucs_burn_bin",
-      status: "fail",
-      data: { missing_bins: missingBins.join(", ") },
-      required: false,
-    };
-
-  const latestSource = getLatestSource(["packages/demucs_burn/", "submodule/demucs-rs/"]);
-  const staleBins: string[] = [];
-  const freshBins: string[] = [];
-
-  for (const f of files) {
-    const binPath = join(dir, f);
-    if (latestSource > 0 && existsSync(binPath)) {
-      const binTime = Math.floor(statSync(binPath).mtimeMs / 1000);
-      if (binTime < latestSource) staleBins.push(f);
-      else freshBins.push(f);
-    }
-  }
-
   return {
     key: "demucs_burn_bin",
-    status: staleBins.length > 0 || missingBins.length > 0 ? "warn" : "pass",
+    status: "fail",
     data: {
-      stale_bins: staleBins.join(", "),
-      fresh_bins: freshBins.join(", "),
-      missing_bins: missingBins.join(", "),
-      binaries: files.join(", "),
+      msg: "demucs-burn 仅发布 tch/wgpu 后端, 请切换 separate.runtime/device 到 burn-tch (tch) 或 burn+webgpu (wgpu)",
     },
     required: false,
   };
@@ -509,7 +464,6 @@ export const allChecks: Record<string, () => Promise<CheckResult>> = {
   voxcpm2_pth: checkVoxcpm2Pth,
   submodule_whisper_cpp: checkSubmoduleWhisperCpp,
   submodule_demucs_cpp: checkSubmoduleDemucsCpp,
-  submodule_demucs_rs: checkSubmoduleDemucsRs,
   submodule_voxcpm_rs: checkSubmoduleVoxcpmRs,
   whisper_bin: checkWhisperBin,
   demucs_ggml_bin: checkDemucsGgmlBin,

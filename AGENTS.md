@@ -29,7 +29,7 @@ Before editing files for a substantial task:
 - `packages/cli/src/ml/` — 模型实现（whisper、demucs 等）
 - `packages/cli/src/ml/ocr/ocr.ts` — OCR 二进制调用（ort-cpp），使用 `pythonBin()`（config.ts）而非内联 VIRTUAL_ENV
 - `packages/subtitle-ocr/` — 字幕专用 OCR 包（ort-cpp、subtitle-node.ts、subtitle-py.py）
-- `packages/core/src/cmd/env/` — env 检查/ensure（含从 vision-lab GitHub Release 下载 OCR 二进制）；`items.rs` 的 ReleaseBinSpec 定义三平台资产 + sha256
+- `packages/core/src/cmd/env/` — env 检查/ensure（含从 GitHub Release 下载运行时二进制：vision-lab 的 OCR 家族、vox-lab 的 demucs-burn）；`items.rs` 的 ReleaseBinSpec 定义三平台资产 + sha256
 - `packages/core/src/stages/sf_ocr/` — 关键帧 OCR 策略入口（消费 vision-lab release 二进制：subtitle-finder 提关键帧 → subtitle-ocr 识别）
 - `packages/benchmark/` — 性能测试与参数对比
 - `packages/benchmark/ocr/compute/` — OCR 基准测试脚本
@@ -100,7 +100,7 @@ async fn greet(ctx: &Ctx, input: GreetInput) -> GreetOutput {
 
 - `.agents/hardware.md` — GPU 兼容性 & MES hang 根因
 - `.agents/model-strategy.md` — 各模型设备分配策略 & 废弃路径详情
-- `packages/demucs_burn/docs/` — Demucs 经验文档（CPU fallback / PyTorch 优化 / 模型来源 / 后端基准索引）
+- `packages/demucs_burn/docs/` → 已迁至 `vox-lab/packages/demucs-burn/docs/`（Demucs 经验文档；CPU fallback / PyTorch 优化 / 模型来源 / 后端基准索引）
 - `.agents/cosyvoice2.md` — CosyVoice2/3 ONNX 导出状态
 - `.agents/asr-loop-fix.md` — ffmpeg swresample 导致 whisper 幻觉循环根因
 - `.agents/windows-path-case.md` — Windows PATH 大小写坑 (exit=53 + 空输出)

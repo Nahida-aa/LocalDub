@@ -195,15 +195,6 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
         },
     ),
     (
-        "submodule_demucs_rs",
-        EnvEntry {
-            zh: "git 子模块: demucs-rs",
-            en: "git submodule: demucs-rs",
-            required: false,
-            category: "optional",
-        },
-    ),
-    (
         "submodule_voxcpm_rs",
         EnvEntry {
             zh: "git 子模块: voxcpm-rs",
@@ -242,8 +233,8 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
     (
         "demucs_burn_bin",
         EnvEntry {
-            zh: "demucs-burn 编译产物 (target/release/demucs-burn-*)",
-            en: "demucs-burn compiled binaries (target/release/demucs-burn-*)",
+            zh: "demucs-burn 非发布后端 (cpu/cuda/vulkan 无 release 资产, 请用 tch/wgpu)",
+            en: "demucs-burn unpublished backend (cpu/cuda/vulkan have no release asset, use tch/wgpu)",
             required: false,
             category: "optional",
         },

@@ -8,9 +8,14 @@ import { setStage } from "@repo/core/context/context";
 import { DemucsCliArgs } from "./cli_types";
 import { DEMUCS_MODEL_DIR } from "@repo/config/path/models";
 import { REPO_ROOT } from "@repo/config/root";
+import { DATA_DIR } from "@repo/config/path/paths";
 import { log } from "@repo/util/log";
 
 function findLibtorchPath(): string | null {
+  // release 下载: libtorch_cpu.so 平铺在 data/bin (与二进制同目录)
+  const dlLib = join(DATA_DIR, "bin");
+  if (existsSync(join(dlLib, "libtorch_cpu.so"))) return dlLib;
+  // 兼容旧源码构建目录: target/release/build/torch-sys-*/out/libtorch/libtorch/lib
   const buildDir = join(REPO_ROOT, "target", "release", "build");
   if (!existsSync(buildDir)) return null;
   for (const dir of readdirSync(buildDir)) {
@@ -23,33 +28,36 @@ function findLibtorchPath(): string | null {
 
 const demucsBuildTasks = new Map<string, Promise<string>>();
 
-/** 确保 demucs-burn-${backend} 二进制已构建（缺失时自动编译），返回 bin 路径。 */
+/**
+ * 确保 demucs-burn-${backend} 就绪，返回 bin 路径。
+ *
+ * demucs-burn 已随迁移改为从 vox-lab GitHub Release 下载（data/bin），不再本地源码编译：
+ * - tch/wgpu: 委托 Rust `cli env ensure demucs_burn_{tch,wgpu}_bin`（release 下载，见
+ *   `packages/core/src/cmd/env/items.rs` 的 DEMUCS_BURN_* spec）。
+ * - 其余后端（cpu/cuda/vulkan）无发布资产，直接报错（与 Rust separate 一致）。
+ */
 async function ensureDemucsBin(taskDir: string, binName: string): Promise<string> {
-  const binPath = join(REPO_ROOT, "target", "release", binName);
+  const backend = binName.replace("demucs-burn-", "");
+  if (backend !== "tch" && backend !== "wgpu") {
+    throw new Error(
+      `demucs-burn 后端 ${backend} 暂无发布资产。请切换 separate.runtime/device 到 burn-tch (tch) 或 burn+webgpu (wgpu)。`,
+    );
+  }
+
+  const key = `demucs_burn_${backend}_bin`;
+  const binPath = join(DATA_DIR, "bin", binName);
   if (existsSync(binPath)) return binPath;
 
-  const crateDir = join(REPO_ROOT, "packages", "demucs_burn");
-  // Cargo.toml 中每个 bin 有各自 required-features（wgpu / tch / ...），
-  // 按 bin 后缀派生对应 feature 并以 --no-default-features 关闭默认的 wgpu。
-  const backend = binName.replace("demucs-burn-", "");
-  const feature = backend;
   let task = demucsBuildTasks.get(binName);
   if (!task) {
     task = (async () => {
-      log(`${binName} 未构建，自动编译...`);
-      const build =
-        await $`cargo build --release --no-default-features --features ${feature} -p demucs-burn --bin ${binName}`
-          .cwd(crateDir)
-          .nothrow();
-      if (build.exitCode !== 0) {
-        demucsBuildTasks.delete(binName);
-        throw new Error(`${binName} 编译失败 (exit ${build.exitCode}):\n${build.stderr}`);
-      }
-      if (!existsSync(binPath)) {
+      log(`${binName} 未下载，调用 Rust env ensure (${key})...`);
+      const ensure = await $`cargo run -p cli -- env ensure ${key}`.cwd(REPO_ROOT).nothrow();
+      if (ensure.exitCode !== 0 || !existsSync(binPath)) {
         demucsBuildTasks.delete(binName);
         throw new Error(
-          `${binName} 编译完成但找不到产物: ${binPath}\n` +
-            `请检查 Cargo.toml 中 ${binName} 的 required-features 是否满足。`,
+          `${binName} 下载/校验失败 (exit ${ensure.exitCode}):\n${ensure.stderr}\n` +
+            `请手动执行: cargo run -p cli -- env ensure ${key}`,
         );
       }
       return binPath;
