@@ -1285,7 +1285,7 @@ const DEMUCS_BURN_TCH: ReleaseBinSpec = ReleaseBinSpec {
     tag: "demucs-burn-v0.1.0",
     zip: true,
     linux_asset: "demucs-burn-tch-x86_64-unknown-linux-gnu.zip",
-    linux_sha256: "placeholder",
+    linux_sha256: "3cd530a17dedbff53c4ee86befd2567621e3d3a335b93f2cf313ebe414a79308",
     windows_asset: None,
     windows_sha256: None,
     stamp: ".demucs_burn_tch.version.json",
@@ -1298,7 +1298,7 @@ const DEMUCS_BURN_WGPU: ReleaseBinSpec = ReleaseBinSpec {
     tag: "demucs-burn-v0.1.0",
     zip: true,
     linux_asset: "demucs-burn-wgpu-x86_64-unknown-linux-gnu.zip",
-    linux_sha256: "placeholder",
+    linux_sha256: "f55bf5a80ae6fe9155df68eb652c70bceab422045eb3d3dbca703f9ec5c310e8",
     windows_asset: None,
     windows_sha256: None,
     stamp: ".demucs_burn_wgpu.version.json",
@@ -1463,9 +1463,23 @@ fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
         }
     }
 
-    // ldd 检查 (仅 Linux)
-    if cfg!(target_os = "linux") {
-        let (ok, out, _) = try_exec("ldd", &[path.to_str().unwrap()], None);
+    // ldd 检查 (仅 Linux)。zip 平铺类 spec (demucs release) 的 libtorch 等 so 与 bin 同目录 (bin_dir),
+    // 需注入 LD_LIBRARY_PATH 才能命中, 否则 tch 恒报 missing_libs。
+    #[cfg(target_os = "linux")]
+    {
+        let bin_dir = bin_dir();
+        let lib_path = format!("{}:{}", bin_dir.display(), std::env::var("LD_LIBRARY_PATH").unwrap_or_default());
+        let mut cmd = Command::new("ldd");
+        cmd.arg(path.as_os_str()).env("LD_LIBRARY_PATH", &lib_path);
+        cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+        let (ok, out, _) = match cmd.output() {
+            Ok(o) => {
+                let stdout = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                let stderr = String::from_utf8_lossy(&o.stderr).trim().to_string();
+                (o.status.success(), stdout, stderr)
+            }
+            Err(_) => (false, String::new(), String::new()),
+        };
         if ok && out.contains("not found") {
             return CheckResult {
                 key: spec.key.to_string(),
