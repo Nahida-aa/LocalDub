@@ -394,9 +394,15 @@ pub fn stage_asr_ocr_fix(ctx: &TaskCtx) -> Result<()> {
         .segments
         .iter()
         .map(|seg| {
+            // 仅在文本匹配 (edit_distance ≤ 2, 与 fixOverlap 同款门槛) 时, 才把 OCR 段
+            // 边界吸附到 ASR 边界; 文本不匹配则保留 OCR 自身时间, 避免把不同字幕段
+            // 一并塌缩到同一个 ASR 段的时间范围。
             let mut best_asr: Option<&SubtitleSegment> = None;
             let mut best_overlap = 0;
             for asr in &asr_segs {
+                if edit_distance(&seg.base.base.text, &asr.text) > 2 {
+                    continue;
+                }
                 let overlap = if seg.base.base.start_ms == seg.base.base.end_ms {
                     if seg.base.base.start_ms >= asr.start_ms && seg.base.base.start_ms <= asr.end_ms {
                         1
@@ -588,5 +594,70 @@ mod tests {
         let out = final_dedup(segs);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].base.end_ms, 2000);
+    }
+
+    #[test]
+    fn asr_align_only_snaps_on_text_match() {
+        // 三个 OCR 段文本各不相同; 仅 "我再找别人托个梦" 与 ASR "我在找别人托个梦"
+        // 匹配 (edit_distance=1), 其余不匹配的段必须保留自身时间, 不能塌缩到 ASR 时间。
+        let asr_segs = vec![
+            SubtitleSegment { text: "我在找别人托个梦".into(), start_ms: 42040, end_ms: 60690 },
+        ];
+        let segs = vec![
+            OcrSegmentWithAdjust {
+                base: OcrSegment {
+                    base: SubtitleSegment { text: "哦".into(), start_ms: 42040, end_ms: 42190 },
+                    y_range: None, text_confidence: 0.99, frame_count: Some(2), frames: None,
+                },
+                adjusted_confidence: None, y_penalty: None, iso_penalty: None,
+            },
+            OcrSegmentWithAdjust {
+                base: OcrSegment {
+                    base: SubtitleSegment { text: "姐".into(), start_ms: 58190, end_ms: 58690 },
+                    y_range: None, text_confidence: 0.99, frame_count: Some(2), frames: None,
+                },
+                adjusted_confidence: None, y_penalty: None, iso_penalty: None,
+            },
+            OcrSegmentWithAdjust {
+                base: OcrSegment {
+                    base: SubtitleSegment { text: "我再找别人托个梦".into(), start_ms: 59690, end_ms: 60690 },
+                    y_range: None, text_confidence: 0.99, frame_count: Some(3), frames: None,
+                },
+                adjusted_confidence: None, y_penalty: None, iso_penalty: None,
+            },
+        ];
+        let asr_ocr_segs: Vec<OcrSegment> = segs.iter().map(|seg| {
+            let mut best_asr: Option<&SubtitleSegment> = None;
+            let mut best_overlap = 0;
+            for asr in &asr_segs {
+                if edit_distance(&seg.base.base.text, &asr.text) > 2 { continue; }
+                let ov = seg.base.base.end_ms.min(asr.end_ms).saturating_sub(seg.base.base.start_ms.max(asr.start_ms));
+                if ov > 0 && ov > best_overlap {
+                    best_overlap = ov;
+                    best_asr = Some(asr);
+                }
+            }
+            let mut s = seg.clone();
+            if let Some(a) = best_asr {
+                s.base.base.start_ms = a.start_ms;
+                s.base.base.end_ms = a.end_ms;
+            }
+            OcrSegment {
+                base: s.base.base.clone(),
+                y_range: s.base.y_range,
+                text_confidence: s.base.text_confidence,
+                frame_count: s.base.frame_count,
+                frames: s.base.frames.clone(),
+            }
+        }).collect();
+
+        // "哦"、"姐" 不匹配, 保留自身时间
+        assert_eq!(asr_ocr_segs[0].base.start_ms, 42040);
+        assert_eq!(asr_ocr_segs[0].base.end_ms, 42190);
+        assert_eq!(asr_ocr_segs[1].base.start_ms, 58190);
+        assert_eq!(asr_ocr_segs[1].base.end_ms, 58690);
+        // "我再找别人托个梦" 匹配, 吸附到 ASR 边界
+        assert_eq!(asr_ocr_segs[2].base.start_ms, 42040);
+        assert_eq!(asr_ocr_segs[2].base.end_ms, 60690);
     }
 }
