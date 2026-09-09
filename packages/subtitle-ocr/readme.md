@@ -16,4 +16,4 @@ C++ ORT (OpenCV) 方差全来自 ORT 多线程 run-to-run 非确定性（~0.89-5
 
 **Cover 指标**：仅是描述性数据，标识检测到的段覆盖了多少时间线比例，**并非越高越好**。自然的口播字幕之间有空白间隙，100% cover 意味着段完全连续无间隙，只是反映结果的时间特性。
 
-详情 → `packages/benchmark/ocr/results/FINDINGS.md`，结果已统一用 `eval-ocr.ts --ms` 评估（OCR 时间戳为毫秒）。
+详情 → `vox-lab/packages/benchmark/ocr/results/FINDINGS.md`，结果已统一用 `eval-ocr.ts --ms` 评估（OCR 时间戳为毫秒）。
