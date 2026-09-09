@@ -35,6 +35,25 @@ Before editing files for a substantial task:
 - `.agents/hardware.md` — 硬件兼容性 & 已知失败路径
 - `.agents/model-strategy.md` — 各模型设备分配详情
 
+## Migrated to vox-lab
+
+以下模块已迁出至 `/home/aa/repos/ai_ls/vox-lab`，LocalDub 侧只留 release 下载 / 云端调用，不再本地编译：
+
+| LocalDub 原路径 | vox-lab 新路径 | 备注 |
+| ---------------- | -------------- | ---- |
+| `packages/benchmark/` | `packages/benchmark/` | ASR/OCR/VC 基准测试 |
+| `packages/research/` | `packages/research/` | ROCM hang 文档 + whisper_rocm_hang 测试 |
+| `packages/voxcpm-burn/` | `packages/voxcpm-burn/` | burn 推理，未来走 release 下载（voxcpm-burn-\{cpu,vulkan,wgpu\}) |
+| `packages/voxcpm_torch_server/` | `packages/voxcpm_torch_server/` | Torch server，暂未接入（TTS 走云端） |
+| `packages/demucs_torch_server/` | `packages/demucs_torch_server/` | / |
+| `packages/servers_py/` | `packages/servers_py/` | 两个 torch server 的共享 Python 包 |
+| `submodule/whisper.cpp/` | `submodule/whisper.cpp/` | whisper-vulkan 由 vox-lab release 分发 |
+| —（utils 辅助） | `packages/util/` | `cargo_build_cmd` / `cargo_build_bin` 自动编译 helper |
+| `packages/asr/`、`packages/tts/` | — | 已删除（遗留 TS/Rust 模块） |
+
+- vox-lab 根 `pyproject.toml` 为 uv workspace（含 `voxcpm_torch_server` / `demucs_torch_server` / `servers_py`）；LocalDub 根 `pyproject.toml` `members = []`
+- env/tts 侧：本地 VoxCPM torch/ggml 运行时标注「正在迁移中」，TTS 走 `tts.runtime = "cloud"`
+
 ## Temp directory
 
 - `packages/tmp/` — 临时文件/构建产物（gitignored via `*/tmp/*`）
