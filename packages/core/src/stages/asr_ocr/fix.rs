@@ -12,26 +12,27 @@ use crate::context::TaskCtx;
 use crate::stages::asr::out::AsrResult;
 use crate::stages::asr_ocr::fix_args::AsrOcrFixArgs;
 use crate::stages::utils::{
-    StagePatch, StageStatus, now_iso, set_stage_anyhow,
-    asr_ocr_pre_dir, asr_ocr_dir, asr_ocr_fix_dir, asr_dir, video_source_path,
-    probe_video_resolution,
+    asr_dir, asr_ocr_dir, asr_ocr_fix_dir, asr_ocr_pre_dir, now_iso, probe_video_resolution,
+    set_stage_anyhow, video_source_path, StagePatch, StageStatus,
 };
 use anyhow::Result;
 use ocr_types::{
-    FrameResult, OcrFramesResult, OcrSegment, SubtitleSegment,
-    compute_box_x_stats, compute_box_y_stats, edit_distance,
-};
-use subtitle_ocr_post::{
-    BoxAdjustedArgs, MergeFramesArgs, OcrSegmentAdjustArgs,
-    merge_frames, ocr_frames_adjust_box, ocr_frames_filter_box,
-    ocr_segment_adjust, ocr_segment_filter_with_meta, OcrSegmentWithAdjust,
+    compute_box_x_stats, compute_box_y_stats, edit_distance, FrameResult, OcrFramesResult,
+    OcrSegment, SubtitleSegment,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use subtitle_ocr_post::{
+    merge_frames, ocr_frames_adjust_box, ocr_frames_filter_box, ocr_segment_adjust,
+    ocr_segment_filter_with_meta, BoxAdjustedArgs, MergeFramesArgs, OcrSegmentAdjustArgs,
+    OcrSegmentWithAdjust,
+};
 use tracing::info;
+mod merge_util;
+use merge_util::fix_overlap;
 
 /// Helper: read JSON file.
 fn read_json_file<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T> {
@@ -151,7 +152,10 @@ fn maybe_resample(
     }
 
     let existing_ts: HashSet<u64> = frames.iter().map(|f| f.timestamp).collect();
-    let mut new_ts: Vec<u64> = candidate_ts.into_iter().filter(|t| !existing_ts.contains(t)).collect();
+    let mut new_ts: Vec<u64> = candidate_ts
+        .into_iter()
+        .filter(|t| !existing_ts.contains(t))
+        .collect();
     if new_ts.is_empty() {
         info!(target: "asr_ocr", "Resample: no new candidates");
         return Ok(ocr_frames.clone());
@@ -167,10 +171,14 @@ fn maybe_resample(
     for ms in &new_ts {
         let frame_path = resample_dir.join(format!("{:07}.jpg", ms));
         let ffmpeg_args = vec![
-            "-ss".into(), format!("{:.3}", *ms as f64 / 1000.0),
-            "-i".into(), video_path.clone(),
-            "-frames:v".into(), "1".into(),
-            "-qscale:v".into(), "2".into(),
+            "-ss".into(),
+            format!("{:.3}", *ms as f64 / 1000.0),
+            "-i".into(),
+            video_path.clone(),
+            "-frames:v".into(),
+            "1".into(),
+            "-qscale:v".into(),
+            "2".into(),
             frame_path.to_string_lossy().into_owned(),
         ];
         if crate::stages::utils::ffmpeg(&ffmpeg_args).is_ok() {
@@ -215,76 +223,14 @@ fn maybe_resample(
     Ok(merged)
 }
 
-/// fixOverlap implementation (mirrors TS `fixOverlap` in merge_frames.ts).
-fn fix_overlap(
-    asr_segs: &[OcrSegment],
-    raw_frames: &[FrameResult],
-    ocr_segs: &[OcrSegment],
-    max_advance_ms: u64,
-) -> Vec<OcrSegment> {
-    let mut fix = asr_segs.to_vec();
-    let mut sorted_frames = raw_frames.to_vec();
-    sorted_frames.sort_by_key(|f| f.timestamp);
-
-    // Step 1: boundary adjustment using raw frames
-    for i in 1..fix.len() {
-        let prev = fix[i - 1].clone();
-        let cur = fix[i].clone();
-        if cur.base.start_ms >= prev.base.end_ms {
-            continue;
-        }
-        let overlap_end = prev.base.end_ms.min(cur.base.end_ms);
-        for f in &sorted_frames {
-            if f.timestamp < cur.base.start_ms {
-                continue;
-            }
-            if f.timestamp > overlap_end {
-                break;
-            }
-            let d_cur = edit_distance(&f.text, &cur.base.text);
-            let d_prev = edit_distance(&f.text, &prev.base.text);
-            if d_cur <= 2 && d_cur < d_prev {
-                fix[i - 1].base.end_ms = f.timestamp;
-                fix[i].base.start_ms = f.timestamp;
-                break;
-            }
-        }
-    }
-
-    // Step 2: maxAdvanceMs check against ocrSegs
-    for seg in &mut fix {
-        let mut best_ocr: Option<&OcrSegment> = None;
-        let mut best_overlap = 0;
-        for o in ocr_segs {
-            let overlap = if seg.base.start_ms == seg.base.end_ms {
-                if seg.base.start_ms >= o.base.start_ms && seg.base.start_ms <= o.base.end_ms { 1 } else { 0 }
-            } else {
-                let ov = seg.base.end_ms.min(o.base.end_ms).saturating_sub(seg.base.start_ms.max(o.base.start_ms));
-                if ov > 0 { ov } else { 0 }
-            };
-            if overlap > best_overlap && edit_distance(&seg.base.text, &o.base.text) <= 2 {
-                best_overlap = overlap;
-                best_ocr = Some(o);
-            }
-        }
-        if let Some(o) = best_ocr {
-            if seg.base.start_ms + max_advance_ms < o.base.start_ms {
-                seg.base.start_ms = o.base.start_ms;
-            }
-        }
-    }
-
-    // Filter zero-length segments
-    fix.retain(|s| s.base.end_ms > s.base.start_ms);
-    fix
-}
-
 /// Final dedup: adjacent same text within 2000ms → merge.
 fn final_dedup(segs: Vec<OcrSegment>) -> Vec<OcrSegment> {
     let mut merged: Vec<OcrSegment> = Vec::new();
     for s in segs {
         if let Some(prev) = merged.last_mut() {
-            if prev.base.text.trim() == s.base.text.trim() && s.base.start_ms.saturating_sub(prev.base.end_ms) <= 2000 {
+            if prev.base.text.trim() == s.base.text.trim()
+                && s.base.start_ms.saturating_sub(prev.base.end_ms) <= 2000
+            {
                 prev.base.end_ms = s.base.end_ms;
                 prev.text_confidence = (prev.text_confidence + s.text_confidence) / 2.0;
                 continue;
@@ -320,10 +266,15 @@ pub fn stage_asr_ocr_fix(ctx: &TaskCtx) -> Result<()> {
     let ocr_frames_file = asr_ocr_dir(&task_dir).join("frames.json");
 
     if !asr_file.exists() {
-        return Err(anyhow::anyhow!("asr.json not found: {}", asr_file.display()));
+        return Err(anyhow::anyhow!(
+            "asr.json not found: {}",
+            asr_file.display()
+        ));
     }
     if !asr_split_file.exists() {
-        return Err(anyhow::anyhow!("asr_split.json not found, run asr_ocr_pre first"));
+        return Err(anyhow::anyhow!(
+            "asr_split.json not found, run asr_ocr_pre first"
+        ));
     }
     if !ocr_frames_file.exists() {
         return Err(anyhow::anyhow!("frames.json not found, run asr_ocr first"));
@@ -404,14 +355,25 @@ pub fn stage_asr_ocr_fix(ctx: &TaskCtx) -> Result<()> {
                     continue;
                 }
                 let overlap = if seg.base.base.start_ms == seg.base.base.end_ms {
-                    if seg.base.base.start_ms >= asr.start_ms && seg.base.base.start_ms <= asr.end_ms {
+                    if seg.base.base.start_ms >= asr.start_ms
+                        && seg.base.base.start_ms <= asr.end_ms
+                    {
                         1
                     } else {
                         0
                     }
                 } else {
-                    let ov = seg.base.base.end_ms.min(asr.end_ms).saturating_sub(seg.base.base.start_ms.max(asr.start_ms));
-                    if ov > 0 { ov } else { 0 }
+                    let ov = seg
+                        .base
+                        .base
+                        .end_ms
+                        .min(asr.end_ms)
+                        .saturating_sub(seg.base.base.start_ms.max(asr.start_ms));
+                    if ov > 0 {
+                        ov
+                    } else {
+                        0
+                    }
                 };
                 if overlap > best_overlap {
                     best_overlap = overlap;
@@ -434,9 +396,15 @@ pub fn stage_asr_ocr_fix(ctx: &TaskCtx) -> Result<()> {
         })
         .collect();
 
-    let asr_ocr_text = asr_ocr_segs.iter().map(|s| s.base.text.as_str()).collect::<Vec<_>>().join(" ");
+    let asr_ocr_text = asr_ocr_segs
+        .iter()
+        .map(|s| s.base.text.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
     let merged_result = AsrOcrMergedResult {
-        audio_info: AudioInfo { duration: asr_ocr_segs.last().map(|s| s.base.end_ms).unwrap_or(0) },
+        audio_info: AudioInfo {
+            duration: asr_ocr_segs.last().map(|s| s.base.end_ms).unwrap_or(0),
+        },
         engine: "asr_ocr".into(),
         fusion_params: serde_json::json!({
             "strategy": "end2fps",
@@ -475,7 +443,11 @@ pub fn stage_asr_ocr_fix(ctx: &TaskCtx) -> Result<()> {
     let fix = fix_overlap(&asr_ocr_segs, frames, &ocr_segs_for_fix, max_advance_ms);
     let deduped = final_dedup(fix);
 
-    let fix_text = deduped.iter().map(|s| s.base.text.as_str()).collect::<Vec<_>>().join(" ");
+    let fix_text = deduped
+        .iter()
+        .map(|s| s.base.text.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
     let fused_result = AsrOcrFusedResult {
         engine: "asr_ocr".into(),
         fusion_params: serde_json::json!({
@@ -523,7 +495,11 @@ pub fn stage_asr_ocr_fix(ctx: &TaskCtx) -> Result<()> {
                 for (seg, text) in llm_segments.iter_mut().zip(fixed) {
                     seg.base.text = text;
                 }
-                let llm_text = llm_segments.iter().map(|s| s.base.text.as_str()).collect::<Vec<_>>().join(" ");
+                let llm_text = llm_segments
+                    .iter()
+                    .map(|s| s.base.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ");
                 let llm_result = serde_json::json!({
                     "result": {
                         "text": llm_text,
@@ -570,15 +546,60 @@ mod tests {
         // raw frame "世界" at 950 is closer to cur ("世界") than prev ("你好")
         // so boundary should move from 900 to 950
         let asr_segs = vec![
-            OcrSegment { base: SubtitleSegment { text: "你好".into(), start_ms: 0, end_ms: 1000 }, y_range: None, text_confidence: 0.9, frame_count: None, frames: None },
-            OcrSegment { base: SubtitleSegment { text: "世界".into(), start_ms: 900, end_ms: 2000 }, y_range: None, text_confidence: 0.9, frame_count: None, frames: None },
+            OcrSegment {
+                base: SubtitleSegment {
+                    text: "你好".into(),
+                    start_ms: 0,
+                    end_ms: 1000,
+                },
+                y_range: None,
+                text_confidence: 0.9,
+                frame_count: None,
+                frames: None,
+            },
+            OcrSegment {
+                base: SubtitleSegment {
+                    text: "世界".into(),
+                    start_ms: 900,
+                    end_ms: 2000,
+                },
+                y_range: None,
+                text_confidence: 0.9,
+                frame_count: None,
+                frames: None,
+            },
         ];
-        let raw_frames = vec![
-            FrameResult { text: "世界".into(), text_confidence: 0.9, boxes: vec![], x_range: [0.,0.], y_range: [0.,0.], timestamp: 950 },
-        ];
+        let raw_frames = vec![FrameResult {
+            text: "世界".into(),
+            text_confidence: 0.9,
+            boxes: vec![],
+            x_range: [0., 0.],
+            y_range: [0., 0.],
+            timestamp: 950,
+        }];
         let ocr_segs = vec![
-            OcrSegment { base: SubtitleSegment { text: "你好".into(), start_ms: 0, end_ms: 1000 }, y_range: None, text_confidence: 0.9, frame_count: None, frames: None },
-            OcrSegment { base: SubtitleSegment { text: "世界".into(), start_ms: 950, end_ms: 2000 }, y_range: None, text_confidence: 0.9, frame_count: None, frames: None },
+            OcrSegment {
+                base: SubtitleSegment {
+                    text: "你好".into(),
+                    start_ms: 0,
+                    end_ms: 1000,
+                },
+                y_range: None,
+                text_confidence: 0.9,
+                frame_count: None,
+                frames: None,
+            },
+            OcrSegment {
+                base: SubtitleSegment {
+                    text: "世界".into(),
+                    start_ms: 950,
+                    end_ms: 2000,
+                },
+                y_range: None,
+                text_confidence: 0.9,
+                frame_count: None,
+                frames: None,
+            },
         ];
         let fix = fix_overlap(&asr_segs, &raw_frames, &ocr_segs, 500);
         assert_eq!(fix[0].base.end_ms, 950);
@@ -588,8 +609,28 @@ mod tests {
     #[test]
     fn final_dedup_merges_adjacent_same_text() {
         let segs = vec![
-            OcrSegment { base: SubtitleSegment { text: "hello".into(), start_ms: 0, end_ms: 1000 }, y_range: None, text_confidence: 0.9, frame_count: None, frames: None },
-            OcrSegment { base: SubtitleSegment { text: "hello".into(), start_ms: 1500, end_ms: 2000 }, y_range: None, text_confidence: 0.8, frame_count: None, frames: None },
+            OcrSegment {
+                base: SubtitleSegment {
+                    text: "hello".into(),
+                    start_ms: 0,
+                    end_ms: 1000,
+                },
+                y_range: None,
+                text_confidence: 0.9,
+                frame_count: None,
+                frames: None,
+            },
+            OcrSegment {
+                base: SubtitleSegment {
+                    text: "hello".into(),
+                    start_ms: 1500,
+                    end_ms: 2000,
+                },
+                y_range: None,
+                text_confidence: 0.8,
+                frame_count: None,
+                frames: None,
+            },
         ];
         let out = final_dedup(segs);
         assert_eq!(out.len(), 1);
@@ -600,56 +641,95 @@ mod tests {
     fn asr_align_only_snaps_on_text_match() {
         // 三个 OCR 段文本各不相同; 仅 "我再找别人托个梦" 与 ASR "我在找别人托个梦"
         // 匹配 (edit_distance=1), 其余不匹配的段必须保留自身时间, 不能塌缩到 ASR 时间。
-        let asr_segs = vec![
-            SubtitleSegment { text: "我在找别人托个梦".into(), start_ms: 42040, end_ms: 60690 },
-        ];
+        let asr_segs = vec![SubtitleSegment {
+            text: "我在找别人托个梦".into(),
+            start_ms: 42040,
+            end_ms: 60690,
+        }];
         let segs = vec![
             OcrSegmentWithAdjust {
                 base: OcrSegment {
-                    base: SubtitleSegment { text: "哦".into(), start_ms: 42040, end_ms: 42190 },
-                    y_range: None, text_confidence: 0.99, frame_count: Some(2), frames: None,
+                    base: SubtitleSegment {
+                        text: "哦".into(),
+                        start_ms: 42040,
+                        end_ms: 42190,
+                    },
+                    y_range: None,
+                    text_confidence: 0.99,
+                    frame_count: Some(2),
+                    frames: None,
                 },
-                adjusted_confidence: None, y_penalty: None, iso_penalty: None,
+                adjusted_confidence: None,
+                y_penalty: None,
+                iso_penalty: None,
             },
             OcrSegmentWithAdjust {
                 base: OcrSegment {
-                    base: SubtitleSegment { text: "姐".into(), start_ms: 58190, end_ms: 58690 },
-                    y_range: None, text_confidence: 0.99, frame_count: Some(2), frames: None,
+                    base: SubtitleSegment {
+                        text: "姐".into(),
+                        start_ms: 58190,
+                        end_ms: 58690,
+                    },
+                    y_range: None,
+                    text_confidence: 0.99,
+                    frame_count: Some(2),
+                    frames: None,
                 },
-                adjusted_confidence: None, y_penalty: None, iso_penalty: None,
+                adjusted_confidence: None,
+                y_penalty: None,
+                iso_penalty: None,
             },
             OcrSegmentWithAdjust {
                 base: OcrSegment {
-                    base: SubtitleSegment { text: "我再找别人托个梦".into(), start_ms: 59690, end_ms: 60690 },
-                    y_range: None, text_confidence: 0.99, frame_count: Some(3), frames: None,
+                    base: SubtitleSegment {
+                        text: "我再找别人托个梦".into(),
+                        start_ms: 59690,
+                        end_ms: 60690,
+                    },
+                    y_range: None,
+                    text_confidence: 0.99,
+                    frame_count: Some(3),
+                    frames: None,
                 },
-                adjusted_confidence: None, y_penalty: None, iso_penalty: None,
+                adjusted_confidence: None,
+                y_penalty: None,
+                iso_penalty: None,
             },
         ];
-        let asr_ocr_segs: Vec<OcrSegment> = segs.iter().map(|seg| {
-            let mut best_asr: Option<&SubtitleSegment> = None;
-            let mut best_overlap = 0;
-            for asr in &asr_segs {
-                if edit_distance(&seg.base.base.text, &asr.text) > 2 { continue; }
-                let ov = seg.base.base.end_ms.min(asr.end_ms).saturating_sub(seg.base.base.start_ms.max(asr.start_ms));
-                if ov > 0 && ov > best_overlap {
-                    best_overlap = ov;
-                    best_asr = Some(asr);
+        let asr_ocr_segs: Vec<OcrSegment> = segs
+            .iter()
+            .map(|seg| {
+                let mut best_asr: Option<&SubtitleSegment> = None;
+                let mut best_overlap = 0;
+                for asr in &asr_segs {
+                    if edit_distance(&seg.base.base.text, &asr.text) > 2 {
+                        continue;
+                    }
+                    let ov = seg
+                        .base
+                        .base
+                        .end_ms
+                        .min(asr.end_ms)
+                        .saturating_sub(seg.base.base.start_ms.max(asr.start_ms));
+                    if ov > 0 && ov > best_overlap {
+                        best_overlap = ov;
+                        best_asr = Some(asr);
+                    }
                 }
-            }
-            let mut s = seg.clone();
-            if let Some(a) = best_asr {
-                s.base.base.start_ms = a.start_ms;
-                s.base.base.end_ms = a.end_ms;
-            }
-            OcrSegment {
-                base: s.base.base.clone(),
-                y_range: s.base.y_range,
-                text_confidence: s.base.text_confidence,
-                frame_count: s.base.frame_count,
-                frames: s.base.frames.clone(),
-            }
-        }).collect();
+                let mut s = seg.clone();
+                if let Some(a) = best_asr {
+                    s.base.base.start_ms = a.start_ms;
+                    s.base.base.end_ms = a.end_ms;
+                }
+                OcrSegment {
+                    base: s.base.base.clone(),
+                    y_range: s.base.y_range,
+                    text_confidence: s.base.text_confidence,
+                    frame_count: s.base.frame_count,
+                    frames: s.base.frames.clone(),
+                }
+            })
+            .collect();
 
         // "哦"、"姐" 不匹配, 保留自身时间
         assert_eq!(asr_ocr_segs[0].base.start_ms, 42040);
