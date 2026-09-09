@@ -20,7 +20,7 @@ use crate::context::TaskCtx;
 use crate::stages::tts::args::{TtsArgs, TtsDevice, TtsRuntime};
 use crate::stages::tts::out::{TtsFile, TtsSegment};
 use crate::stages::utils::{
-    StagePatch, StageStatus, cargo_build_bin, ensure_dir, ffmpeg, find_release_bin,
+    StagePatch, StageStatus, ensure_dir, ffmpeg, find_release_bin,
     now_iso, probe_duration_ms, read_split_audio_timings, set_stage_anyhow, tts_filepath,
 };
 
@@ -64,7 +64,10 @@ fn read_args(ctx: &TaskCtx) -> TtsArgs {
 ///
 /// 仅用于非 cloud 运行时 (cloud 在 `stage_tts` 中直接走 `VoxCPMCloud`, 不调用本函数)。
 /// 因此这里只按 device 选 GPU 后端, runtime 参数仅用于报错信息。
-fn pick_voxcpm_bin(device: TtsDevice, runtime: TtsRuntime) -> anyhow::Result<String> {
+///
+/// voxcpm-burn 已迁至 vox-lab. 未来由预编译 release 下载提供 (`voxcpm-burn-{backend}`),
+/// 此处仅检查本机是否已有二进制 (含未来 release 下载落地的 `data/bin`), 不再自动本地编译。
+fn pick_voxcpm_bin(device: TtsDevice, _runtime: TtsRuntime) -> anyhow::Result<String> {
     let candidates: Vec<&str> = match device {
         TtsDevice::Cpu => vec!["voxcpm-burn-cpu"],
         TtsDevice::Rocm => vec!["voxcpm-burn-vulkan", "voxcpm-burn-wgpu"],
@@ -77,29 +80,13 @@ fn pick_voxcpm_bin(device: TtsDevice, runtime: TtsRuntime) -> anyhow::Result<Str
             return Ok(p.to_string_lossy().into_owned());
         }
     }
-    // 阶段内自动编译缺失二进制 (用户选项: 阶段内自动编译): 取首个候选后端编译后重试
-    let first = candidates
-        .first()
-        .copied()
-        .ok_or_else(|| anyhow::anyhow!("无可用 voxcpm-burn 后端候选为空 (device={device:?})"))?;
-    // 候选名 `voxcpm-burn-<feature>`, feature 即后缀
-    let first_feat = first.strip_prefix("voxcpm-burn-").unwrap_or("wgpu");
-    tracing::info!(target: "tts", 
-        "未找到 voxcpm-burn 二进制, 尝试自动编译 {first} (--features {first_feat})..."
+    // voxcpm-burn 正在迁移至 vox-lab (预编译 release), 暂不支持本地运行。
+    tracing::warn!(target: "tts",
+        "未找到 voxcpm-burn 二进制, voxcpm-burn 正在迁移中: 本地运行时暂不支持, 请使用 cloud 运行时 (tts.runtime = \"cloud\")"
     );
-    let _ = cargo_build_bin("voxcpm-burn", first, &[first_feat], false).map_err(|e| {
-        anyhow::anyhow!(
-            "{e}\n若编译失败, 请手动执行: cargo build --release -p voxcpm-burn --bin {first} --no-default-features --features {first_feat}"
-        )
-    })?;
-    if let Some(p) = find_release_bin(first) {
-        return Ok(p.to_string_lossy().into_owned());
-    }
-    // 回退: 编译成功但产物仍缺失 (理论上不会发生), 引导用户先 build
     Err(anyhow::anyhow!(
-        "未找到 voxcpm-burn 二进制 (profile: {:?}/{:?})。请先 cargo build --release -p voxcpm-burn",
-        device,
-        runtime
+        "voxcpm-burn 正在迁移中: 未找到本地二进制 (候选: {}), 请使用 cloud 运行时",
+        candidates.join(", ")
     ))
 }
 

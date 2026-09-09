@@ -18,7 +18,6 @@ use crate::cmd::env::items::{
     demucs_burn_tch_bin_path, demucs_burn_wgpu_bin_path,
 };
 use crate::input::Input;
-use crate::stages::tts::args::TtsDevice;
 
 /// 检查状态 (serde 小写对齐 TS 字符串 "pass"/"warn"/"fail"/"skip")。
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
