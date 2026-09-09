@@ -12,6 +12,7 @@
 use crate::context::read_ctx;
 use crate::stages::asr::fix::stage_asr_fix;
 use crate::stages::asr::stage_asr;
+use crate::stages::asr_ocr::{fix::stage_asr_ocr_fix, ocr::stage_asr_ocr, pre::stage_asr_ocr_pre};
 use crate::stages::get_stages;
 use crate::stages::mix_audio::stage_mix_audio;
 use crate::stages::mix_video::stage_mix_video;
@@ -144,6 +145,9 @@ pub fn has_handler(stage: &str) -> bool {
             | "split_audio"
             | "asr"
             | "asr_fix"
+            | "asr_ocr_pre"
+            | "asr_ocr"
+            | "asr_ocr_fix"
             | "tts"
             | "mix_audio"
             | "mix_video"
@@ -168,6 +172,9 @@ pub fn run_stage(stage: &str, task_dir: &str) -> anyhow::Result<()> {
         "split_audio" => stage_split_audio(&ctx),
         "asr" => stage_asr(&ctx),
         "asr_fix" => stage_asr_fix(&ctx),
+        "asr_ocr_pre" => stage_asr_ocr_pre(&ctx),
+        "asr_ocr" => stage_asr_ocr(&ctx),
+        "asr_ocr_fix" => stage_asr_ocr_fix(&ctx),
         "tts" => stage_tts(&ctx),
         "mix_video" => stage_mix_video(&ctx),
         "mix_audio" => stage_mix_audio(&ctx),

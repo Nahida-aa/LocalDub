@@ -4419,7 +4419,9 @@ dependencies = [
  "llm",
  "mdns-sd",
  "mdns-sd-discovery",
+ "ocr-types",
  "pacer-rs",
+ "regex",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
@@ -4428,6 +4430,7 @@ dependencies = [
  "specta-jsonschema",
  "specta-serde",
  "specta-typescript",
+ "subtitle-ocr-post",
  "time 0.1.0",
  "tokio",
  "tracing",
@@ -5375,6 +5378,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff76201f031d8863c38aa7f905eca4f53abbfa15f609db4277d44cd8938f33fe"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "ocr-types"
+version = "0.1.0"
+source = "git+https://github.com/Nahida-aa/vision-lab?rev=f0e03a7#f0e03a7fe9edf84bec6ee94c683eba3b50d141d1"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -7260,6 +7271,16 @@ name = "subtitle-asr"
 version = "0.1.0"
 
 [[package]]
+name = "subtitle-ocr-post"
+version = "0.1.0"
+source = "git+https://github.com/Nahida-aa/vision-lab?rev=f0e03a7#f0e03a7fe9edf84bec6ee94c683eba3b50d141d1"
+dependencies = [
+ "ocr-types",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8663,10 +8684,6 @@ dependencies = [
  "serde_derive_internals",
  "syn 2.0.119",
 ]
-
-[[package]]
-name = "tts"
-version = "0.1.0"
 
 [[package]]
 name = "type-map"

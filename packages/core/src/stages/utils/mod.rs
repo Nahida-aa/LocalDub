@@ -426,6 +426,19 @@ pub fn sf_ocr_fix_dir(task_dir: &str) -> PathBuf {
     Path::new(task_dir).join("sf_ocr_fix")
 }
 
+/// asr_ocr_pre 分割 ASR + 抽帧目录
+pub fn asr_ocr_pre_dir(task_dir: &str) -> PathBuf {
+    Path::new(task_dir).join("asr_ocr_pre")
+}
+/// asr_ocr OCR 结果目录
+pub fn asr_ocr_dir(task_dir: &str) -> PathBuf {
+    Path::new(task_dir).join("asr_ocr")
+}
+/// asr_ocr_fix 融合修正结果目录
+pub fn asr_ocr_fix_dir(task_dir: &str) -> PathBuf {
+    Path::new(task_dir).join("asr_ocr_fix")
+}
+
 /// 取 video_source_path (缺则报错, 与 TS `video_source_path` 一致)。
 pub fn video_source_path(ctx: &crate::context::TaskCtx) -> anyhow::Result<String> {
     ctx.video_source_path

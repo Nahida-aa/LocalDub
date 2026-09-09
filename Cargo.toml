@@ -3,7 +3,7 @@ resolver = "3"
 members = [
     "packages/bridge", "packages/config-rs", "packages/core", "packages/device-rs",
     "packages/time", "packages/voxcpm-burn", "packages/app/src-tauri",
-    "packages/fs", "packages/server", "packages/tts",
+    "packages/fs", "packages/server",
     "packages/sdk", "packages/cli", "packages/env", "packages/subtitle-asr", "packages/llm", "packages/pacer-rs",
 ]
 
@@ -24,7 +24,10 @@ llm = { path = "packages/llm" }
 pacer-rs = { path = "packages/pacer-rs" }
 server = { path = "packages/server" }
 time = { path = "packages/time" }
-voxcpm-cloud = { git = "https://github.com/Nahida-aa/vox-lab", tag = "v0.1.1" }
+voxcpm-cloud = { git = "https://github.com/Nahida-aa/vox-lab", tag = "v0.1.2" }
+ocr-types = { git = "https://github.com/Nahida-aa/vision-lab", rev = "f0e03a7" }
+subtitle-ocr-post = { git = "https://github.com/Nahida-aa/vision-lab", rev = "f0e03a7" }
+regex = "1"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 mdns-sd = "0.21"

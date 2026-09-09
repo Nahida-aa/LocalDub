@@ -10,10 +10,7 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use crate::context::TaskCtx;
-use crate::stages::utils::{
-    StagePatch, StageStatus, cargo_build_bin, now_iso, separate_dir, set_stage,
-    set_stage_anyhow,
-};
+use crate::stages::utils::{StagePatch, StageStatus, now_iso, separate_dir, set_stage, set_stage_anyhow};
 
 pub use after::stage_separate_after;
 pub use args::SeparateArgs;
