@@ -3,8 +3,8 @@
 //! 设计抉择 (见 plan):
 //! - i18n: TS 用 `@repo/shared/i18n` 的 `t(key)`; Rust 无框架, 各 check 在 `data`
 //!   里给出简化 `msg` 字段, `format_result` 直接打印 + 中文描述 (input::zh_desc)。
-//! - try_exec 超时: TS 用 `spawnSync` 10s 超时; Rust 用 `output()` 同步阻塞
-//!   (不实现精确超时, 标注 TODO, 10s 阻塞可接受)。
+//! - try_exec 超时: TS 用 `spawnSync` 10s 超时; Rust 用 spawn + try_wait 轮询 +
+//!   超时 kill (`TRY_EXEC_TIMEOUT`), 超时视为 ok=false (对齐 TS)。
 //! - ollama 分离进程: 用 `std::process::Command` + `Stdio::null()` + unix
 //!   `process_group(0)` (win 用 `CREATE_NEW_PROCESS_GROUP`) 替代 `spawn detached`。
 
@@ -25,23 +25,57 @@ use crate::cmd::env::{CheckResult, CheckStatus};
 // 本地 helper
 // ---------------------------------------------------------------------------
 
-/// 同步执行命令 (镜像 TS `tryExec`)。TODO: 实现精确 10s 超时 (目前同步阻塞)。
+/// 镜像 TS `tryExec` (spawnSync timeout:10s): 同步执行命令, 超时 kill 视为 ok=false。
 fn try_exec(cmd: &str, args: &[&str], cwd: Option<&Path>) -> (bool, String, String) {
+    use std::io::Read;
+    use std::process::Stdio;
+
     let mut c = Command::new(cmd);
     c.args(args);
     if let Some(dir) = cwd {
         c.current_dir(dir);
     }
     c.stdout(Stdio::piped()).stderr(Stdio::piped());
-    match c.output() {
-        Ok(out) => {
-            let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
-            (out.status.success(), stdout, stderr)
+    let mut child = match c.spawn() {
+        Ok(child) => child,
+        Err(_) => return (false, String::new(), String::new()),
+    };
+    let deadline = std::time::Instant::now() + TRY_EXEC_TIMEOUT;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                // 退出后用剩余 stdout/stderr 管道读取完整输出 (与 TS trim 语义一致)
+                let mut stdout = String::new();
+                let mut stderr = String::new();
+                let _ = child
+                    .stdout
+                    .take()
+                    .map(|mut h| h.read_to_string(&mut stdout));
+                let _ = child
+                    .stderr
+                    .take()
+                    .map(|mut h| h.read_to_string(&mut stderr));
+                return (
+                    status.success(),
+                    stdout.trim().to_string(),
+                    stderr.trim().to_string(),
+                );
+            }
+            Ok(None) => {
+                if std::time::Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return (false, String::new(), String::new());
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+            Err(_) => return (false, String::new(), String::new()),
         }
-        Err(_) => (false, String::new(), String::new()),
     }
 }
+
+/// `tryExec` 超时 (镜像 TS spawnSync timeout:10s)。
+const TRY_EXEC_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 fn file_size(path: &Path) -> Option<u64> {
     std::fs::metadata(path).ok().map(|m| m.len())
@@ -1740,5 +1774,35 @@ mod tests {
 
         extract_zip_flat(&dir, &zip_path).unwrap();
         assert_eq!(std::fs::read(dir.join("subtitle-ocr.exe")).unwrap(), b"fresh");
+    }
+
+    #[test]
+    fn try_exec_returns_trimmed_output_on_success() {
+        // 快速命令正常返回, 输出去空白 (镜像 TS tryExec)
+        let (ok, out, _) = try_exec("bun", &["--version"], None);
+        // bun 可能未安装; 该场景走 false 分支, 不影响其它断言
+        if ok {
+            assert!(!out.is_empty());
+        }
+
+        let (ok, out, _) = try_exec("cargo", &["--version"], None);
+        if ok {
+            assert!(out.contains("cargo"));
+        }
+    }
+
+    #[test]
+    fn try_exec_times_out_and_kills_hung_command() {
+        // 慢命令: sleep 30 > TRY_EXEC_TIMEOUT(10s) → 超时 kill, ok=false
+        // 验证超时路径真生效 (而非卡死)。unix-only (sleep 命令)。
+        let start = std::time::Instant::now();
+        let (ok, out, _) = try_exec("sleep", &["30"], None);
+        let elapsed = start.elapsed();
+        assert!(!ok, "超时应返回 false");
+        assert!(out.is_empty());
+        assert!(
+            elapsed < std::time::Duration::from_secs(15),
+            "应在超时窗口内返回, 实际 {elapsed:?}"
+        );
     }
 }

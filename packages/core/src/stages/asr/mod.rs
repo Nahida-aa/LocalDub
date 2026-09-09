@@ -8,6 +8,7 @@ pub mod fix;
 pub mod fix_args;
 pub mod out;
 
+use std::path::PathBuf;
 use std::process::Command;
 
 use anyhow::{Context, anyhow};
@@ -28,6 +29,14 @@ fn read_args(ctx: &TaskCtx) -> AsrArgs {
         .and_then(|v| v.get("asr"))
         .and_then(|v| serde_json::from_value(v.clone()).ok())
         .unwrap_or_default()
+}
+
+/// 解析 ASR 人声基线路径 (镜像 TS asr.ts:30: vocalAudioPath 覆盖默认 vocals 路径)。
+fn resolve_audio_vocal(cfg: &AsrArgs, task_dir: &str) -> PathBuf {
+    cfg.vocal_audio_path
+        .clone()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| vocals_path(task_dir))
 }
 
 /// 入口 (镜像 TS `stageAsr`)。
@@ -53,7 +62,7 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
     }
 
     // —— 解析输入音频 (镜像 TS stageAsr 的 useSeparated / mixed / gated 逻辑) ——
-    let audio_vocal = vocals_path(&task_dir);
+    let audio_vocal = resolve_audio_vocal(&cfg, &task_dir);
     let video_source = video_source_path(ctx)?;
 
     let mut audio_path: String = if cfg.use_separated {
@@ -577,5 +586,18 @@ mod tests {
         let r = stage_asr(&ctx);
         assert!(r.is_err(), "video source 缺失应报错");
         assert!(r.unwrap_err().to_string().contains("ASR input not found"));
+    }
+
+    #[test]
+    fn resolve_audio_vocal_uses_vocal_audio_path_when_set() {
+        // 镜像 TS asr.ts:30: vocalAudioPath 覆盖默认 vocals 路径 (调试用途)
+        let mut cfg = AsrArgs::default();
+        cfg.vocal_audio_path = Some("/custom/vocals.wav".into());
+        let p = resolve_audio_vocal(&cfg, "/taskdir");
+        assert_eq!(p, PathBuf::from("/custom/vocals.wav"));
+
+        let cfg = AsrArgs::default();
+        let p = resolve_audio_vocal(&cfg, "/taskdir");
+        assert_eq!(p, vocals_path("/taskdir"));
     }
 }

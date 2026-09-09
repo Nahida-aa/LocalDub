@@ -232,9 +232,25 @@ pub fn stage_mix_video(ctx: &TaskCtx) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// 构造 subtitles 滤镜参数 (镜像 TS `subFilterArg`)。
+/// win32 下 libass 路径转义 (镜像 TS `filterSubPath`): `\`→`/`、`:`→`\:` (冒号是路径分隔符)。
+///
+/// 独立 w 函数便于无平台依赖测试 (调用处用 [`filter_sub_path`] 按编译平台分发)。
+fn win_filter_sub_path(sub_path: &str) -> String {
+    sub_path.replace('\\', "/").replace(':', "\\:")
+}
+
+/// 按当前平台构造 libass 字幕路径 (镜像 TS `filterSubPath`)。
+fn filter_sub_path(sub_path: &str) -> String {
+    if cfg!(windows) {
+        win_filter_sub_path(sub_path)
+    } else {
+        sub_path.to_string()
+    }
+}
+
+/// 构造 subtitles 滤镜参数 (镜像 TS `subFilterArg`): filename= 包裹路径, 转义单引号。
 fn sub_filter_arg(sub_path: &str, style: &str) -> String {
-    let escaped = sub_path.replace('\'', "\\'");
+    let escaped = filter_sub_path(sub_path).replace('\'', "\\'");
     format!("subtitles=filename='{escaped}':force_style='{style}'")
 }
 
@@ -459,6 +475,34 @@ mod tests {
         assert!(f.starts_with("subtitles=filename='"));
         assert!(!f.contains("'sub.srt")); // 单引号被转义
         assert!(f.contains("\\'"));
+    }
+
+    #[test]
+    fn win_filter_sub_path_escapes_backslash_and_colon() {
+        // 镜像 TS filterSubPath win32 分支: 先 \→/, 再 :→\:  (顺序敏感, 与 TS replace 链一致)
+        let p = win_filter_sub_path(r"C:\videos\sub-title.srt");
+        // C:\videos → C:/videos → C\:/videos (冒号被打上 \: 前缀)
+        assert_eq!(p, "C\\:/videos/sub-title.srt");
+
+        let p2 = win_filter_sub_path(r"D:\a\b\c.srt");
+        assert_eq!(p2, "D\\:/a/b/c.srt");
+    }
+
+    #[test]
+    fn win_filter_sub_path_replaces_all_backslashes() {
+        let p = win_filter_sub_path(r"C:\a\b\c.srt");
+        assert!(!p.contains('\\') || p.contains("\\:"), "仅保留 : 转义的 \\ 前缀");
+        let p3 = win_filter_sub_path(r"\relative\path\f.srt");
+        // 无冒号: 全部 \ 变 /, 不引入 \:
+        assert_eq!(p3, "/relative/path/f.srt");
+    }
+
+    #[test]
+    fn filter_sub_path_non_windows_passthrough() {
+        // 非 win32: 原样返回。win32 归 win_filter_sub_path 处理。
+        if !cfg!(windows) {
+            assert_eq!(filter_sub_path("/unix/path.srt"), "/unix/path.srt");
+        }
     }
 
     #[test]
