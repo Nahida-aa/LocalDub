@@ -249,7 +249,9 @@ export async function checkDemucsGgmlBin(): Promise<CheckResult> {
 }
 
 export async function checkVoxcpmBurnBin(): Promise<CheckResult> {
-  // 遗留旧代码: voxcpm-burn 已迁至 vox-lab, LocalDub 暂用云端 TTS (Rust 侧已移除 voxcpm_burn_bin 检查)。Rust 移植完毕后清理。
+  // 遗留旧代码: voxcpm-burn 已迁至 vox-lab, LocalDub 暂用云端 TTS (Rust 侧已移除 voxcpm_burn_bin 检查)。
+  // 注意: submodule/voxcpm-rs 与 packages/voxcpm-burn 均已从本仓库删除, 以下 getLatestSource 路径引用仅为历史残留。
+  // Rust 移植完毕后清理。
   const dir = join(REPO_ROOT, "target", "release");
   if (!existsSync(dir))
     return { key: "voxcpm_burn_bin", status: "fail", data: {}, required: false };

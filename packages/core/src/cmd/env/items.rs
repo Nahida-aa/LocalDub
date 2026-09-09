@@ -439,9 +439,6 @@ fn check_submodule(rel: &str, key: &str) -> CheckResult {
 pub fn check_submodule_demucs_cpp() -> CheckResult {
     check_submodule("submodule/demucs.cpp", "submodule_demucs_cpp")
 }
-pub fn check_submodule_voxcpm_rs() -> CheckResult {
-    check_submodule("submodule/voxcpm-rs", "submodule_voxcpm_rs")
-}
 
 // ---------------------------------------------------------------------------
 // 编译产物检查
@@ -1659,7 +1656,6 @@ pub fn all_checks() -> HashMap<&'static str, fn() -> CheckResult> {
     m.insert("voxcpm2_onnx", check_voxcpm2_onnx);
     m.insert("voxcpm2_pth", check_voxcpm2_pth);
     m.insert("submodule_demucs_cpp", check_submodule_demucs_cpp);
-    m.insert("submodule_voxcpm_rs", check_submodule_voxcpm_rs);
     m.insert("whisper_bin", check_whisper_bin);
     m.insert("demucs_ggml_bin", check_demucs_ggml_bin);
     m.insert("demucs_burn_bin", || check_demucs_burn_bin(None));

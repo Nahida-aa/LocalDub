@@ -72,9 +72,6 @@ lto = "fat"
 codegen-units = 1
 
 [patch.crates-io]
-voxcpm-rs = { path = "submodule/voxcpm-rs" }
-burn-cubecl = { path = "submodule/voxcpm-rs/vendor/patched/burn-cubecl" }
-cubecl-spirv = { path = "submodule/voxcpm-rs/vendor/patched/cubecl-spirv" }
 # Specta rc.26 crates are not yet published to crates.io; track the exact
 # commit tauri-specta uses so we stay in sync with upstream behaviour
 # (including serde variant/field renames via `specta-serde::PhasesFormat`).

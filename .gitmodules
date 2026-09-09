@@ -5,12 +5,6 @@
 [submodule "submodule/CosyVoice"]
 	path = submodule/CosyVoice
 	url = https://github.com/FunAudioLLM/CosyVoice.git
-[submodule "submodule/VoxCPM"]
-	path = submodule/VoxCPM
-	url = https://github.com/OpenBMB/VoxCPM.git
 [submodule "demucs.cpp"]
 	path = submodule/demucs.cpp
 	url = https://github.com/sevagh/demucs.cpp.git
-[submodule "submodule/voxcpm-rs"]
-	path = submodule/voxcpm-rs
-	url = git@github.com:Nahida-aa/voxcpm-rs.git
