@@ -79,10 +79,11 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
         add("subtitle_ocr_bin", &mut set);
         add("ocr_post_bin", &mut set);
     }
-    // asr_ocr 阶段 (flatten 复用 SfOcrArgs, 无 enabled 开关) → 旧 TS 路径仍用 ocr_cpp_bin
-    // 仅当 subtitle_source 非纯 asr 时纳入 (asr 流程也会跑 asr_ocr 做校正)
+    // asr_ocr 阶段 (Rust 移植) 依赖 vision-lab Release 二进制 subtitle_ocr_bin
+    // (见 stages/asr_ocr/{ocr.rs, fix.rs} 的 ensure_bin("subtitle_ocr_bin"))。
+    // 旧 TS 路径的本地 ort-cpp 构建 (ocr_cpp_bin) 已停止支持。
     if subtitle_source != SubtitleSource::Asr {
-        add("ocr_cpp_bin", &mut set);
+        add("subtitle_ocr_bin", &mut set);
     }
 
     // --- asr ---
@@ -241,13 +242,13 @@ pub fn ensure_bin(key: &str) -> anyhow::Result<PathBuf> {
 
 /// 根据 env key 推断二进制路径 (委托 items.rs, 与下载/check 路径保持一致)。
 fn bin_path_from_key(key: &str) -> PathBuf {
-    use config_rs::path::models::{bin_dir, whisper_vulkan_path};
     match key {
         "subtitle_finder_bin" => subtitle_finder_bin_path(),
         "subtitle_ocr_bin" => subtitle_ocr_bin_path(),
         "ocr_post_bin" => ocr_post_bin_path(),
         "demucs_burn_tch_bin" => demucs_burn_tch_bin_path(),
         "demucs_burn_wgpu_bin" => demucs_burn_wgpu_bin_path(),
+        "whisper_bin" => crate::cmd::env::items::whisper_vulkan_bin_path(),
         "ocr_cpp_bin" => {
             let name = if cfg!(windows) { "subtitle_ocr_ort_cpp.exe" } else { "subtitle_ocr_ort_cpp" };
             let base = config_rs::root::repo_root()
@@ -261,7 +262,6 @@ fn bin_path_from_key(key: &str) -> PathBuf {
                 base.join(name)
             }
         }
-        "whisper_bin" => whisper_vulkan_path(),
         _ => PathBuf::from(key), // 兜底
     }
 }

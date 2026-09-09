@@ -464,27 +464,10 @@ pub fn check_submodule_voxcpm_rs() -> CheckResult {
 // 编译产物检查
 // ---------------------------------------------------------------------------
 
+/// whisper-vulkan 由 vox-lab 预编译发布 (ReleaseBinSpec), 见 `WHISPER_VULKAN`。
+/// 不再要求本地 cmake 构建 submodule/whisper.cpp; 本地构建仅作开发调试 (submodule_whisper_cpp)。
 pub fn check_whisper_bin() -> CheckResult {
-    let path = config_rs::path::models::whisper_vulkan_path();
-    if !path.exists() {
-        return CheckResult {
-            key: "whisper_bin".into(),
-            status: CheckStatus::Fail,
-            data: json!({ "msg": "whisper-vulkan 未编译" }),
-            required: false,
-        };
-    }
-    let stale = is_stale(&path, &["submodule/whisper.cpp/"]);
-    CheckResult {
-        key: "whisper_bin".into(),
-        status: if stale {
-            CheckStatus::Warn
-        } else {
-            CheckStatus::Pass
-        },
-        data: json!({ "path": path.display().to_string(), "msg": if stale { "可能过时" } else { "已编译" } }),
-        required: false,
-    }
+    check_release_bin(&WHISPER_VULKAN)
 }
 
 pub fn check_demucs_ggml_bin() -> CheckResult {
@@ -1075,6 +1058,10 @@ fn spawn_detached(bin: &str, args: &[&str]) {
 
 // ---------------------------------------------------------------------------
 // OCR C++ 二进制 (镜像 packages/env/items/ocr_cpp_bin.ts)
+//
+// 注意: ocr_cpp_bin 是旧 TS 路径 (本地 ort-cpp 构建) 所需, Rust 移植后 asr_ocr/sf_ocr
+// 均改走 vision-lab Release 二进制 subtitle_ocr_bin, 此处已暂停支持 (仅保留 check/ensure
+// 兼容旧 env 列表)。如需恢复, 需先接入某个 Rust stage 的 ensure_bin 依赖。
 // ---------------------------------------------------------------------------
 
 pub fn ocr_cpp_bin_path() -> PathBuf {
@@ -1304,6 +1291,24 @@ const DEMUCS_BURN_WGPU: ReleaseBinSpec = ReleaseBinSpec {
     stamp: ".demucs_burn_wgpu.version.json",
 };
 
+/// whisper-vulkan (vox-lab 预编译 whisper.cpp, GGML_VULKAN)。
+///
+/// whisper.cpp 官方 Release 只发 CPU/cublas 构建, 无 Vulkan 构建, 由 vox-lab
+/// `release-whisper-linux.yml` 自建 CI 预编译 (GGML_NATIVE=OFF 便携基线)。
+/// zip 内平铺 whisper-vulkan + libwhisper/libggml/libparakeet .so (运行时 LD_LIBRARY_PATH=bin_dir)。
+const WHISPER_VULKAN: ReleaseBinSpec = ReleaseBinSpec {
+    key: "whisper_bin",
+    bin: "whisper-vulkan",
+    repo: "Nahida-aa/vox-lab",
+    tag: "whisper-cpp-v0.1.0",
+    zip: true,
+    linux_asset: "whisper-vulkan-x86_64-unknown-linux-gnu.zip",
+    linux_sha256: "1bdb026180cd21eaf31d84521ec64e92b32af261c32c87d2ca518337c2563c0c",
+    windows_asset: None,
+    windows_sha256: None,
+    stamp: ".whisper_vulkan.version.json",
+};
+
 /// 当前平台的资产 (asset 名, sha256); 平台未发布返回 None。
 fn current_platform_asset(spec: &ReleaseBinSpec) -> Option<(&'static str, &'static str)> {
     if cfg!(windows) {
@@ -1432,7 +1437,7 @@ fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
         return CheckResult {
             key: spec.key.to_string(),
             status: CheckStatus::Fail,
-            data: json!({ "msg": format!("{} 暂无 {} 发布资产, 请等待 vision-lab 发布或在此平台源码构建", spec.bin, platform_label()) }),
+            data: json!({ "msg": format!("{} 暂无 {} 发布资产, 请等待 {} 发布或在此平台源码构建", spec.bin, platform_label(), spec.repo) }),
             required: false,
         };
     };
@@ -1523,7 +1528,7 @@ fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
         return CheckResult {
             key: spec.key.to_string(),
             status: CheckStatus::Fail,
-            data: json!({ "msg": format!("{} 暂无 {} 发布资产, 请等待 vision-lab 发布或在此平台源码构建", spec.bin, platform_label()) }),
+            data: json!({ "msg": format!("{} 暂无 {} 发布资产, 请等待 {} 发布或在此平台源码构建", spec.bin, platform_label(), spec.repo) }),
             required: false,
         };
     };
@@ -1734,6 +1739,14 @@ pub fn demucs_burn_wgpu_bin_path() -> PathBuf {
     release_bin_path(&DEMUCS_BURN_WGPU)
 }
 
+/// whisper-vulkan 目标二进制路径 (release 下载落到 bin_dir)。
+pub fn whisper_vulkan_bin_path() -> PathBuf {
+    release_bin_path(&WHISPER_VULKAN)
+}
+fn ensure_whisper_bin() -> CheckResult {
+    ensure_release_bin(&WHISPER_VULKAN)
+}
+
 // ---------------------------------------------------------------------------
 // ensure: dotenv
 // ---------------------------------------------------------------------------
@@ -1829,6 +1842,7 @@ pub fn ensure_fns() -> HashMap<&'static str, fn() -> CheckResult> {
     m.insert("ocr_post_bin", ensure_ocr_post_bin);
     m.insert("demucs_burn_tch_bin", ensure_demucs_burn_tch_bin);
     m.insert("demucs_burn_wgpu_bin", ensure_demucs_burn_wgpu_bin);
+    m.insert("whisper_bin", ensure_whisper_bin);
     m
 }
 

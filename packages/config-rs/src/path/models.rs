@@ -6,13 +6,15 @@ fn whisper_cpp_dir() -> PathBuf {
     repo_root().join("submodule").join("whisper.cpp")
 }
 
-/// 定位 whisper.cpp Vulkan 构建产物 `whisper-vulkan` (ggml 运行时)。
+/// 定位 whisper-vulkan 二进制路径。
 ///
-/// 镜像 TS `whisperVulkanPath`: 依次尝试
-/// `build/bin/whisper-vulkan`、`build/Release/whisper-vulkan`、
-/// `build/bin/Release/whisper-vulkan`、`build/whisper-vulkan`,
-/// 命中即返回; 全部缺失时回退到 `build/bin/whisper-vulkan` (提示构建)。
+/// 优先 vox-lab Release 下载落位 (`bin_dir()/whisper-vulkan`, 运行时主路径);
+/// 未下载时回退到本地 submodule cmake 构建产物 (开发调试)。
 pub fn whisper_vulkan_path() -> PathBuf {
+    let release = bin_dir().join("whisper-vulkan");
+    if release.exists() {
+        return release;
+    }
     let base = whisper_cpp_dir().join("build");
     let candidates = [
         base.join("bin").join("whisper-vulkan"),
@@ -25,7 +27,7 @@ pub fn whisper_vulkan_path() -> PathBuf {
             return c.clone();
         }
     }
-    candidates[0].clone()
+    release
 }
 
 /// app data 根目录 (镜像 TS `DATA_DIR` = <repo>/data)。

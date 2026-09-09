@@ -11,7 +11,7 @@ pub mod out;
 use std::process::Command;
 
 use anyhow::{Context, anyhow};
-use config_rs::path::models::{whisper_model_path, whisper_vulkan_path};
+use config_rs::path::models::whisper_model_path;
 
 use crate::context::{TaskCtx, write_ctx};
 use crate::stages::asr::args::{AsrArgs, VadModel};
@@ -107,13 +107,13 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
         wav.to_string_lossy().to_string()
     };
 
-    let whisper_cli = whisper_vulkan_path();
-    if !whisper_cli.exists() {
-        return Err(anyhow!(
-            "whisper-vulkan 未构建: {}; 请先在 submodule/whisper.cpp 执行 `cmake -B build -DGGML_VULKAN=ON && cmake --build build --config Release -j4`",
-            whisper_cli.display()
-        ));
-    }
+    let whisper_cli = crate::cmd::env::ensure_bin("whisper_bin").map_err(|e| {
+        anyhow!(
+            "whisper-vulkan 未就绪: {e}\n\
+             尝试: cargo run -p cli -- env --action ensure --targets whisper_bin\n\
+             或本地构建 submodule/whisper.cpp: cmake -B build -DGGML_VULKAN=ON && cmake --build build --config Release -j4"
+        )
+    })?;
     let model = whisper_model_path();
     if !model.exists() {
         return Err(anyhow!(
@@ -168,9 +168,22 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
     );
 
     let t0 = std::time::Instant::now();
-    let status = Command::new(&whisper_cli)
-        .args(&whisper_args)
-        .status()
+    // vox-lab release zip 把 libwhisper/libggml/libparakeet .so 平铺在 bin_dir,
+    // 需注入 LD_LIBRARY_PATH 才能命中 (镜像 demucs-tch 的 libtorch 处理)。
+    let mut cmd = Command::new(&whisper_cli);
+    cmd.args(&whisper_args);
+    #[cfg(target_os = "linux")]
+    {
+        let bin_dir = config_rs::path::models::bin_dir();
+        let existing = std::env::var("LD_LIBRARY_PATH").unwrap_or_default();
+        let lib_path = if existing.is_empty() {
+            bin_dir.to_string_lossy().into_owned()
+        } else {
+            format!("{}:{}", bin_dir.display(), existing)
+        };
+        cmd.env("LD_LIBRARY_PATH", lib_path);
+    }
+    let status = cmd.status()
         .map_err(|e| anyhow!("spawn whisper-vulkan 失败: {e}"))?;
     let elapsed_sec = t0.elapsed().as_secs_f64();
     if !status.success() {
