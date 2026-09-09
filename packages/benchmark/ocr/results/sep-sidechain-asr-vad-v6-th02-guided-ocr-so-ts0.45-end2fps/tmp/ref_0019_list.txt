@@ -1,2 +1,0 @@
-file '/home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/segments/vocals/0019.wav'
-file '/home/aa/repos/env_ls/LocalDub/packages/benchmark/ocr/results/sep-sidechain-asr-vad-v6-th02-guided-ocr-so-ts0.45-end2fps/segments/vocals/0019.wav'
