@@ -1,9 +1,0 @@
-{
-  "name": "@repo/voxcpm-torch-server",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "server": "uv run python server.py",
-    "dev": "uv run python server.py --reload"
-  }
-}
