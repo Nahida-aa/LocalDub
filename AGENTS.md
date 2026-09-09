@@ -48,11 +48,14 @@ Before editing files for a substantial task:
 | `packages/demucs_torch_server/` | `packages/demucs_torch_server/` | / |
 | `packages/servers_py/` | `packages/servers_py/` | 两个 torch server 的共享 Python 包 |
 | `submodule/whisper.cpp/` | `submodule/whisper.cpp/` | whisper-vulkan 由 vox-lab release 分发 |
+| `submodule/VoxCPM/`、`submodule/voxcpm-rs/` | `submodule/VoxCPM/`、`submodule/voxcpm-rs/` | TTS 推理，voxcpm-burn 未来走 release |
+| `submodule/demucs/`、`submodule/CosyVoice/` | `submodule/demucs/`、`submodule/CosyVoice/` | 研究 / 基准参考源码 |
+| `submodule/demucs.cpp/` | `submodule/demucs.cpp/` | ggml 已退役：LocalDub separate 用 demucs-burn |
 | —（utils 辅助） | `packages/util/` | `cargo_build_cmd` / `cargo_build_bin` 自动编译 helper |
 | `packages/asr/`、`packages/tts/` | — | 已删除（遗留 TS/Rust 模块） |
 
 - vox-lab 根 `pyproject.toml` 为 uv workspace（含 `voxcpm_torch_server` / `demucs_torch_server` / `servers_py`）；LocalDub 根 `pyproject.toml` `members = []`
-- env/tts 侧：本地 VoxCPM torch/ggml 运行时标注「正在迁移中」，TTS 走 `tts.runtime = "cloud"`
+- env/tts 侧：本地 VoxCPM torch/ggml 运行时标注「正在迁移中」，TTS 走 `tts.runtime = "cloud"`；demucs.cpp ggml 标注「已退役」，separate 走 `demucs-burn`
 
 ## Temp directory
 
