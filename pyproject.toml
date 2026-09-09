@@ -54,7 +54,4 @@ voxcpm-server = "voxcpm_torch_server.server:main"
 include = []
 
 [tool.uv.workspace]
-members = ["packages/voxcpm_torch_server", "packages/demucs_torch_server", "packages/servers_py"]
-
-[tool.uv.sources]
-servers-py = { workspace = true }
+members = []
