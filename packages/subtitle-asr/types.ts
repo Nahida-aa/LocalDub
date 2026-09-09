@@ -29,7 +29,7 @@ type AsrResultMeta = {
   device: string; // 运行设备，
   detected_language?: string; // 可选的检测到的语言代码，如 "en"、"zh" 等
   engine: string; // whisper.cpp
-  model: string; // "/home/aa/repos/env_ls/LocalDub/data/models/whisper/ggml-large-v3-turbo.bin"
+  model: string; // "/home/aa/repos/env_ls/LocalDub/models/whisper/ggml-large-v3-turbo.bin"
   args: AsrArgs;
   input_audio: string; // "/home/aa/repos/env_ls/LocalDub/workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第3集/separate_after/target_3_vocals_mixed.wav";
   rtf: number; // 0.370

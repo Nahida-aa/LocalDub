@@ -118,7 +118,7 @@ export type WhisperJson = {
     ftype: number;
   };
   params: {
-    model: string; // "/home/aa/repos/env_ls/LocalDub/data/models/whisper/ggml-large-v3-turbo.bin"
+    model: string; // "/home/aa/repos/env_ls/LocalDub/models/whisper/ggml-large-v3-turbo.bin"
     language: string; // "auto"
     translate: boolean;
   };
