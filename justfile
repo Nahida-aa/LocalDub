@@ -39,6 +39,9 @@ gen-ts-sdk:
     cargo run -p sdk
 
 # 运行环境检测 (镜像 TS env 命令): `cargo run -p cli -- env check`。
-# 可加 targets 过滤: `just run-env ffmpeg python`
-run-env:
+# 可加 targets 过滤: `just run-env-check ffmpeg python`
+run-env-check:
     cargo run -p cli -- env check
+
+run-env-ensure:
+    cargo run -p cli -- env ensure

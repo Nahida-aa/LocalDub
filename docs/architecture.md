@@ -19,11 +19,11 @@ Input (YouTube/Bilibili/Local)
 
 ## Tech Stack
 
-| Layer | Stack | Port |
-|-------|-------|------|
-| Frontend | Next.js 15, React 19, Tailwind CSS, shadcn/ui | 3000 |
-| Backend | Python FastAPI, uvicorn, SQLite | 8000 |
-| API (exp.) | Hono/Bun TypeScript | 9007 |
+| Layer      | Stack                                         | Port |
+| ---------- | --------------------------------------------- | ---- |
+| Frontend   | Next.js 15, React 19, Tailwind CSS, shadcn/ui | 3000 |
+| Backend    | Python FastAPI, uvicorn, SQLite               | 8000 |
+| API (exp.) | Hono/Bun TypeScript                           | 9007 |
 
 ## Backend Structure
 
@@ -61,13 +61,15 @@ The TTS stage (stage 6) uses **VoxCPM2** (OpenBMB/VoxCPM2):
 ### Experimental TS ONNX path
 
 `packages/api/src/ml/voxcpm/` contains a full TypeScript ONNX Runtime implementation:
+
 - 4 ONNX models: prefill, decode_step, vae_encoder, vae_decoder
 - EPs: cpu / webgpu
 - Not connected to production pipeline
 
 ### CosyVoice3 (not yet integrated)
 
-`data/modelscope/CosyVoice3-0.5B/onnx/` has community ONNX exports:
+`data/models/CosyVoice3-0.5B/onnx/` has community ONNX exports:
+
 - 14 ONNX models (~3.7 GB), LLM + Flow + HiFT pipeline
 - 24kHz output
 - RTF ~18-44× CPU (LLM is bottleneck)
@@ -75,13 +77,13 @@ The TTS stage (stage 6) uses **VoxCPM2** (OpenBMB/VoxCPM2):
 
 ## Production Models
 
-| Model | Stage | Runtime | Device | Status |
-|-------|-------|---------|--------|--------|
-| Demucs | 1. Separate | PyTorch | CPU | GPU hang, forced CPU |
-| Whisper | 2. ASR | PyTorch | GPU (cuda) | ✅ Healthy |
-| OpenAI | 4. Translate | HTTP API | Remote | ✅ Healthy |
-| VoxCPM | 6. TTS | PyTorch | CPU | ✅ Active, GPU broken |
-| CosyVoice3 | — | ONNX | CPU | Not integrated |
+| Model      | Stage        | Runtime  | Device     | Status                |
+| ---------- | ------------ | -------- | ---------- | --------------------- |
+| Demucs     | 1. Separate  | PyTorch  | CPU        | GPU hang, forced CPU  |
+| Whisper    | 2. ASR       | PyTorch  | GPU (cuda) | ✅ Healthy            |
+| OpenAI     | 4. Translate | HTTP API | Remote     | ✅ Healthy            |
+| VoxCPM     | 6. TTS       | PyTorch  | CPU        | ✅ Active, GPU broken |
+| CosyVoice3 | —            | ONNX     | CPU        | Not integrated        |
 
 ## GPU Issues (AMD RDNA 3 / ROCm 7.2.3)
 
