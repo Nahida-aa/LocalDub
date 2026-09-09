@@ -8,18 +8,9 @@
 [submodule "submodule/VoxCPM"]
 	path = submodule/VoxCPM
 	url = https://github.com/OpenBMB/VoxCPM.git
-[submodule "submodule/whisper.cpp"]
-	path = submodule/whisper.cpp
-	url = https://github.com/ggml-org/whisper.cpp.git
 [submodule "demucs.cpp"]
 	path = submodule/demucs.cpp
 	url = https://github.com/sevagh/demucs.cpp.git
-[submodule "submodule/opencv"]
-	path = submodule/opencv
-	url = https://github.com/opencv/opencv.git
-[submodule "submodule/vcpkg"]
-	path = submodule/vcpkg
-	url = https://github.com/microsoft/vcpkg.git
 [submodule "submodule/voxcpm-rs"]
 	path = submodule/voxcpm-rs
 	url = git@github.com:Nahida-aa/voxcpm-rs.git

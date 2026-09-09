@@ -217,10 +217,6 @@ function checkSubmodule(path: string, key: string): CheckResult {
   };
 }
 
-export async function checkSubmoduleWhisperCpp(): Promise<CheckResult> {
-  return checkSubmodule(join(REPO_ROOT, "submodule", "whisper.cpp"), "submodule_whisper_cpp");
-}
-
 export async function checkSubmoduleDemucsCpp(): Promise<CheckResult> {
   return checkSubmodule(join(REPO_ROOT, "submodule", "demucs.cpp"), "submodule_demucs_cpp");
 }
@@ -462,7 +458,6 @@ export const allChecks: Record<string, () => Promise<CheckResult>> = {
   demucs_ggml: checkDemucsGgml,
   voxcpm2_onnx: checkVoxcpm2Onnx,
   voxcpm2_pth: checkVoxcpm2Pth,
-  submodule_whisper_cpp: checkSubmoduleWhisperCpp,
   submodule_demucs_cpp: checkSubmoduleDemucsCpp,
   submodule_voxcpm_rs: checkSubmoduleVoxcpmRs,
   whisper_bin: checkWhisperBin,

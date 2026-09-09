@@ -450,9 +450,6 @@ fn check_submodule(rel: &str, key: &str) -> CheckResult {
     }
 }
 
-pub fn check_submodule_whisper_cpp() -> CheckResult {
-    check_submodule("submodule/whisper.cpp", "submodule_whisper_cpp")
-}
 pub fn check_submodule_demucs_cpp() -> CheckResult {
     check_submodule("submodule/demucs.cpp", "submodule_demucs_cpp")
 }
@@ -465,7 +462,6 @@ pub fn check_submodule_voxcpm_rs() -> CheckResult {
 // ---------------------------------------------------------------------------
 
 /// whisper-vulkan 由 vox-lab 预编译发布 (ReleaseBinSpec), 见 `WHISPER_VULKAN`。
-/// 不再要求本地 cmake 构建 submodule/whisper.cpp; 本地构建仅作开发调试 (submodule_whisper_cpp)。
 pub fn check_whisper_bin() -> CheckResult {
     check_release_bin(&WHISPER_VULKAN)
 }
@@ -1811,7 +1807,6 @@ pub fn all_checks() -> HashMap<&'static str, fn() -> CheckResult> {
     m.insert("demucs_ggml", check_demucs_ggml);
     m.insert("voxcpm2_onnx", check_voxcpm2_onnx);
     m.insert("voxcpm2_pth", check_voxcpm2_pth);
-    m.insert("submodule_whisper_cpp", check_submodule_whisper_cpp);
     m.insert("submodule_demucs_cpp", check_submodule_demucs_cpp);
     m.insert("submodule_voxcpm_rs", check_submodule_voxcpm_rs);
     m.insert("whisper_bin", check_whisper_bin);

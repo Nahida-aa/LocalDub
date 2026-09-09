@@ -177,15 +177,6 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
         },
     ),
     (
-        "submodule_whisper_cpp",
-        EnvEntry {
-            zh: "git 子模块: whisper.cpp",
-            en: "git submodule: whisper.cpp",
-            required: false,
-            category: "optional",
-        },
-    ),
-    (
         "submodule_demucs_cpp",
         EnvEntry {
             zh: "git 子模块: demucs.cpp",
@@ -206,8 +197,8 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
     (
         "whisper_bin",
         EnvEntry {
-            zh: "whisper-vulkan 编译产物 (submodule/whisper.cpp/build/bin/)",
-            en: "whisper-vulkan compiled binary (submodule/whisper.cpp/build/bin/)",
+            zh: "whisper-vulkan 预编译二进制 (Nahida-aa/vox-lab release)",
+            en: "whisper-vulkan precompiled binary (Nahida-aa/vox-lab release)",
             required: false,
             category: "optional",
         },

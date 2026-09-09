@@ -111,7 +111,7 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
         anyhow!(
             "whisper-vulkan 未就绪: {e}\n\
              尝试: cargo run -p cli -- env --action ensure --targets whisper_bin\n\
-             或本地构建 submodule/whisper.cpp: cmake -B build -DGGML_VULKAN=ON && cmake --build build --config Release -j4"
+             (vox-lab 预编译二进制，仓库 Nahida-aa/vox-lab)"
         )
     })?;
     let model = whisper_model_path();

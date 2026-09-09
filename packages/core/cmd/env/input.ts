@@ -109,12 +109,6 @@ export const envDescribeMap = {
     required: false,
     category: "optional",
   },
-  submodule_whisper_cpp: {
-    en: "git submodule: whisper.cpp",
-    zh: "git 子模块: whisper.cpp",
-    required: false,
-    category: "optional",
-  },
   submodule_demucs_cpp: {
     en: "git submodule: demucs.cpp",
     zh: "git 子模块: demucs.cpp",
@@ -128,8 +122,8 @@ export const envDescribeMap = {
     category: "optional",
   },
   whisper_bin: {
-    en: "whisper-vulkan compiled binary (submodule/whisper.cpp/build/bin/)",
-    zh: "whisper-vulkan 编译产物 (submodule/whisper.cpp/build/bin/)",
+    en: "whisper-vulkan precompiled binary (Nahida-aa/vox-lab release)",
+    zh: "whisper-vulkan 预编译二进制 (Nahida-aa/vox-lab release)",
     required: false,
     category: "optional",
   },

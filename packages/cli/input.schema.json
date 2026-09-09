@@ -218,7 +218,6 @@
               "demucs_ggml",
               "voxcpm2_onnx",
               "voxcpm2_pth",
-              "submodule_whisper_cpp",
               "submodule_demucs_cpp",
               "submodule_voxcpm_rs",
               "whisper_bin",
