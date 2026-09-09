@@ -1226,10 +1226,16 @@ fn ensure_ocr_cpp_bin() -> CheckResult {
 struct ReleaseBinSpec {
     /// 环境项 key (check/ensure 调度键)。
     key: &'static str,
-    /// 二进制名 (日志/错误展示用, 如 "subtitle-ocr")。
+    /// 二进制名 (日志/错误展示用, 如 "subtitle-ocr" 或 "demucs-burn-wgpu")。
     bin: &'static str,
+    /// 托管 GitHub repo (owner/repo)。vision-lab 管 OCR 家族, vox-lab 管 demucs。
+    repo: &'static str,
     /// GitHub Release tag。
     tag: &'static str,
+    /// 资产是否为 zip (两平台统一, 下载后解压平铺到 bin_dir)。
+    /// false: Linux 单文件资产 (资产名即本地文件名), Windows zip。
+    /// true: Linux/Windows 均为 zip, 解压出 `<bin>`/`<bin>.exe` + 运行时 dll/.so 平铺。
+    zip: bool,
     /// Linux x86_64 (+avx2 基线) 资产名 + sha256。
     linux_asset: &'static str,
     linux_sha256: &'static str,
@@ -1243,7 +1249,9 @@ struct ReleaseBinSpec {
 const SUBTITLE_FINDER: ReleaseBinSpec = ReleaseBinSpec {
     key: "subtitle_finder_bin",
     bin: "subtitle-finder",
+    repo: "Nahida-aa/vision-lab",
     tag: "subtitle-finder-v0.1.0",
+    zip: false,
     linux_asset: "subtitle-finder-x86_64-unknown-linux-gnu",
     linux_sha256: "b08778b2e066a35f8c9b3c0457e3e05a1379a6452341b932d82c22175cba9923",
     windows_asset: Some("subtitle-finder-x86_64-pc-windows-msvc.zip"),
@@ -1254,7 +1262,9 @@ const SUBTITLE_FINDER: ReleaseBinSpec = ReleaseBinSpec {
 const SUBTITLE_OCR: ReleaseBinSpec = ReleaseBinSpec {
     key: "subtitle_ocr_bin",
     bin: "subtitle-ocr",
+    repo: "Nahida-aa/vision-lab",
     tag: "subtitle-ocr-v0.1.0",
+    zip: false,
     linux_asset: "subtitle-ocr-x86_64-unknown-linux-gnu",
     linux_sha256: "5e4dc400e52fd9b9759d9a4e8a5714aa0622078cd8a52a7035178d8bd91ba6ca",
     windows_asset: Some("subtitle-ocr-x86_64-pc-windows-msvc.zip"),
@@ -1265,12 +1275,40 @@ const SUBTITLE_OCR: ReleaseBinSpec = ReleaseBinSpec {
 const OCR_POST: ReleaseBinSpec = ReleaseBinSpec {
     key: "ocr_post_bin",
     bin: "ocr-post",
+    repo: "Nahida-aa/vision-lab",
     tag: "subtitle-ocr-v0.1.0",
+    zip: false,
     linux_asset: "ocr-post-x86_64-unknown-linux-gnu",
     linux_sha256: "107187c94051c8fda46f2fc18d6c6e8835593caa4fa8703a9fc3b41d1473a101",
     windows_asset: Some("ocr-post-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some("a2aaeda6cd4cc8861a6c5747216bf95361250bb32c86a8f19a8187eb888c0e2d"),
     stamp: ".ocr_post.version.json",
+};
+
+const DEMUCS_BURN_TCH: ReleaseBinSpec = ReleaseBinSpec {
+    key: "demucs_burn_tch_bin",
+    bin: "demucs-burn-tch",
+    repo: "Nahida-aa/vox-lab",
+    tag: "demucs-burn-v0.1.0",
+    zip: true,
+    linux_asset: "demucs-burn-tch-x86_64-unknown-linux-gnu.zip",
+    linux_sha256: "placeholder",
+    windows_asset: None,
+    windows_sha256: None,
+    stamp: ".demucs_burn_tch.version.json",
+};
+
+const DEMUCS_BURN_WGPU: ReleaseBinSpec = ReleaseBinSpec {
+    key: "demucs_burn_wgpu_bin",
+    bin: "demucs-burn-wgpu",
+    repo: "Nahida-aa/vox-lab",
+    tag: "demucs-burn-v0.1.0",
+    zip: true,
+    linux_asset: "demucs-burn-wgpu-x86_64-unknown-linux-gnu.zip",
+    linux_sha256: "placeholder",
+    windows_asset: None,
+    windows_sha256: None,
+    stamp: ".demucs_burn_wgpu.version.json",
 };
 
 /// 当前平台的资产 (asset 名, sha256); 平台未发布返回 None。
@@ -1297,17 +1335,21 @@ fn platform_label() -> &'static str {
 }
 
 /// 目标二进制路径:
-/// - Linux: `bin_dir/<linux_asset>` (资产名即本地文件名);
-/// - Windows: `bin_dir/<bin>.exe` (zip 解压平铺后的可执行文件)。
+/// - zip: `bin_dir/<bin>` (Linux) / `bin_dir/<bin>.exe` (Windows), 解压平铺后的可执行;
+/// - 单文件: Linux `bin_dir/<linux_asset>` (资产名即本地文件名) / Windows `bin_dir/<bin>.exe`。
 fn release_bin_path(spec: &ReleaseBinSpec) -> PathBuf {
     if cfg!(windows) {
         bin_dir().join(format!("{}.exe", spec.bin))
+    } else if spec.zip {
+        bin_dir().join(spec.bin)
     } else {
         bin_dir().join(spec.linux_asset)
     }
 }
 
-/// 下载目标路径: Windows 落 zip 本身 (解压前先校验 sha256), Linux 直接落二进制。
+/// 下载目标路径:
+/// - Windows: 落 zip 资产名 (解压前先校验 sha256, 解压后删除);
+/// - Linux: 落资产名 (zip 资产即 zip 本身, 单文件即二进制)。
 fn release_download_path(spec: &ReleaseBinSpec) -> PathBuf {
     if cfg!(windows) {
         bin_dir().join(spec.windows_asset.unwrap_or(spec.linux_asset))
@@ -1341,9 +1383,9 @@ fn extract_zip_flat(dest_dir: &Path, zip_path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// 解压 Windows zip 资产到 bin_dir (zip 内文件平铺: `<bin>.exe` + 全部 dll)。
-#[cfg(windows)]
-fn extract_windows_zip(zip_path: &Path) -> Result<(), String> {
+/// 解压 zip 资产 (vision-lab Windows zip / vox-lab demucs Linux+Windows zip) 平铺到 bin_dir。
+/// 已知的 demucs 类 zip 顶层即为 bin_dir 内容, 故解压到 bin_dir 而非其子目录。
+fn extract_zip_to_bin_dir(zip_path: &Path) -> Result<(), String> {
     extract_zip_flat(&bin_dir(), zip_path)
 }
 
@@ -1355,8 +1397,8 @@ fn release_version_path(spec: &ReleaseBinSpec) -> PathBuf {
 /// 下载 URL (资产名与本地文件名一致)。
 fn release_bin_url(spec: &ReleaseBinSpec, asset: &str) -> String {
     format!(
-        "https://github.com/Nahida-aa/vision-lab/releases/download/{}/{}",
-        spec.tag, asset
+        "https://github.com/{}/releases/download/{}/{}",
+        spec.repo, spec.tag, asset
     )
 }
 
@@ -1591,10 +1633,10 @@ fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
         };
     }
 
-    // Windows: 解压 zip 平铺到 bin_dir, 校验通过后删除归档
-    #[cfg(windows)]
-    {
-        if let Err(e) = extract_windows_zip(&dl_path) {
+    // zip 资产 (vision-lab Windows / vox-lab demucs Linux+Windows): 解压平铺到
+    // bin_dir, 校验通过后删除归档。单文件资产 (Linux vision-lab) 跳过。
+    if spec.zip {
+        if let Err(e) = extract_zip_to_bin_dir(&dl_path) {
             let _ = std::fs::remove_file(&dl_path);
             return CheckResult {
                 key: spec.key.to_string(),
@@ -1662,6 +1704,27 @@ pub fn subtitle_ocr_bin_path() -> PathBuf {
 }
 pub fn ocr_post_bin_path() -> PathBuf {
     release_bin_path(&OCR_POST)
+}
+
+pub fn check_demucs_burn_tch_bin() -> CheckResult {
+    check_release_bin(&DEMUCS_BURN_TCH)
+}
+pub fn check_demucs_burn_wgpu_bin() -> CheckResult {
+    check_release_bin(&DEMUCS_BURN_WGPU)
+}
+fn ensure_demucs_burn_tch_bin() -> CheckResult {
+    ensure_release_bin(&DEMUCS_BURN_TCH)
+}
+fn ensure_demucs_burn_wgpu_bin() -> CheckResult {
+    ensure_release_bin(&DEMUCS_BURN_WGPU)
+}
+
+/// 当前平台的目标二进制路径 (供 `bin_path_from_key` 复用, 与下载路径保持一致)。
+pub fn demucs_burn_tch_bin_path() -> PathBuf {
+    release_bin_path(&DEMUCS_BURN_TCH)
+}
+pub fn demucs_burn_wgpu_bin_path() -> PathBuf {
+    release_bin_path(&DEMUCS_BURN_WGPU)
 }
 
 // ---------------------------------------------------------------------------
@@ -1740,6 +1803,8 @@ pub fn all_checks() -> HashMap<&'static str, fn() -> CheckResult> {
     m.insert("subtitle_finder_bin", check_subtitle_finder_bin);
     m.insert("subtitle_ocr_bin", check_subtitle_ocr_bin);
     m.insert("ocr_post_bin", check_ocr_post_bin);
+    m.insert("demucs_burn_tch_bin", check_demucs_burn_tch_bin);
+    m.insert("demucs_burn_wgpu_bin", check_demucs_burn_wgpu_bin);
     m.insert("cmake", check_cmake);
     m.insert("git", check_git);
     m.insert("dotenv", check_dotenv);
@@ -1756,6 +1821,8 @@ pub fn ensure_fns() -> HashMap<&'static str, fn() -> CheckResult> {
     m.insert("subtitle_finder_bin", ensure_subtitle_finder_bin);
     m.insert("subtitle_ocr_bin", ensure_subtitle_ocr_bin);
     m.insert("ocr_post_bin", ensure_ocr_post_bin);
+    m.insert("demucs_burn_tch_bin", ensure_demucs_burn_tch_bin);
+    m.insert("demucs_burn_wgpu_bin", ensure_demucs_burn_wgpu_bin);
     m
 }
 

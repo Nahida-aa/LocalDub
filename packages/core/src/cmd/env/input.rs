@@ -249,6 +249,24 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
         },
     ),
     (
+        "demucs_burn_tch_bin",
+        EnvEntry {
+            zh: "demucs-burn tch 后端 (data/bin/demucs-burn-tch, 从 vox-lab GitHub Release 下载, libtorch 平铺同目录)",
+            en: "demucs-burn tch backend (data/bin/demucs-burn-tch, downloaded from vox-lab GitHub Release, libtorch flat in same dir)",
+            required: false,
+            category: "optional",
+        },
+    ),
+    (
+        "demucs_burn_wgpu_bin",
+        EnvEntry {
+            zh: "demucs-burn wgpu 后端 (data/bin/demucs-burn-wgpu, 从 vox-lab GitHub Release 下载)",
+            en: "demucs-burn wgpu backend (data/bin/demucs-burn-wgpu, downloaded from vox-lab GitHub Release)",
+            required: false,
+            category: "optional",
+        },
+    ),
+    (
         "subtitle_finder_bin",
         EnvEntry {
             zh: "关键帧筛选二进制 (data/bin/subtitle-finder, 从 vision-lab GitHub Release 下载)",

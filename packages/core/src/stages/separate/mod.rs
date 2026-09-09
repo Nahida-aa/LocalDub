@@ -42,10 +42,16 @@ fn backend_for(runtime: args::SeparateRuntime, device: args::Device) -> &'static
     }
 }
 
-/// 定位 demucs-burn 二进制: 优先 `target/release`, 回退 `target/debug` (dev 下 cargo 产物)。
+/// 定位 demucs-burn 二进制:
+/// 1. `data/bin` (release 下载, vox-lab zip 平铺);
+/// 2. `target/release`, 回退 `target/debug` (dev 下 cargo 产物)。
 fn demucs_bin_path(backend: &str) -> Option<PathBuf> {
-    let repo = config_rs::root::repo_root();
     let name = format!("demucs-burn-{backend}");
+    let downloaded = config_rs::path::models::bin_dir().join(&name);
+    if downloaded.exists() {
+        return Some(downloaded);
+    }
+    let repo = config_rs::root::repo_root();
     for profile in ["release", "debug"] {
         let p = repo.join("target").join(profile).join(&name);
         if p.exists() {
@@ -69,12 +75,19 @@ fn parse_progress_pct(s: &str) -> Option<i32> {
 /// 运行 demucs-burn 分离, 流式把 stdout 的 `(xx%)` 进度写入 stage。
 ///
 /// 镜像 TS `separateBurn` 的 spawn + 进度解析 (`/\((\s*\d+(?:\.\d+)?)%\)/`).
-/// 定位 LibTorch 共享库目录 (tch 后端运行时必须): 在
-/// `target/{release,debug}/build/torch-sys-*/out/libtorch/libtorch/lib` 下查找
-/// `libtorch_cpu.so`。镜像 TS `wrapper.ts` 的 `findLibtorchPath` (release 优先)。
+/// 定位 LibTorch 共享库目录 (tch 后端运行时必须)。
 ///
-/// 若找不到, 返回 None (调用方据此在错误信息中提示先 build tch 后端)。
+/// 优先 release 下载场景: vox-lab 的 demucs-burn-tch zip 把 libtorch_cpu.so 等平铺在
+/// `bin_dir()` (data/bin), 与二进制同目录。回退源码构建场景:
+/// `target/{release,debug}/build/torch-sys-*/out/libtorch/libtorch/lib` (镜像 TS
+/// `wrapper.ts` 的 `findLibtorchPath`)。
+///
+/// 若找不到, 返回 None (调用方据此在错误信息中提示先构建/下载 tch 后端)。
 fn find_libtorch_lib_dir() -> Option<PathBuf> {
+    let bin = config_rs::path::models::bin_dir();
+    if bin.join("libtorch_cpu.so").exists() {
+        return Some(bin);
+    }
     let repo = config_rs::root::repo_root();
     for profile in ["release", "debug"] {
         let build_dir = repo.join("target").join(profile).join("build");
@@ -136,7 +149,8 @@ fn run_demucs(
             None => {
                 return Err(anyhow::anyhow!(
                     "tch 后端二进制需要 LibTorch 动态库, 但未找到 libtorch_cpu.so。\
-                     请先编译 tch 后端: cargo build -p demucs-burn --bin demucs-burn-tch --features tch"
+                     请先下载 demucs-burn-tch release 资产 (data/bin) 或编译 tch 后端: \
+                     cargo build -p demucs-burn --bin demucs-burn-tch --features tch"
                 ));
             }
         }
@@ -284,13 +298,26 @@ pub fn stage_separate(ctx: &TaskCtx) -> anyhow::Result<()> {
     let bin_path = match demucs_bin_path(backend) {
         Some(p) => p,
         None => {
-            // 阶段内自动编译缺失二进制 (用户选项: 阶段内自动编译)
-            tracing::info!(target: "separate", "未找到 {bin_name}, 尝试自动编译...");
-            cargo_build_bin("demucs-burn", &bin_name, &[backend], false).map_err(|e| {
-                anyhow::anyhow!(
-                    "{e}\n若编译失败, 请手动执行: cargo build -p demucs-burn --bin {bin_name} --no-default-features --features {backend}"
-                )
-            })?
+            // 已发布后端 (tch/wgpu): 经 env ensure 走 release 下载; 其余后端保留
+            // 阶段内自动编译 (仅源码构建, 无发布资产)。
+            match backend {
+                "tch" => {
+                    let p = crate::cmd::env::ensure_bin("demucs_burn_tch_bin")?;
+                    if let Some(d) = p.parent().filter(|d| d.is_dir()) {
+                        tracing::info!(target: "separate", "demucs-burn-tch 经 release 下载: {}", d.display());
+                    }
+                    p
+                }
+                "wgpu" => crate::cmd::env::ensure_bin("demucs_burn_wgpu_bin")?,
+                _ => {
+                    tracing::info!(target: "separate", "未找到 {bin_name}, 尝试自动编译...");
+                    cargo_build_bin("demucs-burn", &bin_name, &[backend], false).map_err(|e| {
+                        anyhow::anyhow!(
+                            "{e}\n若编译失败, 请手动执行: cargo build -p demucs-burn --bin {bin_name} --no-default-features --features {backend}"
+                        )
+                    })?
+                }
+            }
         }
     };
 

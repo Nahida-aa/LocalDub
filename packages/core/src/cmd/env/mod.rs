@@ -15,6 +15,7 @@ use std::path::PathBuf;
 use crate::cmd::env::input::{env_names, zh_desc};
 use crate::cmd::env::items::{
     all_checks, ensure_fns, ocr_post_bin_path, subtitle_finder_bin_path, subtitle_ocr_bin_path,
+    demucs_burn_tch_bin_path, demucs_burn_wgpu_bin_path,
 };
 use crate::input::Input;
 use crate::stages::tts::args::TtsDevice;
@@ -108,10 +109,18 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
     // asr.useSeparated 或 separate.always 表示需要人声分离
     if stages.asr.use_separated || stages.separate.always {
         add("demucs_pth", &mut set);
-        add("demucs_burn_bin", &mut set);
-        // 本次配置实际需要的 demucs 后端后缀 (bin = demucs-burn-{suffix})
+        // release 下载: 已发布 tch/wgpu 两个后端 (vox-lab demucs-burn-v0.1.0);
+        // 其余后端 (cpu/cuda/vulkan) 暂无发布资产, 保留源码构建检查 demucs_burn_bin 兜底。
         let suffix = demucs_backend_suffix(stages.separate.runtime, stages.separate.device);
-        desired.insert("demucs_burn_bin".to_string(), suffix.to_string());
+        match suffix {
+            "tch" => add("demucs_burn_tch_bin", &mut set),
+            "wgpu" => add("demucs_burn_wgpu_bin", &mut set),
+            other => {
+                add("demucs_burn_bin", &mut set);
+                // 本次配置实际需要的 demucs 后端后缀 (bin = demucs-burn-{suffix})
+                desired.insert("demucs_burn_bin".to_string(), other.to_string());
+            }
+        }
         match stages.separate.device {
             SepDevice::Vulkan => add("vulkan", &mut set),
             SepDevice::Cuda => add("cuda", &mut set),
@@ -238,6 +247,8 @@ fn bin_path_from_key(key: &str) -> PathBuf {
         "subtitle_finder_bin" => subtitle_finder_bin_path(),
         "subtitle_ocr_bin" => subtitle_ocr_bin_path(),
         "ocr_post_bin" => ocr_post_bin_path(),
+        "demucs_burn_tch_bin" => demucs_burn_tch_bin_path(),
+        "demucs_burn_wgpu_bin" => demucs_burn_wgpu_bin_path(),
         "ocr_cpp_bin" => {
             let name = if cfg!(windows) { "subtitle_ocr_ort_cpp.exe" } else { "subtitle_ocr_ort_cpp" };
             let base = config_rs::root::repo_root()
