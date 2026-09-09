@@ -74,6 +74,31 @@ pub const SUBTITLE_STAGES: &[&str] = &[
     "mix_video",
 ];
 
+/// subtitle 模式 + subtitleSource=sf_ocr: OCR 提硬字幕 → 翻译 → 烧字幕, 不配音 (无 tts/mix_audio)。
+pub const SUBTITLE_SF_OCR_STAGES: &[&str] = &[
+    "separate",
+    "separate_after",
+    "sf_ocr_pre",
+    "sf_ocr",
+    "sf_ocr_fix",
+    "translate",
+    "split_audio",
+    "mix_video",
+];
+
+/// subtitle 模式 + subtitleSource=asr_ocr: ASR 提时序 → OCR 校正文本 → 翻译 → 烧字幕, 不配音。
+pub const SUBTITLE_ASR_OCR_STAGES: &[&str] = &[
+    "separate",
+    "separate_after",
+    "asr",
+    "asr_ocr_pre",
+    "asr_ocr",
+    "asr_ocr_fix",
+    "translate",
+    "split_audio",
+    "mix_video",
+];
+
 /// 从 ctx.input 解析 subtitleSource (缺省 "asr")
 fn subtitle_source(ctx: &TaskCtx) -> String {
     ctx.input
@@ -109,7 +134,15 @@ fn split_audio_vad_align(ctx: &TaskCtx) -> bool {
 pub fn get_stages(ctx: &TaskCtx) -> Vec<String> {
     let is_subtitle = ctx.pipeline == "subtitle";
     let mut stages: Vec<String> = if is_subtitle {
-        SUBTITLE_STAGES.iter().map(|s| s.to_string()).collect()
+        // subtitle 模式: 按 subtitleSource 切换字幕提取策略, 但始终只到 mix_video
+        // (不配音 → 无 tts / mix_audio)。subtitleSource 语义是"字幕怎么提取",
+        // 不是"是否配音"; dub 序列常量含 tts/mix_audio, 不能复用。
+        let base = match subtitle_source(ctx).as_str() {
+            "sf_ocr" => SUBTITLE_SF_OCR_STAGES,
+            "asr_ocr" => SUBTITLE_ASR_OCR_STAGES,
+            _ => SUBTITLE_STAGES,
+        };
+        base.iter().map(|s| s.to_string()).collect()
     } else {
         // dub 模式下按 subtitleSource 选基础序列
         let base = match subtitle_source(ctx).as_str() {
@@ -231,5 +264,64 @@ mod tests {
             }),
         );
         assert!(get_stages(&c2).contains(&"split_audio".to_string()));
+    }
+
+    #[test]
+    fn subtitle_sf_ocr_uses_ocr_not_asr() {
+        // subtitle + sf_ocr: OCR 提字幕, 不配音 (无 tts/mix_audio/audio), 也不走 asr 听写。
+        let c = ctx(
+            "subtitle",
+            json!({
+                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
+                "input": {"task": {"subtitleSource": "sf_ocr"}}
+            }),
+        );
+        let s = get_stages(&c);
+        assert!(s.contains(&"sf_ocr_pre".to_string()));
+        assert!(s.contains(&"sf_ocr".to_string()));
+        assert!(s.contains(&"sf_ocr_fix".to_string()));
+        assert!(!s.contains(&"asr".to_string()));
+        assert!(!s.contains(&"tts".to_string()));
+        assert!(!s.contains(&"mix_audio".to_string()));
+        assert!(s.contains(&"mix_video".to_string()));
+    }
+
+    #[test]
+    fn subtitle_asr_ocr_uses_ocr_not_dubbed() {
+        // subtitle + asr_ocr: asr 提时序 + ocr 校正文本, 不配音。
+        let c = ctx(
+            "subtitle",
+            json!({
+                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
+                "input": {"task": {"subtitleSource": "asr_ocr"}}
+            }),
+        );
+        let s = get_stages(&c);
+        assert!(s.contains(&"asr".to_string()));
+        assert!(s.contains(&"asr_ocr".to_string()));
+        assert!(s.contains(&"asr_ocr_fix".to_string()));
+        assert!(!s.contains(&"tts".to_string()));
+        assert!(!s.contains(&"mix_audio".to_string()));
+        assert!(!s.contains(&"sf_ocr".to_string()));
+    }
+
+    #[test]
+    fn subtitle_default_is_subtitle_stages() {
+        // subtitle 无 subtitleSource: 默认 asr + 仅字幕序列 (无 tts/mix_audio)。
+        let c = ctx(
+            "subtitle",
+            json!({
+                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
+                "input": {}
+            }),
+        );
+        let s = get_stages(&c);
+        assert!(s.contains(&"asr".to_string()));
+        assert!(s.contains(&"mix_video".to_string()));
+        assert!(!s.contains(&"tts".to_string()));
+        assert!(!s.contains(&"mix_audio".to_string()));
     }
 }

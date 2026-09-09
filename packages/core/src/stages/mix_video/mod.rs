@@ -15,8 +15,9 @@ use crate::stages::mix_video::args::{Alignment, MixVideoArgs};
 use crate::stages::utils::srt::{SrtSeg, write_srt};
 use crate::stages::utils::{
     StagePatch, StageStatus, TaskPatch, bgm_path, default_font, dubbing_path, ensure_dir,
-    ffmpeg_timeout, final_video_dir, probe_video_resolution, read_timings, read_translation_result,
-    resolve_language, set_stage_anyhow, set_task_anyhow, subtitle_file_path, video_source_path,
+    ffmpeg_timeout, final_video_dir, probe_video_resolution, read_split_audio, read_timings,
+    read_translation_result, resolve_language, set_stage_anyhow, set_task_anyhow,
+    split_audio_path, subtitle_file_path, video_source_path,
 };
 
 /// 读取 mix_video 配置 (缺省用 MixVideoArgs::default)。
@@ -76,6 +77,14 @@ pub fn stage_mix_video(ctx: &TaskCtx) -> anyhow::Result<()> {
         .and_then(|v| v.as_str())
         .unwrap_or("asr");
 
+    let vad_align = ctx
+        .input
+        .get("stages")
+        .and_then(|v| v.get("split_audio"))
+        .and_then(|v| v.get("vadAlign"))
+        .and_then(|v| v.as_bool())
+        == Some(true);
+
     let final_dir_name = final_video_dir(&pipeline, subtitle_source, no_translate);
     let final_video_dir = merge_dir.join(&final_dir_name);
     ensure_dir(&final_video_dir)?;
@@ -87,7 +96,7 @@ pub fn stage_mix_video(ctx: &TaskCtx) -> anyhow::Result<()> {
 
     if pipeline == "subtitle" {
         let sub_path = merge_dir.join(format!("subtitles.{target_lang}.srt"));
-        build_subtitle_srt_subtitle_branch(ctx, &sub_path, &cfg, no_translate)?;
+        build_subtitle_srt_subtitle_branch(ctx, &sub_path, &cfg, no_translate, vad_align)?;
 
         let style = probe_style(&video_file_path, &target_lang, &cfg, alignment_num);
         let filter = sub_filter_arg(&sub_path.to_string_lossy(), &style);
@@ -250,17 +259,23 @@ fn probe_style(video_file: &str, dst_lang: &str, cfg: &MixVideoArgs, alignment_n
     )
 }
 
-/// subtitle 分支: 从 translation / srt 生成字幕 SRT (镜像 TS subtitle 分支)。
+/// subtitle 分支: 从 translation / srt / split_audio(vadAlign) 生成字幕 SRT (镜像 TS subtitle 分支)。
 fn build_subtitle_srt_subtitle_branch(
     ctx: &TaskCtx,
     sub_path: &std::path::Path,
     cfg: &MixVideoArgs,
     no_translate: bool,
+    vad_align: bool,
 ) -> anyhow::Result<()> {
     let task_dir = ctx.task.task_dir.clone();
     let (_, target_lang) = resolve_language(ctx)?;
 
-    let segs: Vec<SrtSeg> = if no_translate {
+    let segs: Vec<SrtSeg> = if vad_align {
+        // vadAlign: 用 split_audio 的 padded 时序 (split_audio.json) 而非翻译/原始 srt。
+        let data = read_split_audio(ctx)
+            .with_context(|| format!("读取 split_audio 结果失败: {}", split_audio_path(&task_dir).display()))?;
+        extract_segs_from_value(&data)?
+    } else if no_translate {
         // 用已有 srt 或 subtitle file
         let srt_path = cfg
             .srt_path
@@ -271,38 +286,44 @@ fn build_subtitle_srt_subtitle_branch(
         let tr_file = crate::stages::utils::translation_file_path(&task_dir, &target_lang);
         let data = read_translation_result(ctx)
             .with_context(|| format!("读取翻译结果失败: {}", tr_file.display()))?;
-        let segments = data
-            .get("segments")
-            .and_then(|v| v.as_array())
-            .cloned()
-            .unwrap_or_default();
-        segments
-            .iter()
-            .map(|s| {
-                let start_ms = s.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0);
-                let end_ms = s.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0);
-                let text = s
-                    .get("text")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                let dst = s
-                    .get("dst")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                SrtSeg {
-                    start_ms,
-                    end_ms,
-                    dst,
-                    text,
-                    actual_start: None,
-                    actual_end: None,
-                }
-            })
-            .collect()
+        extract_segs_from_value(&data)?
     };
     write_srt(&segs, sub_path, no_translate).map_err(|e| anyhow!("写字幕 SRT 失败: {e}"))
+}
+
+/// 从 `{ segments: [{start_ms, end_ms, text, dst}] }` JSON 提取 SrtSeg 列表。
+/// 同时用于 split_audio.json (vadAlign) 与翻译文件 (translate) 两种来源 (字段一致)。
+fn extract_segs_from_value(data: &serde_json::Value) -> anyhow::Result<Vec<SrtSeg>> {
+    let segments = data
+        .get("segments")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    Ok(segments
+        .iter()
+        .map(|s| {
+            let start_ms = s.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0);
+            let end_ms = s.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0);
+            let text = s
+                .get("text")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let dst = s
+                .get("dst")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            SrtSeg {
+                start_ms,
+                end_ms,
+                dst,
+                text,
+                actual_start: None,
+                actual_end: None,
+            }
+        })
+        .collect())
 }
 
 /// dub 分支: 从 mix_audio/timings.json 生成字幕 SRT (镜像 TS dub 分支)。
@@ -438,6 +459,50 @@ mod tests {
         assert!(f.starts_with("subtitles=filename='"));
         assert!(!f.contains("'sub.srt")); // 单引号被转义
         assert!(f.contains("\\'"));
+    }
+
+    #[test]
+    fn extract_segs_from_value_handles_translate_like_source() {
+        // translate 结果来源 (含 dst)
+        let data = serde_json::json!({
+            "segments": [
+                {"start_ms": 1000, "end_ms": 2000, "text": "hello", "dst": "你好"},
+                {"start_ms": 3000, "end_ms": 4000, "text": "world", "dst": "世界"}
+            ]
+        });
+        let segs = extract_segs_from_value(&data).unwrap();
+        assert_eq!(segs.len(), 2);
+        assert_eq!(segs[0].start_ms, 1000);
+        assert_eq!(segs[0].end_ms, 2000);
+        assert_eq!(segs[0].text, "hello");
+        assert_eq!(segs[0].dst, "你好");
+        assert_eq!(segs[1].dst, "世界");
+    }
+
+    #[test]
+    fn extract_segs_from_value_handles_split_audio_source() {
+        // split_audio.json (vadAlign) 来源: 字段一致, dst 可为空
+        let data = serde_json::json!({
+            "segments": [
+                {"seg_idx": 0, "start_ms": 500, "end_ms": 1500, "text": "原文", "dst": ""},
+                {"seg_idx": 1, "start_ms": 1600, "end_ms": 2500, "text": "原文2", "dst": ""}
+            ]
+        });
+        let segs = extract_segs_from_value(&data).unwrap();
+        assert_eq!(segs.len(), 2);
+        assert_eq!(segs[0].start_ms, 500);
+        assert_eq!(segs[1].end_ms, 2500);
+        assert_eq!(segs[0].dst, "");
+    }
+
+    #[test]
+    fn extract_segs_from_value_tolerates_missing_fields() {
+        let data = serde_json::json!({ "segments": [{"start_ms": 100, "end_ms": 200}] });
+        let segs = extract_segs_from_value(&data).unwrap();
+        assert_eq!(segs.len(), 1);
+        assert_eq!(segs[0].start_ms, 100);
+        assert_eq!(segs[0].text, "");
+        assert_eq!(segs[0].dst, "");
     }
 
     #[test]
