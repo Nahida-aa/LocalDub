@@ -139,19 +139,9 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
         TtsRuntime::Cloud => add("openai", &mut set), // 云端 TTS 走 OpenAI 兼容 API
         TtsRuntime::Ggml => {
             add("voxcpm2_onnx", &mut set);
-            add("voxcpm_burn_bin", &mut set);
-            desired.insert(
-                "voxcpm_burn_bin".to_string(),
-                voxcpm_backend_suffix(stages.tts.device).to_string(),
-            );
         }
         TtsRuntime::VoxcpmTorchGradio => {
             add("voxcpm2_pth", &mut set);
-            add("voxcpm_burn_bin", &mut set);
-            desired.insert(
-                "voxcpm_burn_bin".to_string(),
-                voxcpm_backend_suffix(stages.tts.device).to_string(),
-            );
         }
     }
     match stages.tts.device {
@@ -184,16 +174,6 @@ fn demucs_backend_suffix(
             SepDevice::Vulkan => "vulkan",
             SepDevice::Webgpu => "wgpu",
         },
-    }
-}
-
-/// tts 后端后缀: bin = voxcpm-burn-{suffix} (按 device 映射)。
-fn voxcpm_backend_suffix(device: TtsDevice) -> &'static str {
-    match device {
-        TtsDevice::Cpu | TtsDevice::Mps => "cpu",
-        TtsDevice::Cuda => "cuda",
-        TtsDevice::Rocm => "rocm",
-        TtsDevice::Webgpu => "wgpu",
     }
 }
 
@@ -279,12 +259,6 @@ pub fn run_check(targets: &[String], desired: &HashMap<String, String>) -> Vec<C
         if key == "demucs_burn_bin" {
             results.push(crate::cmd::env::items::check_demucs_burn_bin(
                 desired.get("demucs_burn_bin").map(|s| s.as_str()),
-            ));
-            continue;
-        }
-        if key == "voxcpm_burn_bin" {
-            results.push(crate::cmd::env::items::check_voxcpm_burn_bin(
-                desired.get("voxcpm_burn_bin").map(|s| s.as_str()),
             ));
             continue;
         }

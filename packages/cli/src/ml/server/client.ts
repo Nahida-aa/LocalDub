@@ -2,7 +2,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { delimiter, join } from "node:path";
 import { ModelServerStatus } from "@repo/core/servers/type";
 import { pythonBin } from "@repo/config/path/bin";
-import { demucs_torch_server } from "@repo/config/path/scripts";
+import { demucs_torch_server } from "@repo/config/path/scripts"; // 遗留旧代码: demucs_torch_server 已迁至 vox-lab, Rust 移植完毕后清理
 import { REPO_ROOT } from "@repo/config/root";
 
 export const fetchStatsRes = (port: number) =>

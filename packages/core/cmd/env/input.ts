@@ -134,6 +134,7 @@ export const envDescribeMap = {
     category: "optional",
   },
   voxcpm_burn_bin: {
+    // 遗留旧代码: voxcpm-burn 已迁至 vox-lab, LocalDub 暂用云端 TTS。Rust 移植完毕后清理。
     en: "voxcpm-burn compiled binaries (target/release/voxcpm-burn-*)",
     zh: "voxcpm-burn 编译产物 (target/release/voxcpm-burn-*)",
     required: false,

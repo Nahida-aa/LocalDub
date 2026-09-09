@@ -3,6 +3,7 @@
 Server types:
   - `torch`              → pytorch_server.py (ASR + separate)  → default port 19109
   - `voxcpm_torch_gradio` → voxcpm_torch_server/server.py (TTS) → default port 19112
+    (遗留旧代码: voxcpm_torch_server 已迁至 vox-lab, LocalDub 暂用云端 TTS。Rust 移植完毕后清理)
 
 Usage:
   ```ts

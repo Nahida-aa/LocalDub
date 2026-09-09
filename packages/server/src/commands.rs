@@ -193,58 +193,14 @@ pub fn check_torch(state: &AppState) -> bool {
 }
 
 pub fn start_voxcpm(state: &AppState) -> Result<u16, String> {
-    let mut guard = state
-        .voxcpm_proc
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
-    if let Some(ref mut child) = *guard {
-        if matches!(child.try_wait(), Ok(None)) {
-            return Err("Already running".into());
-        }
-        *guard = None;
-    }
-
-    if !state
-        .repo_root
-        .join("packages")
-        .join("voxcpm_torch_server")
-        .join("server.py")
-        .exists()
-    {
-        return Err("VoxCPM server script not found".into());
-    }
-
-    let script = state
-        .repo_root
-        .join("packages")
-        .join("voxcpm_torch_server")
-        .join("server.py");
-
-    let (child, port) = spawn_python_server(
-        state,
-        &script,
-        "--port",
-        &["--device", "cpu"],
-        vec![],
-        19112,
-    )?;
-
-    *guard = Some(child);
-    Ok(port)
+    // VoxCPM torch server 已迁至 vox-lab (packages/voxcpm_torch_server), LocalDub 暂用云端 TTS。
+    let _ = state;
+    Err("VoxCPM torch server 正在迁移中, 暂不支持本地启动 (请使用云端 TTS)".into())
 }
 
 pub fn stop_voxcpm(state: &AppState) -> Result<(), String> {
-    let mut guard = state
-        .voxcpm_proc
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-
-    if let Some(mut child) = guard.take() {
-        let _ = child.kill();
-        let _ = child.wait();
-    }
-
+    // 随 start_voxcpm 迁移: 本地 voxcpm_proc 恒为空, 仅保留幂等停止语义。
+    let _ = state;
     Ok(())
 }
 

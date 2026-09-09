@@ -213,15 +213,6 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
         },
     ),
     (
-        "voxcpm_burn_bin",
-        EnvEntry {
-            zh: "voxcpm-burn 编译产物 (target/release/voxcpm-burn-*)",
-            en: "voxcpm-burn compiled binaries (target/release/voxcpm-burn-*)",
-            required: false,
-            category: "optional",
-        },
-    ),
-    (
         "demucs_burn_bin",
         EnvEntry {
             zh: "demucs-burn 非发布后端 (cpu/cuda/vulkan 无 release 资产, 请用 tch/wgpu)",

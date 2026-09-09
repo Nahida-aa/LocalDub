@@ -226,6 +226,7 @@ export async function checkSubmoduleVoxcpmRs(): Promise<CheckResult> {
 }
 
 export async function checkWhisperBin(): Promise<CheckResult> {
+  // 遗留旧代码: whisper-vulkan 已改走 vox-lab release (Rust 侧 check_whisper_bin 为准)。Rust 移植完毕后清理。
   const ext = process.platform === "win32" ? ".exe" : "";
   const path = join(REPO_ROOT, "submodule", "whisper.cpp", "build", "bin", `whisper-vulkan${ext}`);
   if (!existsSync(path)) return { key: "whisper_bin", status: "fail", data: {}, required: false };
@@ -248,6 +249,7 @@ export async function checkDemucsGgmlBin(): Promise<CheckResult> {
 }
 
 export async function checkVoxcpmBurnBin(): Promise<CheckResult> {
+  // 遗留旧代码: voxcpm-burn 已迁至 vox-lab, LocalDub 暂用云端 TTS (Rust 侧已移除 voxcpm_burn_bin 检查)。Rust 移植完毕后清理。
   const dir = join(REPO_ROOT, "target", "release");
   if (!existsSync(dir))
     return { key: "voxcpm_burn_bin", status: "fail", data: {}, required: false };

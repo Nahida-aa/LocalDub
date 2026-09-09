@@ -222,7 +222,6 @@
               "submodule_voxcpm_rs",
               "whisper_bin",
               "demucs_ggml_bin",
-              "voxcpm_burn_bin",
               "demucs_burn_bin",
               "ocr_cpp_bin",
               "cmake",

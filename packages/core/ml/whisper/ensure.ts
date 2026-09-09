@@ -81,6 +81,7 @@ function downloadFile(url: string, dest: string, taskDir: string): boolean {
 }
 
 export function ensureWhisperCppSubmodule(taskDir: string): boolean {
+	// 遗留旧代码: whisper-vulkan 已改走 vox-lab release 下载, 不再需要本地子模块构建。Rust 移植完毕后清理。
 	const gitDir = join(whisperCppDir(), '.git');
 	if (existsSync(gitDir)) return true;
 
@@ -354,6 +355,7 @@ export function ensureWhisperCppBinary(taskDir: string): boolean {
 		+ `  Or set WHISPER_MODEL to use a different runtime.`);
 	return false;
 }
+// 遗留旧代码: 以上 whisper.cpp 本地构建路径已废弃, whisper-vulkan 由 vox-lab release 提供。
 
 export function ensureWhisperCpp(taskDir: string): boolean {
 	if (!ensureWhisperCppSubmodule(taskDir)) return false;

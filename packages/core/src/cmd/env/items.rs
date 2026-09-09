@@ -98,20 +98,6 @@ fn is_stale(bin_path: &Path, watch_paths: &[&str]) -> bool {
     false
 }
 
-/// 取多个 watch_paths 中最新的 git 提交时间。
-fn get_latest_source(watch_paths: &[&str]) -> Option<u64> {
-    let repo = repo_root();
-    let mut latest = 0u64;
-    for p in watch_paths {
-        if let Some(t) = git_commit_time(&repo, p) {
-            if t > latest {
-                latest = t;
-            }
-        }
-    }
-    if latest == 0 { None } else { Some(latest) }
-}
-
 /// 模型大小检查 (镜像 TS `checkModel`)。min_mb 支持小数 (如 silero vad 0.5MB)。
 fn check_model(path: &Path, key: &str, min_mb: f64) -> CheckResult {
     let path_str = path.display().to_string();
@@ -494,142 +480,7 @@ pub fn check_demucs_ggml_bin() -> CheckResult {
     }
 }
 
-/// 扫描 `target/{release,debug}` 下以 `prefix` 开头的二进制 (排除 `.d`)。
-fn scan_release_bins(prefix: &str) -> Vec<PathBuf> {
-    let dir = repo_root().join("target");
-    let mut out = Vec::new();
-    for profile in ["release", "debug"] {
-        let p = dir.join(profile);
-        if !p.is_dir() {
-            continue;
-        }
-        let Ok(entries) = std::fs::read_dir(&p) else {
-            continue;
-        };
-        for e in entries.flatten() {
-            let name = e.file_name().to_string_lossy().to_string();
-            if name.starts_with(prefix) && !name.ends_with(".d") {
-                out.push(e.path());
-            }
-        }
-    }
-    out
-}
-
 /// 检查 burn 系二进制。
-///
-/// `required` 为「本次配置实际需要的后端后缀」(如 "tch" / "cuda"): 仅当它缺失才判 Fail
-/// 且给出精确缺失信息; 其余变体缺失仅作提示。None 时保持旧行为 (全变体任一缺失即 Fail)。
-fn check_burn_bins(
-    key: &str,
-    prefix: &str,
-    expected: &[&str],
-    watch: &[&str],
-    required: Option<&str>,
-) -> CheckResult {
-    let files = scan_release_bins(prefix);
-    let existing: std::collections::HashSet<String> = files
-        .iter()
-        .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
-        .collect();
-    let missing: Vec<&str> = expected
-        .iter()
-        .copied()
-        .filter(|e| !existing.contains(*e))
-        .collect();
-
-    if files.is_empty() {
-        // 无任一产物: 若已知所需后端, 精确报缺失; 否则笼统报
-        let precise = required.map(|r| format!("demucs-burn-{r}"));
-        return CheckResult {
-            key: key.to_string(),
-            status: CheckStatus::Fail,
-            data: json!({ "missing_bins": missing.join(", "), "msg": match precise {
-                Some(b) => format!("未找到编译产物: 需要 {b}"),
-                None => "未找到编译产物".to_string(),
-            } }),
-            required: false,
-        };
-    }
-
-    let latest = get_latest_source(watch);
-    let mut stale_bins = Vec::new();
-    let mut fresh_bins = Vec::new();
-    for f in &files {
-        if let Some(t) = latest {
-            if let Some(bt) = mtime_sec(f) {
-                if bt < t {
-                    stale_bins.push(f.file_name().unwrap().to_string_lossy().to_string());
-                } else {
-                    fresh_bins.push(f.file_name().unwrap().to_string_lossy().to_string());
-                }
-            }
-        }
-    }
-
-    // 判定: 已知所需后端时, 仅该后端缺失/过时 → Fail/Warn; 其余变体缺失仅提示
-    let (status, fail_msg) = match required {
-        Some(req) => {
-            let req_bin = format!("{prefix}{req}");
-            let req_missing = !existing.contains(&req_bin);
-            let req_stale = stale_bins.iter().any(|b| b == &req_bin);
-            if req_missing {
-                (
-                    CheckStatus::Fail,
-                    format!(
-                        "缺失所需后端: {req_bin} (请先 cargo build -p demucs-burn --bin {req_bin})"
-                    ),
-                )
-            } else if req_stale {
-                (CheckStatus::Warn, format!("{req_bin} 可能过时"))
-            } else {
-                (
-                    CheckStatus::Pass,
-                    format!("{req_bin} 已编译且最新").to_string(),
-                )
-            }
-        }
-        None => {
-            if !stale_bins.is_empty() || !missing.is_empty() {
-                (CheckStatus::Warn, "部分缺失/过时".to_string())
-            } else {
-                (CheckStatus::Pass, "全部已编译且最新".to_string())
-            }
-        }
-    };
-    let binaries: Vec<String> = files
-        .iter()
-        .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
-        .collect();
-    CheckResult {
-        key: key.to_string(),
-        status,
-        data: json!({
-            "stale_bins": stale_bins.join(", "),
-            "fresh_bins": fresh_bins.join(", "),
-            "missing_bins": missing.join(", "),
-            "binaries": binaries.join(", "),
-            "msg": fail_msg
-        }),
-        required: false,
-    }
-}
-
-pub fn check_voxcpm_burn_bin(required: Option<&str>) -> CheckResult {
-    check_burn_bins(
-        "voxcpm_burn_bin",
-        "voxcpm-burn-",
-        &[
-            "voxcpm-burn-wgpu",
-            "voxcpm-burn-cpu",
-            "voxcpm-burn-vulkan",
-            "voxcpm-burn-tch",
-        ],
-        &["packages/voxcpm-burn/", "submodule/voxcpm-rs/"],
-        required,
-    )
-}
-
 pub fn check_demucs_burn_bin(required: Option<&str>) -> CheckResult {
     // demucs-burn 已迁至 vox-lab, 仅 tch/wgpu 有 release 资产 (经 demucs_burn_{tch,wgpu}_bin
     // 检查)。cpu/cuda/vulkan/rocm 等后端暂无发布资产, 源码构建路径也已移除。
@@ -1811,7 +1662,6 @@ pub fn all_checks() -> HashMap<&'static str, fn() -> CheckResult> {
     m.insert("submodule_voxcpm_rs", check_submodule_voxcpm_rs);
     m.insert("whisper_bin", check_whisper_bin);
     m.insert("demucs_ggml_bin", check_demucs_ggml_bin);
-    m.insert("voxcpm_burn_bin", || check_voxcpm_burn_bin(None));
     m.insert("demucs_burn_bin", || check_demucs_burn_bin(None));
     m.insert("ocr_cpp_bin", check_ocr_cpp_bin);
     m.insert("subtitle_finder_bin", check_subtitle_finder_bin);

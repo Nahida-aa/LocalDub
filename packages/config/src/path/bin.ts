@@ -14,7 +14,7 @@ export function pythonBin(): string {
 	);
 }
 
-// scripts
+// 遗留旧代码: voxcpm_torch_server 已迁至 vox-lab, LocalDub 暂用云端 TTS。Rust 移植完毕后清理。
 export const VOXCPM_TORCH_GRADIO_MAIN = join(REPO_ROOT, 'packages', 'voxcpm_torch_server', 'server.py');
 
 /**
