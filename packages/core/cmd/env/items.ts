@@ -218,10 +218,12 @@ function checkSubmodule(path: string, key: string): CheckResult {
 }
 
 export async function checkSubmoduleDemucsCpp(): Promise<CheckResult> {
+  // 遗留旧代码: demucs.cpp ggml 已退役并入 vox-lab, LocalDub separate 走 demucs-burn。submodule 已删, 该检查恒 fail。Rust 移植完毕后清理。
   return checkSubmodule(join(REPO_ROOT, "submodule", "demucs.cpp"), "submodule_demucs_cpp");
 }
 
 export async function checkSubmoduleVoxcpmRs(): Promise<CheckResult> {
+  // 遗留旧代码: voxcpm-rs submodule 已迁至 vox-lab 并自本仓库删除, 该检查恒 fail。Rust 移植完毕后清理。
   return checkSubmodule(join(REPO_ROOT, "submodule", "voxcpm-rs"), "submodule_voxcpm_rs");
 }
 
@@ -235,6 +237,7 @@ export async function checkWhisperBin(): Promise<CheckResult> {
 }
 
 export async function checkDemucsGgmlBin(): Promise<CheckResult> {
+  // 遗留旧代码: demucs.cpp ggml 已退役并入 vox-lab, submodule 已删, 该检查恒 fail。Rust 侧 check_demucs_ggml_bin 已标注暂不支持。Rust 移植完毕后清理。
   const ext = process.platform === "win32" ? ".exe" : "";
   const path = join(REPO_ROOT, "submodule", "demucs.cpp", "build", `demucs_mt.cpp.main${ext}`);
   if (!existsSync(path))

@@ -10,6 +10,8 @@ import { DemucsCliArgs } from './cli_types';
 import { ensureGgmlModel, tryBuildGgml } from '../separate-build';
 import { REPO_ROOT } from '@repo/config/root';
 
+// 遗留旧代码: demucs.cpp ggml 已退役并入 vox-lab, LocalDub separate 走 demucs-burn (tch/wgpu)。
+// submodule/demucs.cpp 已删, 自动构建与手动编译提示均不可用。Rust 移植完毕后清理。
 export async function separateGgml(
 	taskId: string,
 	taskDir: string,

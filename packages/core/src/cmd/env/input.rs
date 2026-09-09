@@ -179,17 +179,8 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
     (
         "submodule_demucs_cpp",
         EnvEntry {
-            zh: "git 子模块: demucs.cpp",
-            en: "git submodule: demucs.cpp",
-            required: false,
-            category: "optional",
-        },
-    ),
-    (
-        "submodule_voxcpm_rs",
-        EnvEntry {
-            zh: "git 子模块: voxcpm-rs",
-            en: "git submodule: voxcpm-rs",
+            zh: "git 子模块: demucs.cpp (已退役并入 vox-lab)",
+            en: "git submodule: demucs.cpp (retired to vox-lab)",
             required: false,
             category: "optional",
         },
@@ -206,8 +197,8 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
     (
         "demucs_ggml_bin",
         EnvEntry {
-            zh: "demucs.cpp ggml 编译产物 (submodule/demucs.cpp/build/)",
-            en: "demucs.cpp ggml compiled binary (submodule/demucs.cpp/build/)",
+            zh: "demucs.cpp ggml 编译产物 (已退役并入 vox-lab, 暂不支持, 请用 demucs-burn)",
+            en: "demucs.cpp ggml binary (retired to vox-lab, unsupported; use demucs-burn)",
             required: false,
             category: "optional",
         },

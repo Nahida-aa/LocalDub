@@ -7,6 +7,8 @@ import { cmakeBin, findCmakePath, setCmakePath } from '@repo/config/path/bin';
 
 
 /**
+ * 遗留旧代码: demucs.cpp ggml 已退役并入 vox-lab, LocalDub separate 走 demucs-burn (tch/wgpu)。
+ * submodule/demucs.cpp 已删, 本构建函数不可用。Rust 移植完毕后清理。
  * Attempt to build the GGML binary from demucs.cpp submodule.
  * Returns true if build success, false otherwise.
  */

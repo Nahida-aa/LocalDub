@@ -81,23 +81,6 @@ fn git_commit_time(repo: &Path, path: &str) -> Option<u64> {
     out.trim().parse::<u64>().ok()
 }
 
-/// 二进制是否已过时 (源码 git 提交时间 > 二进制 mtime)。镜像 TS `isStale`。
-fn is_stale(bin_path: &Path, watch_paths: &[&str]) -> bool {
-    let Some(bin_time) = mtime_sec(bin_path) else {
-        return false;
-    };
-    let repo = repo_root();
-    for p in watch_paths {
-        let Some(src_time) = git_commit_time(&repo, p) else {
-            continue;
-        };
-        if src_time > bin_time {
-            return true;
-        }
-    }
-    false
-}
-
 /// 模型大小检查 (镜像 TS `checkModel`)。min_mb 支持小数 (如 silero vad 0.5MB)。
 fn check_model(path: &Path, key: &str, min_mb: f64) -> CheckResult {
     let path_str = path.display().to_string();
@@ -422,22 +405,15 @@ pub fn check_cuda() -> CheckResult {
 // 子模块检查
 // ---------------------------------------------------------------------------
 
-fn check_submodule(rel: &str, key: &str) -> CheckResult {
-    let ok = repo_root().join(rel).join(".git").exists();
+pub fn check_submodule_demucs_cpp() -> CheckResult {
+    // 已退役: demucs.cpp ggml 已迁至 vox-lab, LocalDub separate 仅走 demucs-burn (tch/wgpu)。
+    // ggml 本地编译暂不支持, 保留检查项仅为提示迁移状态。
     CheckResult {
-        key: key.to_string(),
-        status: if ok {
-            CheckStatus::Pass
-        } else {
-            CheckStatus::Fail
-        },
-        data: json!({ "msg": if ok { "已初始化" } else { "子模块未初始化" } }),
+        key: "submodule_demucs_cpp".into(),
+        status: CheckStatus::Fail,
+        data: json!({ "msg": "demucs.cpp ggml 已退役且已迁至 vox-lab, 本地暂不支持 ggml, 请使用 demucs-burn (tch/wgpu)" }),
         required: false,
     }
-}
-
-pub fn check_submodule_demucs_cpp() -> CheckResult {
-    check_submodule("submodule/demucs.cpp", "submodule_demucs_cpp")
 }
 
 // ---------------------------------------------------------------------------
@@ -450,29 +426,12 @@ pub fn check_whisper_bin() -> CheckResult {
 }
 
 pub fn check_demucs_ggml_bin() -> CheckResult {
-    let ext = if cfg!(windows) { ".exe" } else { "" };
-    let path = repo_root()
-        .join("submodule")
-        .join("demucs.cpp")
-        .join("build")
-        .join(format!("demucs_mt.cpp.main{ext}"));
-    if !path.exists() {
-        return CheckResult {
-            key: "demucs_ggml_bin".into(),
-            status: CheckStatus::Fail,
-            data: json!({ "msg": "demucs.cpp ggml 未编译" }),
-            required: false,
-        };
-    }
-    let stale = is_stale(&path, &["submodule/demucs.cpp/cli-apps/"]);
+    // 已退役: demucs.cpp ggml 本地编译暂不支持 (submodule 已迁 vox-lab)。
+    // 保留检查项仅为提示: 请使用 demucs-burn (tch/wgpu) 作为 separate 运行时。
     CheckResult {
         key: "demucs_ggml_bin".into(),
-        status: if stale {
-            CheckStatus::Warn
-        } else {
-            CheckStatus::Pass
-        },
-        data: json!({ "path": path.display().to_string(), "msg": if stale { "可能过时" } else { "已编译" } }),
+        status: CheckStatus::Fail,
+        data: json!({ "msg": "demucs.cpp ggml 暂不支持: 已退役并入 vox-lab, 请使用 demucs-burn (tch/wgpu) (separate.runtime = 'burn-tch' / 'burn')" }),
         required: false,
     }
 }

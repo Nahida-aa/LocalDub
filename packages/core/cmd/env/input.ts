@@ -128,8 +128,9 @@ export const envDescribeMap = {
     category: "optional",
   },
   demucs_ggml_bin: {
-    en: "demucs.cpp ggml compiled binary (submodule/demucs.cpp/build/)",
-    zh: "demucs.cpp ggml 编译产物 (submodule/demucs.cpp/build/)",
+    // 遗留旧代码: demucs.cpp ggml 已退役并入 vox-lab, submodule 已删。Rust 移植完毕后清理。
+    en: "demucs.cpp ggml compiled binary (已退役并入 vox-lab)",
+    zh: "demucs.cpp ggml 编译产物 (已退役并入 vox-lab)",
     required: false,
     category: "optional",
   },
