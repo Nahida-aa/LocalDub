@@ -31,10 +31,7 @@ Before editing files for a substantial task:
 - `packages/subtitle-ocr/` — 字幕专用 OCR 包（ort-cpp、subtitle-node.ts、subtitle-py.py）
 - `packages/core/src/cmd/env/` — env 检查/ensure（含从 GitHub Release 下载运行时二进制：vision-lab 的 OCR 家族、vox-lab 的 demucs-burn）；`items.rs` 的 ReleaseBinSpec 定义三平台资产 + sha256
 - `packages/core/src/stages/sf_ocr/` — 关键帧 OCR 策略入口（消费 vision-lab release 二进制：subtitle-finder 提关键帧 → subtitle-ocr 识别）
-- `packages/benchmark/` — 性能测试与参数对比
-- `packages/benchmark/ocr/compute/` — OCR 基准测试脚本
-- `packages/benchmark/ocr/compute/postprocess_det.py` — 引用了 `packages/subtitle-ocr/ppocr_keys.json`
-- `submodule/whisper.cpp/` — whisper.cpp 官方仓库（GPU Vulkan 构建 → `build/bin/whisper-vulkan`）
+- `packages/benchmark/`、`packages/research/`、`submodule/whisper.cpp/` → 已迁至 `vox-lab/packages/benchmark/`、`vox-lab/packages/research/`、`vox-lab/submodule/whisper.cpp/`（whisper-vulkan 由 vox-lab release 下载，不再本地编译）
 - `.agents/hardware.md` — 硬件兼容性 & 已知失败路径
 - `.agents/model-strategy.md` — 各模型设备分配详情
 
@@ -89,10 +86,10 @@ async fn greet(ctx: &Ctx, input: GreetInput) -> GreetOutput {
 
 ## Known limits
 
-- **OOM**: torch server RSS > 9.5GB 时可能 OOM。详情 → `packages/research/model-load-benchmarks.md`
+- **OOM**: torch server RSS > 9.5GB 时可能 OOM。详情 → `vox-lab/packages/research/model-load-benchmarks.md`
 - **Dawn WebGPU**：≥3 sessions → `VK_ERROR_DEVICE_LOST`，限制 ≤2 个 WebGPU session
 - **ffmpeg swresample whisper 幻觉循环**：sidechain 混音音频在 ffmpeg `-ar 16000` 后尾段产生 x68+ 幻觉循环。已去掉该冗余重采样，让 miniaudio 内部处理。详情 → `.agents/asr-loop-fix.md`
-- **whisper.cpp 无法检测短语音**：0.5s+ 的短叹（"唉" 71.20）和轻笑（"哈哈哈" 115.42）在 38 个参数组合中几乎全部 miss。silero VAD v6 能捕获"唉"但 CER 涨 3-4ppt 且时间戳左漂 0.8-1.2s；"啊+哈哈哈"则没有任何参数能捕获——whisper 语言模型解码偏好将短语音合并入相邻段。详情 → `packages/benchmark/asr/whisper/results/FINDINGS.md`
+- **whisper.cpp 无法检测短语音**：0.5s+ 的短叹（"唉" 71.20）和轻笑（"哈哈哈" 115.42）在 38 个参数组合中几乎全部 miss。silero VAD v6 能捕获"唉"但 CER 涨 3-4ppt 且时间戳左漂 0.8-1.2s；"啊+哈哈哈"则没有任何参数能捕获——whisper 语言模型解码偏好将短语音合并入相邻段。详情 → `vox-lab/packages/benchmark/asr/whisper/results/FINDINGS.md`
 - **TTS cloud 对超短文本返回近空音频**：单音节段（如 "嘿"→"Hê"，workfolder 大/55 #25）VoxCPM cloud 可能返回 ~1ms 近空 wav，曾致 mix_audio 零时长硬失败。现由 pacer-rs Retryer 在 tts 段内重试（<100ms 视为无效），耗尽则写静音占位标 error；mix_audio 对零时长段跳过留白而非失败。
 - **VAD 变体时间戳偏移**：所有 VAD 模式都系统性地将分段边界左移（s_off_mean -0.75~-1.85s），导致字幕 timing 不准。CER 最低的 sidechain+vad-v6-th02（8.41%）偏移 -534ms。最佳平衡参数是 sidechain+temp-02（CER 9.48%，s_off +203ms，94.7% 检测率）
 
@@ -105,4 +102,4 @@ async fn greet(ctx: &Ctx, input: GreetInput) -> GreetOutput {
 - `.agents/asr-loop-fix.md` — ffmpeg swresample 导致 whisper 幻觉循环根因
 - `.agents/windows-path-case.md` — Windows PATH 大小写坑 (exit=53 + 空输出)
 - `docs/webgpu-oom.md` — WebGPU `VK_ERROR_DEVICE_LOST` 根因分析
-- `packages/benchmark/asr/whisper/results/FINDINGS.md` — ASR 参数基准测试详细结果（38 组合）
+- `vox-lab/packages/benchmark/asr/whisper/results/FINDINGS.md` — ASR 参数基准测试详细结果（38 组合）

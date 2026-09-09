@@ -42,5 +42,5 @@ Sidechain 混音后的 `target_3_vocals_mixed.wav`（44.1kHz stereo），pipelin
 ## 相关文件
 
 - `packages/cli/src/feat/stages/asr.ts:346` — 修复位置
-- `submodule/whisper.cpp/examples/common-whisper.cpp:96` — miniaudio 强制 16kHz 输出
-- `submodule/whisper.cpp/README.md:102` — 官方预处理示例
+- `vox-lab/submodule/whisper.cpp/examples/common-whisper.cpp:96` — miniaudio 强制 16kHz 输出
+- `vox-lab/submodule/whisper.cpp/README.md:102` — 官方预处理示例

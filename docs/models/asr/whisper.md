@@ -112,4 +112,4 @@ VAD v6 + th02 虽然 CER 最低但时间戳左漂 0.68s，且"唉"被合并入�
 | `--temperature` | `0.2` | 最佳时间戳精度 |
 | 线程 | `4` | GPU 推理为主，CPU 解码器够用 |
 
-> 完整 38 组参数对比 → `packages/benchmark/asr/whisper/results/FINDINGS.md`
+> 完整 38 组参数对比 → `vox-lab/packages/benchmark/asr/whisper/results/FINDINGS.md`

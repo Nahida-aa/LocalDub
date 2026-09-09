@@ -36,4 +36,4 @@ OCR 核心（`subtitle-finder` / `subtitle-ocr` / `rapidocr-ort` / `geometry`）
 
 ## 下一步（集成阶段，未做）
 
-- 将 sf 关键帧策略接进 `packages/benchmark/ocr/compute/benchmark-ocr-video.ts`
+- 将 sf 关键帧策略接进 `vox-lab/packages/benchmark/ocr/compute/benchmark-ocr-video.ts`
