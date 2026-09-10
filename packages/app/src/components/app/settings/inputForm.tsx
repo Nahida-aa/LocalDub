@@ -34,6 +34,7 @@ import type {
   ServerType_Serialize,
   StageName,
   SubtitleSource,
+  TargetLang,
   TaskAction,
 } from "@repo/sdk/fnrpc/bindings";
 import { ScrollArea } from "@repo/ui-solid/base/scroll-area";
@@ -105,6 +106,63 @@ const SERVER_NAMES = [
   } satisfies Record<ServerType_Serialize, string>),
 ];
 
+// 语言码: 与 Rust `const::lang::LANGS` (bindings TargetLang) 同步。
+// sourceLang 值域开放 (whisper ~99 种), 这里只列可翻译的 23 种已知语言,
+// 列表外语言码 (it/uk/nl...) 需在 input.jsonc 文本页直接填。
+const LANGS = keysOf({
+  en: "",
+  zh: "",
+  vi: "",
+  ja: "",
+  ko: "",
+  fr: "",
+  de: "",
+  es: "",
+  pt: "",
+  ru: "",
+  ar: "",
+  hi: "",
+  th: "",
+  id: "",
+  ms: "",
+  tl: "",
+  my: "",
+  km: "",
+  lo: "",
+  mn: "",
+  ne: "",
+  ur: "",
+  bn: "",
+} satisfies Record<TargetLang, string>);
+
+const LANG_LABELS: Record<string, string> = {
+  en: "英语 English",
+  zh: "中文 Chinese",
+  vi: "越南语 Vietnamese",
+  ja: "日语 Japanese",
+  ko: "韩语 Korean",
+  fr: "法语 French",
+  de: "德语 German",
+  es: "西班牙语 Spanish",
+  pt: "葡萄牙语 Portuguese",
+  ru: "俄语 Russian",
+  ar: "阿拉伯语 Arabic",
+  hi: "印地语 Hindi",
+  th: "泰语 Thai",
+  id: "印尼语 Indonesian",
+  ms: "马来语 Malay",
+  tl: "他加禄语 Tagalog",
+  my: "缅甸语 Burmese",
+  km: "高棉语 Khmer",
+  lo: "老挝语 Lao",
+  mn: "蒙古语 Mongolian",
+  ne: "尼泊尔语 Nepali",
+  ur: "乌尔都语 Urdu",
+  bn: "孟加拉语 Bengali",
+};
+
+const langLabel = (v: string): string => (LANG_LABELS[v] ? `${v} · ${LANG_LABELS[v]}` : v);
+
 type FormState = {
   command: string;
   action: string;
@@ -153,15 +211,17 @@ function CardSelect(props: {
   description: string;
   field: () => FieldLike;
   options: string[];
+  optionLabel?: (v: string) => string;
 }) {
   // Solid: JSX 属性需是"调用"才会编译成 getter —— 直接写对象字面量会被静态化,
   // signal 变化时选中项不同步 (React 靠重渲染天然正确, Solid 不行)。
+  const labelOf = (v: string): string => (props.optionLabel ? props.optionLabel(v) : v) || "—";
   const selected = (): Option => ({
     value: props.field().state.value || EMPTY,
-    label: props.field().state.value || "—",
+    label: labelOf(props.field().state.value || ""),
   });
   const options = (): Option[] =>
-    props.options.map((v) => ({ value: v || EMPTY, label: v || "—" }));
+    props.options.map((v) => ({ value: v || EMPTY, label: labelOf(v) }));
 
   return (
     <CardX
@@ -180,7 +240,7 @@ function CardSelect(props: {
           options={options()}
           itemComponent={(p) => <SelectItem item={p.item}>{p.item.rawValue.label}</SelectItem>}
         >
-          <SelectTrigger class="w-45">
+          <SelectTrigger class="w-54">
             <SelectValue<Option>>{(state) => state.selectedOption()?.label ?? "—"}</SelectValue>
           </SelectTrigger>
           <SelectContent />
@@ -390,21 +450,23 @@ export function InputFormSettings() {
             </form.Field>
             <form.Field name="sourceLang">
               {(field) => (
-                <CardInput
+                <CardSelect
                   title="task.sourceLang"
-                  description="源语言 (空 = 自动)"
+                  description="源语言 (空 = 自动; 列表外如 it/uk 需在 input.jsonc 文本页填)"
                   field={field}
-                  placeholder="ja"
+                  options={LANGS}
+                  optionLabel={langLabel}
                 />
               )}
             </form.Field>
             <form.Field name="targetLang">
               {(field) => (
-                <CardInput
+                <CardSelect
                   title="task.targetLang"
                   description="目标语言 (空 = 自动)"
                   field={field}
-                  placeholder="zh"
+                  options={LANGS}
+                  optionLabel={langLabel}
                 />
               )}
             </form.Field>
