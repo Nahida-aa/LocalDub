@@ -203,11 +203,15 @@ pub fn stop_voxcpm(state: &AppState) -> Result<(), String> {
 }
 
 fn input_json_path(state: &AppState) -> PathBuf {
-    state
-        .repo_root
-        .join("packages")
-        .join("cli")
-        .join("input.json")
+    // 与实际 CLI 一致: 仓库根优先 `input.jsonc`, 其次 `input.json`
+    // (镜像 packages/cli/src/lib.rs resolve_input_path)。
+    let root = &state.repo_root;
+    let candidates = [root.join("input.jsonc"), root.join("input.json")];
+    candidates
+        .iter()
+        .find(|p| p.exists())
+        .cloned()
+        .unwrap_or_else(|| root.join("input.jsonc"))
 }
 
 fn input_schema_path(state: &AppState) -> PathBuf {
@@ -220,12 +224,12 @@ fn input_schema_path(state: &AppState) -> PathBuf {
 
 pub fn read_input(state: &AppState) -> Result<String, String> {
     let path = input_json_path(state);
-    fs::read_to_string(&path).map_err(|e| format!("Failed to read input.json: {}", e))
+    fs::read_to_string(&path).map_err(|e| format!("Failed to read input.jsonc: {}", e))
 }
 
 pub fn write_input(state: &AppState, content: String) -> Result<(), String> {
     let path = input_json_path(state);
-    fs::write(&path, &content).map_err(|e| format!("Failed to write input.json: {}", e))
+    fs::write(&path, &content).map_err(|e| format!("Failed to write input.jsonc: {}", e))
 }
 
 pub fn read_input_schema(state: &AppState) -> Result<String, String> {
