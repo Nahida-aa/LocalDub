@@ -15,7 +15,7 @@ import { Modal } from "@repo/ui-solid/custom/modal/modal";
 import type { JSX } from "solid-js";
 import { openModal } from "@repo/ui-solid/custom/modal/renderer";
 import { GeneralSettings } from "./general";
-import { InputFormSettings } from "./inputForm";
+import { InputFormSettings } from "./inputForm/inputForm";
 import { ScrollArea } from "@repo/ui-solid/base/scroll-area";
 import { ServerManager } from "./ServerManager";
 import { DeviceInfo } from "./DeviceInfo";
