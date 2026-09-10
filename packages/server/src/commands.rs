@@ -4,8 +4,6 @@ use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 
-use device_rs::DeviceInfo;
-
 use crate::ctx::{
     AppState,
     // Ctx
@@ -202,25 +200,6 @@ pub fn stop_voxcpm(state: &AppState) -> Result<(), String> {
     // 随 start_voxcpm 迁移: 本地 voxcpm_proc 恒为空, 仅保留幂等停止语义。
     let _ = state;
     Ok(())
-}
-
-pub fn device_info(state: &AppState) -> Result<DeviceInfo, String> {
-    let cli = state
-        .repo_root
-        .join("packages")
-        .join("device")
-        .join("cli.ts");
-    let output = Command::new("bun")
-        .arg(cli.to_str().unwrap_or(""))
-        .arg("--json")
-        .output()
-        .map_err(|e| format!("Failed to run device CLI: {}", e))?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Device CLI failed: {}", stderr));
-    }
-    let raw = String::from_utf8(output.stdout).map_err(|e| format!("Invalid UTF-8: {}", e))?;
-    serde_json::from_str(&raw).map_err(|e| format!("Failed to parse device info: {}", e))
 }
 
 fn input_json_path(state: &AppState) -> PathBuf {

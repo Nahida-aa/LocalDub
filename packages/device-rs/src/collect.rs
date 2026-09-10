@@ -17,7 +17,7 @@ pub fn run_with_timeout(cmd: &str, args: &[&str], timeout_ms: u64) -> String {
     let reader = std::thread::spawn(move || {
         use std::io::Read;
         let mut buf = String::new();
-        let _ = stdout_handle.as_mut().map(|mut h| h.read_to_string(&mut buf));
+        let _ = stdout_handle.as_mut().map(|h| h.read_to_string(&mut buf));
         buf
     });
     let deadline = std::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);

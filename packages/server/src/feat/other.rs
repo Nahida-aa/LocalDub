@@ -13,11 +13,12 @@ use device_rs::DeviceInfo;
 
 use config_rs::root::repo_root;
 
-use crate::{commands, ctx::Ctx};
+use crate::ctx::Ctx;
 
 #[fnrpc::rpc_query]
-pub async fn device_info(ctx: &Ctx) -> Result<DeviceInfo, String> {
-    commands::device_info(&ctx.state)
+pub async fn device_info(_ctx: &Ctx) -> Result<DeviceInfo, String> {
+    // 直接调用 device-rs 纯 Rust 采集 (此前 spawn bun 跑 TS cli.ts 只因语言不同)。
+    Ok(device_rs::get_device_info())
 }
 
 /// 返回 media root (`repo_root()`) 绝对路径。
