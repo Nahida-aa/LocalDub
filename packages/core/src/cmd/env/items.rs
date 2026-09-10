@@ -831,8 +831,8 @@ const DEMUCS_BURN_TCH: ReleaseBinSpec = ReleaseBinSpec {
     zip: true,
     linux_asset: "demucs-burn-tch-x86_64-unknown-linux-gnu.zip",
     linux_sha256: "3cd530a17dedbff53c4ee86befd2567621e3d3a335b93f2cf313ebe414a79308",
-    windows_asset: None,
-    windows_sha256: None,
+    windows_asset: Some("demucs-burn-tch-x86_64-pc-windows-msvc.zip"),
+    windows_sha256: Some("c974ccd160dd330c38f1f1776df353624d8fc913b89b9619c745b14607836f45"),
     stamp: ".demucs_burn_tch.version.json",
 };
 
@@ -844,8 +844,8 @@ const DEMUCS_BURN_WGPU: ReleaseBinSpec = ReleaseBinSpec {
     zip: true,
     linux_asset: "demucs-burn-wgpu-x86_64-unknown-linux-gnu.zip",
     linux_sha256: "f55bf5a80ae6fe9155df68eb652c70bceab422045eb3d3dbca703f9ec5c310e8",
-    windows_asset: None,
-    windows_sha256: None,
+    windows_asset: Some("demucs-burn-wgpu-x86_64-pc-windows-msvc.zip"),
+    windows_sha256: Some("e2aa3855f07f6cbfda8507db3eeecf5d8fc2151af13fa2908a6ae005207b3592"),
     stamp: ".demucs_burn_wgpu.version.json",
 };
 
@@ -862,8 +862,8 @@ const WHISPER_VULKAN: ReleaseBinSpec = ReleaseBinSpec {
     zip: true,
     linux_asset: "whisper-vulkan-x86_64-unknown-linux-gnu.zip",
     linux_sha256: "1bdb026180cd21eaf31d84521ec64e92b32af261c32c87d2ca518337c2563c0c",
-    windows_asset: None,
-    windows_sha256: None,
+    windows_asset: Some("whisper-vulkan-x86_64-pc-windows-msvc.zip"),
+    windows_sha256: Some("1754cffc2132d7bbf303c65a27e7b01b578e76714afef97099e3d411d1cf9322"),
     stamp: ".whisper_vulkan.version.json",
 };
 
