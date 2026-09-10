@@ -85,6 +85,6 @@ specta-macros = { git = "https://github.com/specta-rs/specta.git", rev = "7bfd74
 specta-serde = { git = "https://github.com/specta-rs/specta.git", rev = "7bfd7428d675201f2beec8a0f0221599a2b3ea45" }
 specta-typescript = { git = "https://github.com/specta-rs/specta.git", rev = "7bfd7428d675201f2beec8a0f0221599a2b3ea45" }
 specta-util = { git = "https://github.com/specta-rs/specta.git", rev = "7bfd7428d675201f2beec8a0f0221599a2b3ea45" }
-fnrpc = { git = "https://github.com/Nahida-aa/fnrpc.git", rev = "76ddfbfba4d65feff5d911968133987107901151" }
-fnrpc-axum = { git = "https://github.com/Nahida-aa/fnrpc.git", rev = "76ddfbfba4d65feff5d911968133987107901151" }
-fnrpc-tauri = { git = "https://github.com/Nahida-aa/fnrpc.git", rev = "76ddfbfba4d65feff5d911968133987107901151" }
+fnrpc = { git = "https://github.com/Nahida-aa/fnrpc.git", rev = "c95425b038c9239abb0df5057c6c3faaca46a091" }
+fnrpc-axum = { git = "https://github.com/Nahida-aa/fnrpc.git", rev = "c95425b038c9239abb0df5057c6c3faaca46a091" }
+fnrpc-tauri = { git = "https://github.com/Nahida-aa/fnrpc.git", rev = "c95425b038c9239abb0df5057c6c3faaca46a091" }
