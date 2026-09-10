@@ -12,12 +12,17 @@
 use std::process::exit;
 
 use anyhow::{Context, anyhow};
-use cli::strip_jsonc_comments as strip_jsonc;
 use jsonc_parser::CollectOptions;
 use jsonc_parser::ParseOptions;
 use jsonc_parser::ast::Value as JsoncValue;
 use jsonc_parser::common::Ranged;
 use jsonc_parser::parse_to_ast;
+use jsonc_parser::parse_to_serde_value;
+
+/// JSONC → serde_json::Value 一步解码 (注释/尾随逗号由 jsonc-parser 处理)。
+fn parse_jsonc(text: &str) -> anyhow::Result<serde_json::Value> {
+    parse_to_serde_value(text, &Default::default()).map_err(|e| anyhow!("解析 JSONC 失败: {e:?}"))
+}
 
 /// 定位 input 文件: 优先仓库根 `input.jsonc`, 其次 `input.json`。
 fn resolve_input_path() -> anyhow::Result<std::path::PathBuf> {
@@ -75,9 +80,7 @@ fn set_non_preserving(
     path: &[String],
     value: &serde_json::Value,
 ) -> anyhow::Result<String> {
-    let cleaned = strip_jsonc(text);
-    let mut doc: serde_json::Value = serde_json::from_str(&cleaned)
-        .with_context(|| "解析 input JSON 失败 (非保留模式)".to_string())?;
+    let mut doc = parse_jsonc(text).with_context(|| "解析 input JSON 失败 (非保留模式)".to_string())?;
     set_in_json(&mut doc, path, value)
         .with_context(|| format!("设置路径 {} 失败", path.join(".")))?;
     Ok(serde_json::to_string_pretty(&doc)?)
@@ -203,9 +206,7 @@ fn find_value_node<'a>(node: &'a JsoncValue<'a>, path: &[String]) -> Option<&'a 
 
 /// 非保留模式读取 (serde_json)。
 fn get_non_preserving(text: &str, path: &[String]) -> anyhow::Result<serde_json::Value> {
-    let cleaned = strip_jsonc(text);
-    let doc: serde_json::Value =
-        serde_json::from_str(&cleaned).with_context(|| "解析 input JSON 失败 (get)".to_string())?;
+    let doc = parse_jsonc(text).with_context(|| "解析 input JSON 失败 (get)".to_string())?;
     get_in_json(&doc, path)
 }
 
@@ -262,9 +263,10 @@ fn run() -> anyhow::Result<()> {
             let p = resolve_input_path()?;
             let raw = std::fs::read_to_string(&p)
                 .with_context(|| format!("读取 input 失败: {}", p.display()))?;
-            let cleaned = strip_jsonc(&raw);
-            let input: ld_core::input::Input = serde_json::from_str(&cleaned)
-                .with_context(|| format!("解析 input 失败: {}", p.display()))?;
+            let input: ld_core::input::Input = serde_json::from_value(
+                parse_jsonc(&raw).with_context(|| format!("解析 input 失败: {}", p.display()))?,
+            )
+            .with_context(|| format!("解析 input 失败: {}", p.display()))?;
             input
                 .validate()
                 .map_err(|e| anyhow!("input 校验失败: {e}"))?;

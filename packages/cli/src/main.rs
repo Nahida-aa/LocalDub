@@ -234,8 +234,9 @@ fn main() {
             let args = input.check.clone().unwrap_or_default();
             ld_core::cmd::check::cmd_check(&input, &args).context("check 命令失败")
         }
-        InputCommand::ListModels => ld_core::cmd::list_models::cmd_list_models(&input)
-            .context("listModels 命令失败"),
+        InputCommand::ListModels => {
+            ld_core::cmd::list_models::cmd_list_models(&input).context("listModels 命令失败")
+        }
         InputCommand::DeviceInfo => {
             let info = device_rs::get_device_info();
             serde_json::to_string_pretty(&info)
@@ -254,9 +255,7 @@ fn main() {
         (input.command, action),
         (
             InputCommand::Task,
-            None | Some(
-                TaskAction::Start | TaskAction::Continue | TaskAction::Import
-            )
+            None | Some(TaskAction::Start | TaskAction::Continue | TaskAction::Import)
         )
     );
 
@@ -279,9 +278,6 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use cli::strip_jsonc_comments;
-
     #[test]
     fn resolves_jsonc_before_json() {
         // resolve_input_path 依赖磁盘, 这里只验证两个候选的命名顺序语义
@@ -314,9 +310,11 @@ mod tests {
                 },
             },
         }"#;
-        let cleaned = strip_jsonc_comments(raw);
-        let input: ld_core::input::Input =
-            serde_json::from_str(&cleaned).expect("解析 JSONC 失败 (注释/尾随逗号应已剥离)");
+        let input: ld_core::input::Input = serde_json::from_value(
+            jsonc_parser::parse_to_serde_value(raw, &Default::default())
+                .expect("解析 JSONC 失败 (注释/尾随逗号应由 jsonc-parser 处理)"),
+        )
+        .expect("解析 JSONC 失败");
         assert!(input.validate().is_ok());
 
         // subtitleSource=sf_ocr → sf_ocr 全链路, 不经过 asr
