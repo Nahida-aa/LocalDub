@@ -10,6 +10,7 @@ import { TextField, TextFieldInput } from "@repo/ui-solid/base/text-field";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@repo/ui-solid/base/tooltip";
 import { toastError, toastSuccess } from "@repo/ui-solid/custom/toast";
 import { closeModal, openModal } from "@repo/ui-solid/custom/modal/renderer";
+import { parse } from "jsonc-parser";
 import { client, fnrpc } from "#/integrations/fnrpc/client.ts";
 import type { Input } from "@repo/sdk/fnrpc/bindings";
 
@@ -41,54 +42,12 @@ export const StartTaskDialog = () => {
   );
 };
 
-/// jsonc 容错解析: 去掉字符串外的 // 与 /* */ 注释及尾逗号, 便于 JSON.parse。
-/// (与 settings/inputForm.tsx 的 stripJsonc 同款逻辑, 字符串内 // 需保留避免误伤 http://)
-function stripJsonc(text: string): string {
-  let out = "";
-  let inStr = false;
-  let quote = '"';
-  let escaped = false;
-  let i = 0;
-  while (i < text.length) {
-    const c = text[i];
-    const next = text[i + 1];
-    if (inStr) {
-      out += c;
-      if (escaped) escaped = false;
-      else if (c === "\\") escaped = true;
-      else if (c === quote) inStr = false;
-      i += 1;
-      continue;
-    }
-    if (c === '"' || c === "'") {
-      inStr = true;
-      quote = c;
-      out += c;
-      i += 1;
-      continue;
-    }
-    if (c === "/" && next === "/") {
-      while (i < text.length && text[i] !== "\n") i += 1;
-      continue;
-    }
-    if (c === "/" && next === "*") {
-      i += 2;
-      while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) i += 1;
-      i += 2;
-      continue;
-    }
-    out += c;
-    i += 1;
-  }
-  return out.replace(/,(\s*[}\]])/g, "$1");
-}
-
 /// 读仓库根 input.jsonc 作入队基准 Input, 仅覆盖 url/action, 其余 (stages 等) 保持用户全局配置。
 /// 镜像 CLI 参数模式 (`cli task --action enqueue_start --url ...`: input.jsonc + 标量覆盖)。
 async function loadBaseInput(): Promise<Input> {
   // 0.4.6 raw fnrpc 已由 transport 解开 `{json, meta}` 信封, 这里拿到的是原始文本。
   const raw = await fnrpc.read_app_file_text("input.jsonc");
-  return JSON.parse(stripJsonc(raw)) as Input;
+  return parse(raw) as Input;
 }
 
 const StartTaskContent = () => {

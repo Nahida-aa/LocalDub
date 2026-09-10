@@ -3,8 +3,8 @@
 //! 与 `input.jsonc` 文本 tab 并存: 表单适合快速改常用字段, 冷门/未覆盖字段
 //! (各 stage 的详细参数) 仍走文本编辑。
 //!
-//! 保存语义: 按字段 merge 回解析出的对象再整体重写文件 —— **文件内的注释会丢失**,
-//! 因此保存前自动备份到 `input.jsonc.bak`。
+//! 保存语义: 用 jsonc-parser 的 modify/applyEdits 按字段路径定点编辑 —— 非空字段写入,
+//! 空字段删除属性, **文件内注释与其他字段原样保留**; 写前仍备份到 `input.jsonc.bak`。
 //!
 //! 表单状态由 `useAppForm` (tanstack/solid-form) 管理, 字段 UI 以 CardX 渲染
 //! (form.Field render prop 桥接 field API 与组件)。
@@ -24,6 +24,7 @@ import {
 import { toastError } from "@repo/ui-solid/custom/toast";
 import { client } from "#/integrations/fnrpc/client.ts";
 import { useAppForm } from "@repo/ui-solid/form/useAppForm";
+import { applyEdits, modify, parse } from "jsonc-parser";
 
 const INPUT_PATH = "input.jsonc";
 
@@ -134,56 +135,6 @@ const emptyForm = (): FormState => ({
   serverName: "",
 });
 
-/// jsonc 容错解析: 去掉字符串外的 // 与 /* */ 注释及尾逗号, 便于 JSON.parse。
-/// (字符串内的 // 必须保留, 否则 http:// 会被误伤)
-function stripJsonc(text: string): string {
-  let out = "";
-  let inStr = false;
-  let quote = '"';
-  let escaped = false;
-  let i = 0;
-  while (i < text.length) {
-    const c = text[i];
-    const next = text[i + 1];
-    if (inStr) {
-      out += c;
-      if (escaped) escaped = false;
-      else if (c === "\\") escaped = true;
-      else if (c === quote) inStr = false;
-      i += 1;
-      continue;
-    }
-    if (c === '"' || c === "'") {
-      inStr = true;
-      quote = c;
-      out += c;
-      i += 1;
-      continue;
-    }
-    if (c === "/" && next === "/") {
-      while (i < text.length && text[i] !== "\n") i += 1;
-      continue;
-    }
-    if (c === "/" && next === "*") {
-      i += 2;
-      while (i < text.length && !(text[i] === "*" && text[i + 1] === "/")) i += 1;
-      i += 2;
-      continue;
-    }
-    out += c;
-    i += 1;
-  }
-  return out.replace(/,(\s*[}\]])/g, "$1");
-}
-
-function parseJsonc(raw: string): Record<string, any> {
-  try {
-    return JSON.parse(stripJsonc(raw)) as Record<string, any>;
-  } catch {
-    return {};
-  }
-}
-
 type Option = { value: string; label: string };
 
 /// 空值哨兵: Kobalte 把空字符串当"无选中值" (selectedOption() 为 undefined),
@@ -276,31 +227,28 @@ export function InputFormSettings() {
     defaultValues: emptyForm(),
     onSubmit: async ({ value }) => {
       const raw = fileQ.data ?? "";
-      const prev = parseJsonc(raw);
-      const merged: Record<string, any> = {
-        ...prev,
-        command: value.command,
-        task: {
-          ...((prev.task ?? {}) as Record<string, any>),
-          action: value.action || undefined,
-          url: value.url || undefined,
-          taskDir: value.taskDir || undefined,
-          continueFrom: value.continueFrom || undefined,
-          targetStage: value.targetStage || undefined,
-          pipeline: value.pipeline || undefined,
-          subtitleSource: value.subtitleSource || undefined,
-          sourceLang: value.sourceLang || undefined,
-          targetLang: value.targetLang || undefined,
-        },
-        servers: {
-          ...((prev.servers ?? {}) as Record<string, any>),
-          action: value.serverAction || undefined,
-          name: value.serverName || undefined,
-        },
+      // jsonc-parser modify 按路径定点编辑: 空字段传 undefined 删除属性,
+      // 文件内注释 + 未列出的字段不动。
+      const fmt = { tabSize: 2, insertSpaces: true } as const;
+      let next = raw;
+      const set = (path: (string | number)[], v: string) => {
+        next = applyEdits(next, modify(next, path, v || undefined, { formattingOptions: fmt }));
       };
       try {
         await writeMut.mutateAsync([`${INPUT_PATH}.bak`, raw]);
-        await writeMut.mutateAsync([INPUT_PATH, JSON.stringify(merged, null, 2)]);
+        set(["command"], value.command);
+        set(["task", "action"], value.action);
+        set(["task", "url"], value.url);
+        set(["task", "taskDir"], value.taskDir);
+        set(["task", "continueFrom"], value.continueFrom);
+        set(["task", "targetStage"], value.targetStage);
+        set(["task", "pipeline"], value.pipeline);
+        set(["task", "subtitleSource"], value.subtitleSource);
+        set(["task", "sourceLang"], value.sourceLang);
+        set(["task", "targetLang"], value.targetLang);
+        set(["servers", "action"], value.serverAction);
+        set(["servers", "name"], value.serverName);
+        await writeMut.mutateAsync([INPUT_PATH, next]);
         await qc.invalidateQueries({
           queryKey: client.read_app_file_text.queryKey(INPUT_PATH),
         });
@@ -315,7 +263,7 @@ export function InputFormSettings() {
     const raw = fileQ.data;
     if (raw == null || filled) return;
     filled = true;
-    const p = parseJsonc(raw);
+    const p = parse(raw) as Record<string, any>;
     const t = (p.task ?? {}) as Record<string, any>;
     const s = (p.servers ?? {}) as Record<string, any>;
     form.reset({
@@ -482,8 +430,8 @@ export function InputFormSettings() {
               )}
             </form.Field>
             <p class="text-xs text-gray-500">
-              保存会重写 {INPUT_PATH}（文件内的注释不保留），原文件自动备份到 {INPUT_PATH}.bak；
-              未在此列出的字段（各 stage 详细参数）保持原值，需要在 input.jsonc 文本页编辑。
+              保存只更新表单覆盖的字段（文件内注释与未列出的字段保持不变），写前仍备份到{" "}
+              {INPUT_PATH}.bak；各 stage 详细参数需要在 input.jsonc 文本页编辑。
             </p>
           </ScrollArea>
         </Show>

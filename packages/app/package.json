@@ -47,6 +47,7 @@
     "@tauri-apps/plugin-opener": "^2.5.4",
     "@types/node": "^26.0.1",
     "codemirror": "^6.0.2",
+    "jsonc-parser": "^3.3.1",
     "lucide-solid": "^1.21.0",
     "monaco-editor": "^0.55.1",
     "monaco-themes": "^0.4.8",

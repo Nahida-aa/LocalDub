@@ -19,7 +19,6 @@
     "@repo/device": "workspace:*",
     "@repo/shared": "workspace:*",
     "@repo/subtitle-ocr": "workspace:*",
-    "@repo/voxlab": "workspace:*",
     "dotenv": "^17.4.2",
     "find-up": "^8.0.0",
     "onnxruntime-node": "^1.26.0",
