@@ -203,23 +203,13 @@ pub fn stop_voxcpm(state: &AppState) -> Result<(), String> {
 }
 
 fn input_json_path(state: &AppState) -> PathBuf {
-    // 与实际 CLI 一致: 仓库根优先 `input.jsonc`, 其次 `input.json`
-    // (镜像 packages/cli/src/lib.rs resolve_input_path)。
-    let root = &state.repo_root;
-    let candidates = [root.join("input.jsonc"), root.join("input.json")];
-    candidates
-        .iter()
-        .find(|p| p.exists())
-        .cloned()
-        .unwrap_or_else(|| root.join("input.jsonc"))
+    // 与实际 CLI 一致: 写死仓库根 input.jsonc。
+    state.repo_root.join("input.jsonc")
 }
 
 fn input_schema_path(state: &AppState) -> PathBuf {
-    state
-        .repo_root
-        .join("packages")
-        .join("cli")
-        .join("input.schema.json")
+    // 跟随 input.jsonc: 写死仓库根 input.schema.json。
+    state.repo_root.join("input.schema.json")
 }
 
 pub fn read_input(state: &AppState) -> Result<String, String> {
