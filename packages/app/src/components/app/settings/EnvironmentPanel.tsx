@@ -1,6 +1,8 @@
 import { createSignal, Show } from "solid-js";
 import { createQuery, useMutation } from "@tanstack/solid-query";
 import { Button } from "@repo/ui-solid/base/button";
+import { CardX } from "@repo/ui-solid/custom/card";
+import { ScrollArea } from "@repo/ui-solid/base/scroll-area";
 import { toastError } from "@repo/ui-solid/custom/toast";
 import { client } from "#/integrations/fnrpc/client.ts";
 import { cn } from "@repo/shared/lib/utils";
@@ -17,13 +19,9 @@ const statusColor = (status: string) =>
 function dataSummary(item: EnvCheckItem): string {
   const d = item.data as Record<string, unknown>;
   if (typeof d?.msg === "string" && d.msg) return d.msg;
-  if (typeOfString(d?.missing)) return `missing: ${d.missing}`;
+  if (typeof d?.missing === "string" && d.missing) return `missing: ${d.missing}`;
   if (typeof d?.version === "string" && d.version) return `version ${d.version}`;
   return "";
-}
-
-function typeOfString(v: unknown): v is string {
-  return typeof v === "string";
 }
 
 const sortWeight = (status: string) =>
@@ -49,8 +47,9 @@ export function EnvironmentPanel() {
   };
 
   return (
-    <div class="space-y-4">
+    <div class="space-y-4 h-full min-h-0">
       <div class="flex items-center gap-2">
+        <h2>环境依赖</h2>
         <div class="flex rounded-lg border border-gray-700 p-0.5 text-sm">
           <button
             type="button"
@@ -76,38 +75,38 @@ export function EnvironmentPanel() {
       {q.error && <p class="text-sm text-red-400">检查失败: {q.error.message}</p>}
 
       <Show when={q.data}>
-        <div class="space-y-2">
-          {items().map((item) => (
-            <div class="flex items-start justify-between gap-3 rounded-lg border border-gray-700 p-3 text-sm">
-              <div class="min-w-0 space-y-0.5">
-                <div class="flex items-center gap-2">
-                  <span class="font-mono text-[13px]">{item.key}</span>
-                  <span class={statusColor(item.status)}>{item.status}</span>
-                  {item.required && (
-                    <span class="text-[11px] text-[#facc15] border border-[#facc15]/40 rounded px-1">
-                      必需
-                    </span>
-                  )}
-                  <span class="text-[11px] text-gray-500">{item.category}</span>
-                </div>
-                <div class="text-gray-400">{item.zh}</div>
-                {item.en && item.en !== item.zh && (
-                  <div class="truncate text-xs text-gray-600">{item.en}</div>
-                )}
-                <div class="truncate text-xs text-gray-500">{dataSummary(item)}</div>
-              </div>
-              {item.has_ensure && (
-                <Button
+        <div class="flex-1 min-h-0">
+          <ScrollArea>
+            <div class="space-y-3">
+              {items().map((item) => (
+                <CardX
+                  title={item.key}
+                  description={`${item.required ? "必需 · " : ""}${item.category} · ${item.zh}${
+                    item.en && item.en !== item.zh ? ` (${item.en})` : ""
+                  }`}
                   size="sm"
-                  variant="destructive"
-                  disabled={install.isPending}
-                  onClick={() => doInstall(item.key)}
-                >
-                  {install.isPending ? "安装中..." : "安装/更新"}
-                </Button>
-              )}
+                  Footer={
+                    <div class="flex items-center justify-between gap-2 w-full">
+                      <div class="min-w-0 truncate text-xs">
+                        <span class={statusColor(item.status)}>{item.status}</span>
+                        <span class="text-gray-500 ml-2">{dataSummary(item)}</span>
+                      </div>
+                      {item.has_ensure && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={install.isPending}
+                          onClick={() => doInstall(item.key)}
+                        >
+                          {install.isPending ? "安装中..." : "安装/更新"}
+                        </Button>
+                      )}
+                    </div>
+                  }
+                />
+              ))}
             </div>
-          ))}
+          </ScrollArea>
         </div>
       </Show>
     </div>
