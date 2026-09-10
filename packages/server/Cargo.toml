@@ -34,3 +34,6 @@ tracing-subscriber.workspace = true
 mdns-sd.workspace = true
 mdns-sd-discovery.workspace = true
 jsonc-parser = { version = "0.33.1", features = ["serde"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }

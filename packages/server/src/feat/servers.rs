@@ -1,10 +1,20 @@
 use crate::{commands, ctx::Ctx};
 use config_rs::servers::ServerType;
 use ld_core::servers::discovery::ServerInfo;
+use ld_core::servers::status::{ModelServerStatus, probe_server_status};
 
 #[fnrpc::rpc_query]
 pub async fn find_server(input: ServerType) -> ServerInfo {
     ld_core::servers::discovery::find_server(input).await
+}
+
+/// 查询某类型服务器的完整运行状态 (模型级)。
+///
+/// GUI 侧封装 `cli servers status` 的同一份能力: 只用 mDNS 真实发现的实例,
+/// 逐实例探测其 `GET /status` 并解析完整状态 (含 uptime/models)。
+#[fnrpc::rpc_query]
+pub async fn get_server_status(input: ServerType) -> ModelServerStatus {
+    probe_server_status(input).await
 }
 
 #[fnrpc::rpc_mutate]

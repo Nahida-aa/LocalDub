@@ -695,6 +695,42 @@ export type MixVideoArgs_Serialize = {
 	enabled: boolean,
 };
 
+/**  单个模型的加载状态 (镜像 TS `ModelStatus.status`)。 */
+export type ModelLoadState = "ready" | "loading" | "error" | "unloaded" | "timeout";
+
+/**  服务器 + 模型级运行状态 (镜像 TS `ModelServerStatus`, 及 vox-lab `GET /status` body)。 */
+export type ModelServerStatus = ModelServerStatus_Serialize | ModelServerStatus_Deserialize;
+
+/**  服务器 + 模型级运行状态 (镜像 TS `ModelServerStatus`, 及 vox-lab `GET /status` body)。 */
+export type ModelServerStatus_Deserialize = {
+	/**  探测到的实例地址; 无 mDNS 实例时为 `None`。 */
+	host?: string | null,
+	status: ServerRunState,
+	/**  探测到的端口; 无 mDNS 实例时为 `None`。 */
+	port?: number | null,
+	uptime_s: bigint,
+	models: { [key in string]: ModelStatus },
+	message?: string | null,
+};
+
+/**  服务器 + 模型级运行状态 (镜像 TS `ModelServerStatus`, 及 vox-lab `GET /status` body)。 */
+export type ModelServerStatus_Serialize = {
+	/**  探测到的实例地址; 无 mDNS 实例时为 `None`。 */
+	host: string | null,
+	status: ServerRunState,
+	/**  探测到的端口; 无 mDNS 实例时为 `None`。 */
+	port: number | null,
+	uptime_s: bigint,
+	models: { [key in string]: ModelStatus },
+	message: string | null,
+};
+
+/**  单个模型的状态 (镜像 TS `ModelStatus`)。 */
+export type ModelStatus = {
+	status: ModelLoadState,
+	device: string,
+};
+
 /**  OCR 运行设备。 */
 export type OcrDevice = 
 /**  cpu */
@@ -994,6 +1030,9 @@ export type ServerInfo = {
 	port: number,
 	found_via: FoundVia,
 };
+
+/**  服务器整体运行状态 (镜像 TS `ModelServerStatus.status`)。 */
+export type ServerRunState = "running" | "stopped" | "timeout" | "error";
 
 /**
  *  Server type identifiers for mDNS discovery.
@@ -1608,16 +1647,11 @@ export type Procedures = {
   list_app_directory: { kind: "query"; method: "GET"; input: string; output: DirEntry[]; error: RpcErr };
   watch_task_log: { kind: "subscribe"; method: "GET"; input: string; output: string; error: RpcErr };
   watch_task_tree: { kind: "subscribe"; method: "GET"; input: string; output: PathEvent; error: RpcErr };
-  tick: { kind: "subscribe"; method: "GET"; input: bigint; output: bigint; error: RpcErr };
   get_group_list: { kind: "query"; method: "GET"; input: null; output: GroupInfo[]; error: RpcErr };
   get_task_ctx: { kind: "query"; method: "GET"; input: string; output: TaskCtx; error: RpcErr };
   health_check: { kind: "query"; method: "GET"; input: null; output: string; error: RpcErr };
-  get_count: { kind: "query"; method: "GET"; input: null; output: string; error: RpcErr };
-  reset_count: { kind: "mutate"; method: "POST"; input: null; output: null; error: RpcErr };
   find_server: { kind: "query"; method: "GET"; input: ServerType; output: ServerInfo; error: RpcErr };
-  start_torch: { kind: "mutate"; method: "POST"; input: null; output: number; error: RpcErr };
-  stop_torch: { kind: "mutate"; method: "POST"; input: null; output: null; error: RpcErr };
-  check_torch: { kind: "query"; method: "GET"; input: null; output: boolean; error: RpcErr };
+  get_server_status: { kind: "query"; method: "GET"; input: ServerType; output: ModelServerStatus; error: RpcErr };
   start_voxcpm: { kind: "mutate"; method: "POST"; input: null; output: number; error: RpcErr };
   stop_voxcpm: { kind: "mutate"; method: "POST"; input: null; output: null; error: RpcErr };
   shutdown: { kind: "mutate"; method: "POST"; input: null; output: string; error: RpcErr };
@@ -1645,16 +1679,11 @@ export const __procedureMeta = {
   list_app_directory: { kind: "query", method: "GET" },
   watch_task_log: { kind: "subscribe", method: "GET" },
   watch_task_tree: { kind: "subscribe", method: "GET" },
-  tick: { kind: "subscribe", method: "GET" },
   get_group_list: { kind: "query", method: "GET" },
   get_task_ctx: { kind: "query", method: "GET" },
   health_check: { kind: "query", method: "GET" },
-  get_count: { kind: "query", method: "GET" },
-  reset_count: { kind: "mutate", method: "POST" },
   find_server: { kind: "query", method: "GET" },
-  start_torch: { kind: "mutate", method: "POST" },
-  stop_torch: { kind: "mutate", method: "POST" },
-  check_torch: { kind: "query", method: "GET" },
+  get_server_status: { kind: "query", method: "GET" },
   start_voxcpm: { kind: "mutate", method: "POST" },
   stop_voxcpm: { kind: "mutate", method: "POST" },
   shutdown: { kind: "mutate", method: "POST" },
