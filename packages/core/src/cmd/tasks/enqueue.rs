@@ -202,14 +202,5 @@ fn is_ipv4_usable(host: &str) -> bool {
 
 /// 在无 tokio runtime 上下文中跑 async mDNS 发现。
 fn futures_block_on<T>(fut: impl std::future::Future<Output = T>) -> T {
-    match tokio::runtime::Handle::try_current() {
-        Ok(_) => tokio::runtime::Handle::current().block_on(fut),
-        Err(_) => {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("tokio runtime");
-            rt.block_on(fut)
-        }
-    }
+    crate::utils::runtime::block_on(fut)
 }

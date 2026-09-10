@@ -1,6 +1,7 @@
-//! cli 工具包的共享工具函数 (供 `cli` 与 `inputctl` 两个 bin 复用)。
+//! 仓库根 input 文件 (input.jsonc / input.json) 定位与 JSONC 解析的共享工具。
 //!
-//! 目前有仓库根 input 定位/解析 (JSONC 经 jsonc-parser 一步解码)。
+//! 供 `cli`(main + inputctl) 与 `server` 复用, 避免各自重复实现
+//! 「定位仓库根 input + jsonc-parser 一步解码」逻辑。
 
 use anyhow::Context;
 use jsonc_parser::parse_to_serde_value;
@@ -19,6 +20,12 @@ pub fn resolve_input_path() -> anyhow::Result<std::path::PathBuf> {
         root.display(),
         root.display()
     ))
+}
+
+/// JSONC → serde_json::Value 一步解码 (注释/尾随逗号由 jsonc-parser 处理)。
+pub fn parse_jsonc(text: &str) -> anyhow::Result<serde_json::Value> {
+    parse_to_serde_value(text, &Default::default())
+        .map_err(|e| anyhow::anyhow!("解析 JSONC 失败: {e:?}"))
 }
 
 /// 解析仓库根 `input.jsonc`/`input.json` 为 `ld_core::input::Input`。

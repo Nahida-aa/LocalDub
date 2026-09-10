@@ -7,9 +7,7 @@
 //!
 //! 输出均为 JSON 到 stdout (对齐 TS `console.log(JSON.stringify(...))`)。
 
-use std::io::Read;
 use std::path::Path;
-use std::process::{Command, Stdio};
 
 use anyhow::anyhow;
 use clap::ValueEnum;
@@ -251,38 +249,9 @@ fn round_ms(v: Option<&Value>) -> i64 {
 
 /// 镜像 TS `fcRaw` (spawnSync timeout:5000): 成功取 stdout.trim(), 否则空串。
 fn fc_raw(cmd: &str, args: &[String]) -> String {
-    let mut c = Command::new(cmd);
-    c.args(args);
-    c.stdout(Stdio::piped()).stderr(Stdio::null());
-    let mut child = match c.spawn() {
-        Ok(child) => child,
-        Err(_) => return String::new(),
-    };
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-    loop {
-        match child.try_wait() {
-            Ok(Some(status)) => {
-                let mut stdout = String::new();
-                let _ = child
-                    .stdout
-                    .take()
-                    .map(|mut h| h.read_to_string(&mut stdout));
-                if status.success() {
-                    return stdout.trim().to_string();
-                }
-                return String::new();
-            }
-            Ok(None) => {
-                if std::time::Instant::now() >= deadline {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    return String::new();
-                }
-                std::thread::sleep(std::time::Duration::from_millis(100));
-            }
-            Err(_) => return String::new(),
-        }
-    }
+    const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+    let (ok, out, _) = crate::utils::process::run_cmd(cmd, args, None, TIMEOUT, false);
+    if ok { out } else { String::new() }
 }
 
 #[cfg(test)]

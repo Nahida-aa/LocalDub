@@ -13,8 +13,8 @@ use std::process::exit;
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use cli::parse_repo_input;
 use config_rs::servers::ServerType;
+use paths::parse_repo_input;
 use ld_core::cmd::check::CheckType;
 use ld_core::cmd::env::args::EnvAction;
 use ld_core::cmd::tasks::task::cmd_task;

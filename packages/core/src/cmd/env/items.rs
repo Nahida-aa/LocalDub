@@ -27,51 +27,7 @@ use crate::cmd::env::{CheckResult, CheckStatus};
 
 /// 镜像 TS `tryExec` (spawnSync timeout:10s): 同步执行命令, 超时 kill 视为 ok=false。
 fn try_exec(cmd: &str, args: &[&str], cwd: Option<&Path>) -> (bool, String, String) {
-    use std::io::Read;
-    use std::process::Stdio;
-
-    let mut c = Command::new(cmd);
-    c.args(args);
-    if let Some(dir) = cwd {
-        c.current_dir(dir);
-    }
-    c.stdout(Stdio::piped()).stderr(Stdio::piped());
-    let mut child = match c.spawn() {
-        Ok(child) => child,
-        Err(_) => return (false, String::new(), String::new()),
-    };
-    let deadline = std::time::Instant::now() + TRY_EXEC_TIMEOUT;
-    loop {
-        match child.try_wait() {
-            Ok(Some(status)) => {
-                // 退出后用剩余 stdout/stderr 管道读取完整输出 (与 TS trim 语义一致)
-                let mut stdout = String::new();
-                let mut stderr = String::new();
-                let _ = child
-                    .stdout
-                    .take()
-                    .map(|mut h| h.read_to_string(&mut stdout));
-                let _ = child
-                    .stderr
-                    .take()
-                    .map(|mut h| h.read_to_string(&mut stderr));
-                return (
-                    status.success(),
-                    stdout.trim().to_string(),
-                    stderr.trim().to_string(),
-                );
-            }
-            Ok(None) => {
-                if std::time::Instant::now() >= deadline {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    return (false, String::new(), String::new());
-                }
-                std::thread::sleep(std::time::Duration::from_millis(100));
-            }
-            Err(_) => return (false, String::new(), String::new()),
-        }
-    }
+    crate::utils::process::run_cmd(cmd, args.iter().copied(), cwd, TRY_EXEC_TIMEOUT, true)
 }
 
 /// `tryExec` 超时 (镜像 TS spawnSync timeout:10s)。

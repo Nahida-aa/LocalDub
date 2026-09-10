@@ -19,6 +19,7 @@ serde.workspace = true
 serde_json.workspace = true
 specta.workspace = true
 config-rs.workspace = true
+paths = { path = "../paths" }
 ld-core.workspace = true
 device-rs.workspace = true
 fs.workspace = true

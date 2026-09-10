@@ -138,16 +138,7 @@ fn probe_server_health(t: ServerType, host: &str, port: u16) -> &'static str {
 
 /// 在无 tokio runtime 上下文中跑一个 async 发现 (mdns-sd-discovery 需 tokio)。
 fn futures_block_on<T>(fut: impl std::future::Future<Output = T>) -> T {
-    match tokio::runtime::Handle::try_current() {
-        Ok(_) => tokio::runtime::Handle::current().block_on(fut),
-        Err(_) => {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("tokio runtime");
-            rt.block_on(fut)
-        }
-    }
+    crate::utils::runtime::block_on(fut)
 }
 
 /// `start` 动作: 启动主服务器 (packages/server, Rust 二进制)。

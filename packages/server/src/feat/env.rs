@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use jsonc_parser::parse_to_serde_value;
 use ld_core::cmd::env::input::{env_names, ENV_ENTRIES};
 use ld_core::cmd::env::items::ensure_fns;
 use ld_core::cmd::env::{infer_targets, run_check, run_ensure, CheckResult, CheckStatus};
+use paths::parse_repo_input;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
@@ -68,16 +68,7 @@ fn assemble(results: Vec<CheckResult>) -> Vec<EnvCheckItem> {
 
 /// 读仓库根 input.jsonc/input.json 并反序列化为 Input (jsonc-parser 处理注释/尾逗号)。
 fn repo_input() -> anyhow::Result<ld_core::input::Input> {
-    let root = config_rs::root::repo_root();
-    let candidates = [root.join("input.jsonc"), root.join("input.json")];
-    let path = candidates
-        .iter()
-        .find(|p| p.exists())
-        .ok_or_else(|| anyhow::anyhow!("仓库根未找到 input.jsonc/input.json: {}", root.display()))?;
-    let raw = std::fs::read_to_string(path)
-        .map_err(|e| anyhow::anyhow!("读取 {} 失败: {e}", path.display()))?;
-    parse_to_serde_value(&raw, &Default::default())
-        .map_err(|e| anyhow::anyhow!("解析 {} 失败: {e}", path.display()))
+    parse_repo_input()
 }
 
 /// 环境检查。

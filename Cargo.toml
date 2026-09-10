@@ -5,6 +5,7 @@ members = [
     "packages/time", "packages/app/src-tauri",
     "packages/fs", "packages/server",
     "packages/sdk", "packages/cli", "packages/env", "packages/llm", "packages/pacer-rs",
+    "packages/paths",
 ]
 
 [workspace.package]
@@ -22,6 +23,7 @@ fs = { path = "packages/fs" }
 ld-core = { path = "packages/core" }
 llm = { path = "packages/llm" }
 pacer-rs = { path = "packages/pacer-rs" }
+paths = { path = "packages/paths" }
 server = { path = "packages/server" }
 time = { path = "packages/time" }
 voxcpm-cloud = { git = "https://github.com/Nahida-aa/vox-lab", tag = "v0.1.2" }

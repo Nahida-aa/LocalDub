@@ -12,6 +12,7 @@ serde_json.workspace = true
 clap.workspace = true
 config-rs.workspace = true
 ld-core = { path = "../core" }
+paths = { path = "../paths" }
 device-rs = { path = "../device-rs" }
 jsonc-parser = { version = "0.33.1", features = ["serde"] }
 tracing.workspace = true

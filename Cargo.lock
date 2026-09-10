@@ -696,6 +696,7 @@ dependencies = [
  "device-rs",
  "jsonc-parser",
  "ld-core",
+ "paths",
  "serde_json",
  "tracing",
  "tracing-subscriber",
@@ -3389,6 +3390,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "paths"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "config-rs",
+ "jsonc-parser",
+ "ld-core",
+ "serde_json",
+]
+
+[[package]]
 name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4423,6 +4435,7 @@ dependencies = [
  "ld-core",
  "mdns-sd",
  "mdns-sd-discovery",
+ "paths",
  "serde",
  "serde_json",
  "specta",
