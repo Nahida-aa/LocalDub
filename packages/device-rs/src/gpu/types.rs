@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
 pub enum Vendor {
     #[serde(rename = "amd")]
     Amd,
@@ -13,7 +13,7 @@ pub enum Vendor {
     Unknown,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Type)]
 pub enum VramType {
     #[serde(rename = "dedicated")]
     Dedicated,

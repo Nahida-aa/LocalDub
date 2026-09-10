@@ -9,6 +9,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::cmd::check::CheckArgs;
 use crate::cmd::cookie::CookieArgs;
 use crate::cmd::env::args::EnvArgs;
 use crate::servers::args::ServersArgs;
@@ -17,6 +18,9 @@ use crate::tasks::args;
 pub mod stages;
 
 /// 命令
+///
+/// 命名对齐 TS `commandList` (types.ts): `deviceInfo`/`listModels` 是 camelCase,
+/// 其余为全小写 (增强 `rename_all = "lowercase"` 无法表达, 显式 rename)。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum Command {
@@ -25,7 +29,9 @@ pub enum Command {
     Servers,
     Cookie,
     Check,
+    #[serde(rename = "deviceInfo")]
     DeviceInfo,
+    #[serde(rename = "listModels")]
     ListModels,
 }
 
@@ -52,6 +58,9 @@ pub struct Input {
     /// cookie 命令参数 (镜像 cmd/cookie/args.ts), 仅 command=cookie 时使用
     #[serde(default)]
     pub cookie: Option<CookieArgs>,
+    /// check 命令参数 (镜像 cmd/check 参数 schema), 仅 command=check 时使用
+    #[serde(default)]
+    pub check: Option<CheckArgs>,
     #[serde(default)]
     pub stages: stages::Stages,
 }
@@ -64,6 +73,7 @@ impl Default for Input {
             servers: None,
             env: None,
             cookie: None,
+            check: None,
             stages: stages::Stages::default(),
         }
     }

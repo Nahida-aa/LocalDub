@@ -15,6 +15,7 @@ use anyhow::Context;
 use clap::{Parser, Subcommand};
 use cli::parse_repo_input;
 use config_rs::servers::ServerType;
+use ld_core::cmd::check::CheckType;
 use ld_core::cmd::env::args::EnvAction;
 use ld_core::cmd::tasks::task::cmd_task;
 use ld_core::input::Command as InputCommand;
@@ -28,10 +29,11 @@ use ld_core::tasks::args::{StageName, TaskAction};
 /// `env`/`task` 子命令可用命令行参数直接触发。
 ///
 /// 设计意图:
-/// - `env`/`task` 做成 clap 子命令: 参数是标量 (action/url/taskDir/queueId/stage), 适合命令行;
-///   显式传的参数覆盖 input.jsonc, 缺失保留 (混合回退), 因此可以完全不改 input.jsonc 操作。
+/// - `env`/`task`/`check` 做成 clap 子命令: 参数是标量 (action/url/taskDir/queueId/stage/type),
+///   适合命令行; 显式传的参数覆盖 input.jsonc, 缺失保留 (混合回退), 因此可以完全不改 input.jsonc 操作。
 /// - stages 等嵌套配置仍靠 input.jsonc (不适合命令行)。
-/// - 其余命令 (servers/cookie 等) 继续靠 input.jsonc 的 `command` 字段派发。
+/// - 其余命令 (servers/cookie/deviceInfo/listModels 等) 继续靠 input.jsonc 的 `command` 字段派发;
+///   `deviceInfo`/`listModels` 无参数, 直接用空子命令触发。
 ///
 /// 混合策略: 每个子命令的显式参数优先, 缺失参数回退 input.jsonc, 再回退默认。
 #[derive(Parser)]
@@ -89,6 +91,21 @@ enum Command {
         #[arg(long)]
         foreground: bool,
     },
+    /// 资源检查 (等价 input.jsonc command=check)。
+    Check {
+        /// 检查类型: video(默认)/asr/font。
+        #[arg(long, value_enum)]
+        r#type: Option<CheckType>,
+        /// 任务目录 (video/asr 检查必需)。
+        #[arg(long)]
+        task_dir: Option<String>,
+    },
+    /// 设备信息 (等价 input.jsonc command=deviceInfo)。
+    #[command(name = "deviceInfo")]
+    DeviceInfo,
+    /// 列出模型 (等价 input.jsonc command=listModels)。
+    #[command(name = "listModels")]
+    ListModels,
 }
 
 fn main() {
@@ -100,7 +117,8 @@ fn main() {
     // 1. 读 input.jsonc 得到基础 Input;
     // 2. 若有 cli 子命令 (如 `cli env --action/--targets`), 用其参数覆盖 Input 对应字段,
     //    统一走下面的 match input.command 派发 (cli 显式参数优先, 缺失保留 input.jsonc);
-    //    check/deviceInfo/listModels 未移植到 Rust, no-op (对应 TS default 空分支);
+    //    CLI 命令 (check/deviceInfo/listModels) 均已移植到 Rust, 与 TS 分支一一对应, 且都有
+    //    clap 子命令可直接触发 (check 带 --type/--task-dir, 后两者无参数);
     //    input 解析失败直接报错退出。
     let cli = Cli::parse();
 
@@ -176,6 +194,23 @@ fn main() {
             input.servers = Some(servers);
             input.command = InputCommand::Servers;
         }
+        Some(Command::Check { r#type, task_dir }) => {
+            let mut check = input.check.clone().unwrap_or_default();
+            if let Some(t) = r#type {
+                check.r#type = t;
+            }
+            if let Some(d) = task_dir {
+                check.task_dir = Some(d);
+            }
+            input.check = Some(check);
+            input.command = InputCommand::Check;
+        }
+        Some(Command::DeviceInfo) => {
+            input.command = InputCommand::DeviceInfo;
+        }
+        Some(Command::ListModels) => {
+            input.command = InputCommand::ListModels;
+        }
         None => {}
     }
 
@@ -195,9 +230,17 @@ fn main() {
             let args = input.cookie.clone().unwrap_or_default();
             ld_core::cmd::cookie::cmd_cookie(&args).context("cookie 命令失败")
         }
-        InputCommand::Check | InputCommand::DeviceInfo | InputCommand::ListModels => {
-            // 未移植到 Rust, 与 TS default 空分支一致 (no-op)。
-            Ok(())
+        InputCommand::Check => {
+            let args = input.check.clone().unwrap_or_default();
+            ld_core::cmd::check::cmd_check(&input, &args).context("check 命令失败")
+        }
+        InputCommand::ListModels => ld_core::cmd::list_models::cmd_list_models(&input)
+            .context("listModels 命令失败"),
+        InputCommand::DeviceInfo => {
+            let info = device_rs::get_device_info();
+            serde_json::to_string_pretty(&info)
+                .map(|s| println!("{s}"))
+                .map_err(|e| anyhow::anyhow!("序列化设备信息失败: {e}"))
         }
     };
 

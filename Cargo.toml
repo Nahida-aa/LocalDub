@@ -32,7 +32,7 @@ async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 mdns-sd = "0.21"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", features = ["full"] }
 specta = { version = "=2.0.0-rc.26", features = ["derive", "serde_json"] }
 specta-typescript = { version = "0.0.13", features = ["serde"] }
@@ -62,6 +62,8 @@ voxcpm-rs = { version = "0.5.0", default-features = false }
 # 哈希与编码（用于二进制校验下载完整性）。
 sha2 = "0.10"
 hex = "0.4"
+# 设备信息采集 (deviceInfo 命令): CPU/内存/OS 跨平台检测, mirror TS os.cpus()/os.totalmem()。
+sysinfo = "0.30"
 # Windows 资产为 zip（exe+dll 平铺），需解压后才能运行。
 zip = { version = "0.6", default-features = false, features = ["deflate"] }
 
