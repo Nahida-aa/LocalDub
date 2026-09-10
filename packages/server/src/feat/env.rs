@@ -100,12 +100,18 @@ pub async fn env_check(targets: Vec<String>) -> Result<Vec<EnvCheckItem>, String
 #[fnrpc::rpc_mutate]
 pub async fn env_ensure(targets: Vec<String>) -> Result<Vec<EnvCheckItem>, String> {
     tokio::task::spawn_blocking(move || {
-        let keys = if targets.is_empty() {
-            all_keys()
+        let (keys, desired) = if targets.is_empty() {
+            match repo_input() {
+                Ok(input) => infer_targets(&input),
+                Err(e) => {
+                    tracing::info!("env_ensure 推断失败, 回退全量: {e:#}");
+                    (all_keys(), HashMap::new())
+                }
+            }
         } else {
-            targets
+            (targets, HashMap::new())
         };
-        Ok(assemble(run_ensure(&keys, &HashMap::new())))
+        Ok(assemble(run_ensure(&keys, &desired)))
     })
     .await
     .map_err(|e| format!("env_ensure 任务崩溃: {e}"))?

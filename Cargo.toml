@@ -4,7 +4,7 @@ members = [
     "packages/bridge", "packages/config-rs", "packages/core", "packages/device-rs",
     "packages/time", "packages/app/src-tauri",
     "packages/fs", "packages/server",
-    "packages/sdk", "packages/cli", "packages/env", "packages/llm", "packages/pacer-rs",
+    "packages/sdk", "packages/cli", "packages/llm", "packages/pacer-rs",
     "packages/paths",
 ]
 

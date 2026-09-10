@@ -8,21 +8,6 @@ pub async fn find_server(input: ServerType) -> ServerInfo {
 }
 
 #[fnrpc::rpc_mutate]
-pub async fn start_torch(ctx: &Ctx) -> Result<u16, String> {
-    commands::start_torch(&ctx.state)
-}
-
-#[fnrpc::rpc_mutate]
-pub async fn stop_torch(ctx: &Ctx) -> Result<(), String> {
-    commands::stop_torch(&ctx.state)
-}
-
-#[fnrpc::rpc_query]
-pub async fn check_torch(ctx: &Ctx) -> bool {
-    commands::check_torch(&ctx.state)
-}
-
-#[fnrpc::rpc_mutate]
 pub async fn start_voxcpm(ctx: &Ctx) -> Result<u16, String> {
     commands::start_voxcpm(&ctx.state)
 }
@@ -53,8 +38,3 @@ pub async fn start_main() -> Result<String, String> {
     .await
     .map_err(|e| format!("start_main 任务崩溃: {e}"))?
 }
-
-// #[fnrpc::rpc_query]
-// pub async fn check_voxcpm(ctx: &Ctx) -> bool {
-//     commands::check_voxcpm(&ctx.state)
-// }
