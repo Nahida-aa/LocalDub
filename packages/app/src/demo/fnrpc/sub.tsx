@@ -11,33 +11,35 @@ function Row(props: { label: string; children: any }) {
   );
 }
 function TickTest() {
-  const [count, setCount] = createSignal<number | null>(null);
+  const [count, setCount] = createSignal<string | null>(null);
   const [running, setRunning] = createSignal(false);
 
   createEffect(() => {
     if (!running()) return;
-    const iter = fnrpc.tick(BigInt(500));
+    const iter = fnrpc.watch_task_log("");
     const cancel = consumeEventIterator(iter, {
-      onEvent: v => {
-        setCount(Number(v))
+      onEvent: (v) => {
+        setCount(v);
       },
-      onError: e => {
-        console.error('tick error', e)
-      }
+      onError: (e) => {
+        console.error("watch_task_log error", e);
+      },
     });
     onCleanup(() => cancel());
   });
 
   return (
-    <Row label="tick(ms)">
-      <span class="text-muted-foreground text-xs">500ms</span>
+    <Row label="watch_task_log('')">
+      <span class="text-muted-foreground text-xs">repo_root/.log</span>
       <button
-        class={running()
-          ? 'bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700'
-          : 'bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700'}
+        class={
+          running()
+            ? "bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
+            : "bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+        }
         onClick={() => setRunning(!running())}
       >
-        {running() ? 'Stop' : 'Start'}
+        {running() ? "Stop" : "Start"}
       </button>
       <Show when={count() !== null}>
         <span class="font-mono text-sm">Value: {count()}</span>

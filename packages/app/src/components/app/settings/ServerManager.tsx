@@ -2,22 +2,16 @@ import { createQuery, useMutation, useQueryClient } from "@tanstack/solid-query"
 import { Button } from "@repo/ui-solid/base/button";
 import { CardX } from "@repo/ui-solid/custom/card";
 import { toastError } from "@repo/ui-solid/custom/toast";
-import { ModelServerStatus } from "@repo/core/servers/type";
-import {
-  checkMainServer,
-  get_voxcpm_torch_gradio_status,
-  restartVoxCpm,
-  startVoxCpm,
-  stopVoxCpm,
-} from "#/feat/servers/servers.ts";
 import { fnrpc } from "#/integrations/fnrpc/client.ts";
 import { cn } from "@repo/shared/lib/utils";
+import type { ModelServerStatus, ModelStatus } from "@repo/sdk/index";
 
-function fmtUptime(s: number): string {
-  if (!s) return "0s";
-  const hh = Math.floor(s / 3600);
-  const mm = Math.floor((s % 3600) / 60);
-  const ss = Math.floor(s % 60);
+function fmtUptime(s?: number | bigint): string {
+  if (s == null) return "0s";
+  const total = BigInt(s);
+  const hh = total / 3600n;
+  const mm = (total % 3600n) / 60n;
+  const ss = total % 60n;
   return `${hh}h ${mm}m ${ss}s`;
 }
 
@@ -25,7 +19,7 @@ function statusDot(status: string): string {
   return cn("w-3 h-3 rounded-full shrink-0", {
     "bg-[#22c55e]": status === "running",
     "bg-[#ef4444]": status === "stopped" || status === "error",
-    "bg-[#facc15]": status === "pending",
+    "bg-[#facc15]": status === "pending" || status === "timeout",
     "bg-gray-400": status === "unknown",
   });
 }
@@ -33,9 +27,8 @@ function statusDot(status: string): string {
 function ServerCard(props: {
   name: string;
   running: boolean;
-  uptimeS: number;
   port: number;
-  models: Record<string, { status: string; device: string }>;
+  models: Record<string, ModelStatus>;
   busy: boolean;
   data?: ModelServerStatus;
   error?: Error | null;
@@ -54,6 +47,9 @@ function ServerCard(props: {
   const statusText = () => {
     if (isLoading()) return "Loading...";
     if (props.error) return `Error: ${props.error.message}`;
+    if (props.data?.message && props.data.status !== "running") {
+      return props.data.message;
+    }
     return props.data?.status ?? "unknown";
   };
   return (
@@ -68,12 +64,14 @@ function ServerCard(props: {
               {props.busy
                 ? "working..."
                 : props.running
-                  ? `uptime ${fmtUptime(props.uptimeS)}`
+                  ? `uptime ${fmtUptime(props.data?.uptime_s)}`
                   : "stopped"}
             </span>
           </div>
           {props.running ? (
-            <div class="text-xs text-gray-400">http://127.0.0.1:{props.port}</div>
+            <div class="text-xs text-gray-400">
+              http://{props.data?.host ?? "127.0.0.1"}:{props.port}
+            </div>
           ) : null}
           <div class="flex flex-wrap gap-2">
             {Object.entries(props.models).map(([name, m]) => (
@@ -129,43 +127,41 @@ function ServerCard(props: {
 
 export function ServerManager() {
   const queryClient = useQueryClient();
-  const mainServerHealth = createQuery(() => ({
-    queryKey: ["mainServerHealth"],
-    queryFn: checkMainServer,
+  const voxStatusKey = ["voxcpm_torch_gradio_status"] as const;
+
+  // 主服务器是 fnrpc 载体, 停止会导致 UI 失联, 只展示状态不做启停 (由 app 生命周期启动)。
+  const mainServerStatus = createQuery(() => ({
+    queryKey: ["mainServerStatus"],
+    queryFn: () => fnrpc.get_server_status("main"),
     staleTime: 3000,
   }));
 
   const voxcpm_torch_gradio_status = createQuery(() => ({
-    queryKey: ["voxcpm_torch_gradio_status"],
-    queryFn: get_voxcpm_torch_gradio_status,
+    queryKey: voxStatusKey,
+    queryFn: () => fnrpc.get_server_status("voxcpm_torch_gradio"),
     staleTime: 3000,
   }));
 
-  // Main Server 启停: 走 fnrpc (Tauri IPC), 复用 cli servers start 的同一份逻辑
-  // (start_main_server: 幂等检测 + spawn detached + 日志落盘)。
-  const startMain = useMutation(() => ({
-    mutationFn: () => fnrpc.start_main(),
+  const startVox = useMutation(() => ({
+    mutationFn: () => fnrpc.start_voxcpm(),
     onError: (e) => toastError(e),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["mainServerHealth"] }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: voxStatusKey }),
   }));
-  const stopMain = useMutation(() => ({
-    mutationFn: () => fnrpc.shutdown(),
+  const stopVox = useMutation(() => ({
+    mutationFn: () => fnrpc.stop_voxcpm(),
     onError: (e) => toastError(e),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["mainServerHealth"] }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: voxStatusKey }),
   }));
-
-  const startVox = useMutation(() => ({ mutationFn: startVoxCpm, onError: (e) => toastError(e) }));
-  const stopVox = useMutation(() => ({ mutationFn: stopVoxCpm, onError: (e) => toastError(e) }));
   const restartVox = useMutation(() => ({
-    mutationFn: restartVoxCpm,
+    mutationFn: async () => {
+      await fnrpc.stop_voxcpm();
+      await fnrpc.start_voxcpm();
+    },
     onError: (e) => toastError(e),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: voxStatusKey }),
   }));
 
-  const vcModels = () => {
-    const m = voxcpm_torch_gradio_status.data?.models;
-    if (!m) return { voxcpm: { status: "unloaded", device: "" } };
-    return m;
-  };
+  const vcModels = () => voxcpm_torch_gradio_status.data?.models ?? {};
 
   return (
     <div>
@@ -173,14 +169,11 @@ export function ServerManager() {
       <div class="space-y-4">
         <ServerCard
           name="Main Server"
-          data={mainServerHealth.data}
-          running={mainServerHealth.data?.status === "running"}
-          uptimeS={mainServerHealth.data?.uptime_s ?? 0}
-          port={mainServerHealth.data?.port ?? 19110}
+          data={mainServerStatus.data}
+          running={mainServerStatus.data?.status === "running"}
+          port={mainServerStatus.data?.port ?? 19110}
           models={{}}
-          busy={startMain.isPending || stopMain.isPending}
-          onStart={() => startMain.mutate()}
-          onStop={() => stopMain.mutate()}
+          busy={false}
         />
         <ServerCard
           name="VoxCPM PyTorch Server"
@@ -188,7 +181,6 @@ export function ServerManager() {
           isLoading={voxcpm_torch_gradio_status.isLoading}
           error={voxcpm_torch_gradio_status.error}
           running={voxcpm_torch_gradio_status.data?.status === "running"}
-          uptimeS={voxcpm_torch_gradio_status.data?.uptime_s ?? 0}
           port={voxcpm_torch_gradio_status.data?.port ?? 19112}
           models={vcModels()}
           busy={startVox.isPending || stopVox.isPending || restartVox.isPending}

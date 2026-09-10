@@ -1,4 +1,10 @@
 use fnrpc::middlewares::tracing::TracingLayer;
+use ld_core::stages::{
+    mix_audio::out::{Timing, TimingsFile},
+    split_audio::out::{SplitAudioSegment, SplitAudioTiming},
+    translate::out::{TranslateResult, TranslateSegment},
+    tts::out::{TtsFile, TtsSegment},
+};
 
 use crate::{
     ctx::Ctx,
@@ -55,6 +61,15 @@ pub fn build_fn_rpc_router() -> fnrpc::router::RpcRouter<Ctx> {
         .route_fn(enqueue_import)
         .route_fn(list_queue)
         .route_fn(cancel_queue)
+        // 导出结果类型 (UI Timeline 渲染 task out.json 用, 无对应 RPC 返回)。
+        .register_type::<TranslateResult>()
+        .register_type::<TranslateSegment>()
+        .register_type::<SplitAudioSegment>()
+        .register_type::<SplitAudioTiming>()
+        .register_type::<TtsFile>()
+        .register_type::<TtsSegment>()
+        .register_type::<Timing>()
+        .register_type::<TimingsFile>()
         .layer(TracingLayer)
         .build()
 }

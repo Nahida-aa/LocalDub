@@ -1248,6 +1248,54 @@ export type SplitAudioArgs_Serialize = {
 	sourceFilePath: string | null,
 };
 
+/**  切分片段 (镜像 TS `SplitAudioSegment` = SplitAudioTiming + split bounds) */
+export type SplitAudioSegment = SplitAudioSegment_Serialize | SplitAudioSegment_Deserialize;
+
+/**  切分片段 (镜像 TS `SplitAudioSegment` = SplitAudioTiming + split bounds) */
+export type SplitAudioSegment_Deserialize = {
+	/**  padSegments 切分音频的起点 */
+	split_start_ms: bigint,
+	/**  padSegments 切分音频的终点 */
+	split_end_ms: bigint,
+} & SplitAudioTiming_Deserialize;
+
+/**  切分片段 (镜像 TS `SplitAudioSegment` = SplitAudioTiming + split bounds) */
+export type SplitAudioSegment_Serialize = {
+	/**  padSegments 切分音频的起点 */
+	split_start_ms: bigint,
+	/**  padSegments 切分音频的终点 */
+	split_end_ms: bigint,
+} & SplitAudioTiming_Serialize;
+
+/**  意图时序片段 (镜像 TS `SplitAudioTiming`, 继承 TranslateSegment + SubtitleSegment) */
+export type SplitAudioTiming = SplitAudioTiming_Serialize | SplitAudioTiming_Deserialize;
+
+/**  意图时序片段 (镜像 TS `SplitAudioTiming`, 继承 TranslateSegment + SubtitleSegment) */
+export type SplitAudioTiming_Deserialize = {
+	seg_idx: number,
+	text: string,
+	start_ms: bigint,
+	end_ms: bigint,
+	text_confidence?: number | null,
+	dst: string,
+	src_lang?: string | null,
+	dst_lang?: string | null,
+	speaker?: string | null,
+};
+
+/**  意图时序片段 (镜像 TS `SplitAudioTiming`, 继承 TranslateSegment + SubtitleSegment) */
+export type SplitAudioTiming_Serialize = {
+	seg_idx: number,
+	text: string,
+	start_ms: bigint,
+	end_ms: bigint,
+	text_confidence?: number | null,
+	dst: string,
+	src_lang?: string,
+	dst_lang?: string,
+	speaker?: string,
+};
+
 /**  pipeline 阶段名 (stagesList) */
 export type StageName = "separate" | "separate_after" | "asr" | "asr_fix" | "sf_ocr_pre" | "sf_ocr" | "sf_ocr_fix" | "asr_ocr_pre" | "asr_ocr" | "asr_ocr_fix" | "translate" | "split_audio" | "tts" | "mix_audio" | "mix_video";
 
@@ -1494,6 +1542,66 @@ export type Task_Serialize = {
 	completed_at: string | null,
 };
 
+/**  单段对齐时序 (镜像 TS `Timing` = SplitAudioTiming + 对齐字段)。 */
+export type Timing = Timing_Serialize | Timing_Deserialize;
+
+/**  单段对齐时序 (镜像 TS `Timing` = SplitAudioTiming + 对齐字段)。 */
+export type Timing_Deserialize = {
+	/**  原始时间槽长度 (end - start) */
+	original_duration_ms: bigint,
+	/**  TTS 生成的音频时长 */
+	tts_duration_ms: bigint,
+	/**  去尾静音 + rubberband 拉伸后时长 */
+	stretched_duration_ms: bigint,
+	/**  加速 (拉伸) 比例 (>1.0 = 加速) */
+	stretch_ratio: number | null,
+	/**  drift 累加 (ms) */
+	drift_ms: bigint,
+	/**  从前面间隙借的时间 (实际比 start 提前) */
+	advance_ms: bigint,
+	/**  从后面间隙借的时间 (实际比 end 延后) */
+	delay_ms: bigint,
+	/**  实际开始时间 (考虑了 advance) */
+	actual_start: bigint,
+	/**  实际结束时间 (考虑了 delay) */
+	actual_end: bigint,
+} & SplitAudioTiming_Deserialize;
+
+/**  单段对齐时序 (镜像 TS `Timing` = SplitAudioTiming + 对齐字段)。 */
+export type Timing_Serialize = {
+	/**  原始时间槽长度 (end - start) */
+	original_duration_ms: bigint,
+	/**  TTS 生成的音频时长 */
+	tts_duration_ms: bigint,
+	/**  去尾静音 + rubberband 拉伸后时长 */
+	stretched_duration_ms: bigint,
+	/**  加速 (拉伸) 比例 (>1.0 = 加速) */
+	stretch_ratio: number | null,
+	/**  drift 累加 (ms) */
+	drift_ms: bigint,
+	/**  从前面间隙借的时间 (实际比 start 提前) */
+	advance_ms: bigint,
+	/**  从后面间隙借的时间 (实际比 end 延后) */
+	delay_ms: bigint,
+	/**  实际开始时间 (考虑了 advance) */
+	actual_start: bigint,
+	/**  实际结束时间 (考虑了 delay) */
+	actual_end: bigint,
+} & SplitAudioTiming_Serialize;
+
+/**  `mix_audio/timings.json` (镜像 TS `TimingsFile`)。 */
+export type TimingsFile = TimingsFile_Serialize | TimingsFile_Deserialize;
+
+/**  `mix_audio/timings.json` (镜像 TS `TimingsFile`)。 */
+export type TimingsFile_Deserialize = {
+	segments: Timing_Deserialize[],
+};
+
+/**  `mix_audio/timings.json` (镜像 TS `TimingsFile`)。 */
+export type TimingsFile_Serialize = {
+	segments: Timing_Serialize[],
+};
+
 /**
  *  translate 阶段参数 (镜像 TS `packages/core/stages/05_translate/args.ts` TranslateArgsSchema)
  * 
@@ -1542,6 +1650,60 @@ export type TranslateArgs_Serialize = {
 	model: string,
 	/**  设为 false 跳过翻译, 直接使用原始识别文本 */
 	enabled: boolean,
+};
+
+/**  `translate/translation.{lang}.json` 结构 (镜像 TS `TranslateResult`)。 */
+export type TranslateResult = TranslateResult_Serialize | TranslateResult_Deserialize;
+
+/**  translate 结果 meta (镜像 TS `TranslateResultMeta`)。 */
+export type TranslateResultMeta = {
+	src_lang: string,
+	target_lang: string,
+};
+
+/**  `translate/translation.{lang}.json` 结构 (镜像 TS `TranslateResult`)。 */
+export type TranslateResult_Deserialize = {
+	segments: TranslateSegment_Deserialize[],
+	meta: TranslateResultMeta,
+};
+
+/**  `translate/translation.{lang}.json` 结构 (镜像 TS `TranslateResult`)。 */
+export type TranslateResult_Serialize = {
+	segments: TranslateSegment_Serialize[],
+	meta: TranslateResultMeta,
+};
+
+/**  单条翻译段 (镜像 TS `TranslateSegment`)。 */
+export type TranslateSegment = TranslateSegment_Serialize | TranslateSegment_Deserialize;
+
+/**  单条翻译段 (镜像 TS `TranslateSegment`)。 */
+export type TranslateSegment_Deserialize = {
+	/**  原文 (识别文本) */
+	text: string,
+	/**  译文 (dubbed / subtitled) */
+	dst: string,
+	src_lang?: string | null,
+	dst_lang?: string | null,
+	/**  段起点 (ms) */
+	start_ms: bigint,
+	/**  段终点 (ms) */
+	end_ms: bigint,
+	speaker?: string | null,
+};
+
+/**  单条翻译段 (镜像 TS `TranslateSegment`)。 */
+export type TranslateSegment_Serialize = {
+	/**  原文 (识别文本) */
+	text: string,
+	/**  译文 (dubbed / subtitled) */
+	dst: string,
+	src_lang?: string,
+	dst_lang?: string,
+	/**  段起点 (ms) */
+	start_ms: bigint,
+	/**  段终点 (ms) */
+	end_ms: bigint,
+	speaker?: string,
 };
 
 /**
@@ -1599,8 +1761,44 @@ export type TtsArgs_Serialize = {
 /**  TTS 计算设备 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema.device) */
 export type TtsDevice = "webgpu" | "cuda" | "rocm" | "cpu" | "mps";
 
+/**  `tts/tts.json` (镜像 TS `TtsFile`)。 */
+export type TtsFile = TtsFile_Serialize | TtsFile_Deserialize;
+
+/**  `tts/tts.json` (镜像 TS `TtsFile`)。 */
+export type TtsFile_Deserialize = {
+	segments: TtsSegment_Deserialize[],
+};
+
+/**  `tts/tts.json` (镜像 TS `TtsFile`)。 */
+export type TtsFile_Serialize = {
+	segments: TtsSegment_Serialize[],
+};
+
 /**  TTS 运行时后端 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema.runtime) */
 export type TtsRuntime = "ggml" | "cloud" | "voxcpmtorchgradio";
+
+/**  单条 TTS 段 (镜像 TS `TtsSegment` = SplitAudioTiming + tts 字段)。 */
+export type TtsSegment = TtsSegment_Serialize | TtsSegment_Deserialize;
+
+/**  单条 TTS 段 (镜像 TS `TtsSegment` = SplitAudioTiming + tts 字段)。 */
+export type TtsSegment_Deserialize = {
+	/**  split_audio end_ms (原始槽位终点, 参考) */
+	slot_end_ms: bigint,
+	/**  TTS 生成音频时长 */
+	tts_duration_ms: bigint,
+	/**  状态: success / skipped / error / empty */
+	status: string,
+} & SplitAudioTiming_Deserialize;
+
+/**  单条 TTS 段 (镜像 TS `TtsSegment` = SplitAudioTiming + tts 字段)。 */
+export type TtsSegment_Serialize = {
+	/**  split_audio end_ms (原始槽位终点, 参考) */
+	slot_end_ms: bigint,
+	/**  TTS 生成音频时长 */
+	tts_duration_ms: bigint,
+	/**  状态: success / skipped / error / empty */
+	status: string,
+} & SplitAudioTiming_Serialize;
 
 /**  whisper.cpp VAD 模型 */
 export type VadModel = "silero-v5" | "silero-v6";
