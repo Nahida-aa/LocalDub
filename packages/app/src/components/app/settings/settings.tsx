@@ -1,5 +1,6 @@
 import { ClientOnly } from "@tanstack/solid-router";
 import {
+  Boxes,
   Code,
   Keyboard,
   Monitor,
@@ -18,6 +19,7 @@ import { InputFormSettings } from "./inputForm";
 import { ScrollArea } from "@repo/ui-solid/base/scroll-area";
 import { ServerManager } from "./ServerManager";
 import { DeviceInfo } from "./DeviceInfo";
+import { EnvironmentPanel } from "./EnvironmentPanel";
 // import { useClientApi } from "../api/context";
 import { i18n } from "@repo/shared/i18n/utils";
 import { FileEditor } from "../FileContent/FileEditor";
@@ -36,6 +38,7 @@ export const SettingsContent = () => {
     },
     { value: "servers", label: "Servers", icon: Server as typeof Settings },
     { value: "device", label: "Device", icon: Monitor as typeof Settings },
+    { value: "environment", label: "环境依赖", icon: Boxes as typeof Settings },
     { value: "config", label: "input.jsonc", icon: Code as typeof Settings },
     {
       value: "input-form",
@@ -79,15 +82,18 @@ export const SettingsContent = () => {
             <DeviceInfo />
           </ScrollArea>
         </TabsContent>
+        <TabsContent value="environment" class="h-full min-h-0">
+          <ScrollArea>
+            <EnvironmentPanel />
+          </ScrollArea>
+        </TabsContent>
         <TabsContent value="config" class="h-full min-h-0">
           {/* 仓库根 input.jsonc: cli resolve_input_path 真正读取的配置文件 (优先于 input.json)。
               Monaco 自带滚动, 外层不再 overflow */}
           <FileEditor path="input.jsonc" label="input.jsonc" />
         </TabsContent>
         <TabsContent value="input-form" class="h-full min-h-0">
-          <ScrollArea>
-            <InputFormSettings />
-          </ScrollArea>
+          <InputFormSettings />
         </TabsContent>
       </Tabs>
     </ClientOnly>

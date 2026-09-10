@@ -93,28 +93,6 @@ fn fmt_size(bytes: u64) -> String {
     }
 }
 
-/// 取文件 mtime (秒, 截断为整秒, 与 git commit 时间可比)。
-fn mtime_sec(path: &Path) -> Option<u64> {
-    std::fs::metadata(path)
-        .ok()
-        .and_then(|m| m.modified().ok())
-        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-        .map(|d| d.as_secs())
-}
-
-/// 取 `path` 在 git 中的最近提交时间 (秒), 无则 None。
-fn git_commit_time(repo: &Path, path: &str) -> Option<u64> {
-    let (ok, out, _) = try_exec(
-        "git",
-        &["log", "-1", "--format=%ct", "--", path],
-        Some(repo),
-    );
-    if !ok {
-        return None;
-    }
-    out.trim().parse::<u64>().ok()
-}
-
 /// 模型大小检查 (镜像 TS `checkModel`)。min_mb 支持小数 (如 silero vad 0.5MB)。
 fn check_model(path: &Path, key: &str, min_mb: f64) -> CheckResult {
     let path_str = path.display().to_string();
@@ -331,45 +309,6 @@ pub fn check_cargo() -> CheckResult {
     }
 }
 
-pub fn check_vcpkg() -> CheckResult {
-    if !cfg!(windows) {
-        return CheckResult {
-            key: "vcpkg".into(),
-            status: CheckStatus::Skip,
-            data: json!({}),
-            required: false,
-        };
-    }
-    let git_dir = repo_root().join("submodule").join("vcpkg").join(".git");
-    if !git_dir.exists() {
-        return CheckResult {
-            key: "vcpkg".into(),
-            status: CheckStatus::Fail,
-            data: json!({ "kind": "submodule", "msg": "vcpkg 子模块未初始化" }),
-            required: false,
-        };
-    }
-    let vcpkg_exe = repo_root()
-        .join("submodule")
-        .join("vcpkg")
-        .join("vcpkg.exe");
-    let (ok, _, _) = try_exec(vcpkg_exe.to_str().unwrap(), &["--version"], None);
-    if !ok {
-        return CheckResult {
-            key: "vcpkg".into(),
-            status: CheckStatus::Fail,
-            data: json!({ "kind": "bootstrap", "msg": "vcpkg 未编译 (需 bootstrap)" }),
-            required: false,
-        };
-    }
-    CheckResult {
-        key: "vcpkg".into(),
-        status: CheckStatus::Pass,
-        data: json!({}),
-        required: false,
-    }
-}
-
 pub fn check_vulkan() -> CheckResult {
     let (ok, out, _) = try_exec("vulkaninfo", &["--summary"], None);
     if !ok {
@@ -439,17 +378,6 @@ pub fn check_cuda() -> CheckResult {
 // 子模块检查
 // ---------------------------------------------------------------------------
 
-pub fn check_submodule_demucs_cpp() -> CheckResult {
-    // 已退役: demucs.cpp ggml 已迁至 vox-lab, LocalDub separate 仅走 demucs-burn (tch/wgpu)。
-    // ggml 本地编译暂不支持, 保留检查项仅为提示迁移状态。
-    CheckResult {
-        key: "submodule_demucs_cpp".into(),
-        status: CheckStatus::Fail,
-        data: json!({ "msg": "demucs.cpp ggml 已退役且已迁至 vox-lab, 本地暂不支持 ggml, 请使用 demucs-burn (tch/wgpu)" }),
-        required: false,
-    }
-}
-
 // ---------------------------------------------------------------------------
 // 编译产物检查
 // ---------------------------------------------------------------------------
@@ -457,17 +385,6 @@ pub fn check_submodule_demucs_cpp() -> CheckResult {
 /// whisper-vulkan 由 vox-lab 预编译发布 (ReleaseBinSpec), 见 `WHISPER_VULKAN`。
 pub fn check_whisper_bin() -> CheckResult {
     check_release_bin(&WHISPER_VULKAN)
-}
-
-pub fn check_demucs_ggml_bin() -> CheckResult {
-    // 已退役: demucs.cpp ggml 本地编译暂不支持 (submodule 已迁 vox-lab)。
-    // 保留检查项仅为提示: 请使用 demucs-burn (tch/wgpu) 作为 separate 运行时。
-    CheckResult {
-        key: "demucs_ggml_bin".into(),
-        status: CheckStatus::Fail,
-        data: json!({ "msg": "demucs.cpp ggml 暂不支持: 已退役并入 vox-lab, 请使用 demucs-burn (tch/wgpu) (separate.runtime = 'burn-tch' / 'burn')" }),
-        required: false,
-    }
 }
 
 /// 检查 burn 系二进制。
@@ -541,75 +458,11 @@ pub fn check_whisper_vad() -> CheckResult {
     )
 }
 
-pub fn check_whisper_sherpa() -> CheckResult {
-    let dir = whisper_model_dir().join("sherpa_onnx");
-    let all = [
-        dir.join("turbo-encoder.int8.onnx"),
-        dir.join("turbo-decoder.int8.onnx"),
-        dir.join("turbo-tokens.txt"),
-    ]
-    .iter()
-    .all(|p| p.exists());
-    CheckResult {
-        key: "whisper_sherpa".into(),
-        status: if all {
-            CheckStatus::Pass
-        } else {
-            CheckStatus::Fail
-        },
-        data: json!({ "msg": if all { "sherpa 模型齐全" } else { "sherpa 模型缺失" } }),
-        required: false,
-    }
-}
-
-pub fn check_whisper_onnx() -> CheckResult {
-    check_model(
-        &whisper_model_dir().join("encoder_model.onnx"),
-        "whisper_onnx",
-        200.0,
-    )
-}
-
 pub fn check_demucs_pth() -> CheckResult {
     check_model(
         &demucs_model_dir().join("htdemucs_ft.safetensors"),
         "demucs_pth",
         300.0,
-    )
-}
-
-pub fn check_demucs_onnx() -> CheckResult {
-    let stems = ["drums", "bass", "other", "vocals"];
-    let mut missing = Vec::new();
-    for s in stems {
-        let p = demucs_model_dir().join(format!("htdemucs_ft_{s}_fp16weights.onnx"));
-        if !p.exists() {
-            missing.push(s.to_string());
-        }
-    }
-    let found = stems.len() - missing.len();
-    let status = if missing.is_empty() {
-        CheckStatus::Pass
-    } else if missing.len() == stems.len() {
-        CheckStatus::Fail
-    } else {
-        CheckStatus::Warn
-    };
-    CheckResult {
-        key: "demucs_onnx".into(),
-        status,
-        data: json!({ "found": found, "total": stems.len(), "missing": missing.join(", "), "msg": if missing.is_empty() { "demucs onnx 齐全".to_string() } else { format!("缺失 {} ({}/{})", missing.join(", "), found, stems.len()) } }),
-        required: false,
-    }
-}
-
-const DEMUCS_GGML_FILE: &str = "ggml-model-htdemucs-4s-f16.bin";
-
-pub fn check_demucs_ggml() -> CheckResult {
-    check_model(
-        &demucs_model_dir().join(DEMUCS_GGML_FILE),
-        "demucs_ggml",
-        80.0,
     )
 }
 
@@ -891,138 +744,6 @@ fn spawn_detached(bin: &str, args: &[&str]) {
         c.creation_flags(CREATE_NEW_PROCESS_GROUP);
     }
     let _ = c.spawn();
-}
-
-// ---------------------------------------------------------------------------
-// OCR C++ 二进制 (镜像 packages/env/items/ocr_cpp_bin.ts)
-//
-// 注意: ocr_cpp_bin 是旧 TS 路径 (本地 ort-cpp 构建) 所需, Rust 移植后 asr_ocr/sf_ocr
-// 均改走 vision-lab Release 二进制 subtitle_ocr_bin, 此处已暂停支持 (仅保留 check/ensure
-// 兼容旧 env 列表)。如需恢复, 需先接入某个 Rust stage 的 ensure_bin 依赖。
-// ---------------------------------------------------------------------------
-
-pub fn ocr_cpp_bin_path() -> PathBuf {
-    let name = if cfg!(windows) {
-        "subtitle_ocr_ort_cpp.exe"
-    } else {
-        "subtitle_ocr_ort_cpp"
-    };
-    let b = repo_root()
-        .join("packages")
-        .join("subtitle-ocr")
-        .join("ort-cpp")
-        .join("build");
-    let candidates = [b.join("Release").join(name), b.join(name)];
-    for c in &candidates {
-        if c.exists() {
-            return c.clone();
-        }
-    }
-    candidates[1].clone()
-}
-
-pub fn check_ocr_cpp_bin() -> CheckResult {
-    let path = ocr_cpp_bin_path();
-    if !path.exists() {
-        return CheckResult {
-            key: "ocr_cpp_bin".into(),
-            status: CheckStatus::Fail,
-            data: json!({ "msg": "OCR C++ 二进制未编译" }),
-            required: false,
-        };
-    }
-
-    if cfg!(target_os = "linux") {
-        let (ok, out, _) = try_exec("ldd", &[path.to_str().unwrap()], None);
-        if ok && out.contains("not found") {
-            return CheckResult {
-                key: "ocr_cpp_bin".into(),
-                status: CheckStatus::Warn,
-                data: json!({ "path": path.display().to_string(), "runtime": "missing_libs", "msg": "动态库缺失 (ldd not found)" }),
-                required: false,
-            };
-        }
-    }
-
-    // 源码 git 时间比较
-    if let Some(bin_time) = mtime_sec(&path) {
-        if let Some(src_time) = git_commit_time(&repo_root(), "packages/subtitle-ocr/ort-cpp/") {
-            if src_time > bin_time {
-                return CheckResult {
-                    key: "ocr_cpp_bin".into(),
-                    status: CheckStatus::Warn,
-                    data: json!({ "path": path.display().to_string(), "msg": "可能过时" }),
-                    required: false,
-                };
-            }
-        }
-    }
-
-    CheckResult {
-        key: "ocr_cpp_bin".into(),
-        status: CheckStatus::Pass,
-        data: json!({ "path": path.display().to_string(), "msg": "已编译" }),
-        required: false,
-    }
-}
-
-fn ensure_ocr_cpp_bin() -> CheckResult {
-    let b = repo_root()
-        .join("packages")
-        .join("subtitle-ocr")
-        .join("ort-cpp")
-        .join("build");
-    let s = repo_root()
-        .join("packages")
-        .join("subtitle-ocr")
-        .join("ort-cpp");
-
-    // rm -rf build
-    let _ = std::fs::remove_dir_all(&b);
-
-    // cmake -S <src> -B <build> (显式参数, 不字符串拼接; windows 加 vcpkg 工具链)
-    let mut cfg = Command::new("cmake");
-    cfg.arg("-S").arg(&s).arg("-B").arg(&b);
-    if cfg!(windows) {
-        let tc = repo_root()
-            .join("submodule")
-            .join("vcpkg")
-            .join("scripts")
-            .join("buildsystems")
-            .join("vcpkg.cmake");
-        cfg.arg(format!("-DCMAKE_TOOLCHAIN_FILE={}", tc.display()));
-        cfg.arg("-DVCPKG_TARGET_TRIPLET=x64-windows");
-    }
-    let cfg_ok = cfg
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false);
-
-    let build_ok = Command::new("cmake")
-        .arg("--build")
-        .arg(&b)
-        .arg("--config")
-        .arg("Release")
-        .arg("--parallel")
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false);
-
-    let ok = cfg_ok && build_ok && ocr_cpp_bin_path().exists();
-    CheckResult {
-        key: "ocr_cpp_bin".into(),
-        status: if ok {
-            CheckStatus::Pass
-        } else {
-            CheckStatus::Fail
-        },
-        data: json!({ "path": ocr_cpp_bin_path().display().to_string(), "msg": if ok { "编译成功" } else { "编译失败" } }),
-        required: false,
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1635,24 +1356,16 @@ pub fn all_checks() -> HashMap<&'static str, fn() -> CheckResult> {
     m.insert("uv", check_uv);
     m.insert("ffmpeg", check_ffmpeg);
     m.insert("cargo", check_cargo);
-    m.insert("vcpkg", check_vcpkg);
     m.insert("vulkan", check_vulkan);
     m.insert("rocm", check_rocm);
     m.insert("cuda", check_cuda);
     m.insert("whisper_ggml", check_whisper_ggml);
     m.insert("whisper_vad", check_whisper_vad);
-    m.insert("whisper_sherpa", check_whisper_sherpa);
-    m.insert("whisper_onnx", check_whisper_onnx);
     m.insert("demucs_pth", check_demucs_pth);
-    m.insert("demucs_onnx", check_demucs_onnx);
-    m.insert("demucs_ggml", check_demucs_ggml);
     m.insert("voxcpm2_onnx", check_voxcpm2_onnx);
     m.insert("voxcpm2_pth", check_voxcpm2_pth);
-    m.insert("submodule_demucs_cpp", check_submodule_demucs_cpp);
     m.insert("whisper_bin", check_whisper_bin);
-    m.insert("demucs_ggml_bin", check_demucs_ggml_bin);
     m.insert("demucs_burn_bin", || check_demucs_burn_bin(None));
-    m.insert("ocr_cpp_bin", check_ocr_cpp_bin);
     m.insert("subtitle_finder_bin", check_subtitle_finder_bin);
     m.insert("subtitle_ocr_bin", check_subtitle_ocr_bin);
     m.insert("ocr_post_bin", check_ocr_post_bin);
@@ -1670,7 +1383,6 @@ pub fn ensure_fns() -> HashMap<&'static str, fn() -> CheckResult> {
     let mut m: HashMap<&'static str, fn() -> CheckResult> = HashMap::new();
     m.insert("dotenv", ensure_dotenv);
     m.insert("openai", ensure_openai);
-    m.insert("ocr_cpp_bin", ensure_ocr_cpp_bin);
     m.insert("subtitle_finder_bin", ensure_subtitle_finder_bin);
     m.insert("subtitle_ocr_bin", ensure_subtitle_ocr_bin);
     m.insert("ocr_post_bin", ensure_ocr_post_bin);

@@ -4,6 +4,7 @@ use crate::{
     ctx::Ctx,
     feat::{
         demo::tick,
+        env::{env_check, env_ensure},
         file_op::{
             list_app_directory, read_app_file_bin, read_app_file_json, read_app_file_text,
             write_app_file_json, write_app_file_text,
@@ -64,6 +65,8 @@ pub fn build_fn_rpc_router() -> fnrpc::router::RpcRouter<Ctx> {
         .route_fn(start_main)
         .route_fn(device_info)
         .route_fn(get_workfolder)
+        .route_fn(env_check)
+        .route_fn(env_ensure)
         .route_fn(continue_task)
         .route_fn(regen_tts)
         .route_fn(start_task)

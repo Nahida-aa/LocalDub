@@ -47,7 +47,7 @@ pub fn env_list() -> Vec<&'static str> {
 /// 按 `input.jsonc` 的 stages 配置推断本次任务所需的环境项 (targets 为空时使用)。
 ///
 /// 设计: 从「核心工具链 + 配置」基础集出发, 按各 stage 的 runtime/device 追加依赖。
-/// 这是启发式推断 (非精确依赖图), 目标是给出「跟当前配置相关」的检查项, 避免每次扫全 31 项。
+/// 这是启发式推断 (非精确依赖图), 目标是给出「跟当前配置相关」的检查项, 避免每次扫全量。
 pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
     use crate::stages::asr::args::{AsrDevice, AsrRuntime as AsrRuntime};
     use crate::stages::separate::args::Device as SepDevice;
@@ -80,7 +80,7 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
     }
     // asr_ocr 阶段 (Rust 移植) 依赖 vision-lab Release 二进制 subtitle_ocr_bin
     // (见 stages/asr_ocr/{ocr.rs, fix.rs} 的 ensure_bin("subtitle_ocr_bin"))。
-    // 旧 TS 路径的本地 ort-cpp 构建 (ocr_cpp_bin) 已停止支持。
+    // 旧 TS 的本地 ort-cpp 构建 (ocr_cpp_bin) 已退役移除。
     if subtitle_source != SubtitleSource::Asr {
         add("subtitle_ocr_bin", &mut set);
     }
@@ -228,19 +228,6 @@ fn bin_path_from_key(key: &str) -> PathBuf {
         "demucs_burn_tch_bin" => demucs_burn_tch_bin_path(),
         "demucs_burn_wgpu_bin" => demucs_burn_wgpu_bin_path(),
         "whisper_bin" => crate::cmd::env::items::whisper_vulkan_bin_path(),
-        "ocr_cpp_bin" => {
-            let name = if cfg!(windows) { "subtitle_ocr_ort_cpp.exe" } else { "subtitle_ocr_ort_cpp" };
-            let base = config_rs::root::repo_root()
-                .join("packages")
-                .join("subtitle-ocr")
-                .join("ort-cpp")
-                .join("build");
-            if base.join("Release").join(&name).exists() {
-                base.join("Release").join(name)
-            } else {
-                base.join(name)
-            }
-        }
         _ => PathBuf::from(key), // 兜底
     }
 }

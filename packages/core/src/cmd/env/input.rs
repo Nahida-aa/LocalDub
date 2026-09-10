@@ -60,15 +60,6 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
         },
     ),
     (
-        "vcpkg",
-        EnvEntry {
-            zh: "c++ 包管理器, 仅 windows 上 OCR 编译需要",
-            en: "c++ package manager, only needed on windows for OCR build",
-            required: false,
-            category: "windows-only",
-        },
-    ),
-    (
         "vulkan",
         EnvEntry {
             zh: "vulkan GPU 驱动",
@@ -114,46 +105,10 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
         },
     ),
     (
-        "whisper_sherpa",
-        EnvEntry {
-            zh: "sherpa-onnx whisper 模型 (data/models/whisper/sherpa_onnx/)",
-            en: "sherpa-onnx whisper model (data/models/whisper/sherpa_onnx/)",
-            required: false,
-            category: "optional",
-        },
-    ),
-    (
-        "whisper_onnx",
-        EnvEntry {
-            zh: "onnx-community whisper 模型 (data/models/whisper/encoder_model.onnx)",
-            en: "onnx-community whisper model (data/models/whisper/encoder_model.onnx)",
-            required: false,
-            category: "optional",
-        },
-    ),
-    (
         "demucs_pth",
         EnvEntry {
             zh: "demucs safetensors 模型, 用于 separate burn 后端",
             en: "demucs safetensors model, used for separate burn backend",
-            required: false,
-            category: "optional",
-        },
-    ),
-    (
-        "demucs_onnx",
-        EnvEntry {
-            zh: "demucs onnx 模型文件, 用于 onnx separate",
-            en: "demucs onnx model files, used for onnx separate",
-            required: false,
-            category: "optional",
-        },
-    ),
-    (
-        "demucs_ggml",
-        EnvEntry {
-            zh: "demucs ggml 模型 (data/models/demucs/ggml-model-htdemucs-4s-f16.bin)",
-            en: "demucs ggml model (data/models/demucs/ggml-model-htdemucs-4s-f16.bin)",
             required: false,
             category: "optional",
         },
@@ -177,28 +132,10 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
         },
     ),
     (
-        "submodule_demucs_cpp",
-        EnvEntry {
-            zh: "git 子模块: demucs.cpp (已退役并入 vox-lab)",
-            en: "git submodule: demucs.cpp (retired to vox-lab)",
-            required: false,
-            category: "optional",
-        },
-    ),
-    (
         "whisper_bin",
         EnvEntry {
             zh: "whisper-vulkan 预编译二进制 (Nahida-aa/vox-lab release)",
             en: "whisper-vulkan precompiled binary (Nahida-aa/vox-lab release)",
-            required: false,
-            category: "optional",
-        },
-    ),
-    (
-        "demucs_ggml_bin",
-        EnvEntry {
-            zh: "demucs.cpp ggml 编译产物 (已退役并入 vox-lab, 暂不支持, 请用 demucs-burn)",
-            en: "demucs.cpp ggml binary (retired to vox-lab, unsupported; use demucs-burn)",
             required: false,
             category: "optional",
         },
@@ -253,15 +190,6 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
         EnvEntry {
             zh: "字幕后处理统合管线二进制 (data/bin/ocr-post, 从 vision-lab GitHub Release 下载)",
             en: "ocr-post binary (data/bin/ocr-post, downloaded from vision-lab GitHub Release)",
-            required: false,
-            category: "optional",
-        },
-    ),
-    (
-        "ocr_cpp_bin",
-        EnvEntry {
-            zh: "OCR C++ 编译产物 (packages/subtitle-ocr/ort-cpp/build/)",
-            en: "OCR C++ compiled binary (packages/subtitle-ocr/ort-cpp/build/)",
             required: false,
             category: "optional",
         },

@@ -231,8 +231,47 @@ export type Capabilities = {
 	openvino: boolean,
 };
 
-/**  命令 */
-export type Command = "task" | "env" | "servers" | "cookie" | "check" | "deviceinfo" | "listmodels";
+/**
+ *  `check` 命令参数 (镜像 TS `input.check` schema)。
+ * 
+ *  TS: `z.object({ taskDir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
+ */
+export type CheckArgs = CheckArgs_Serialize | CheckArgs_Deserialize;
+
+/**
+ *  `check` 命令参数 (镜像 TS `input.check` schema)。
+ * 
+ *  TS: `z.object({ taskDir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
+ */
+export type CheckArgs_Deserialize = {
+	/**  任务目录 (video/asr 检查必需) */
+	taskDir?: string | null,
+	/**  检查类型 (默认 video) */
+	type?: CheckType,
+};
+
+/**
+ *  `check` 命令参数 (镜像 TS `input.check` schema)。
+ * 
+ *  TS: `z.object({ taskDir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
+ */
+export type CheckArgs_Serialize = {
+	/**  任务目录 (video/asr 检查必需) */
+	taskDir: string | null,
+	/**  检查类型 (默认 video) */
+	type: CheckType,
+};
+
+/**  检查类型 (也用于 clap `--type` 命令行解析) */
+export type CheckType = "video" | "asr" | "font";
+
+/**
+ *  命令
+ * 
+ *  命名对齐 TS `commandList` (types.ts): `deviceInfo`/`listModels` 是 camelCase,
+ *  其余为全小写 (增强 `rename_all = "lowercase"` 无法表达, 显式 rename)。
+ */
+export type Command = "task" | "env" | "servers" | "cookie" | "check" | "deviceInfo" | "listModels";
 
 /**  cookie 动作 */
 export type CookieAction = "set";
@@ -338,6 +377,20 @@ export type EnvArgs_Serialize = {
 	targets: string[],
 };
 
+/**  单项环境检查结果 (前端展示用 DTO, 聚合 core 的 CheckResult + 元数据)。 */
+export type EnvCheckItem = {
+	key: string,
+	zh: string,
+	en: string,
+	required: boolean,
+	category: string,
+	/**  "pass" / "warn" / "fail" / "skip" */
+	status: string,
+	data: Value,
+	/**  是否存在对应安装动作 (ensure_fns)。 */
+	has_ensure: boolean,
+};
+
 export type FoundVia = "Mdns" | "Default" | "PortFile";
 
 export type FrameRate = {
@@ -408,6 +461,8 @@ export type Input_Deserialize = {
 	env?: EnvArgs_Deserialize | null,
 	/**  cookie 命令参数 (镜像 cmd/cookie/args.ts), 仅 command=cookie 时使用 */
 	cookie?: CookieArgs_Deserialize | null,
+	/**  check 命令参数 (镜像 cmd/check 参数 schema), 仅 command=check 时使用 */
+	check?: CheckArgs_Deserialize | null,
 	stages?: Stages_Deserialize,
 };
 
@@ -423,6 +478,8 @@ export type Input_Serialize = {
 	env: EnvArgs_Serialize | null,
 	/**  cookie 命令参数 (镜像 cmd/cookie/args.ts), 仅 command=cookie 时使用 */
 	cookie: CookieArgs_Serialize | null,
+	/**  check 命令参数 (镜像 cmd/check 参数 schema), 仅 command=check 时使用 */
+	check: CheckArgs_Serialize | null,
 	stages: Stages_Serialize,
 };
 
@@ -1567,6 +1624,8 @@ export type Procedures = {
   start_main: { kind: "mutate"; method: "POST"; input: null; output: string; error: RpcErr };
   device_info: { kind: "query"; method: "GET"; input: null; output: DeviceInfo; error: RpcErr };
   get_workfolder: { kind: "query"; method: "GET"; input: null; output: string; error: RpcErr };
+  env_check: { kind: "query"; method: "GET"; input: string[]; output: EnvCheckItem[]; error: RpcErr };
+  env_ensure: { kind: "mutate"; method: "POST"; input: string[]; output: EnvCheckItem[]; error: RpcErr };
   continue_task: { kind: "mutate"; method: "POST"; input: [string, string]; output: null; error: RpcErr };
   regen_tts: { kind: "mutate"; method: "POST"; input: [string, number[], boolean]; output: null; error: RpcErr };
   start_task: { kind: "mutate"; method: "POST"; input: string; output: string; error: RpcErr };
@@ -1602,6 +1661,8 @@ export const __procedureMeta = {
   start_main: { kind: "mutate", method: "POST" },
   device_info: { kind: "query", method: "GET" },
   get_workfolder: { kind: "query", method: "GET" },
+  env_check: { kind: "query", method: "GET" },
+  env_ensure: { kind: "mutate", method: "POST" },
   continue_task: { kind: "mutate", method: "POST" },
   regen_tts: { kind: "mutate", method: "POST" },
   start_task: { kind: "mutate", method: "POST" },
