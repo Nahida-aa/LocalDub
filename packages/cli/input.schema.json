@@ -181,7 +181,7 @@
         "name": {
           "description": "指定操作的服务器，不传则操作所有",
           "type": "string",
-          "enum": ["server", "voxcpm_torch_gradio"]
+          "enum": ["main", "voxcpm_torch_gradio"]
         }
       },
       "additionalProperties": {}
@@ -218,10 +218,6 @@
               "demucs_ggml",
               "voxcpm2_onnx",
               "voxcpm2_pth",
-              "submodule_demucs_cpp",
-              "submodule_voxcpm_rs",
-              "whisper_bin",
-              "demucs_ggml_bin",
               "demucs_burn_bin",
               "ocr_cpp_bin",
               "cmake",

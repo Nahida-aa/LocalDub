@@ -109,38 +109,6 @@ export const envDescribeMap = {
     required: false,
     category: "optional",
   },
-  submodule_demucs_cpp: {
-    en: "git submodule: demucs.cpp",
-    zh: "git 子模块: demucs.cpp",
-    required: false,
-    category: "optional",
-  },
-  submodule_voxcpm_rs: {
-    en: "git submodule: voxcpm-rs",
-    zh: "git 子模块: voxcpm-rs",
-    required: false,
-    category: "optional",
-  },
-  whisper_bin: {
-    en: "whisper-vulkan precompiled binary (Nahida-aa/vox-lab release)",
-    zh: "whisper-vulkan 预编译二进制 (Nahida-aa/vox-lab release)",
-    required: false,
-    category: "optional",
-  },
-  demucs_ggml_bin: {
-    // 遗留旧代码: demucs.cpp ggml 已退役并入 vox-lab, submodule 已删。Rust 移植完毕后清理。
-    en: "demucs.cpp ggml compiled binary (已退役并入 vox-lab)",
-    zh: "demucs.cpp ggml 编译产物 (已退役并入 vox-lab)",
-    required: false,
-    category: "optional",
-  },
-  voxcpm_burn_bin: {
-    // 遗留旧代码: voxcpm-burn 已迁至 vox-lab, LocalDub 暂用云端 TTS。Rust 移植完毕后清理。
-    en: "voxcpm-burn compiled binaries (target/release/voxcpm-burn-*)",
-    zh: "voxcpm-burn 编译产物 (target/release/voxcpm-burn-*)",
-    required: false,
-    category: "optional",
-  },
   demucs_burn_bin: {
     en: "demucs-burn unpublished backend (cpu/cuda/vulkan have no release asset, use tch/wgpu)",
     zh: "demucs-burn 非发布后端 (cpu/cuda/vulkan 无 release 资产, 请用 tch/wgpu)",

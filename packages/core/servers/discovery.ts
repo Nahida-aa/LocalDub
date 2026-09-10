@@ -1,19 +1,17 @@
 /** mDNS service discovery for LocalDub servers.
 
 Server types:
-  - `torch`              → pytorch_server.py (ASR + separate)  → default port 19109
-  - `voxcpm_torch_gradio` → voxcpm_torch_server/server.py (TTS) → default port 19112
-    (遗留旧代码: voxcpm_torch_server 已迁至 vox-lab, LocalDub 暂用云端 TTS。Rust 移植完毕后清理)
+  - `main` → main server → default port 19110
 
 Usage:
   ```ts
   import { findServer, findServers } from '@repo/core/servers/discovery'
 
   // Get the first discovered (or fallback) server
-  const { port, host } = await findServer('torch', 19109)
+  const { port, host } = await findServer('main', 19110)
 
   // Get all discovered servers as base URLs
-  const urls = await findServers('torch', 19109)
+  const urls = await findServers('main', 19110)
   ```
 */
 import type { ServerType } from "@repo/config/servers";

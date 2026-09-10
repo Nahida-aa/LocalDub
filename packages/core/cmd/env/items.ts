@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, statSync, readFileSync, readdirSync, copyFileSync } from "node:fs";
+import { existsSync, statSync, readFileSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   DEMUCS_MODEL_DIR,
@@ -28,33 +28,6 @@ function tryExec(
   } catch {
     return { ok: false, stdout: "", stderr: "" };
   }
-}
-
-function isStale(binPath: string, watchPaths: string[]): boolean {
-  if (!existsSync(binPath)) return false;
-  const binTime = Math.floor(statSync(binPath).mtimeMs / 1000);
-  for (const p of watchPaths) {
-    const absPath = join(REPO_ROOT, p);
-    if (!existsSync(absPath)) continue;
-    const r = tryExec("git", ["log", "-1", "--format=%ct", "--", p], REPO_ROOT);
-    if (!r.ok || !r.stdout.trim()) continue;
-    if (parseInt(r.stdout.trim(), 10) > binTime) return true;
-  }
-  return false;
-}
-
-function getLatestSource(watchPaths: string[]): number {
-  let latest = 0;
-  for (const p of watchPaths) {
-    const absPath = join(REPO_ROOT, p);
-    if (!existsSync(absPath)) continue;
-    const r = tryExec("git", ["log", "-1", "--format=%ct", "--", p], REPO_ROOT);
-    if (r.ok && r.stdout.trim()) {
-      const ts = parseInt(r.stdout.trim(), 10);
-      if (ts > latest) latest = ts;
-    }
-  }
-  return latest;
 }
 
 function fileSize(path: string): number | null {
@@ -206,98 +179,6 @@ export async function checkCuda(): Promise<CheckResult> {
   if (!r.ok) return { key: "cuda", status: "fail", data: {}, required: false };
   const ver = r.stdout.match(/CUDA Version:\s+(\S+)/)?.[1] || "";
   return { key: "cuda", status: "pass", data: { version: ver }, required: false };
-}
-
-function checkSubmodule(path: string, key: string): CheckResult {
-  return {
-    key,
-    status: existsSync(join(path, ".git")) ? "pass" : "fail",
-    data: {},
-    required: false,
-  };
-}
-
-export async function checkSubmoduleDemucsCpp(): Promise<CheckResult> {
-  // 遗留旧代码: demucs.cpp ggml 已退役并入 vox-lab, LocalDub separate 走 demucs-burn。submodule 已删, 该检查恒 fail。Rust 移植完毕后清理。
-  return checkSubmodule(join(REPO_ROOT, "submodule", "demucs.cpp"), "submodule_demucs_cpp");
-}
-
-export async function checkSubmoduleVoxcpmRs(): Promise<CheckResult> {
-  // 遗留旧代码: voxcpm-rs submodule 已迁至 vox-lab 并自本仓库删除, 该检查恒 fail。Rust 移植完毕后清理。
-  return checkSubmodule(join(REPO_ROOT, "submodule", "voxcpm-rs"), "submodule_voxcpm_rs");
-}
-
-export async function checkWhisperBin(): Promise<CheckResult> {
-  // 遗留旧代码: whisper-vulkan 已改走 vox-lab release (Rust 侧 check_whisper_bin 为准)。Rust 移植完毕后清理。
-  const ext = process.platform === "win32" ? ".exe" : "";
-  const path = join(REPO_ROOT, "submodule", "whisper.cpp", "build", "bin", `whisper-vulkan${ext}`);
-  if (!existsSync(path)) return { key: "whisper_bin", status: "fail", data: {}, required: false };
-  const stale = isStale(path, ["submodule/whisper.cpp/"]);
-  return { key: "whisper_bin", status: stale ? "warn" : "pass", data: { path }, required: false };
-}
-
-export async function checkDemucsGgmlBin(): Promise<CheckResult> {
-  // 遗留旧代码: demucs.cpp ggml 已退役并入 vox-lab, submodule 已删, 该检查恒 fail。Rust 侧 check_demucs_ggml_bin 已标注暂不支持。Rust 移植完毕后清理。
-  const ext = process.platform === "win32" ? ".exe" : "";
-  const path = join(REPO_ROOT, "submodule", "demucs.cpp", "build", `demucs_mt.cpp.main${ext}`);
-  if (!existsSync(path))
-    return { key: "demucs_ggml_bin", status: "fail", data: {}, required: false };
-  const stale = isStale(path, ["submodule/demucs.cpp/cli-apps/"]);
-  return {
-    key: "demucs_ggml_bin",
-    status: stale ? "warn" : "pass",
-    data: { path },
-    required: false,
-  };
-}
-
-export async function checkVoxcpmBurnBin(): Promise<CheckResult> {
-  // 遗留旧代码: voxcpm-burn 已迁至 vox-lab, LocalDub 暂用云端 TTS (Rust 侧已移除 voxcpm_burn_bin 检查)。
-  // 注意: submodule/voxcpm-rs 与 packages/voxcpm-burn 均已从本仓库删除, 以下 getLatestSource 路径引用仅为历史残留。
-  // Rust 移植完毕后清理。
-  const dir = join(REPO_ROOT, "target", "release");
-  if (!existsSync(dir))
-    return { key: "voxcpm_burn_bin", status: "fail", data: {}, required: false };
-  const files = readdirSync(dir).filter(
-    (f: string) => f.startsWith("voxcpm-burn-") && !f.endsWith(".d"),
-  );
-
-  const expected = ["voxcpm-burn-wgpu", "voxcpm-burn-cpu", "voxcpm-burn-vulkan", "voxcpm-burn-tch"];
-  const existing = new Set(files);
-  const missingBins = expected.filter((e) => !existing.has(e));
-
-  if (files.length === 0)
-    return {
-      key: "voxcpm_burn_bin",
-      status: "fail",
-      data: { missing_bins: missingBins.join(", ") },
-      required: false,
-    };
-
-  const latestSource = getLatestSource(["packages/voxcpm-burn/", "submodule/voxcpm-rs/"]);
-  const staleBins: string[] = [];
-  const freshBins: string[] = [];
-
-  for (const f of files) {
-    const binPath = join(dir, f);
-    if (latestSource > 0 && existsSync(binPath)) {
-      const binTime = Math.floor(statSync(binPath).mtimeMs / 1000);
-      if (binTime < latestSource) staleBins.push(f);
-      else freshBins.push(f);
-    }
-  }
-
-  return {
-    key: "voxcpm_burn_bin",
-    status: staleBins.length > 0 || missingBins.length > 0 ? "warn" : "pass",
-    data: {
-      stale_bins: staleBins.join(", "),
-      fresh_bins: freshBins.join(", "),
-      missing_bins: missingBins.join(", "),
-      binaries: files.join(", "),
-    },
-    required: false,
-  };
 }
 
 export async function checkDemucsBurnBin(): Promise<CheckResult> {
@@ -465,11 +346,6 @@ export const allChecks: Record<string, () => Promise<CheckResult>> = {
   demucs_ggml: checkDemucsGgml,
   voxcpm2_onnx: checkVoxcpm2Onnx,
   voxcpm2_pth: checkVoxcpm2Pth,
-  submodule_demucs_cpp: checkSubmoduleDemucsCpp,
-  submodule_voxcpm_rs: checkSubmoduleVoxcpmRs,
-  whisper_bin: checkWhisperBin,
-  demucs_ggml_bin: checkDemucsGgmlBin,
-  voxcpm_burn_bin: checkVoxcpmBurnBin,
   demucs_burn_bin: checkDemucsBurnBin,
   ocr_cpp_bin: checkOcrCppBin,
   cmake: checkCmake,
