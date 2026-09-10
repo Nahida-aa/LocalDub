@@ -47,7 +47,7 @@ export function EnvironmentPanel() {
   };
 
   return (
-    <div class="space-y-4 h-full min-h-0">
+    <div class="space-y-4 flex flex-col h-full min-h-0">
       <div class="flex items-center gap-2">
         <h2>环境依赖</h2>
         <div class="flex rounded-lg border border-gray-700 p-0.5 text-sm">
@@ -66,17 +66,15 @@ export function EnvironmentPanel() {
             全部
           </button>
         </div>
-        <Button size="sm" variant="outline" onClick={() => q.refetch()} disabled={q.isFetching}>
+        <Button size="sm" onClick={() => q.refetch()} disabled={q.isFetching}>
           {q.isFetching ? "检查中..." : "重新检查"}
         </Button>
       </div>
-
-      {q.isLoading && <p class="text-sm text-gray-500">检查中...</p>}
-      {q.error && <p class="text-sm text-red-400">检查失败: {q.error.message}</p>}
-
-      <Show when={q.data}>
-        <div class="flex-1 min-h-0">
-          <ScrollArea>
+      <div class="flex-1 min-h-0">
+        {q.isLoading && <p class="text-sm text-gray-500">检查中...</p>}
+        {q.error && <p class="text-sm text-red-400">检查失败: {q.error.message}</p>}
+        <Show when={q.data}>
+          <ScrollArea class="h-full">
             <div class="space-y-3">
               {items().map((item) => (
                 <CardX
@@ -94,9 +92,8 @@ export function EnvironmentPanel() {
                       {item.has_ensure && (
                         <Button
                           size="sm"
-                          variant="destructive"
-                          disabled={install.isPending}
                           onClick={() => doInstall(item.key)}
+                          disabled={install.isPending}
                         >
                           {install.isPending ? "安装中..." : "安装/更新"}
                         </Button>
@@ -107,8 +104,8 @@ export function EnvironmentPanel() {
               ))}
             </div>
           </ScrollArea>
-        </div>
-      </Show>
+        </Show>
+      </div>
     </div>
   );
 }
