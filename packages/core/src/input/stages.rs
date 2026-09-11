@@ -14,13 +14,13 @@ use crate::stages::split_audio::SplitAudioArgs;
 use crate::stages::translate::args::TranslateArgs;
 use crate::stages::tts::args::TtsArgs;
 
-/// 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StagesSchema)
+/// 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StepsSchema)
 ///
 /// mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的
 /// 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。
 /// sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-pub struct Stages {
+pub struct Steps {
     #[serde(default)]
     pub separate: SeparateArgs,
     #[serde(default)]
@@ -49,7 +49,7 @@ pub struct Stages {
     pub mix_video: MixVideoArgs,
 }
 
-impl Default for Stages {
+impl Default for Steps {
     fn default() -> Self {
         Self {
             separate: SeparateArgs::default(),

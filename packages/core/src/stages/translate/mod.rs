@@ -23,11 +23,11 @@ use crate::stages::translate::out::{
     TranslateSegment,
 };
 use crate::stages::translate::prompts::{
-    MetaView, build_preprocess_prompt, build_translate_system,
+    build_preprocess_prompt, build_translate_system, MetaView,
 };
 use crate::stages::utils::{
-    StagePatch, StageStatus, lang_name, now_iso, resolve_language, set_stage_anyhow,
-    subtitle_file_path, translation_file_path, translation_partial_path,
+    lang_name, now_iso, resolve_language, set_stage_anyhow, subtitle_file_path,
+    translation_file_path, translation_partial_path, StepPatch, StepStatus,
 };
 use config_rs::env::openai_api_key;
 
@@ -150,7 +150,10 @@ fn translate_batch(
         let parsed = match parse_json_reply(&reply) {
             Ok(v) => v,
             Err(e) => {
-                last_err = format!("回复无法解析为 JSON: {e}; 原始回复前 200 字符: {}", &reply[..reply.len().min(200)]);
+                last_err = format!(
+                    "回复无法解析为 JSON: {e}; 原始回复前 200 字符: {}",
+                    &reply[..reply.len().min(200)]
+                );
                 tracing::warn!(target: "translate", "batch attempt {} 失败: {}", attempt + 1, last_err);
                 continue;
             }
@@ -170,9 +173,19 @@ fn translate_batch(
         // 将本轮回复按 pending 顺序对齐填入 filled
         let mut still_pending: Vec<usize> = Vec::with_capacity(pending.len());
         for (slot, &i) in pending.iter().enumerate() {
-            let d = arr.get(slot).and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+            let d = arr
+                .get(slot)
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
             let bad = if target_lang != "zh" && chinese_ratio(&d) > 0.3 {
-                last_err = format!("第 {} 句仍含中文 (ratio={:.2}, 期望 {})", i + 1, chinese_ratio(&d), target_lang);
+                last_err = format!(
+                    "第 {} 句仍含中文 (ratio={:.2}, 期望 {})",
+                    i + 1,
+                    chinese_ratio(&d),
+                    target_lang
+                );
                 true
             } else if d.is_empty() {
                 last_err = format!("第 {} 句译文为空", i + 1);
@@ -190,7 +203,10 @@ fn translate_batch(
 
         if pending.is_empty() {
             // 全部补齐
-            let out: Vec<String> = filled.iter().map(|o| o.clone().unwrap_or_default()).collect();
+            let out: Vec<String> = filled
+                .iter()
+                .map(|o| o.clone().unwrap_or_default())
+                .collect();
             return Ok(out);
         }
         // 暴露具体缺失哪句 + 原文, 供评估而非无脑兜底
@@ -198,7 +214,16 @@ fn translate_batch(
             .iter()
             .map(|&i| {
                 let src = batch[i].chars().take(40).collect::<String>();
-                format!("#{} (原文: {}{})", i + 1, src, if batch[i].chars().count() > 40 { "…" } else { "" })
+                format!(
+                    "#{} (原文: {}{})",
+                    i + 1,
+                    src,
+                    if batch[i].chars().count() > 40 {
+                        "…"
+                    } else {
+                        ""
+                    }
+                )
             })
             .collect();
         tracing::warn!(
@@ -224,7 +249,11 @@ fn translate_batch(
                     i + 1,
                     last_err,
                     src,
-                    if batch[i].chars().count() > 60 { "…" } else { "" }
+                    if batch[i].chars().count() > 60 {
+                        "…"
+                    } else {
+                        ""
+                    }
                 )
             })
             .collect();
@@ -478,7 +507,7 @@ pub fn stage_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
                     &target_lang,
                 )
                 .ok();
-                return Err(anyhow::anyhow!("Stage translate failed: {}", e.message));
+                return Err(anyhow::anyhow!("Step translate failed: {}", e.message));
             }
         }
         // 每 batch 完成即增量落盘 partial (阶段内续跑 + 分析用)
@@ -494,7 +523,7 @@ pub fn stage_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         set_stage_anyhow(
             &workflow_dir,
             "translate",
-            StagePatch {
+            StepPatch {
                 last_message: Some(format!(
                     "Translating {}/{}...",
                     (i + 1) * BATCH_SIZE,
@@ -512,11 +541,7 @@ pub fn stage_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         .enumerate()
         .map(|(idx, u)| TranslateSegment {
             text: texts[idx].clone(),
-            dst: dsts
-                .get(idx)
-                .cloned()
-                .flatten()
-                .unwrap_or_default(),
+            dst: dsts.get(idx).cloned().flatten().unwrap_or_default(),
             src_lang: Some(src_lang.clone()),
             dst_lang: Some(target_lang.clone()),
             start_ms: u.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
@@ -550,8 +575,8 @@ pub fn stage_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "translate",
-        StagePatch {
-            status: Some(StageStatus::Success),
+        StepPatch {
+            status: Some(StepStatus::Success),
             completed_at: Some(now_iso()),
             progress: Some(100.0),
             last_message: Some("Translated".to_string()),
@@ -563,17 +588,19 @@ pub fn stage_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
 }
 
 /// 读 partial: 返回已完成 batch 集合与已记录的段。
-fn read_partial(path: &Path) -> (std::collections::HashSet<usize>, Vec<TranslatePartialSegment>) {
+fn read_partial(
+    path: &Path,
+) -> (
+    std::collections::HashSet<usize>,
+    Vec<TranslatePartialSegment>,
+) {
     let Ok(raw) = std::fs::read_to_string(path) else {
         return (Default::default(), Vec::new());
     };
     let Ok(p) = serde_json::from_str::<TranslatePartialResult>(&raw) else {
         return (Default::default(), Vec::new());
     };
-    (
-        p.completed_batches.into_iter().collect(),
-        p.segments,
-    )
+    (p.completed_batches.into_iter().collect(), p.segments)
 }
 
 /// 写 partial: 把 `dsts` (Some=已译, None=缺失) 与 `completed` 落盘。
@@ -591,8 +618,8 @@ fn write_partial(
         .map(|gi| {
             let bi = gi / batch_size;
             let dst = dsts.get(gi).cloned().flatten().unwrap_or_default();
-            let missing = dsts.get(gi).map(|o| o.is_none()).unwrap_or(true)
-                && !completed.contains(&bi);
+            let missing =
+                dsts.get(gi).map(|o| o.is_none()).unwrap_or(true) && !completed.contains(&bi);
             TranslatePartialSegment {
                 text: texts[gi].clone(),
                 dst,

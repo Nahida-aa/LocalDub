@@ -11,15 +11,15 @@ pub mod out;
 use std::path::PathBuf;
 use std::process::Command;
 
-use anyhow::{Context, anyhow};
+use anyhow::{anyhow, Context};
 use config_rs::path::models::whisper_model_path;
 
-use crate::context::{WorkflowCtx, write_ctx};
+use crate::context::{write_ctx, WorkflowCtx};
 use crate::stages::asr::args::{AsrArgs, VadModel};
 use crate::stages::asr::out::*;
 use crate::stages::utils::{
-    StagePatch, StageStatus, asr_dir, ensure_dir, ffmpeg, gated_vocals_path,
-    mixed_vocals_path, now_iso, set_stage_anyhow, video_source_path, vocals_path,
+    asr_dir, ensure_dir, ffmpeg, gated_vocals_path, mixed_vocals_path, now_iso, set_stage_anyhow,
+    video_source_path, vocals_path, StepPatch, StepStatus,
 };
 
 /// 读取 asr 配置 (缺省用 AsrArgs::default)。
@@ -47,7 +47,7 @@ pub fn stage_asr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "asr",
-        StagePatch {
+        StepPatch {
             last_message: Some("Transcribing...".into()),
             progress: Some(0.0),
             ..Default::default()
@@ -169,7 +169,7 @@ pub fn stage_asr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         whisper_args.push("--split-on-word".into());
     }
 
-    tracing::info!(target: "asr", 
+    tracing::info!(target: "asr",
         "whisper-vulkan -m {} {} -l {} ...",
         model.display(),
         tmp_audio,
@@ -192,7 +192,8 @@ pub fn stage_asr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         };
         cmd.env("LD_LIBRARY_PATH", lib_path);
     }
-    let status = cmd.status()
+    let status = cmd
+        .status()
         .map_err(|e| anyhow!("spawn whisper-vulkan 失败: {e}"))?;
     let elapsed_sec = t0.elapsed().as_secs_f64();
     if !status.success() {
@@ -221,8 +222,12 @@ pub fn stage_asr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         if dst != src_path {
             let _ = std::fs::remove_file(&dst); // 跨平台安全: 先清目标再 rename
             match std::fs::rename(src_path, &dst) {
-                Ok(()) => tracing::info!(target: "asr", "whisper 原始 JSON 已移到 asr/{}", name.to_string_lossy()),
-                Err(e) => tracing::warn!(target: "asr", "移动 whisper 原始 JSON 到 asr/ 失败 (已忽略): {e}"),
+                Ok(()) => {
+                    tracing::info!(target: "asr", "whisper 原始 JSON 已移到 asr/{}", name.to_string_lossy())
+                }
+                Err(e) => {
+                    tracing::warn!(target: "asr", "移动 whisper 原始 JSON 到 asr/ 失败 (已忽略): {e}")
+                }
             }
         }
     }
@@ -268,7 +273,7 @@ pub fn stage_asr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
                 if !raw_words.is_empty() {
                     let offset = start_ms as i64 - raw_words[0].start as i64;
                     if offset.abs() > 500 {
-                        tracing::info!(target: "asr", 
+                        tracing::info!(target: "asr",
                             "[ASR] VAD word timestamp shift: {} words offset by {}ms",
                             raw_words.len(),
                             offset
@@ -338,7 +343,7 @@ pub fn stage_asr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     // —— 幻觉段后处理 (所有路径 shared) ——
     postprocess_hallucination(&asr_file, &audio_path)?;
 
-    tracing::info!(target: "asr", 
+    tracing::info!(target: "asr",
         "Transcribed in {:.1}s, RTF {:.3}, language {}",
         elapsed_sec, rtf, detected_language
     );
@@ -346,8 +351,8 @@ pub fn stage_asr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "asr",
-        StagePatch {
-            status: Some(StageStatus::Success),
+        StepPatch {
+            status: Some(StepStatus::Success),
             completed_at: Some(now_iso()),
             progress: Some(100.0),
             last_message: Some("Transcribed".into()),
@@ -434,7 +439,7 @@ fn postprocess_hallucination(asr_file: &std::path::Path, audio_path: &str) -> an
             .retain(|u| u.start_ms < duration_ms && u.end_ms > 0);
         if data.result.segments.len() < before {
             let removed = before - data.result.segments.len();
-            tracing::info!(target: "asr", 
+            tracing::info!(target: "asr",
                 "Removed {removed} hallucinated segment(s) (start >= {duration_ms}ms or end <= 0ms)"
             );
         }
@@ -447,7 +452,7 @@ fn postprocess_hallucination(asr_file: &std::path::Path, audio_path: &str) -> an
             tracing::info!(target: "asr", "Last segment RMS: {rms:.5}");
             if rms > 0.0 && rms < 0.005 {
                 if let Some(removed) = data.result.segments.pop() {
-                    tracing::info!(target: "asr", 
+                    tracing::info!(target: "asr",
                         "Removed low-energy hallucinated segment \"{}\" (RMS={:.5})",
                         &removed.text.chars().take(30).collect::<String>(),
                         rms

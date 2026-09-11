@@ -1,13 +1,12 @@
 //! asr_fix 阶段 (镜像 TS `packages/core/stages/asr/asr_fix.ts`)。
 
-use anyhow::{Context, anyhow};
+use anyhow::{anyhow, Context};
 
 use crate::context::WorkflowCtx;
 use crate::stages::asr::fix_args::AsrFixArgs;
 use crate::stages::asr::out::AsrResult;
 use crate::stages::utils::{
-    StagePatch, StageStatus, asr_dir, ensure_dir, now_iso, resolve_language,
-    set_stage_anyhow,
+    asr_dir, ensure_dir, now_iso, resolve_language, set_stage_anyhow, StepPatch, StepStatus,
 };
 
 /// 读取 asr_fix 配置 (缺省用 AsrFixArgs::default)。
@@ -75,14 +74,14 @@ pub fn stage_asr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         set_stage_anyhow(
             &workflow_dir,
             "asr_fix",
-            StagePatch {
+            StepPatch {
                 last_message: Some(format!("LLM fixing {} segments...", segments.len())),
                 ..Default::default()
             },
         )?;
 
         let prompt = segments_to_prompt(&segments);
-        tracing::info!(target: "asr", 
+        tracing::info!(target: "asr",
             "LLM fixing {} segs (model={llm_model})...",
             segments.len()
         );
@@ -106,7 +105,7 @@ pub fn stage_asr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
                     s.text = t.clone();
                 }
             }
-            tracing::info!(target: "asr", 
+            tracing::info!(target: "asr",
                 "LLM fixed {} segs in {elapsed:.1}s",
                 segments.len()
             );
@@ -133,7 +132,7 @@ pub fn stage_asr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         serde_json::to_string_pretty(&out).map_err(|e| anyhow!("序列化 asr_fix 结果失败: {e}"))?;
     std::fs::write(&srt_file, json).with_context(|| format!("写入 {} 失败", srt_file.display()))?;
 
-    tracing::info!(target: "asr", 
+    tracing::info!(target: "asr",
         "Written {} segs to asr_fix.json",
         segments.len()
     );
@@ -141,8 +140,8 @@ pub fn stage_asr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "asr_fix",
-        StagePatch {
-            status: Some(StageStatus::Success),
+        StepPatch {
+            status: Some(StepStatus::Success),
             completed_at: Some(now_iso()),
             progress: Some(100.0),
             last_message: Some(if llm_fix {

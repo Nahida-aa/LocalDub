@@ -93,7 +93,7 @@ export function IndexPage() {
               <div class="grid grid-cols-[auto_1fr_auto_auto] gap-x-4 gap-y-1 px-4 py-2 text-xs text-muted-foreground ">
                 <span>Status</span>
                 <span>Workflow</span>
-                <span>Stage</span>
+                <span>Step</span>
                 <span>Time</span>
               </div>
               <Separator orientation="horizontal" class="mx-2" />

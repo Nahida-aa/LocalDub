@@ -6,13 +6,13 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 // 全局日志上下文：运行开始时 set 一次 taskDir，之后调用 log() 免传路径。
 // 落盘契约（不可改）：文件名为 `<taskDir 最后一段>.log`，位于 taskDir 下，
-// 追加写（append-only）。行格式保留 `[ts] line\n` 开头；若设置了 currentStage，
+// 追加写（append-only）。行格式保留 `[ts] line\n` 开头；若设置了 currentStep，
 // 则在时间戳后追加 `[stage] ` 前缀，即 `[ts] [stage] line\n`。
 // Rust/Tauri 端独立复刻了该命名规则并做增量 tail（只读取文本、不解析内容），
 // 因此新增前缀不会断掉前端日志流。
 interface LogContext {
   taskDir: string;
-  currentStage?: string;
+  currentStep?: string;
 }
 
 const als = new AsyncLocalStorage<LogContext>();
@@ -34,9 +34,9 @@ export function setLogContext(taskDir: string): void {
  * 进入某个 stage 时调用：更新当前阶段名（保留 taskDir）。
  * 日志行随后会自动带 `[stage] ` 前缀。pipeline-runner 在每个 stage 开始前调用。
  */
-export function setCurrentStage(stage: string): void {
+export function setCurrentStep(stage: string): void {
   const cur = als.getStore() ?? { taskDir: "" };
-  als.enterWith({ ...cur, currentStage: stage });
+  als.enterWith({ ...cur, currentStep: stage });
 }
 
 /** 当前日志上下文（测试/降级用）。外部一般无需调用。 */
@@ -58,7 +58,7 @@ function resolveLogPath(taskDir: string): string | null {
 /**
  * 共享落盘逻辑：打印到 stdout，并追加到 `<tid>.log`。
  * taskDir 为空时仅打印不落盘（pipeline 外的工具调用降级路径）。
- * currentStage 非空时，在内容前加 `[stage] ` 前缀。
+ * currentStep 非空时，在内容前加 `[stage] ` 前缀。
  */
 function appendToLog(taskDir: string | undefined, line: string, stage?: string): void {
   const prefix = stage ? `[${stage}] ` : "";
@@ -76,7 +76,7 @@ function appendToLog(taskDir: string | undefined, line: string, stage?: string):
  */
 export function log(line: string): void {
   const ctx = als.getStore();
-  appendToLog(ctx?.taskDir, line, ctx?.currentStage);
+  appendToLog(ctx?.taskDir, line, ctx?.currentStep);
 }
 
 /**
@@ -84,6 +84,6 @@ export function log(line: string): void {
  * 用于尚未迁移的调用点或 pipeline 之外的工具。
  */
 export function write_log(taskDir: string, line: string): void {
-  const stage = als.getStore()?.currentStage;
+  const stage = als.getStore()?.currentStep;
   appendToLog(taskDir, line, stage);
 }

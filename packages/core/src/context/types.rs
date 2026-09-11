@@ -3,7 +3,7 @@ use specta::Type;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type, Default)]
 #[serde(rename_all = "lowercase")]
-pub enum StageStatus {
+pub enum StepStatus {
     #[default]
     Pending,
     Running,
@@ -13,11 +13,11 @@ pub enum StageStatus {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
-pub struct WorkflowStage {
+pub struct WorkflowStep {
     pub name: String,
     pub label: String,
     #[serde(default)]
-    pub status: StageStatus,
+    pub status: StepStatus,
     #[serde(default)]
     pub progress: Option<f64>,
     #[serde(default)]

@@ -4,7 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 use time::FrameRate;
 pub mod types;
-pub use types::{StageStatus, WorkflowStage};
+pub use types::{StepStatus, WorkflowStep};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
@@ -74,7 +74,7 @@ pub struct RunInfo {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct WorkflowCtx {
     pub workflow: Workflow,
-    pub stages: Option<Vec<WorkflowStage>>,
+    pub stages: Option<Vec<WorkflowStep>>,
     pub pipeline: String,
     pub last_run_pipeline: Option<String>,
     #[specta(type = specta_typescript::Unknown)]
@@ -106,7 +106,8 @@ pub fn read_ctx_from_value(json: serde_json::Value) -> Result<WorkflowCtx, Strin
         .get("workflow")
         .ok_or_else(|| "Missing 'workflow' in ctx".to_string())
         .and_then(|v| {
-            serde_json::from_value(v.clone()).map_err(|e| format!("Failed to parse workflow: {}", e))
+            serde_json::from_value(v.clone())
+                .map_err(|e| format!("Failed to parse workflow: {}", e))
         })?;
 
     let stages = json.get("stages").and_then(|v| v.as_array()).map(|arr| {
@@ -175,11 +176,16 @@ pub fn read_workflow(workflow_dir: &str) -> Result<Workflow, String> {
     let _workflow_value = json
         .get("workflow")
         .ok_or_else(|| format!("Missing 'workflow' field in {}", path.display()))?;
-    serde_json::from_value(_workflow_value.clone())
-        .map_err(|e| format!("Failed to deserialize workflow in {}: {}", path.display(), e))
+    serde_json::from_value(_workflow_value.clone()).map_err(|e| {
+        format!(
+            "Failed to deserialize workflow in {}: {}",
+            path.display(),
+            e
+        )
+    })
 }
 
-pub fn read_stages(workflow_dir: &str) -> Result<Vec<WorkflowStage>, String> {
+pub fn read_stages(workflow_dir: &str) -> Result<Vec<WorkflowStep>, String> {
     read_ctx(workflow_dir).map(|ctx| ctx.stages.unwrap_or_default())
 }
 

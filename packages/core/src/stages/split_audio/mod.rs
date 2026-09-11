@@ -24,11 +24,11 @@ use crate::stages::split_audio::out::{
     SplitAudioResult, SplitAudioSegment, SplitAudioTiming, SplitAudioTimingResult,
     TranslateResultMeta,
 };
-use crate::stages::split_audio::pad_segment::{SegmentBounds, pad_segments};
+use crate::stages::split_audio::pad_segment::{pad_segments, SegmentBounds};
 use crate::stages::utils::{
-    StagePatch, StageStatus, ensure_dir, now_iso, probe_duration_ms,
-    read_translation_result, resolve_language, set_stage_anyhow, split_audio_path,
-    split_audio_timings_path, subtitle_file_path, video_source_path, vocals_path,
+    ensure_dir, now_iso, probe_duration_ms, read_translation_result, resolve_language,
+    set_stage_anyhow, split_audio_path, split_audio_timings_path, subtitle_file_path,
+    video_source_path, vocals_path, StepPatch, StepStatus,
 };
 
 pub use args::SplitAudioArgs;
@@ -194,7 +194,8 @@ pub fn stage_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     // 切块 (仅 dub 模式有 vocals 时执行; subtitle 模式跳过, 只产出时序文件)
     if has_vocals {
         // 若翻译文件比已切出的块更新 (重跑翻译), 清空旧块重新切
-        let translation_file = crate::stages::utils::translation_file_path(&workflow_dir, &target_lang);
+        let translation_file =
+            crate::stages::utils::translation_file_path(&workflow_dir, &target_lang);
         let has_seg = fs::read_dir(&vocals_segment_dir)
             .ok()
             .map(|d| {
@@ -297,8 +298,8 @@ pub fn stage_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "split_audio",
-        StagePatch {
-            status: Some(StageStatus::Success),
+        StepPatch {
+            status: Some(StepStatus::Success),
             completed_at: Some(now_iso()),
             progress: Some(100.0),
             last_message: Some("Split".to_string()),

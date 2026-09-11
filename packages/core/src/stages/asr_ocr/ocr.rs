@@ -7,7 +7,7 @@ use crate::cmd::env::ensure_bin;
 use crate::context::WorkflowCtx;
 use crate::stages::asr_ocr::args::AsrOcrArgs;
 use crate::stages::utils::{
-    StagePatch, StageStatus, now_iso, set_stage_anyhow, asr_ocr_pre_dir, asr_ocr_dir,
+    asr_ocr_dir, asr_ocr_pre_dir, now_iso, set_stage_anyhow, StepPatch, StepStatus,
 };
 use anyhow::Result;
 use std::fs;
@@ -30,7 +30,7 @@ pub fn stage_asr_ocr(ctx: &WorkflowCtx) -> Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "asr_ocr",
-        StagePatch {
+        StepPatch {
             last_message: Some("OCR'ing frames...".into()),
             progress: Some(0.0),
             ..Default::default()
@@ -110,8 +110,8 @@ pub fn stage_asr_ocr(ctx: &WorkflowCtx) -> Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "asr_ocr",
-        StagePatch {
-            status: Some(StageStatus::Success),
+        StepPatch {
+            status: Some(StepStatus::Success),
             completed_at: Some(now_iso()),
             progress: Some(100.0),
             ..Default::default()
@@ -142,16 +142,21 @@ mod tests {
             .to_string();
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
-        let ctx = ctx_at(&dir, json!({
-            "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
-                     "status":"running","created_at":"2024-01-01T00:00:00Z"},
-            "input": {}
-        }));
+        let ctx = ctx_at(
+            &dir,
+            json!({
+                "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
+                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
+                "input": {}
+            }),
+        );
         crate::context::write_ctx(&dir, &ctx).unwrap();
         let res = stage_asr_ocr(&ctx);
         assert!(res.is_err());
         assert!(
-            res.unwrap_err().to_string().contains("run asr_ocr_pre first"),
+            res.unwrap_err()
+                .to_string()
+                .contains("run asr_ocr_pre first"),
             "应提示先跑 asr_ocr_pre"
         );
         let _ = fs::remove_dir_all(&dir);

@@ -8,7 +8,7 @@ import type {
   Pipeline,
   ServerAction,
   ServerType_Serialize,
-  StageName,
+  StepName,
   SubtitleSource,
   TargetLang,
   WorkflowAction,
@@ -51,7 +51,7 @@ const STAGES = [
     tts: "",
     mix_audio: "",
     mix_video: "",
-  } satisfies Record<StageName, string>),
+  } satisfies Record<StepName, string>),
 ];
 
 const PIPELINES = ["", ...keysOf({ dub: "", subtitle: "" } satisfies Record<Pipeline, string>)];

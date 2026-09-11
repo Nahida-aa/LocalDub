@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-/// TTS 运行时后端 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema.runtime)
+/// TTS 运行时后端 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStepArgsSchema.runtime)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum TtsRuntime {
@@ -10,7 +10,7 @@ pub enum TtsRuntime {
     VoxcpmTorchGradio,
 }
 
-/// TTS 计算设备 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema.device)
+/// TTS 计算设备 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStepArgsSchema.device)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum TtsDevice {
@@ -22,7 +22,7 @@ pub enum TtsDevice {
     Mps,
 }
 
-/// tts 阶段参数 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema)
+/// tts 阶段参数 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStepArgsSchema)
 ///
 /// 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),
 /// 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。

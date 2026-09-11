@@ -10,7 +10,9 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use crate::context::WorkflowCtx;
-use crate::stages::utils::{StagePatch, StageStatus, now_iso, separate_dir, set_stage, set_stage_anyhow};
+use crate::stages::utils::{
+    now_iso, separate_dir, set_stage, set_stage_anyhow, StepPatch, StepStatus,
+};
 
 pub use after::stage_separate_after;
 pub use args::SeparateArgs;
@@ -195,7 +197,7 @@ fn run_demucs(
                     let _ = set_stage(
                         workflow_dir,
                         "separate",
-                        StagePatch {
+                        StepPatch {
                             progress: Some(pct as f64),
                             last_message: Some(format!("Separating {pct}%")),
                             ..Default::default()
@@ -211,7 +213,7 @@ fn run_demucs(
         let _ = set_stage(
             workflow_dir,
             "separate",
-            StagePatch {
+            StepPatch {
                 progress: Some(pct as f64),
                 ..Default::default()
             },
@@ -254,8 +256,8 @@ pub fn stage_separate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         set_stage_anyhow(
             &workflow_dir,
             "separate",
-            StagePatch {
-                status: Some(StageStatus::Success),
+            StepPatch {
+                status: Some(StepStatus::Success),
                 completed_at: Some(now_iso()),
                 progress: Some(100.0),
                 last_message: Some("Skipped (subtitle pipeline)".into()),
@@ -268,7 +270,7 @@ pub fn stage_separate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "separate",
-        StagePatch {
+        StepPatch {
             last_message: Some("Separating audio...".into()),
             progress: Some(0.0),
             ..Default::default()
@@ -329,7 +331,7 @@ pub fn stage_separate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     std::fs::create_dir_all(&sep_dir)
         .map_err(|e| anyhow::anyhow!("创建 separate 目录失败: {}", e))?;
 
-    tracing::info!(target: "separate", 
+    tracing::info!(target: "separate",
         "runtime={} device={:?} binary={}",
         backend,
         cfg.device,
@@ -352,8 +354,8 @@ pub fn stage_separate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "separate",
-        StagePatch {
-            status: Some(StageStatus::Success),
+        StepPatch {
+            status: Some(StepStatus::Success),
             completed_at: Some(now_iso()),
             progress: Some(100.0),
             last_message: Some("Separated".into()),
@@ -437,7 +439,10 @@ mod tests {
             backend_for(args::SeparateRuntime::Burn, args::Device::Webgpu),
             "wgpu"
         );
-        assert_eq!(backend_for(args::SeparateRuntime::Burn, args::Device::Cuda), "cuda");
+        assert_eq!(
+            backend_for(args::SeparateRuntime::Burn, args::Device::Cuda),
+            "cuda"
+        );
         assert_eq!(
             backend_for(args::SeparateRuntime::BurnTch, args::Device::Cpu),
             "tch"
@@ -469,7 +474,7 @@ mod tests {
         let reread = crate::context::read_ctx(&dir).unwrap();
         let st = reread.stages.unwrap();
         assert_eq!(st[0].name, "separate");
-        assert_eq!(st[0].status, StageStatus::Success);
+        assert_eq!(st[0].status, StepStatus::Success);
         assert_eq!(
             st[0].last_message.as_deref(),
             Some("Skipped (subtitle pipeline)")

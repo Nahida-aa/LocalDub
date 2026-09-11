@@ -1,7 +1,7 @@
-import { StageName } from "@repo/sdk/index";
+import { StepName } from "@repo/sdk/index";
 
 // stage 名 → 该阶段对应的轨道 id 列表（一个 stage 可能有多条轨道，且 track.id 不一定等于 stage 名）
-export const STAGE_TRACKS: Record<StageName, string[]> = {
+export const STAGE_TRACKS: Record<StepName, string[]> = {
   // root: [],
   asr: ["asr"],
   asr_fix: [],

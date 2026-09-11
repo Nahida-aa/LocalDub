@@ -6,7 +6,7 @@
     "url": "/home/aa/下载/大/38.mp4",
     "taskDir": "/home/aa/repos/env_ls/LocalDub/workfolder/大/37",
     "continueFrom": "mix_video",
-    "targetStage": "mix_video",
+    "targetStep": "mix_video",
     "pipeline": "dub",
     "subtitleSource": "sf_ocr",
   },

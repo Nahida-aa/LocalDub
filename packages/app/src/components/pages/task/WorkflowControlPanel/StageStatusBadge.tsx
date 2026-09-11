@@ -3,7 +3,7 @@ import { Dynamic } from "solid-js/web";
 import { CheckCircle2, CircleCheck, CircleDashed, CircleX, LoaderCircle } from "lucide-solid";
 import { TooltipX } from "@repo/ui-solid/custom/tooltip";
 import { cn } from "@repo/shared/lib/utils";
-import { StageStatus } from "@repo/sdk/index";
+import { StepStatus } from "@repo/sdk/index";
 
 type StatusConfig = {
   label: string;
@@ -11,7 +11,7 @@ type StatusConfig = {
   class: string;
 };
 
-const STATUS_CONFIG: Record<StageStatus, StatusConfig> = {
+const STATUS_CONFIG: Record<StepStatus, StatusConfig> = {
   pending: {
     label: "待运行",
     icon: CircleDashed,
@@ -34,8 +34,8 @@ const STATUS_CONFIG: Record<StageStatus, StatusConfig> = {
   },
 };
 
-export const StageStatusBadge: Component<{
-  status: StageStatus;
+export const StepStatusBadge: Component<{
+  status: StepStatus;
   progress?: number | null;
 }> = (p) => {
   const cfg = () => STATUS_CONFIG[p.status];

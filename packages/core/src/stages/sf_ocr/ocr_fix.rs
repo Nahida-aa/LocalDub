@@ -10,8 +10,7 @@ use crate::cmd::env::ensure_bin;
 use crate::context::WorkflowCtx;
 use crate::stages::sf_ocr::fix_args::OcrFixArgs;
 use crate::stages::utils::{
-    StagePatch, StageStatus, now_iso, set_stage_anyhow, sf_ocr_dir, sf_ocr_fix_dir,
-    video_source_path,
+    now_iso, set_stage_anyhow, sf_ocr_dir, sf_ocr_fix_dir, video_source_path, StepPatch, StepStatus,
 };
 use std::process::Command;
 
@@ -86,7 +85,7 @@ pub fn stage_sf_ocr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         .and_then(|s| s.as_array())
         .cloned()
         .unwrap_or_default();
-    tracing::info!(target: "sf_ocr", 
+    tracing::info!(target: "sf_ocr",
         "ocr-post → {} segments (filtered)",
         segments.len()
     );
@@ -122,7 +121,7 @@ pub fn stage_sf_ocr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             })
             .unwrap_or_else(crate::r#const::lang::default_lang);
         let lang_label = llm::lang_label(src_lang.code());
-        tracing::info!(target: "sf_ocr", 
+        tracing::info!(target: "sf_ocr",
             "sf_ocr_fix: LLM 修正 {} segs (model={})",
             src_texts.len(),
             args.llm_fix.llm_model
@@ -161,8 +160,8 @@ pub fn stage_sf_ocr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "sf_ocr_fix",
-        StagePatch {
-            status: Some(StageStatus::Success),
+        StepPatch {
+            status: Some(StepStatus::Success),
             completed_at: Some(now_iso()),
             progress: Some(100.0),
             last_message: if args.llm_fix.llm_fix {

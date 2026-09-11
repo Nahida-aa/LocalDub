@@ -20,8 +20,8 @@ use crate::context::WorkflowCtx;
 use crate::stages::tts::args::{TtsArgs, TtsDevice, TtsRuntime};
 use crate::stages::tts::out::{TtsFile, TtsSegment};
 use crate::stages::utils::{
-    StagePatch, StageStatus, ensure_dir, ffmpeg, find_release_bin,
-    now_iso, probe_duration_ms, read_split_audio_timings, set_stage_anyhow, tts_filepath,
+    ensure_dir, ffmpeg, find_release_bin, now_iso, probe_duration_ms, read_split_audio_timings,
+    set_stage_anyhow, tts_filepath, StepPatch, StepStatus,
 };
 
 /// vocals 参考音"非静音"判定阈值: PCM 裸数据 > 该字节数才认为有实际声音。
@@ -118,10 +118,12 @@ pub fn stage_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     // 镜像 TS: runtime === "cloud" -> new VoxCPMCloud() (而非本地 onnx/pytorch 引擎)。
     let use_cloud = args.runtime == TtsRuntime::Cloud;
     let cloud = if use_cloud {
-        Some(voxcpm_cloud::VoxCPMCloud::new(voxcpm_cloud::VoxCPMCloudConfig {
-            api_url: None,
-            control_instruction: None,
-        })?)
+        Some(voxcpm_cloud::VoxCPMCloud::new(
+            voxcpm_cloud::VoxCPMCloudConfig {
+                api_url: None,
+                control_instruction: None,
+            },
+        )?)
     } else {
         None
     };
@@ -130,7 +132,7 @@ pub fn stage_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     } else {
         Some(pick_voxcpm_bin(args.device, args.runtime)?)
     };
-    tracing::info!(target: "tts", 
+    tracing::info!(target: "tts",
         "Using voxcpm backend: {}",
         if use_cloud {
             "cloud (gradio)".to_string()
@@ -219,13 +221,13 @@ pub fn stage_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
                     .map(|_| Path::new(&out_path).exists() && probe_duration_ms(&out_path) > 0)
                     .unwrap_or(false);
                 if old_valid {
-                    tracing::info!(target: "tts", 
+                    tracing::info!(target: "tts",
                         "[TTS] 段 {idx} 不在 regenIndices 中, 复用有效旧结果"
                     );
                     tts_segments.push(existing_segments.get(&seg_idx).unwrap().clone());
                     continue;
                 }
-                tracing::info!(target: "tts", 
+                tracing::info!(target: "tts",
                     "[TTS] 段 {idx} 无有效旧结果, 正常生成 (regenIndices 跳过不适用)"
                 );
                 // fall through: 走下方空译文/无参考音/正式合成逻辑
@@ -413,7 +415,7 @@ pub fn stage_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         set_stage_anyhow(
             &workflow_dir,
             "tts",
-            StagePatch {
+            StepPatch {
                 last_message: Some(format!("Generating {}/{}...", i + 1, segments.len())),
                 progress: Some((i as f64 / segments.len() as f64) * 100.0),
                 ..Default::default()
@@ -459,9 +461,7 @@ pub fn stage_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             }
             let dur = probe_duration_ms(&out_path_synth);
             if dur < MIN_TTS_DURATION_MS {
-                anyhow::bail!(
-                    "合成音频时长 {dur}ms < {MIN_TTS_DURATION_MS}ms, 视为无效结果"
-                );
+                anyhow::bail!("合成音频时长 {dur}ms < {MIN_TTS_DURATION_MS}ms, 视为无效结果");
             }
             Ok(())
         };
@@ -561,8 +561,8 @@ pub fn stage_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "tts",
-        StagePatch {
-            status: Some(StageStatus::Success),
+        StepPatch {
+            status: Some(StepStatus::Success),
             completed_at: Some(now_iso()),
             progress: Some(100.0),
             last_message: Some("TTS done".to_string()),

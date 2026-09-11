@@ -12,8 +12,8 @@ use std::path::Path;
 use crate::context::WorkflowCtx;
 use crate::stages::mix_audio::out::{Timing, TimingsFile};
 use crate::stages::utils::{
-    StagePatch, StageStatus, ensure_dir, ffmpeg, now_iso, probe_duration_ms,
-    probe_sample_rate, read_split_audio_timings, set_stage_anyhow, split_audio_timings_path,
+    ensure_dir, ffmpeg, now_iso, probe_duration_ms, probe_sample_rate, read_split_audio_timings,
+    set_stage_anyhow, split_audio_timings_path, StepPatch, StepStatus,
 };
 
 pub use args::MixAudioArgs;
@@ -317,8 +317,8 @@ pub fn stage_mix_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "mix_audio",
-        StagePatch {
-            status: Some(StageStatus::Success),
+        StepPatch {
+            status: Some(StepStatus::Success),
             completed_at: Some(now_iso()),
             progress: Some(100.0),
             last_message: Some("Merged".to_string()),

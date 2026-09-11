@@ -6,8 +6,7 @@
 use crate::context::WorkflowCtx;
 use crate::stages::asr::args::AsrArgs;
 use crate::stages::utils::{
-    StagePatch, StageStatus, ffmpeg, now_iso, separate_after_dir, separate_dir,
-    set_stage_anyhow,
+    ffmpeg, now_iso, separate_after_dir, separate_dir, set_stage_anyhow, StepPatch, StepStatus,
 };
 
 /// 读取 asr 阶段配置 (缺省用 AsrArgs::default, 对齐 TS `?? 默认值`)。
@@ -27,7 +26,7 @@ pub fn stage_separate_after(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "separate_after",
-        StagePatch {
+        StepPatch {
             last_message: Some("Mixing BGM & sidechain...".into()),
             progress: Some(0.0),
             ..Default::default()
@@ -95,7 +94,7 @@ pub fn stage_separate_after(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         }
         match mix_mode {
             crate::stages::asr::args::MixMode::RawSum => {
-                tracing::info!(target: "separate", 
+                tracing::info!(target: "separate",
                     "[SeparateAfter] raw-sum: mixing vocals + BGM at {reduce_bgm}dB..."
                 );
                 ffmpeg(&[
@@ -127,7 +126,7 @@ pub fn stage_separate_after(ctx: &WorkflowCtx) -> anyhow::Result<()> {
                 } else {
                     "bgm_sc"
                 };
-                tracing::info!(target: "separate", 
+                tracing::info!(target: "separate",
                     "[SeparateAfter] sidechain: {sc_params}, bgmReduce={reduce_bgm}dB"
                 );
                 let filter = format!(
@@ -165,8 +164,8 @@ pub fn stage_separate_after(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "separate_after",
-        StagePatch {
-            status: Some(StageStatus::Success),
+        StepPatch {
+            status: Some(StepStatus::Success),
             completed_at: Some(now_iso()),
             progress: Some(100.0),
             last_message: Some("Done".into()),
@@ -264,7 +263,7 @@ mod tests {
         let reread = crate::context::read_ctx(&dir).unwrap();
         let st = reread.stages.unwrap();
         assert_eq!(st[0].name, "separate_after");
-        assert_eq!(st[0].status, StageStatus::Success);
+        assert_eq!(st[0].status, StepStatus::Success);
 
         let _ = std::fs::remove_dir_all(&dir);
     }

@@ -13,7 +13,7 @@ use crate::stages::asr::out::AsrResult;
 use crate::stages::asr_ocr::fix_args::AsrOcrFixArgs;
 use crate::stages::utils::{
     asr_dir, asr_ocr_dir, asr_ocr_fix_dir, asr_ocr_pre_dir, now_iso, probe_video_resolution,
-    set_stage_anyhow, video_source_path, StagePatch, StageStatus,
+    set_stage_anyhow, video_source_path, StepPatch, StepStatus,
 };
 use anyhow::Result;
 use ocr_types::{
@@ -64,7 +64,7 @@ struct AsrSplitResultMeta {
     segments_count: usize,
 }
 
-/// Stage 6: ASR boundary alignment result.
+/// Step 6: ASR boundary alignment result.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct AsrOcrMergedResult {
     audio_info: AudioInfo,
@@ -84,7 +84,7 @@ struct AsrOcrMergedBody {
     segments: Vec<OcrSegment>,
 }
 
-/// Stage 7: Fused result.
+/// Step 7: Fused result.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct AsrOcrFusedResult {
     #[serde(rename = "_engine")]
@@ -108,7 +108,7 @@ fn read_args(ctx: &WorkflowCtx) -> AsrOcrFixArgs {
         .unwrap_or_default()
 }
 
-/// Stage 1 (optional): Resample - extract additional frames at isolated high-confidence frames.
+/// Step 1 (optional): Resample - extract additional frames at isolated high-confidence frames.
 fn maybe_resample(
     ctx: &WorkflowCtx,
     ocr_frames: &OcrFramesResult,
@@ -249,7 +249,7 @@ pub fn stage_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "asr_ocr_fix",
-        StagePatch {
+        StepPatch {
             last_message: Some("Fusing ASR + OCR...".into()),
             progress: Some(0.0),
             ..Default::default()
@@ -287,7 +287,7 @@ pub fn stage_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
     let asr_raw_len = asr_data.result.segments.len();
     let asr_segs = asr_split_data.result.segments.clone();
 
-    // Stage 1: Optional resample
+    // Step 1: Optional resample
     let ocr_frames = maybe_resample(ctx, &ocr_frames_data, &out_dir, &args)?;
     let frames = &ocr_frames.frames;
 
@@ -338,7 +338,7 @@ pub fn stage_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
     );
     write_json_file(&out_dir.join("segment_filter.json"), &seg_filter)?;
 
-    // === Stage 6: ASR boundary alignment ===
+    // === Step 6: ASR boundary alignment ===
     // For each OCR segment, find best overlapping ASR segment, use ASR's start/end as new boundaries
     let asr_ocr_segs: Vec<OcrSegment> = seg_filter
         .result
@@ -403,7 +403,10 @@ pub fn stage_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
         .join(" ");
     let merged_result = AsrOcrMergedResult {
         audio_info: AudioInfo {
-            duration: asr_ocr_segs.last().map(|s| s.base.end_ms as u64).unwrap_or(0),
+            duration: asr_ocr_segs
+                .last()
+                .map(|s| s.base.end_ms as u64)
+                .unwrap_or(0),
         },
         engine: "asr_ocr".into(),
         fusion_params: serde_json::json!({
@@ -419,7 +422,7 @@ pub fn stage_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
     };
     write_json_file(&out_dir.join("asr_ocr_merged.json"), &merged_result)?;
 
-    // === Stage 7: fixOverlap + final dedup ===
+    // === Step 7: fixOverlap + final dedup ===
     let max_advance_ms = ctx
         .input
         .get("stages")
@@ -465,7 +468,7 @@ pub fn stage_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
     };
     write_json_file(&out_dir.join("asr_ocr_fused.json"), &fused_result)?;
 
-    // === Stage 8 (optional): LLM fix ===
+    // === Step 8 (optional): LLM fix ===
     if args.ocr_fix.llm_fix.llm_fix {
         let src_texts: Vec<String> = fused_result
             .result
@@ -526,8 +529,8 @@ pub fn stage_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "asr_ocr_fix",
-        StagePatch {
-            status: Some(StageStatus::Success),
+        StepPatch {
+            status: Some(StepStatus::Success),
             completed_at: Some(now_iso()),
             progress: Some(100.0),
             ..Default::default()

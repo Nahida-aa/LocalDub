@@ -14,14 +14,14 @@ use std::process::exit;
 use anyhow::Context;
 use clap::{Parser, Subcommand};
 use config_rs::servers::ServerType;
-use paths::parse_repo_input;
 use ld_core::cmd::check::CheckType;
 use ld_core::cmd::env::args::EnvAction;
 use ld_core::cmd::workflows::workflow::cmd_workflow;
 use ld_core::input::Command as InputCommand;
 use ld_core::input::Input;
 use ld_core::servers::args::ServerAction;
-use ld_core::workflows::args::{StageName, WorkflowAction};
+use ld_core::workflows::args::{StepName, WorkflowAction};
+use paths::parse_repo_input;
 
 /// LocalDub CLI。
 ///
@@ -74,10 +74,10 @@ enum Command {
         queue_id: Option<u64>,
         /// 从某 stage 续跑 (continue/enqueue_continue 用)。
         #[arg(long, value_enum)]
-        continue_from: Option<StageName>,
+        continue_from: Option<StepName>,
         /// 跑到此 stage 后停止 (continue/enqueue_continue 用)。
         #[arg(long, value_enum)]
-        target_stage: Option<StageName>,
+        target_stage: Option<StepName>,
     },
     /// 服务器管理 (等价 input.jsonc command=servers)。
     Servers {
@@ -194,7 +194,10 @@ fn main() {
             input.servers = Some(servers);
             input.command = InputCommand::Servers;
         }
-        Some(Command::Check { r#type, workflow_dir }) => {
+        Some(Command::Check {
+            r#type,
+            workflow_dir,
+        }) => {
             let mut check = input.check.clone().unwrap_or_default();
             if let Some(t) = r#type {
                 check.r#type = t;

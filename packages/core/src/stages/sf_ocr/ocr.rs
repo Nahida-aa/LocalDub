@@ -8,7 +8,7 @@ use crate::cmd::env::ensure_bin;
 use crate::context::WorkflowCtx;
 use crate::stages::sf_ocr::args::SfOcrArgs;
 use crate::stages::utils::{
-    StagePatch, StageStatus, now_iso, set_stage_anyhow, sf_ocr_dir, sf_ocr_pre_dir,
+    now_iso, set_stage_anyhow, sf_ocr_dir, sf_ocr_pre_dir, StepPatch, StepStatus,
 };
 use std::process::Command;
 
@@ -29,7 +29,7 @@ pub fn stage_sf_ocr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "sf_ocr",
-        StagePatch {
+        StepPatch {
             last_message: Some("OCR'ing keyframes...".into()),
             progress: Some(0.0),
             ..Default::default()
@@ -66,7 +66,7 @@ pub fn stage_sf_ocr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         cmd.arg("--subtitle-only");
     }
 
-    tracing::info!(target: "sf_ocr", 
+    tracing::info!(target: "sf_ocr",
         "subtitle-ocr --dir {} --out {} --text-confidence-threshold {} {}",
         frame_dir.display(),
         out_file.display(),
@@ -101,7 +101,7 @@ pub fn stage_sf_ocr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     if frames.is_empty() {
         return Err(anyhow::anyhow!("sf_ocr: no OCR results from keyframes"));
     }
-    tracing::info!(target: "sf_ocr", 
+    tracing::info!(target: "sf_ocr",
         "{} frame results -> {}",
         frames.len(),
         out_file.display()
@@ -115,8 +115,8 @@ pub fn stage_sf_ocr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "sf_ocr",
-        StagePatch {
-            status: Some(StageStatus::Success),
+        StepPatch {
+            status: Some(StepStatus::Success),
             completed_at: Some(now_iso()),
             progress: Some(100.0),
             last_message: Some(format!("OCR'd {} frame results", frames.len())),

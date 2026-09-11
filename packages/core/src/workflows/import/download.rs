@@ -8,7 +8,9 @@ use anyhow::Context;
 use chrono::Utc;
 use tracing::{info, warn};
 
-use crate::context::{Workflow, WorkflowCtx, WorkflowStage, VideoSource, read_ctx_from_value, write_ctx};
+use crate::context::{
+    read_ctx_from_value, write_ctx, VideoSource, Workflow, WorkflowCtx, WorkflowStep,
+};
 use crate::input::Input;
 use crate::workflows::args::Pipeline;
 use crate::workflows::import::util::{
@@ -23,7 +25,7 @@ pub struct Downloaded {
     pub audio_path: String,
 }
 
-/// 构建 pipeline 对应的 stage 列表 (镜像 TS `getStages`)。
+/// 构建 pipeline 对应的 stage 列表 (镜像 TS `getSteps`)。
 ///
 /// 与 TS 不同: 不读磁盘 input.json, 直接从传入的 pipeline / subtitle_source 计算,
 /// 使 import 自包含。translate / split_audio 的开关依赖 stage 配置, 这里保持默认
@@ -130,12 +132,12 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowCtx> {
         .and_then(|v| v.as_str().map(|s| s.to_string()))
         .unwrap_or_else(|| "dub".to_string());
     let stage_names = get_stages(pipeline, subtitle_source);
-    let stages: Vec<WorkflowStage> = stage_names
+    let stages: Vec<WorkflowStep> = stage_names
         .iter()
-        .map(|name| WorkflowStage {
+        .map(|name| WorkflowStep {
             name: name.clone(),
             label: name.clone(),
-            status: crate::context::StageStatus::Pending,
+            status: crate::context::StepStatus::Pending,
             progress: None,
             started_at: None,
             completed_at: None,
@@ -169,9 +171,7 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowCtx> {
         video_source_path: Some(downloaded.video_path.clone()),
         audio_source_path: Some(downloaded.audio_path.clone()),
         asr_language: args.source_lang.clone(),
-        target_language: args
-            .target_lang
-            .map(|l| l.as_str().to_string()),
+        target_language: args.target_lang.map(|l| l.as_str().to_string()),
     };
 
     write_ctx(&workflow_dir.to_string_lossy(), &ctx).map_err(anyhow::Error::msg)?;
@@ -229,7 +229,8 @@ pub fn download_video(
             yt_args.extend(yt_dlp_ext_args.iter().cloned());
             yt_args.push(url.to_string());
 
-            crate::workflows::import::util::run_yt_dlp_download(&yt_args).context("yt-dlp 下载失败")?;
+            crate::workflows::import::util::run_yt_dlp_download(&yt_args)
+                .context("yt-dlp 下载失败")?;
 
             // 定位实际产物: yt-dlp 输出 `{video_id}.%(ext)s`, 产物即 `{video_id}.<ext>` (mp4/webm 等)。
             // 不重命名, 直接用实际文件 (ext 由 yt-dlp 决定, 程序可判断)。
@@ -248,9 +249,7 @@ pub fn download_video(
             // 可选: 下载平台自带字幕 (官方/自动) 落盘到 download/ 供后续分析/消费。
             // best-effort: YouTube 现需 PO token, 无服务时失败仅告警, 不阻断主流程。
             if download_subtitles {
-                if let Err(e) =
-                    download_youtube_subtitles(url, &workflow_dir, yt_dlp_ext_args)
-                {
+                if let Err(e) = download_youtube_subtitles(url, &workflow_dir, yt_dlp_ext_args) {
                     warn!("[import] 字幕下载失败 (已忽略): {e}");
                 }
             }
@@ -274,13 +273,11 @@ fn workfolder() -> PathBuf {
 /// 在 workflow_dir 里找 `{video_id}.<ext>` 的实际下载产物 (yt-dlp 输出 `{video_id}.%(ext)s`)。
 fn find_workflow_video(workflow_dir: &std::path::Path, video_id: &str) -> Option<PathBuf> {
     let prefix = format!("{video_id}.");
-    std::fs::read_dir(workflow_dir)
-        .ok()?
-        .find_map(|e| {
-            let p = e.ok()?.path();
-            let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
-            (name.starts_with(&prefix) && p.is_file()).then_some(p)
-        })
+    std::fs::read_dir(workflow_dir).ok()?.find_map(|e| {
+        let p = e.ok()?.path();
+        let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
+        (name.starts_with(&prefix) && p.is_file()).then_some(p)
+    })
 }
 
 /// 下载平台自带字幕 (YouTube/Bilibili 的官方 + 自动字幕) 落盘到 `workflow_dir/download/`。
@@ -352,22 +349,23 @@ mod tests {
             ..Default::default()
         };
         let ctx = import_video(&input).expect("import_video 失败");
-        assert!(
-            ctx.video_source_path
-                .as_ref()
-                .unwrap()
-                .ends_with("video_source.mp4")
-        );
-        assert!(
-            ctx.audio_source_path
-                .as_ref()
-                .unwrap()
-                .ends_with("audio_source.wav")
-        );
+        assert!(ctx
+            .video_source_path
+            .as_ref()
+            .unwrap()
+            .ends_with("video_source.mp4"));
+        assert!(ctx
+            .audio_source_path
+            .as_ref()
+            .unwrap()
+            .ends_with("audio_source.wav"));
         assert!(std::path::Path::new(ctx.video_source_path.as_ref().unwrap()).exists());
         assert!(std::path::Path::new(ctx.audio_source_path.as_ref().unwrap()).exists());
         // 清理: 删除生成的 workflow 目录
         let _ = std::fs::remove_dir_all(ctx.workflow.workflow_dir);
-        println!("import 成功: group={} workflow={}", ctx.workflow.id, ctx.workflow.id);
+        println!(
+            "import 成功: group={} workflow={}",
+            ctx.workflow.id, ctx.workflow.id
+        );
     }
 }

@@ -4,9 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::r#const::lang::TargetLang;
 
 /// 任务操作 (serde 与 clap 参数值统一为 snake_case)
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type, ValueEnum,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type, ValueEnum)]
 #[value(rename_all = "snake_case")]
 pub enum WorkflowAction {
     #[serde(rename = "start")]
@@ -38,12 +36,10 @@ pub enum WorkflowAction {
 }
 
 /// pipeline 阶段名 (stagesList)
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type, ValueEnum,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type, ValueEnum)]
 #[serde(rename_all = "snake_case")]
 #[value(rename_all = "snake_case")]
-pub enum StageName {
+pub enum StepName {
     Separate,
     SeparateAfter,
     Asr,
@@ -93,14 +89,14 @@ pub struct WorkflowArgs {
     pub source_lang: Option<crate::r#const::lang::Language>,
     pub target_lang: Option<TargetLang>,
     /// 继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始
-    pub continue_from: Option<StageName>,
+    pub continue_from: Option<StepName>,
     /// 目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤
-    pub target_stage: Option<StageName>,
+    pub target_stage: Option<StepName>,
     pub workflow_dir: Option<String>,
     /// 队列任务 ID (cancel_queue 指定要取消的队列项)
     pub queue_id: Option<u64>,
-    /// rerunStage 专业参数, 指定要重新运行的步骤
-    pub stage_name: Option<StageName>,
+    /// rerunStep 专业参数, 指定要重新运行的步骤
+    pub stage_name: Option<StepName>,
     /// 任务模式, dub 配音, subtitle 仅字幕
     #[serde(default)]
     pub pipeline: Pipeline,

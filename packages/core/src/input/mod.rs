@@ -62,7 +62,7 @@ pub struct Input {
     #[serde(default)]
     pub check: Option<CheckArgs>,
     #[serde(default)]
-    pub stages: stages::Stages,
+    pub stages: stages::Steps,
 }
 
 impl Default for Input {
@@ -74,7 +74,7 @@ impl Default for Input {
             env: None,
             cookie: None,
             check: None,
-            stages: stages::Stages::default(),
+            stages: stages::Steps::default(),
         }
     }
 }
@@ -98,7 +98,8 @@ mod tests {
     #[test]
     fn deserialize_partial_fills_defaults() {
         let input: Input =
-            serde_json::from_str(r#"{"command":"env","workflow":{"pipeline":"subtitle"}}"#).unwrap();
+            serde_json::from_str(r#"{"command":"env","workflow":{"pipeline":"subtitle"}}"#)
+                .unwrap();
         assert_eq!(input.command, Command::Env);
         assert!(input.stages.asr.mix_mode == crate::stages::asr::args::MixMode::Sidechain);
         assert_eq!(input.stages.asr.reduce_bgm, -12.0);
@@ -115,7 +116,7 @@ mod tests {
     #[test]
     fn camel_case_field_names() {
         let input: Input =
-            serde_json::from_str(r#"{"workflow":{"sourceLang":"zh","targetStage":"mix_video"}}"#)
+            serde_json::from_str(r#"{"workflow":{"sourceLang":"zh","targetStep":"mix_video"}}"#)
                 .unwrap();
         // sourceLang 是开放字符串 (源语言是"事实", 不受 23 种翻译目标语言限制)
         assert_eq!(
@@ -124,7 +125,7 @@ mod tests {
         );
         assert_eq!(
             input.workflow.as_ref().unwrap().target_stage,
-            Some(args::StageName::MixVideo)
+            Some(args::StepName::MixVideo)
         );
     }
 

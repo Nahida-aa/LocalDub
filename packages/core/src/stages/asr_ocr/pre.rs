@@ -3,10 +3,10 @@
 
 use crate::context::WorkflowCtx;
 use crate::stages::asr::out::{AsrResult, AsrSegment};
-use crate::stages::utils::{
-    StagePatch, StageStatus, now_iso, set_stage_anyhow, asr_ocr_pre_dir, asr_dir, video_source_path,
-};
 use crate::stages::utils::ffmpeg;
+use crate::stages::utils::{
+    asr_dir, asr_ocr_pre_dir, now_iso, set_stage_anyhow, video_source_path, StepPatch, StepStatus,
+};
 use anyhow::Result;
 use std::collections::HashSet;
 use std::fs;
@@ -41,9 +41,8 @@ fn find_space_splits(text: &str, words: &[crate::stages::asr::out::AsrWord]) -> 
     splits
 }
 
-static SPLIT_RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-    regex::Regex::new(SPLIT_PAT).expect("Invalid SPLIT_PAT regex")
-});
+static SPLIT_RE: std::sync::LazyLock<regex::Regex> =
+    std::sync::LazyLock::new(|| regex::Regex::new(SPLIT_PAT).expect("Invalid SPLIT_PAT regex"));
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct AsrSplitResult {
@@ -157,7 +156,7 @@ pub fn stage_asr_ocr_pre(ctx: &WorkflowCtx) -> Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "asr_ocr_pre",
-        StagePatch {
+        StepPatch {
             last_message: Some("Splitting ASR segments by punctuation...".into()),
             progress: Some(0.0),
             ..Default::default()
@@ -171,13 +170,17 @@ pub fn stage_asr_ocr_pre(ctx: &WorkflowCtx) -> Result<()> {
 
     let asr_file = asr_dir(&workflow_dir).join("asr.json");
     if !asr_file.exists() {
-        return Err(anyhow::anyhow!("asr.json not found: {}", asr_file.display()));
+        return Err(anyhow::anyhow!(
+            "asr.json not found: {}",
+            asr_file.display()
+        ));
     }
 
     let asr_data: AsrResult = {
         let raw = fs::read_to_string(&asr_file)
             .map_err(|e| anyhow::anyhow!("读取 {} 失败: {e}", asr_file.display()))?;
-        serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("解析 {} 失败: {e}", asr_file.display()))?
+        serde_json::from_str(&raw)
+            .map_err(|e| anyhow::anyhow!("解析 {} 失败: {e}", asr_file.display()))?
     };
     let asr_segs_raw = asr_data.result.segments;
 
@@ -195,7 +198,11 @@ pub fn stage_asr_ocr_pre(ctx: &WorkflowCtx) -> Result<()> {
 
     let asr_split_result = AsrSplitResult {
         result: AsrSplitResultBody {
-            text: asr_segs.iter().map(|s| s.text.as_str()).collect::<Vec<_>>().join(" "),
+            text: asr_segs
+                .iter()
+                .map(|s| s.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" "),
             segments: asr_segs.clone(),
         },
         meta: AsrSplitResultMeta {
@@ -210,7 +217,7 @@ pub fn stage_asr_ocr_pre(ctx: &WorkflowCtx) -> Result<()> {
     fs::write(&asr_split_path, json)
         .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", asr_split_path.display(), e))?;
 
-    info!(target: "asr_ocr", 
+    info!(target: "asr_ocr",
         "{} ASR segs → {} split segs", asr_segs_raw.len(), asr_segs.len()
     );
 
@@ -218,8 +225,11 @@ pub fn stage_asr_ocr_pre(ctx: &WorkflowCtx) -> Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "asr_ocr_pre",
-        StagePatch {
-            last_message: Some(format!("Extracting {} split segments frames...", asr_segs.len())),
+        StepPatch {
+            last_message: Some(format!(
+                "Extracting {} split segments frames...",
+                asr_segs.len()
+            )),
             progress: Some(10.0),
             ..Default::default()
         },
@@ -227,7 +237,7 @@ pub fn stage_asr_ocr_pre(ctx: &WorkflowCtx) -> Result<()> {
 
     let mut all_timestamps = HashSet::new();
     let first_seg_step_ms = 100; // 首段双向密采步长
-    let regular_step_ms = 500;   // 其余段抽帧步长
+    let regular_step_ms = 500; // 其余段抽帧步长
 
     for (i, seg) in asr_segs.iter().enumerate() {
         if i == 0 {
@@ -294,8 +304,8 @@ pub fn stage_asr_ocr_pre(ctx: &WorkflowCtx) -> Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "asr_ocr_pre",
-        StagePatch {
-            status: Some(StageStatus::Success),
+        StepPatch {
+            status: Some(StepStatus::Success),
             completed_at: Some(now_iso()),
             progress: Some(100.0),
             ..Default::default()
@@ -332,9 +342,24 @@ mod tests {
     fn split_by_punctuation() {
         // Space + punctuation triggers multiple splits
         let words = vec![
-            AsrWord { word: "你好".into(), start: 0, end: 300, probability: 0.9 },
-            AsrWord { word: "，".into(), start: 300, end: 400, probability: 0.9 },
-            AsrWord { word: "世界".into(), start: 400, end: 1200, probability: 0.9 },
+            AsrWord {
+                word: "你好".into(),
+                start: 0,
+                end: 300,
+                probability: 0.9,
+            },
+            AsrWord {
+                word: "，".into(),
+                start: 300,
+                end: 400,
+                probability: 0.9,
+            },
+            AsrWord {
+                word: "世界".into(),
+                start: 400,
+                end: 1200,
+                probability: 0.9,
+            },
         ];
         let segs = vec![make_asr_seg("你好 ， 世界", 0, 1200, Some(words))];
         let out = split_asr_by_words(&segs);

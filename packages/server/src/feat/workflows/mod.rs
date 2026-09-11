@@ -52,7 +52,10 @@ pub async fn continue_workflow(workflow_dir: String, from_stage: String) -> Resu
         .to_str()
         .ok_or_else(|| "invalid workflow_dir".to_string())?
         .to_string();
-    eprintln!("[continue_workflow] base_dir={} workflow_dir={workflow_dir} abs={abs_workflow_dir_str}", repo_root().display());
+    eprintln!(
+        "[continue_workflow] base_dir={} workflow_dir={workflow_dir} abs={abs_workflow_dir_str}",
+        repo_root().display()
+    );
 
     // 读 ctx.json 的 input 字段作为续跑基准配置 (仅改写 workflow 相关字段, 其余原样保留)。
     let ctx_path = abs_workflow_dir.join("ctx.json");
@@ -101,7 +104,7 @@ pub async fn continue_workflow(workflow_dir: String, from_stage: String) -> Resu
 ///
 /// `continue_run=true` 时重生成后继续跑完整个 pipeline (镜像 input.jsonc 手工改
 /// `regenIndices` 后「从 tts 继续运行」); `false` 时只重生成, 到 tts 阶段结束即停
-/// (targetStage=tts, 供先听效果再手动继续)。
+/// (targetStep=tts, 供先听效果再手动继续)。
 #[fnrpc::rpc_mutate]
 pub async fn regen_tts(
     workflow_dir: String,
@@ -132,11 +135,11 @@ pub async fn regen_tts(
     workflow["action"] = serde_json::Value::String("continue".into());
     workflow["continueFrom"] = serde_json::Value::String("tts".into());
     if continue_run {
-        // 继续跑完整个 pipeline: 清掉可能残留的 targetStage, 不中途停止。
-        workflow["targetStage"] = serde_json::Value::Null;
+        // 继续跑完整个 pipeline: 清掉可能残留的 targetStep, 不中途停止。
+        workflow["targetStep"] = serde_json::Value::Null;
     } else {
         // 只重生成: 跑到 tts 阶段结束即停。
-        workflow["targetStage"] = serde_json::Value::String("tts".into());
+        workflow["targetStep"] = serde_json::Value::String("tts".into());
     }
 
     // 合并 regenIndices 到 stages.tts (镜像手工在 input.jsonc 里配置 regenIndices)。
@@ -148,8 +151,7 @@ pub async fn regen_tts(
             tts["regenIndices"] = serde_json::json!(seg_indices);
         }
         None => {
-            input_value["stages"] =
-                serde_json::json!({ "tts": { "regenIndices": seg_indices } });
+            input_value["stages"] = serde_json::json!({ "tts": { "regenIndices": seg_indices } });
         }
     }
 
@@ -179,7 +181,7 @@ pub async fn regen_tts(
 /// 启动新任务 (右上角「+」弹窗)。
 ///
 /// 用服务器端 base 配置构造 Input (镜像 input.jsonc 的已知可用配置), 避免
-/// `Stages::default()` 的 pytorch/cuda 默认值在无 torch server 时失败。
+/// `Steps::default()` 的 pytorch/cuda 默认值在无 torch server 时失败。
 /// 返回相对 `workfolder` 的 workflow_dir, 供前端跳转任务页。
 #[fnrpc::rpc_mutate]
 pub async fn start_workflow(url: String) -> Result<String, String> {

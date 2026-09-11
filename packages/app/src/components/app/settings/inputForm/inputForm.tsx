@@ -38,7 +38,7 @@ type FormState = {
   url: string;
   workflowDir: string;
   continueFrom: string;
-  targetStage: string;
+  targetStep: string;
   pipeline: string;
   subtitleSource: string;
   sourceLang: string;
@@ -53,7 +53,7 @@ const emptyForm = (): FormState => ({
   url: "",
   workflowDir: "",
   continueFrom: "",
-  targetStage: "",
+  targetStep: "",
   pipeline: "",
   subtitleSource: "",
   sourceLang: "",
@@ -89,7 +89,7 @@ export function InputFormSettings() {
         set(["workflow", "url"], value.url);
         set(["workflow", "workflowDir"], value.workflowDir);
         set(["workflow", "continueFrom"], value.continueFrom);
-        set(["workflow", "targetStage"], value.targetStage);
+        set(["workflow", "targetStep"], value.targetStep);
         set(["workflow", "pipeline"], value.pipeline);
         set(["workflow", "subtitleSource"], value.subtitleSource);
         set(["workflow", "sourceLang"], value.sourceLang);
@@ -120,7 +120,7 @@ export function InputFormSettings() {
       url: String(t.url ?? ""),
       workflowDir: String(t.workflowDir ?? ""),
       continueFrom: String(t.continueFrom ?? ""),
-      targetStage: String(t.targetStage ?? ""),
+      targetStep: String(t.targetStep ?? ""),
       pipeline: String(t.pipeline ?? ""),
       subtitleSource: String(t.subtitleSource ?? ""),
       sourceLang: String(t.sourceLang ?? ""),
@@ -205,10 +205,10 @@ export function InputFormSettings() {
                 />
               )}
             </form.Field>
-            <form.Field name="targetStage">
+            <form.Field name="targetStep">
               {(field) => (
                 <CardSelect
-                  title="workflow.targetStage"
+                  title="workflow.targetStep"
                   description="跑到此 stage 后停止 (空 = 跑到最后)"
                   field={field}
                   options={STAGES}

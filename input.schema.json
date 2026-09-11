@@ -103,12 +103,7 @@
           "description": " release 时间(ms), 默认 200"
         }
       },
-      "required": [
-        "threshold",
-        "ratio",
-        "attack",
-        "release"
-      ],
+      "required": ["threshold", "ratio", "attack", "release"],
       "title": "SidechainCompress_Serialize",
       "description": " 侧链压缩器参数 (镜像 TS `sidechainCompress`)"
     },
@@ -352,9 +347,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/AsrArgs_Serialize"
@@ -364,9 +357,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/AsrArgs_Deserialize"
@@ -420,14 +411,7 @@
           "description": " 是否启用 LLM 修正"
         }
       },
-      "required": [
-        "asrFilePath",
-        "enabled",
-        "llmModel",
-        "llmApiBase",
-        "domainHint",
-        "llmFix"
-      ],
+      "required": ["asrFilePath", "enabled", "llmModel", "llmApiBase", "domainHint", "llmFix"],
       "title": "AsrFixArgs_Serialize",
       "description": " asr 阶段修正参数。"
     },
@@ -480,9 +464,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/AsrFixArgs_Serialize"
@@ -492,9 +474,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/AsrFixArgs_Deserialize"
@@ -565,13 +545,7 @@
           "description": " 步骤完成后是否删除抽出的帧图片; 默认 false (保留)"
         }
       },
-      "required": [
-        "runtime",
-        "device",
-        "textConfidenceThreshold",
-        "subtitleOnly",
-        "cleanupFrames"
-      ],
+      "required": ["runtime", "device", "textConfidenceThreshold", "subtitleOnly", "cleanupFrames"],
       "title": "AsrOcrArgs_Serialize",
       "description": " asr_ocr 阶段参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。"
     },
@@ -606,9 +580,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/AsrOcrArgs_Serialize"
@@ -618,9 +590,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/AsrOcrArgs_Deserialize"
@@ -720,9 +690,7 @@
               "description": " 是否重采样"
             }
           },
-          "required": [
-            "isResample"
-          ]
+          "required": ["isResample"]
         },
         {
           "$ref": "#/$defs/OcrFixArgs_Serialize"
@@ -817,9 +785,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/AsrOcrFixArgs_Serialize"
@@ -829,9 +795,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/AsrOcrFixArgs_Deserialize"
@@ -851,9 +815,7 @@
           "description": " 帧率 (fps), 越高时间戳越准但越慢; 默认 2"
         }
       },
-      "required": [
-        "fps"
-      ],
+      "required": ["fps"],
       "title": "AsrOcrPreArgs_Serialize",
       "description": " asr_ocr 阶段预处理参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
     },
@@ -872,9 +834,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/AsrOcrPreArgs_Serialize"
@@ -884,9 +844,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/AsrOcrPreArgs_Deserialize"
@@ -932,10 +890,7 @@
           "description": " 检查类型 (默认 video)"
         }
       },
-      "required": [
-        "workflowDir",
-        "type"
-      ],
+      "required": ["workflowDir", "type"],
       "title": "CheckArgs_Serialize",
       "description": " `check` 命令参数 (镜像 TS `input.check` schema)。\n\n TS: `z.object({ workflowDir: z.string().optional(), type: z.enum([\"video\",\"asr\",\"font\"]).optional().default(\"video\") })`。"
     },
@@ -965,9 +920,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/CheckArgs_Serialize"
@@ -977,9 +930,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/CheckArgs_Deserialize"
@@ -1051,11 +1002,7 @@
           "description": " Netscape cookie 内容; 为空则从 stdin 读取"
         }
       },
-      "required": [
-        "action",
-        "service",
-        "content"
-      ],
+      "required": ["action", "service", "content"],
       "title": "CookieArgs_Serialize",
       "description": " cookie 命令参数 (镜像 TS `CookieArgsSchema`: action=set + service=youtube + content 可选)。"
     },
@@ -1089,9 +1036,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/CookieArgs_Serialize"
@@ -1101,9 +1046,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/CookieArgs_Deserialize"
@@ -1163,10 +1106,7 @@
           "description": " 要检查/ensure 的环境项; 空数组 → 按 input.jsonc 的 stages 配置推断所需项"
         }
       },
-      "required": [
-        "action",
-        "targets"
-      ],
+      "required": ["action", "targets"],
       "title": "EnvArgs_Serialize",
       "description": " `env` 命令参数。\n\n `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 stages 配置推断)。"
     },
@@ -1192,9 +1132,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/EnvArgs_Serialize"
@@ -1204,9 +1142,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/EnvArgs_Deserialize"
@@ -1341,7 +1277,7 @@
       "title": "TargetLang",
       "description": " 目标语言 (langList)"
     },
-    "StageName": {
+    "StepName": {
       "anyOf": [
         {
           "const": "separate"
@@ -1389,7 +1325,7 @@
           "const": "mix_video"
         }
       ],
-      "title": "StageName",
+      "title": "StepName",
       "description": " pipeline 阶段名 (stagesList)"
     },
     "Pipeline": {
@@ -1467,7 +1403,7 @@
         "continueFrom": {
           "anyOf": [
             {
-              "$ref": "#/$defs/StageName"
+              "$ref": "#/$defs/StepName"
             },
             {
               "type": "null"
@@ -1475,10 +1411,10 @@
           ],
           "description": " 继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始"
         },
-        "targetStage": {
+        "targetStep": {
           "anyOf": [
             {
-              "$ref": "#/$defs/StageName"
+              "$ref": "#/$defs/StepName"
             },
             {
               "type": "null"
@@ -1512,13 +1448,13 @@
         "stageName": {
           "anyOf": [
             {
-              "$ref": "#/$defs/StageName"
+              "$ref": "#/$defs/StepName"
             },
             {
               "type": "null"
             }
           ],
-          "description": " rerunStage 专业参数, 指定要重新运行的步骤"
+          "description": " rerunStep 专业参数, 指定要重新运行的步骤"
         },
         "pipeline": {
           "$ref": "#/$defs/Pipeline",
@@ -1539,7 +1475,7 @@
         "sourceLang",
         "targetLang",
         "continueFrom",
-        "targetStage",
+        "targetStep",
         "workflowDir",
         "queueId",
         "stageName",
@@ -1604,11 +1540,7 @@
           "description": " start 前台模式: 继承终端 stdio (日志实时可见), Ctrl+C 直接终止;\n 默认 false = detach 后台 + 日志落盘 logs/server.log"
         }
       },
-      "required": [
-        "action",
-        "name",
-        "foreground"
-      ],
+      "required": ["action", "name", "foreground"],
       "title": "ServersArgs_Serialize",
       "description": " servers 命令参数 (镜像 packages/core/servers/input.ts 的 ServersArgsSchema)"
     },
@@ -1665,12 +1597,7 @@
           "description": " 需分离的 stems; 暂不被消费"
         }
       },
-      "required": [
-        "runtime",
-        "device",
-        "always",
-        "stems"
-      ],
+      "required": ["runtime", "device", "always", "stems"],
       "title": "SeparateArgs_Serialize",
       "description": " separate 阶段参数 (镜像 TS `packages/core/stages/separate/args.ts` SeparateArgsSchema)\n\n 枚举/数组默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})`), 这里只需处理\n 「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
     },
@@ -1698,13 +1625,7 @@
           "description": " 步骤完成后是否删除抽出的帧图片; 默认 false (保留)"
         }
       },
-      "required": [
-        "runtime",
-        "device",
-        "textConfidenceThreshold",
-        "subtitleOnly",
-        "cleanupFrames"
-      ],
+      "required": ["runtime", "device", "textConfidenceThreshold", "subtitleOnly", "cleanupFrames"],
       "title": "SfOcrArgs_Serialize",
       "description": " sf_ocr 阶段参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
     },
@@ -1724,11 +1645,7 @@
           "description": " 设为 false 跳过翻译, 直接使用原始识别文本"
         }
       },
-      "required": [
-        "apiBase",
-        "model",
-        "enabled"
-      ],
+      "required": ["apiBase", "model", "enabled"],
       "title": "TranslateArgs_Serialize",
       "description": " translate 阶段参数 (镜像 TS `packages/core/stages/05_translate/args.ts` TranslateArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 目标语言统一在 `input.workflow.targetLang` 配置 (任务级概念: 一个任务只有一个翻译\n 阶段, 不需要 stage 级覆盖)。旧的 `stages.translate.targetLang` 已移除,\n deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。"
     },
@@ -1774,13 +1691,7 @@
           "description": " 原始视频音频路径, 调试使用"
         }
       },
-      "required": [
-        "vadAlign",
-        "startPadMs",
-        "endPadMs",
-        "vocalsFilePath",
-        "sourceFilePath"
-      ],
+      "required": ["vadAlign", "startPadMs", "endPadMs", "vocalsFilePath", "sourceFilePath"],
       "title": "SplitAudioArgs_Serialize",
       "description": " split_audio 阶段参数 (镜像 TS `packages/core/stages/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 ctx.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。"
     },
@@ -1797,7 +1708,7 @@
         }
       ],
       "title": "TtsRuntime",
-      "description": " TTS 运行时后端 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema.runtime)"
+      "description": " TTS 运行时后端 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStepArgsSchema.runtime)"
     },
     "TtsDevice": {
       "anyOf": [
@@ -1818,7 +1729,7 @@
         }
       ],
       "title": "TtsDevice",
-      "description": " TTS 计算设备 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema.device)"
+      "description": " TTS 计算设备 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStepArgsSchema.device)"
     },
     "TtsArgs_Serialize": {
       "type": "object",
@@ -1856,15 +1767,9 @@
           "description": " 将短参考音频 (< 2500ms) 拼接一倍再送 TTS, 帮助稳定输出音色; 默认 false"
         }
       },
-      "required": [
-        "runtime",
-        "device",
-        "skipExisting",
-        "regenIndices",
-        "refAudioX2"
-      ],
+      "required": ["runtime", "device", "skipExisting", "regenIndices", "refAudioX2"],
       "title": "TtsArgs_Serialize",
-      "description": " tts 阶段参数 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
+      "description": " tts 阶段参数 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStepArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
     },
     "MixAudioArgs_Serialize": {
       "type": "object",
@@ -1882,11 +1787,7 @@
           "description": " 字幕允许延迟显示的最大毫秒数, 借用后段留白; 默认 500"
         }
       },
-      "required": [
-        "maxSpeed",
-        "maxAdvanceMs",
-        "maxDelayMs"
-      ],
+      "required": ["maxSpeed", "maxAdvanceMs", "maxDelayMs"],
       "title": "MixAudioArgs_Serialize",
       "description": " mix_audio 阶段参数 (镜像 TS `packages/core/stages/mix_audio/args.ts` MixAudioArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
     },
@@ -1996,7 +1897,7 @@
       "title": "MixVideoArgs_Serialize",
       "description": " mix_video 阶段参数 (镜像 TS `packages/core/stages/mix_video/args.ts` MixVideoArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
     },
-    "Stages_Serialize": {
+    "Steps_Serialize": {
       "type": "object",
       "properties": {
         "separate": {
@@ -2054,8 +1955,8 @@
         "mix_audio",
         "mix_video"
       ],
-      "title": "Stages_Serialize",
-      "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StagesSchema)\n\n mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。"
+      "title": "Steps_Serialize",
+      "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StepsSchema)\n\n mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。"
     },
     "Input_Serialize": {
       "type": "object",
@@ -2120,18 +2021,10 @@
           "description": " check 命令参数 (镜像 cmd/check 参数 schema), 仅 command=check 时使用"
         },
         "stages": {
-          "$ref": "#/$defs/Stages_Serialize"
+          "$ref": "#/$defs/Steps_Serialize"
         }
       },
-      "required": [
-        "workflow",
-        "command",
-        "servers",
-        "env",
-        "cookie",
-        "check",
-        "stages"
-      ],
+      "required": ["workflow", "command", "servers", "env", "cookie", "check", "stages"],
       "title": "Input_Serialize",
       "description": " 顶层输入"
     },
@@ -2183,7 +2076,7 @@
         "continueFrom": {
           "anyOf": [
             {
-              "$ref": "#/$defs/StageName"
+              "$ref": "#/$defs/StepName"
             },
             {
               "type": "null"
@@ -2191,10 +2084,10 @@
           ],
           "description": " 继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始"
         },
-        "targetStage": {
+        "targetStep": {
           "anyOf": [
             {
-              "$ref": "#/$defs/StageName"
+              "$ref": "#/$defs/StepName"
             },
             {
               "type": "null"
@@ -2228,13 +2121,13 @@
         "stageName": {
           "anyOf": [
             {
-              "$ref": "#/$defs/StageName"
+              "$ref": "#/$defs/StepName"
             },
             {
               "type": "null"
             }
           ],
-          "description": " rerunStage 专业参数, 指定要重新运行的步骤"
+          "description": " rerunStep 专业参数, 指定要重新运行的步骤"
         },
         "pipeline": {
           "$ref": "#/$defs/Pipeline",
@@ -2449,7 +2342,7 @@
         }
       },
       "title": "TtsArgs_Deserialize",
-      "description": " tts 阶段参数 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
+      "description": " tts 阶段参数 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStepArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
     },
     "MixAudioArgs_Deserialize": {
       "type": "object",
@@ -2563,7 +2456,7 @@
       "title": "MixVideoArgs_Deserialize",
       "description": " mix_video 阶段参数 (镜像 TS `packages/core/stages/mix_video/args.ts` MixVideoArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
     },
-    "Stages_Deserialize": {
+    "Steps_Deserialize": {
       "type": "object",
       "properties": {
         "separate": {
@@ -2606,8 +2499,8 @@
           "$ref": "#/$defs/MixVideoArgs_Deserialize"
         }
       },
-      "title": "Stages_Deserialize",
-      "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StagesSchema)\n\n mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。"
+      "title": "Steps_Deserialize",
+      "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StepsSchema)\n\n mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。"
     },
     "Input_Deserialize": {
       "type": "object",
@@ -2672,7 +2565,7 @@
           "description": " check 命令参数 (镜像 cmd/check 参数 schema), 仅 command=check 时使用"
         },
         "stages": {
-          "$ref": "#/$defs/Stages_Deserialize"
+          "$ref": "#/$defs/Steps_Deserialize"
         }
       },
       "title": "Input_Deserialize",
@@ -2682,9 +2575,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/Input_Serialize"
@@ -2694,9 +2585,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/Input_Deserialize"
@@ -2735,12 +2624,7 @@
           "description": " 是否启用 LLM 修正"
         }
       },
-      "required": [
-        "llmModel",
-        "llmApiBase",
-        "domainHint",
-        "llmFix"
-      ],
+      "required": ["llmModel", "llmApiBase", "domainHint", "llmFix"],
       "title": "LlmFixArgs_Serialize",
       "description": " LLM 修正参数。"
     },
@@ -2778,9 +2662,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/LlmFixArgs_Serialize"
@@ -2790,9 +2672,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/LlmFixArgs_Deserialize"
@@ -2808,9 +2688,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/MixAudioArgs_Serialize"
@@ -2820,9 +2698,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/MixAudioArgs_Deserialize"
@@ -2838,9 +2714,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/MixVideoArgs_Serialize"
@@ -2850,9 +2724,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/MixVideoArgs_Deserialize"
@@ -2868,9 +2740,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/OcrFixArgs_Serialize"
@@ -2880,9 +2750,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/OcrFixArgs_Deserialize"
@@ -2898,9 +2766,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/SeparateArgs_Serialize"
@@ -2910,9 +2776,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/SeparateArgs_Deserialize"
@@ -2928,9 +2792,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/ServerType_Serialize"
@@ -2940,9 +2802,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/ServerType_Deserialize"
@@ -2958,9 +2818,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/ServersArgs_Serialize"
@@ -2970,9 +2828,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/ServersArgs_Deserialize"
@@ -2988,9 +2844,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/SfOcrArgs_Serialize"
@@ -3000,9 +2854,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/SfOcrArgs_Deserialize"
@@ -3018,9 +2870,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/SidechainCompress_Serialize"
@@ -3030,9 +2880,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/SidechainCompress_Deserialize"
@@ -3048,9 +2896,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/SplitAudioArgs_Serialize"
@@ -3060,9 +2906,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/SplitAudioArgs_Deserialize"
@@ -3074,43 +2918,37 @@
       "title": "SplitAudioArgs",
       "description": " split_audio 阶段参数 (镜像 TS `packages/core/stages/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 ctx.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。"
     },
-    "Stages": {
+    "Steps": {
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
-              "$ref": "#/$defs/Stages_Serialize"
+              "$ref": "#/$defs/Steps_Serialize"
             }
           },
           "additionalProperties": false
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
-              "$ref": "#/$defs/Stages_Deserialize"
+              "$ref": "#/$defs/Steps_Deserialize"
             }
           },
           "additionalProperties": false
         }
       ],
-      "title": "Stages",
-      "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StagesSchema)\n\n mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。"
+      "title": "Steps",
+      "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StepsSchema)\n\n mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。"
     },
     "TranslateArgs": {
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/TranslateArgs_Serialize"
@@ -3120,9 +2958,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/TranslateArgs_Deserialize"
@@ -3138,9 +2974,7 @@
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/TtsArgs_Serialize"
@@ -3150,9 +2984,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/TtsArgs_Deserialize"
@@ -3162,15 +2994,13 @@
         }
       ],
       "title": "TtsArgs",
-      "description": " tts 阶段参数 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
+      "description": " tts 阶段参数 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStepArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
     },
     "WorkflowArgs": {
       "anyOf": [
         {
           "type": "object",
-          "required": [
-            "Serialize"
-          ],
+          "required": ["Serialize"],
           "properties": {
             "Serialize": {
               "$ref": "#/$defs/WorkflowArgs_Serialize"
@@ -3180,9 +3010,7 @@
         },
         {
           "type": "object",
-          "required": [
-            "Deserialize"
-          ],
+          "required": ["Deserialize"],
           "properties": {
             "Deserialize": {
               "$ref": "#/$defs/WorkflowArgs_Deserialize"

@@ -3,16 +3,14 @@
 //! 与 [`crate::workflows::pipeline::run_pipeline`] 的区别: 不是从序列头跑全部, 而是:
 //! - `workflow.continueFrom` 存在 → 从该 stage 起把后续全部重置为 `pending` 再续跑;
 //! - 否则 → 跳过已 `success` 的前缀 stage, 从第一个未完成 stage 续跑;
-//! - `workflow.targetStage` 命中即停 (truncate 序列)。
+//! - `workflow.targetStep` 命中即停 (truncate 序列)。
 //!
 //! ctx 由调用者传入 (而非内部从磁盘 `read_ctx`), 以保证续跑使用的是调用者选定的
 //! 那份 ctx (例如 cli 从 `input.jsonc` 解析后写入的 ctx), 而不是可能陈旧的持久化 ctx。
 //! 不调用 `import_video` (TS `continuePipeline` 也不调), caller 应已保证 workflow 目录存在。
 
 use crate::context::WorkflowCtx;
-use crate::stages::utils::{
-    StagePatch, StageStatus, now_iso, set_stage_anyhow, set_workflow_anyhow,
-};
+use crate::stages::utils::{now_iso, set_stage_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
 use crate::workflows::pipeline::{has_handler, run_stage};
 
 /// 续跑 pipeline (镜像 TS `continuePipeline`)。
@@ -29,7 +27,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     let video_id = ctx.workflow.id.clone();
     let stages = crate::stages::get_stages(&ctx);
 
-    // continueFrom / targetStage 从 ctx.input.workflow 读取 (镜像 TS ctx.input?.workflow)
+    // continueFrom / targetStep 从 ctx.input.workflow 读取 (镜像 TS ctx.input?.workflow)
     let continue_from = ctx
         .input
         .get("workflow")
@@ -39,15 +37,15 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     let target_stage = ctx
         .input
         .get("workflow")
-        .and_then(|v| v.get("targetStage"))
+        .and_then(|v| v.get("targetStep"))
         .and_then(|v| v.as_str())
         .map(String::from);
 
-    // targetStage 不在序列中则告警忽略 (镜像 TS)
+    // targetStep 不在序列中则告警忽略 (镜像 TS)
     if let Some(ts) = &target_stage {
         if !stages.iter().any(|s| s == ts) {
-            tracing::info!(target: "pipeline", 
-                "[WARN] targetStage \"{ts}\" 不在 {pipeline} pipeline 中, 忽略"
+            tracing::info!(target: "pipeline",
+                "[WARN] targetStep \"{ts}\" 不在 {pipeline} pipeline 中, 忽略"
             );
         }
     }
@@ -60,25 +58,25 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             .position(|s| s == cf)
             .ok_or_else(|| anyhow::anyhow!("Unknown stage \"{cf}\""))?;
         // 从 continueFrom 起把后续全部重置为 pending (镜像 TS for i=startIdx.. reset)。
-        // 注: StagePatch 仅支持"设置"不支持"清空"可选字段, 故只改 status; 实际运行时
+        // 注: StepPatch 仅支持"设置"不支持"清空"可选字段, 故只改 status; 实际运行时
         // run_stage 会重新写入 started_at / completed_at, 残留的旧时间戳无害。
         for i in start_idx..stages.len() {
             set_stage_anyhow(
                 workflow_dir,
                 &stages[i],
-                StagePatch {
-                    status: Some(StageStatus::Pending),
+                StepPatch {
+                    status: Some(StepStatus::Pending),
                     ..Default::default()
                 },
             )?;
         }
-        tracing::info!(target: "pipeline", 
+        tracing::info!(target: "pipeline",
             "Resetting from \"{cf}\" ({} stage(s)), resuming...",
             stages.len() - start_idx
         );
     } else {
         // 无 continueFrom → 跳过已完成前缀, 从第一个未完成 stage 续跑
-        let existing: std::collections::HashMap<String, StageStatus> = ctx
+        let existing: std::collections::HashMap<String, StepStatus> = ctx
             .stages
             .clone()
             .unwrap_or_default()
@@ -86,7 +84,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             .map(|s| (s.name, s.status))
             .collect();
         for (i, s) in stages.iter().enumerate() {
-            if existing.get(s) != Some(&StageStatus::Success) {
+            if existing.get(s) != Some(&StepStatus::Success) {
                 start_idx = i;
                 break;
             }
@@ -94,7 +92,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         if start_idx == 0 {
             tracing::info!(target: "pipeline", "continue from beginning");
         } else {
-            tracing::info!(target: "pipeline", 
+            tracing::info!(target: "pipeline",
                 "Skipping {start_idx} completed stage(s), resuming from \"{}\"",
                 stages[start_idx]
             );
@@ -111,8 +109,8 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         },
     )?;
 
-    tracing::info!(target: "pipeline", 
-        "Running runStages: {:?}",
+    tracing::info!(target: "pipeline",
+        "Running runSteps: {:?}",
         &stages[start_idx..]
     );
 
@@ -120,7 +118,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         let stage = &stages[i];
 
         if !has_handler(stage) {
-            tracing::info!(target: "pipeline", 
+            tracing::info!(target: "pipeline",
                 "[WARN] No handler for stage {stage}, skipping"
             );
             continue;
@@ -129,8 +127,8 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         set_stage_anyhow(
             workflow_dir,
             stage,
-            StagePatch {
-                status: Some(StageStatus::Running),
+            StepPatch {
+                status: Some(StepStatus::Running),
                 started_at: Some(now_iso()),
                 last_message: Some(format!("Starting {stage}...")),
                 ..Default::default()
@@ -157,12 +155,12 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             }
             Err(e) => {
                 let msg = e.to_string();
-                tracing::error!(target: "pipeline", "Stage {stage} failed: {msg}");
+                tracing::error!(target: "pipeline", "Step {stage} failed: {msg}");
                 set_stage_anyhow(
                     workflow_dir,
                     stage,
-                    StagePatch {
-                        status: Some(StageStatus::Failed),
+                    StepPatch {
+                        status: Some(StepStatus::Failed),
                         error_message: Some(msg.clone()),
                         completed_at: Some(now_iso()),
                         ..Default::default()

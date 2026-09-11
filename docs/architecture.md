@@ -31,7 +31,7 @@ Input (YouTube/Bilibili/Local)
 backend/app/
 ├── main.py           # FastAPI entry + routes
 ├── pipeline.py       # PipelineRunner: orchestrates 9 stages
-├── stages.py         # StageSpec definitions
+├── stages.py         # StepSpec definitions
 ├── worker.py         # Single-thread FIFO worker
 ├── config.py         # Paths & env vars
 ├── database.py       # SQLite (tasks, task_stages, settings)
@@ -77,7 +77,7 @@ The TTS stage (stage 6) uses **VoxCPM2** (OpenBMB/VoxCPM2):
 
 ## Production Models
 
-| Model      | Stage        | Runtime  | Device     | Status                |
+| Model      | Step         | Runtime  | Device     | Status                |
 | ---------- | ------------ | -------- | ---------- | --------------------- |
 | Demucs     | 1. Separate  | PyTorch  | CPU        | GPU hang, forced CPU  |
 | Whisper    | 2. ASR       | PyTorch  | GPU (cuda) | ✅ Healthy            |

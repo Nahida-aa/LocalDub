@@ -1,6 +1,6 @@
 //! pipeline 阶段序列定义与解析 (镜像 TS `packages/core/stages/utils/stages.ts`)
 //!
-//! TS 侧 `getStages` 通过 `readInputArgs()` 读取 subtitleSource / translate.enabled /
+//! TS 侧 `getSteps` 通过 `readInputArgs()` 读取 subtitleSource / translate.enabled /
 //! split_audio.vadAlign; Rust 侧没有该全局 singleton, 改为从 [`crate::context::WorkflowCtx`]
 //! 的 `input` (已是 JSON Value) 解析相同字段。
 
@@ -130,7 +130,7 @@ fn split_audio_vad_align(ctx: &WorkflowCtx) -> bool {
 }
 
 /// 根据 pipeline 与 subtitleSource / 开关过滤, 返回本次要执行的 stage 序列
-/// (镜像 TS `getStages`)。
+/// (镜像 TS `getSteps`)。
 pub fn get_stages(ctx: &WorkflowCtx) -> Vec<String> {
     let is_subtitle = ctx.pipeline == "subtitle";
     let mut stages: Vec<String> = if is_subtitle {

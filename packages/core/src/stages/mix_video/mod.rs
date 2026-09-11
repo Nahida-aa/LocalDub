@@ -8,16 +8,16 @@ pub mod args;
 
 use std::path::PathBuf;
 
-use anyhow::{Context, anyhow};
+use anyhow::{anyhow, Context};
 
 use crate::context::WorkflowCtx;
 use crate::stages::mix_video::args::{Alignment, MixVideoArgs};
-use crate::stages::utils::srt::{SrtSeg, write_srt};
+use crate::stages::utils::srt::{write_srt, SrtSeg};
 use crate::stages::utils::{
-    StagePatch, StageStatus, WorkflowPatch, bgm_path, default_font, dubbing_path, ensure_dir,
-    ffmpeg_timeout, final_video_dir, probe_video_resolution, read_split_audio, read_timings,
-    read_translation_result, resolve_language, set_stage_anyhow, set_workflow_anyhow,
-    split_audio_path, subtitle_file_path, video_source_path,
+    bgm_path, default_font, dubbing_path, ensure_dir, ffmpeg_timeout, final_video_dir,
+    probe_video_resolution, read_split_audio, read_timings, read_translation_result,
+    resolve_language, set_stage_anyhow, set_workflow_anyhow, split_audio_path, subtitle_file_path,
+    video_source_path, StepPatch, StepStatus, WorkflowPatch,
 };
 
 /// 读取 mix_video 配置 (缺省用 MixVideoArgs::default)。
@@ -40,8 +40,8 @@ pub fn stage_mix_video(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         set_stage_anyhow(
             &workflow_dir,
             "mix_video",
-            StagePatch {
-                status: Some(StageStatus::Success),
+            StepPatch {
+                status: Some(StepStatus::Success),
                 completed_at: Some(crate::stages::utils::now_iso()),
                 progress: Some(100.0),
                 last_message: Some("Skipped".into()),
@@ -220,8 +220,8 @@ pub fn stage_mix_video(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "mix_video",
-        StagePatch {
-            status: Some(StageStatus::Success),
+        StepPatch {
+            status: Some(StepStatus::Success),
             completed_at: Some(crate::stages::utils::now_iso()),
             progress: Some(100.0),
             last_message: Some("Merged".into()),
@@ -259,7 +259,11 @@ fn probe_style(video_file: &str, dst_lang: &str, cfg: &MixVideoArgs, alignment_n
     let (width, height) = probe_video_resolution(video_file);
     let is_portrait = height > width && height > 0;
     let font_size = cfg.font_size.unwrap_or(if is_portrait {
-        if dst_lang == "zh" { 12.0 } else { 9.0 }
+        if dst_lang == "zh" {
+            12.0
+        } else {
+            9.0
+        }
     } else if dst_lang == "zh" {
         24.0
     } else {
@@ -288,8 +292,12 @@ fn build_subtitle_srt_subtitle_branch(
 
     let segs: Vec<SrtSeg> = if vad_align {
         // vadAlign: 用 split_audio 的 padded 时序 (split_audio.json) 而非翻译/原始 srt。
-        let data = read_split_audio(ctx)
-            .with_context(|| format!("读取 split_audio 结果失败: {}", split_audio_path(&workflow_dir).display()))?;
+        let data = read_split_audio(ctx).with_context(|| {
+            format!(
+                "读取 split_audio 结果失败: {}",
+                split_audio_path(&workflow_dir).display()
+            )
+        })?;
         extract_segs_from_value(&data)?
     } else if no_translate {
         // 用已有 srt 或 subtitle file
@@ -491,7 +499,10 @@ mod tests {
     #[test]
     fn win_filter_sub_path_replaces_all_backslashes() {
         let p = win_filter_sub_path(r"C:\a\b\c.srt");
-        assert!(!p.contains('\\') || p.contains("\\:"), "仅保留 : 转义的 \\ 前缀");
+        assert!(
+            !p.contains('\\') || p.contains("\\:"),
+            "仅保留 : 转义的 \\ 前缀"
+        );
         let p3 = win_filter_sub_path(r"\relative\path\f.srt");
         // 无冒号: 全部 \ 变 /, 不引入 \:
         assert_eq!(p3, "/relative/path/f.srt");

@@ -117,7 +117,7 @@
   "task_loading": "Loading task...",
   "task_finalVideo": "Final video",
   "task_download": "Download",
-  "task_stages": "Stages",
+  "task_stages": "Steps",
   "task_resumeHelp": "Resume from the failed stage. Already-success stages will be reused from cache.",
   "task_resuming": "Resuming",
   "task_resumeTask": "Resume task",

@@ -6,8 +6,7 @@
 use crate::cmd::env::ensure_bin;
 use crate::context::WorkflowCtx;
 use crate::stages::utils::{
-    StagePatch, StageStatus, ensure_dir, now_iso,
-    set_stage_anyhow, sf_ocr_pre_dir, video_source_path,
+    ensure_dir, now_iso, set_stage_anyhow, sf_ocr_pre_dir, video_source_path, StepPatch, StepStatus,
 };
 use std::process::Command;
 
@@ -19,7 +18,7 @@ pub fn stage_sf_ocr_pre(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "sf_ocr_pre",
-        StagePatch {
+        StepPatch {
             last_message: Some("查找字幕关键帧...".into()),
             progress: Some(0.0),
             ..Default::default()
@@ -71,7 +70,7 @@ pub fn stage_sf_ocr_pre(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         serde_json::Value::Array(vec![])
     };
     let n = keyframes.as_array().map(|a| a.len()).unwrap_or(0);
-    tracing::info!(target: "sf_ocr", 
+    tracing::info!(target: "sf_ocr",
         "[sf_ocr_pre] {n} keyframes -> {}",
         out_dir.display()
     );
@@ -79,8 +78,8 @@ pub fn stage_sf_ocr_pre(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     set_stage_anyhow(
         &workflow_dir,
         "sf_ocr_pre",
-        StagePatch {
-            status: Some(StageStatus::Success),
+        StepPatch {
+            status: Some(StepStatus::Success),
             completed_at: Some(now_iso()),
             progress: Some(100.0),
             last_message: Some(format!("找到 {n} 个关键帧")),
@@ -129,7 +128,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-#[test]
+    #[test]
     fn missing_bin_reports_unbuilt() {
         // 放一个真实存在的视频文件, 让 video 检查通过, 触发二进制缺失报错。
         // 预置 data/bin 一个"假" subtitle-finder + 版本戳, 让 check 通过 (避免触发真实下载),
@@ -163,11 +162,7 @@ mod tests {
             "sha256": "b08778b2e066a35f8c9b3c0457e3e05a1379a6452341b932d82c22175cba9923",
             "downloaded_at": "2026-09-08T00:00:00Z",
         });
-        std::fs::write(
-            &stamp_path,
-            serde_json::to_string_pretty(&stamp).unwrap(),
-        )
-        .unwrap();
+        std::fs::write(&stamp_path, serde_json::to_string_pretty(&stamp).unwrap()).unwrap();
 
         let mut ctx = ctx_at(&dir);
         ctx.video_source_path = Some(video);

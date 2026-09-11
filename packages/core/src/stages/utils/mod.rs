@@ -17,8 +17,8 @@ use std::{
 use chrono::Utc;
 use serde::Serialize;
 
+use crate::context::{read_ctx, write_ctx, WorkflowStep};
 use crate::r#const::lang::{default_lang, infer_target_lang, Language, TargetLang};
-use crate::context::{WorkflowStage, read_ctx, write_ctx};
 
 /// RFC3339 时间戳, 去毫秒 (镜像 TS `nowISO`, 形如 `2024-01-01T00:00:00Z`)。
 pub fn now_iso() -> String {
@@ -35,14 +35,14 @@ pub fn video_id(workflow_dir: &str) -> Option<String> {
 }
 
 // ---------------------------------------------------------------------------
-// stage / workflow 持久化 (镜像 TS context.ts 的 setStage / setTask)
+// stage / workflow 持久化 (镜像 TS context.ts 的 setStep / setTask)
 // ---------------------------------------------------------------------------
 
-/// 部分更新 [`WorkflowStage`] 的字段 (对应 TS `Partial<WorkflowStage>`)。
+/// 部分更新 [`WorkflowStep`] 的字段 (对应 TS `Partial<WorkflowStep>`)。
 #[derive(Default, Clone)]
-pub struct StagePatch {
+pub struct StepPatch {
     pub label: Option<String>,
-    pub status: Option<crate::context::StageStatus>,
+    pub status: Option<crate::context::StepStatus>,
     pub progress: Option<f64>,
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
@@ -50,9 +50,9 @@ pub struct StagePatch {
     pub error_message: Option<String>,
 }
 
-impl StagePatch {
-    /// 合并进已有的 [`WorkflowStage`] (TS `{...existing, ...patch}`)。
-    fn apply(self, mut base: WorkflowStage) -> WorkflowStage {
+impl StepPatch {
+    /// 合并进已有的 [`WorkflowStep`] (TS `{...existing, ...patch}`)。
+    fn apply(self, mut base: WorkflowStep) -> WorkflowStep {
         if let Some(v) = self.label {
             base.label = v;
         }
@@ -75,21 +75,21 @@ impl StagePatch {
             base.error_message = Some(v);
         }
         // 标记 success 时清空 error_message (镜像 TS)
-        if matches!(base.status, crate::context::StageStatus::Success) {
+        if matches!(base.status, crate::context::StepStatus::Success) {
             base.error_message = None;
         }
         base
     }
 }
 
-/// 对 `ctx.json` 中指定 stage 做 upsert 合并 (镜像 TS `setStage`)。
-pub fn set_stage(workflow_dir: &str, name: &str, patch: StagePatch) -> Result<(), String> {
+/// 对 `ctx.json` 中指定 stage 做 upsert 合并 (镜像 TS `setStep`)。
+pub fn set_stage(workflow_dir: &str, name: &str, patch: StepPatch) -> Result<(), String> {
     let mut ctx = read_ctx(workflow_dir)?;
     let stages = ctx.stages.get_or_insert_with(Vec::new);
     let idx = stages.iter().position(|s| s.name == name);
     let base = match idx {
         Some(i) => stages[i].clone(),
-        None => WorkflowStage {
+        None => WorkflowStep {
             name: name.to_string(),
             label: name.to_string(),
             ..Default::default()
@@ -150,7 +150,7 @@ pub fn set_workflow(workflow_dir: &str, patch: WorkflowPatch) -> Result<(), Stri
 }
 
 /// `set_stage` 返回 `Result<(), String>`, 此 wrapper 转 `anyhow::Result` 以便 `?`。
-pub fn set_stage_anyhow(workflow_dir: &str, name: &str, patch: StagePatch) -> anyhow::Result<()> {
+pub fn set_stage_anyhow(workflow_dir: &str, name: &str, patch: StepPatch) -> anyhow::Result<()> {
     set_stage(workflow_dir, name, patch).map_err(anyhow::Error::msg)
 }
 
@@ -371,11 +371,15 @@ pub fn dubbing_path(workflow_dir: &str) -> PathBuf {
 
 /// `mix_audio/timings.json` 路径 (镜像 TS `timings_filepath`)。
 pub fn mix_audio_timings_path(workflow_dir: &str) -> PathBuf {
-    Path::new(workflow_dir).join("mix_audio").join("timings.json")
+    Path::new(workflow_dir)
+        .join("mix_audio")
+        .join("timings.json")
 }
 
 /// 读取 `mix_audio/timings.json` (镜像 TS `read_timings`)。
-pub fn read_timings(workflow_dir: &str) -> anyhow::Result<crate::stages::mix_audio::out::TimingsFile> {
+pub fn read_timings(
+    workflow_dir: &str,
+) -> anyhow::Result<crate::stages::mix_audio::out::TimingsFile> {
     let p = mix_audio_timings_path(workflow_dir);
     let raw = std::fs::read_to_string(&p)
         .map_err(|e| anyhow::anyhow!("读取 {} 失败: {e}", p.display()))?;
@@ -441,9 +445,12 @@ pub fn asr_ocr_fix_dir(workflow_dir: &str) -> PathBuf {
 
 /// 取 video_source_path (缺则报错, 与 TS `video_source_path` 一致)。
 pub fn video_source_path(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<String> {
-    ctx.video_source_path
-        .clone()
-        .ok_or_else(|| anyhow::anyhow!("video_source_path 未设置 (session {})", ctx.workflow.workflow_dir))
+    ctx.video_source_path.clone().ok_or_else(|| {
+        anyhow::anyhow!(
+            "video_source_path 未设置 (session {})",
+            ctx.workflow.workflow_dir
+        )
+    })
 }
 
 /// 确保目录存在 (镜像 TS `ensureDir`)。
@@ -582,11 +589,15 @@ pub fn split_audio_path(workflow_dir: &str) -> PathBuf {
 
 /// split_audio 意图时序路径 `split_audio/timings.json`。
 pub fn split_audio_timings_path(workflow_dir: &str) -> PathBuf {
-    Path::new(workflow_dir).join("split_audio").join("timings.json")
+    Path::new(workflow_dir)
+        .join("split_audio")
+        .join("timings.json")
 }
 
 /// 读取翻译结果 (镜像 TS `readTranslationResult`), 须已解析 target_language。
-pub fn read_translation_result(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<serde_json::Value> {
+pub fn read_translation_result(
+    ctx: &crate::context::WorkflowCtx,
+) -> anyhow::Result<serde_json::Value> {
     let lang = ctx
         .target_language
         .clone()
@@ -661,7 +672,7 @@ pub fn to_json<T: Serialize>(v: &T) -> Result<String, String> {
 }
 
 /// re-export 以便 stage 模块直接 `use crate::stages::utils::*;`
-pub use crate::context::StageStatus;
+pub use crate::context::StepStatus;
 
 #[allow(unused_imports)]
 use std::io::Write as _;
@@ -669,7 +680,7 @@ use std::io::Write as _;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::{WorkflowCtx, read_ctx_from_value};
+    use crate::context::{read_ctx_from_value, WorkflowCtx};
     use serde_json::json;
 
     fn ctx_at(workflow_dir: &str, input: serde_json::Value) -> WorkflowCtx {
@@ -707,8 +718,8 @@ mod tests {
         set_stage(
             &dir,
             "separate",
-            StagePatch {
-                status: Some(StageStatus::Running),
+            StepPatch {
+                status: Some(StepStatus::Running),
                 started_at: Some("2024-01-01T00:00:01Z".into()),
                 ..Default::default()
             },
@@ -719,7 +730,7 @@ mod tests {
         set_stage(
             &dir,
             "separate",
-            StagePatch {
+            StepPatch {
                 progress: Some(50.0),
                 ..Default::default()
             },
@@ -730,7 +741,7 @@ mod tests {
         let st = reread.stages.unwrap();
         assert_eq!(st.len(), 1);
         assert_eq!(st[0].name, "separate");
-        assert_eq!(st[0].status, StageStatus::Running);
+        assert_eq!(st[0].status, StepStatus::Running);
         assert_eq!(st[0].progress, Some(50.0));
         assert_eq!(st[0].started_at.as_deref(), Some("2024-01-01T00:00:01Z"));
 
@@ -738,8 +749,8 @@ mod tests {
         set_stage(
             &dir,
             "separate",
-            StagePatch {
-                status: Some(StageStatus::Success),
+            StepPatch {
+                status: Some(StepStatus::Success),
                 completed_at: Some("2024-01-01T00:00:09Z".into()),
                 error_message: Some("boom".into()),
                 ..Default::default()
@@ -748,7 +759,7 @@ mod tests {
         .unwrap();
         let reread = read_ctx(&dir).unwrap();
         let st = reread.stages.unwrap();
-        assert_eq!(st[0].status, StageStatus::Success);
+        assert_eq!(st[0].status, StepStatus::Success);
         assert!(st[0].error_message.is_none());
 
         let _ = std::fs::remove_dir_all(&dir);

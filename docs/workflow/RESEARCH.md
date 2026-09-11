@@ -21,14 +21,15 @@
 
 ### 1.1 状态在哪
 
-| 层 | 内容 | 角色 |
-|---|---|---|
-| `ctx.json` | task 元数据 + 每 stage 的 `status/started_at/completed_at/progress/last_message/error_message` | **状态索引**(四态:pending / running / success / failed) |
-| 产物文件 | `asr.json`、`translate.[dstLang].json`、`split_audio.json`、`timings.json`、`tts/wavs/NNNN.wav`、分隔后的 vocals 等 | **真正的状态与交付物**,被外部工具读写 |
+| 层         | 内容                                                                                                                | 角色                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `ctx.json` | task 元数据 + 每 stage 的 `status/started_at/completed_at/progress/last_message/error_message`                      | **状态索引**(四态:pending / running / success / failed) |
+| 产物文件   | `asr.json`、`translate.[dstLang].json`、`split_audio.json`、`timings.json`、`tts/wavs/NNNN.wav`、分隔后的 vocals 等 | **真正的状态与交付物**,被外部工具读写                   |
 
 关键文件:
-- `packages/core/context/context.ts`、`packages/core/context/types.ts` — `TaskStage` 记录与 `setStage/readCtx`
-- `packages/core/stages/utils/stages.ts` — `DUB_STAGES` / `DUB_SF_OCR_STAGES` / `DUB_ASR_OCR_STAGES` / `SUBTITLE_STAGES` + `getStages()` 动态筛选(按 `subtitleSource` 与 `translate.enabled`)
+
+- `packages/core/context/context.ts`、`packages/core/context/types.ts` — `TaskStep` 记录与 `setStep/readCtx`
+- `packages/core/stages/utils/stages.ts` — `DUB_STAGES` / `DUB_SF_OCR_STAGES` / `DUB_ASR_OCR_STAGES` / `SUBTITLE_STAGES` + `getSteps()` 动态筛选(按 `subtitleSource` 与 `translate.enabled`)
 
 ### 1.2 阶段列表 = 隐式 DAG
 
@@ -53,6 +54,7 @@ video_source
 ```
 
 可配置的 fan-out 与依赖:
+
 - `asr` 读 `vocalsPath`(`useSeparated=true`)或 `video_source`(`useSeparated=false`)→ `packages/core/stages/asr/asr.ts:30-53`。
 - **GPU/CPU 由参数控制**:`asr.ts:55-58` 逐 stage 解析 `runtime`/`device`。因此调度器的**资源互斥键必须以「按参数解析后的实际资源占用」为准**,不可硬编码 "OCR=CPU / demucs=GPU"。
 
@@ -68,11 +70,11 @@ video_source
 
 ## 2. 三大家族的分类框架(task-orchestration 领域的正确坐标系)
 
-| 家族 | 代表 | 状态模型 | 恢复语义 | 作者约束 |
-|---|---|---|---|---|
-| ① 声明式 DAG (declarative DAG) | octaflow、dagflowjs、Airflow | 图是值,每步 transition 落库 | 从失败步 + 其下游后代重跑 | 把步骤声明成 node,边显式 |
-| ② 命令式 durable function (replay) | **TanStack Workflow**、Temporal、DBOS、Inngest | **append-only event log**;状态由重放派生 | **replay**:handler 从头重跑,log 短路已完成 step | determinism:副作用进 `ctx.step`,用 `ctx.now/uuid`,无随机 |
-| ③ 文件产物构建图 (file build-graph) | **LocalDub 核心**、make/just、Dagster asset、Prefect | **文件就是状态**;存在性 / mtime 判 up-to-date | 文件在=完成;continue 走成功段,失败段+后代重跑 | 无(与外部工具天然契合) |
+| 家族                                | 代表                                                 | 状态模型                                      | 恢复语义                                        | 作者约束                                                 |
+| ----------------------------------- | ---------------------------------------------------- | --------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------- |
+| ① 声明式 DAG (declarative DAG)      | octaflow、dagflowjs、Airflow                         | 图是值,每步 transition 落库                   | 从失败步 + 其下游后代重跑                       | 把步骤声明成 node,边显式                                 |
+| ② 命令式 durable function (replay)  | **TanStack Workflow**、Temporal、DBOS、Inngest       | **append-only event log**;状态由重放派生      | **replay**:handler 从头重跑,log 短路已完成 step | determinism:副作用进 `ctx.step`,用 `ctx.now/uuid`,无随机 |
+| ③ 文件产物构建图 (file build-graph) | **LocalDub 核心**、make/just、Dagster asset、Prefect | **文件就是状态**;存在性 / mtime 判 up-to-date | 文件在=完成;continue 走成功段,失败段+后代重跑   | 无(与外部工具天然契合)                                   |
 
 ① 与 ② 都属于 durable execution 大族,卖点是"进程死了、机器没了,还能恢复";③ 的恢复完全在文件系统上,天然适配本地 CLI、无常驻服务。
 
@@ -129,22 +131,24 @@ video_source
 
 ### 4.2 候选方案
 
-| 方案 | 内容 | 优点 | 代价 |
-|---|---|---|---|
-| **A** | 采用 octaflow,自写 ctx.json-backed `WorkflowStore` | 白嫖 auto-parallel + gate + observer | pre-1.0 依赖(4 下载/周)、加深 TS 占比、API 锁定 |
-| **B** | 纯自研并行调度器 | 零依赖、完全可控、不冲突 Rust 迁移 | 全自己扛 |
-| **C** | **吸收设计自研**(推荐) | 兼得 A 的 gate/retry/observer 设计 + B 的零依赖 | 需要实现纪律 |
+| 方案  | 内容                                               | 优点                                            | 代价                                            |
+| ----- | -------------------------------------------------- | ----------------------------------------------- | ----------------------------------------------- |
+| **A** | 采用 octaflow,自写 ctx.json-backed `WorkflowStore` | 白嫖 auto-parallel + gate + observer            | pre-1.0 依赖(4 下载/周)、加深 TS 占比、API 锁定 |
+| **B** | 纯自研并行调度器                                   | 零依赖、完全可控、不冲突 Rust 迁移              | 全自己扛                                        |
+| **C** | **吸收设计自研**(推荐)                             | 兼得 A 的 gate/retry/observer 设计 + B 的零依赖 | 需要实现纪律                                    |
 
 **推荐 C。** 理由:
+
 1. 你的恢复语义(continue 找首个非 success、continueFrom 后代重置、pipeline 切换 backfill、mtime up-to-date)比任何库都更适合"文件"承载,自研才能无损保留。
 2. 并行化的真实工作量不在调度(串行 for → in-degree 队列 ~40 行),而在 **resume 语义改写**(线性 startIdx → 失败节点 + 后代闭包重置)与 `current_stage → current_stages` 的 API 改动——这恰恰是库接管不了、必须自己做的部分。
 3. 概念(就绪、互斥、幂等、retry 分级)语言无关,与 ld-core Rust 迁移方向一致;个人经验也建议先动手(done > perfect)。
 
 C 的实现要素(自研调度器候选清单):
-- 显式边表:每 stage 声明 `needs: StageName[]`(或按 pipeline 变体的静态边表)
+
+- 显式边表:每 stage 声明 `needs: StepName[]`(或按 pipeline 变体的静态边表)
 - artifact-exists / mtime 判完成(复用现有逻辑,`split_audio.ts:121` 已有先例)
 - in-degree 就绪队列 + 并发上限;**资源互斥键来自「参数解析后的实际 device/runtime」**,同物理资源互斥,其余并发
-- continue 改写:失败节点 + 其传递闭包重置为 pending;`continueFrom`/`targetStage` 同理
+- continue 改写:失败节点 + 其传递闭包重置为 pending;`continueFrom`/`targetStep` 同理
 - retry 分级、gate、observer 事件面借鉴 octaflow/TanStack 的设计(而非代码)
 
 ---
@@ -162,13 +166,13 @@ C 的实现要素(自研调度器候选清单):
    6. 概念文档:`docs/concepts/replay-and-resume.md`(事件日志+重放短路)、`docs/concepts/scheduling.md`、`docs/concepts/primitives.md`
 2. 概念 → LocalDub 代码落点映射:
 
-| 概念 | LocalDub 已有/应落点 |
-|---|---|
-| retry 分级(isRetryable) | `@tanstack/pacer` Retryer(tts 段内重试) |
-| gate / 资源互斥 | 按 runtime/device 解析后的物理资源互斥键 |
-| 幂等 / startKey | `start` 的 snapshotInput + task 去重 |
-| 后代闭包 reset(airflow caught-up) | `continue` 的重写目标 |
-| artifact 物化(Dagster asset) | `asr.json`/`timings.json` 等产物即状态 |
+| 概念                              | LocalDub 已有/应落点                     |
+| --------------------------------- | ---------------------------------------- |
+| retry 分级(isRetryable)           | `@tanstack/pacer` Retryer(tts 段内重试)  |
+| gate / 资源互斥                   | 按 runtime/device 解析后的物理资源互斥键 |
+| 幂等 / startKey                   | `start` 的 snapshotInput + task 去重     |
+| 后代闭包 reset(airflow caught-up) | `continue` 的重写目标                    |
+| artifact 物化(Dagster asset)      | `asr.json`/`timings.json` 等产物即状态   |
 
 ---
 
@@ -181,21 +185,21 @@ ld-core 现有依赖已经完备:**tokio**(rt/sync/time,已精简)、**tracing**
 
 ### 6.2 landscape 总览
 
-| 候选 | 状态 | 持久化模型 | determinism 约束 | 需 DB / Server | 动态阶段列表兼容 |
-|---|---|---|---|---|---|
-| **temporalio**(Temporal Rust SDK) | Public Preview | Temporal event history | replay 重放 | ❌ 需 Temporal server | ✅ |
-| **restate_sdk** | Beta | Restate server | replay | ❌ 需 Restate server | ✅ |
-| **durare**(DBOS Rust) | v0.3,new | Postgres / **SQLite**(文件 DB) / InMemory | **control flow 必须 deterministic**(步骤顺序固定) | ❌ 需 DB | ❌ dealbreaker |
-| **iopsystems/durable**(56★) | Active | Postgres + WASM component | WASM sandbox | ❌ Postgres + WASM | ❌ WASM 限制 |
-| **sayiir**(71★,v1.0.0,MIT) | **最接近的候选** | **`PersistentBackend` trait**:SnapshotStore + SignalStore,仅需实现 **8 个方法** | **无 replay、无 determinism 约束**,continuation-based checkpoint | ✅ 可做 FileBackend | ✅ |
-| **自研** | N/A | 文件即状态 | 无约束 | ✅ 无依赖 | ✅ |
+| 候选                              | 状态             | 持久化模型                                                                      | determinism 约束                                                 | 需 DB / Server        | 动态阶段列表兼容 |
+| --------------------------------- | ---------------- | ------------------------------------------------------------------------------- | ---------------------------------------------------------------- | --------------------- | ---------------- |
+| **temporalio**(Temporal Rust SDK) | Public Preview   | Temporal event history                                                          | replay 重放                                                      | ❌ 需 Temporal server | ✅               |
+| **restate_sdk**                   | Beta             | Restate server                                                                  | replay                                                           | ❌ 需 Restate server  | ✅               |
+| **durare**(DBOS Rust)             | v0.3,new         | Postgres / **SQLite**(文件 DB) / InMemory                                       | **control flow 必须 deterministic**(步骤顺序固定)                | ❌ 需 DB              | ❌ dealbreaker   |
+| **iopsystems/durable**(56★)       | Active           | Postgres + WASM component                                                       | WASM sandbox                                                     | ❌ Postgres + WASM    | ❌ WASM 限制     |
+| **sayiir**(71★,v1.0.0,MIT)        | **最接近的候选** | **`PersistentBackend` trait**:SnapshotStore + SignalStore,仅需实现 **8 个方法** | **无 replay、无 determinism 约束**,continuation-based checkpoint | ✅ 可做 FileBackend   | ✅               |
+| **自研**                          | N/A              | 文件即状态                                                                      | 无约束                                                           | ✅ 无依赖             | ✅               |
 
 ### 6.3 sayiir — 唯一值得展开的候选库
 
 - **定位**:2026-02 起源,v1.0.0 stable(MIT,71★,~2700 downloads)。Rust core + Python/Node/CF Workers bindings。`sayiir-core` + `sayiir-runtime` + `sayiir-persistence` + `sayiir-macros`。
 - **核心卖点**:`No replay, no determinism constraints`——步骤就是 async fn,无 DSL/无 `ctx.step` 包装,continuation-based:checkpoint 是 snapshot,进程重启后从最后 checkpoint 恢复,不重放整个执行历史。
 - **`PersistentBackend` trait**(`sayiir-persistence`):`SnapshotStore`(5 方法:save/load/delete/list/get_status) + `SignalStore`(3 required + 3 default 方法),合计仅需实现 **8 个方法**。`InMemoryBackend` 已提供;Postgres 后端 stable。
-- **FileBackend 可行性**:把 `WorkflowSnapshot` 序列化写到 `<task_dir>/.sayiir-snapshot.json`(JSON/serde_json,与现有 ctx.json 同风格);`SignalStore` 的 cancel/pause 映射到现有 `TaskStage` 的 `status` 字段。实现量约 100 行 Rust。
+- **FileBackend 可行性**:把 `WorkflowSnapshot` 序列化写到 `<task_dir>/.sayiir-snapshot.json`(JSON/serde_json,与现有 ctx.json 同风格);`SignalStore` 的 cancel/pause 映射到现有 `TaskStep` 的 `status` 字段。实现量约 100 行 Rust。
 - **与 LocalDub 匹配度**:
   - ✅ 步骤 = async fn,ffmpeg/whisper 子进程调用、文件读写、随机数均无须包装 → 与 TS 模型完全一致
   - ✅ 嵌入式,无 server/无 sidecar
@@ -210,7 +214,7 @@ ld-core 现有依赖已经完备:**tokio**(rt/sync/time,已精简)、**tracing**
 - **定位**:DBOS-compatible durable-execution library,2026-06 起,MIT/Apache-2.0。v0.3。Postgres / **SQLite**(文件 DB) / InMemory 三后端;SQLite 号称"full durability on a file database"。
 - **设计**:`#[durare::workflow]` + `#[durare::step]`,per-step 在 DB 记录 completion;crash 后从第一个未 checkpoint 的步骤恢复;步骤结果 exactly-once(`operation_outputs` 表 per-execution counter)。
 - **为什么不适合 LocalDub**:
-  - **dealbreaker**:DBOS 用 deterministic per-execution counter 索引步骤(每步在 workflow 中有固定序号)。LocalDub 的 `getStages()` 根据 `subtitleSource`、`translate.enabled` 等动态裁剪阶段列表——每次 run 步骤序列可能不同 → counter 不匹配 → 不兼容。
+  - **dealbreaker**:DBOS 用 deterministic per-execution counter 索引步骤(每步在 workflow 中有固定序号)。LocalDub 的 `getSteps()` 根据 `subtitleSource`、`translate.enabled` 等动态裁剪阶段列表——每次 run 步骤序列可能不同 → counter 不匹配 → 不兼容。
   - 控制流必须 deterministic:步骤必须按相同顺序调用;LocalDub 有 config 动态裁剪。
   - 需要 SQLite/Postgres:虽 SQLite 是文件 DB,但仍引入 DBMS 抽象层;而 LocalDub 的产物文件需要被 ffmpeg/whisper 等外部工具直接读写。
 - **结论:不采纳。**
@@ -224,12 +228,13 @@ ld-core 现有依赖已经完备:**tokio**(rt/sync/time,已精简)、**tracing**
 
 ### 6.6 裁决
 
-| 方案 | 内容 | 优点 | 代价 |
-|---|---|---|---|
-| **A(自研,推荐)** | petgraph + tokio + porock/Semaphore + serde_json checkpoint 文件 | 零新依赖(petgraph 是唯一大依赖);文件即状态,与 TS 版 make 模型完全一致;控制权完全在手 | 全自己扛 |
-| **B(sayiir + FileBackend)** | 实现 8 方法 `SnapshotStore` + `SignalStore` → `task_dir/.snapshot.json` | fork/join 内置;OpenTelemetry tracing 内置;步骤就是 async fn(无 DSL/无 determinism) | 两本账(artifact 文件与 sayiir snapshot 并存);2700 下载年轻依赖;split_audio mtime 逻辑无法表达 |
+| 方案                        | 内容                                                                    | 优点                                                                                 | 代价                                                                                          |
+| --------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| **A(自研,推荐)**            | petgraph + tokio + porock/Semaphore + serde_json checkpoint 文件        | 零新依赖(petgraph 是唯一大依赖);文件即状态,与 TS 版 make 模型完全一致;控制权完全在手 | 全自己扛                                                                                      |
+| **B(sayiir + FileBackend)** | 实现 8 方法 `SnapshotStore` + `SignalStore` → `task_dir/.snapshot.json` | fork/join 内置;OpenTelemetry tracing 内置;步骤就是 async fn(无 DSL/无 determinism)   | 两本账(artifact 文件与 sayiir snapshot 并存);2700 下载年轻依赖;split_audio mtime 逻辑无法表达 |
 
 **推荐 A(自研)。** 理由:
+
 1. 文件即状态是 LocalDub 核心本质,自研才能无损保留(`split_audio.ts:121` mtime 逻辑等)。
 2. ld-core workspace 已具备 tokio/tracing/serde_json 基础,自研增量依赖极小(仅 petgraph)。
 3. 代码量:显式边表 + petgraph toposort + in-degree 就绪队列 + resource-aware gate + continue 闭包重置 ≈ 150-200 行 Rust,与 TS 版方案 C 对等。
@@ -237,11 +242,11 @@ ld-core 现有依赖已经完备:**tokio**(rt/sync/time,已精简)、**tracing**
 
 ### 6.7 自研实现要素(Rust 版)
 
-- **显式边表**:每 stage 声明 `needs: Vec<StageName>`(或按 pipeline 变体的静态边表),用 petgraph 构建有向图 → `toposort()` 得到拓扑序
+- **显式边表**:每 stage 声明 `needs: Vec<StepName>`(或按 pipeline 变体的静态边表),用 petgraph 构建有向图 → `toposort()` 得到拓扑序
 - **就绪队列**:petgraph `Graph::neighbors_directed(Incoming)` + in-degree 计数器,完成一步后递减;in-degree=0 入队
 - **资源互斥门控**:按参数解析后的 `runtime`/`device` 生成资源占用描述符,同物理资源互斥 → `tokio::sync::Semaphore`(已由 ld-core 引入 tokio)
 - **checkpoint 文件**:`<task_dir>/.pipeline-checkpoint.json` → serde_json,记录每 stage 的 `status/started_at/completed_at/error_message`,与现有 ctx.json 同格式
-- **continue 语义**:失败节点 + 其传递闭包(petgraph reachable)重置为 pending;`continueFrom`/`targetStage` 同理
+- **continue 语义**:失败节点 + 其传递闭包(petgraph reachable)重置为 pending;`continueFrom`/`targetStep` 同理
 - **observer**:`tracing::info!`(ld-core 已有 tracing 依赖 + tracing-subscriber),每个 stage 的开始/完成/失败 emit span
 - **从 TS 渐进迁移**:先在 TS 侧验证 DAG 边表 + resume 语义,再用 Rust 实现同规格的调度器并替换 `runPipeline`/`continuePipeline`
 

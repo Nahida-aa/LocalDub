@@ -5,11 +5,11 @@ import { Play } from "lucide-solid";
 import { client, fnrpc } from "#/integrations/fnrpc/client.ts";
 import {
   set_resumeFrom,
-  setRunningStage,
+  setRunningStep,
   setViewingTab,
-  StageTab,
+  StepTab,
   use_resumeFrom,
-  useRunningStage,
+  useRunningStep,
   useViewingTab,
 } from "./workflowControlPanelStore";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui-solid/base/tabs";
@@ -19,20 +19,20 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@repo/ui-solid/base/context-menu";
-import { StageStatusBadge } from "./StageStatusBadge";
+import { StepStatusBadge } from "./StepStatusBadge";
 import { useMutation, useQueryClient } from "@tanstack/solid-query";
-import { StageName, WorkflowCtx, WorkflowStage } from "@repo/sdk/index";
+import { StepName, WorkflowCtx, WorkflowStep } from "@repo/sdk/index";
 
 export const stages_to_map = (
-  stages: (WorkflowStage | undefined)[],
-): Record<StageName, WorkflowStage | undefined> => {
+  stages: (WorkflowStep | undefined)[],
+): Record<StepName, WorkflowStep | undefined> => {
   return stages.reduce(
     (acc, stage) => {
       if (stage === undefined) return acc;
-      acc[stage.name as StageName] = stage;
+      acc[stage.name as StepName] = stage;
       return acc;
     },
-    {} as Record<StageName, WorkflowStage | undefined>,
+    {} as Record<StepName, WorkflowStep | undefined>,
   );
 };
 
@@ -44,9 +44,9 @@ export const WorkflowControlPanel = (p: {
   const workflowDir = `workfolder/${params().id}/${p.ctx.workflow.id}`;
   const stages = () => p.ctx.stages ?? [];
   const stage_map = () => stages_to_map(stages() ?? []);
-  const tabs = () => ["root", ...stages().map((s) => s.name)] as StageTab[];
+  const tabs = () => ["root", ...stages().map((s) => s.name)] as StepTab[];
   const resumeFrom = use_resumeFrom();
-  const runningStage = useRunningStage();
+  const runningStep = useRunningStep();
   const viewingTab = useViewingTab();
   const qc = useQueryClient();
 
@@ -54,13 +54,13 @@ export const WorkflowControlPanel = (p: {
    * 跳转到对应阶段前一个 tab 让用户确认\
    * 然后在内容界面点击运行按钮才会真的继续运行
    */
-  const handleResumeFrom = (stageName?: StageTab | null) => {
+  const handleResumeFrom = (stageName?: StepTab | null) => {
     const allTabs = tabs();
     const idx = allTabs.indexOf(stageName ?? "root");
     if (idx > 0) {
       setViewingTab(allTabs[idx - 1]);
     }
-    setRunningStage(stageName); // 高亮三角所在的当前 tab
+    setRunningStep(stageName); // 高亮三角所在的当前 tab
     set_resumeFrom(stageName === "root" ? null : stageName);
   };
 
@@ -86,14 +86,14 @@ export const WorkflowControlPanel = (p: {
     if (!stage) return;
     resume_workflow.mutate([workflowDir, stage]);
     set_resumeFrom(null);
-    setViewingTab(runningStage());
+    setViewingTab(runningStep());
   };
 
   return (
     <div class="w-100 min-w-40 border-r flex text-muted-foreground text-sm overflow-hidden">
       <Tabs
         value={viewingTab()}
-        onChange={(value) => setViewingTab(value as StageTab)}
+        onChange={(value) => setViewingTab(value as StepTab)}
         class="w-full"
         orientation="vertical"
       >
@@ -101,16 +101,16 @@ export const WorkflowControlPanel = (p: {
         <TabsList class="w-30">
           <For each={tabs()}>
             {(tab) => {
-              const status = () => (tab !== "root" ? stage_map()[tab as StageName]?.status : null);
+              const status = () => (tab !== "root" ? stage_map()[tab as StepName]?.status : null);
               return (
                 <TabsTrigger value={tab} class="w-full justify-start">
                   <ContextMenu>
                     <ContextMenuTrigger class="w-full justify-start flex items-center gap-1.5">
                       <span class="flex-1 truncate">{tab}</span>
                       <Show when={status()}>
-                        <StageStatusBadge
+                        <StepStatusBadge
                           status={status()!}
-                          progress={stage_map()[tab as StageName]?.progress}
+                          progress={stage_map()[tab as StepName]?.progress}
                         />
                       </Show>
                     </ContextMenuTrigger>
