@@ -20,7 +20,7 @@ export const STAGE_TRACKS: Record<StageName, string[]> = {
   mix_video: [],
 };
 
-/// 轨道描述符（静态）：WorkflowDetailPage 只负责按 tab 过滤后交给 Timeline，
+/// 轨道描述符（静态）：VideoDetailPage 只负责按 tab 过滤后交给 Timeline，
 /// 各轨道的数据由轨道组件内部自取；label 在数据存在后可被组件覆盖为精确值。
 export interface TrackDef {
   id: string;

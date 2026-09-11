@@ -39,11 +39,11 @@ interface Props {
   workflowId: string;
 }
 
-export function WorkflowDetailPage(props: Props) {
-  // console.log('[WorkflowDetailPage] props:', props);
+export function VideoDetailPage(props: Props) {
+  // console.log('[VideoDetailPage] props:', props);
   const workflowDir = `workfolder/${props.groupId}/${props.workflowId}`;
   const workflowCtxQ = useQuery(() => client.get_workflow_ctx.queryOptions(workflowDir));
-  // console.log('[WorkflowDetailPage] workflowCtxQ:', workflowCtxQ);
+  // console.log('[VideoDetailPage] workflowCtxQ:', workflowCtxQ);
 
   const [videoRef, setVideoRef] = createSignal<HTMLVideoElement | null>(null);
   const qc = useQueryClient();

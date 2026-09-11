@@ -1,6 +1,6 @@
 import { createFileRoute, useParams } from "@tanstack/solid-router";
 import { onMount } from "solid-js";
-import { WorkflowDetailPage } from "../../../components/pages/task/WorkflowDetailPage";
+import { VideoDetailPage } from "../../../components/pages/task/VideoDetailPage";
 
 export const Route = createFileRoute("/group/$id/$workflowId")({
   component: RouteComponent,
@@ -17,5 +17,5 @@ function RouteComponent() {
       }),
     );
   });
-  return <WorkflowDetailPage groupId={p().id} workflowId={p().workflowId} />;
+  return <VideoDetailPage groupId={p().id} workflowId={p().workflowId} />;
 }
