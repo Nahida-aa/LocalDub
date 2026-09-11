@@ -930,6 +930,92 @@ export type OcrRuntime =
 /**  ort-rust (opencv) */
 "ort-rust";
 
+/**
+ *  一条字幕段（extends SubtitleSegment with OCR-specific fields）。
+ * 
+ *  TS 用 `extends SubtitleSegment`；Rust 用 `#[serde(flatten)]` 内嵌。
+ */
+export type OcrSegment = OcrSegment_Serialize | OcrSegment_Deserialize;
+
+export type OcrSegmentFilterData = OcrSegmentFilterData_Serialize | OcrSegmentFilterData_Deserialize;
+
+export type OcrSegmentFilterData_Deserialize = {
+	text: string,
+	segments: OcrSegmentWithAdjust_Deserialize[],
+};
+
+export type OcrSegmentFilterData_Serialize = {
+	text: string,
+	segments: OcrSegmentWithAdjust_Serialize[],
+};
+
+export type OcrSegmentFilterMeta = {
+	segment_count: number,
+	text_confidence_threshold: number | null,
+	dropped: number,
+};
+
+export type OcrSegmentFilterResult = OcrSegmentFilterResult_Serialize | OcrSegmentFilterResult_Deserialize;
+
+export type OcrSegmentFilterResult_Deserialize = {
+	meta: OcrSegmentFilterMeta,
+	result: OcrSegmentFilterData_Deserialize,
+};
+
+export type OcrSegmentFilterResult_Serialize = {
+	meta: OcrSegmentFilterMeta,
+	result: OcrSegmentFilterData_Serialize,
+};
+
+/**  应用置信度调整后的字幕段。 */
+export type OcrSegmentWithAdjust = OcrSegmentWithAdjust_Serialize | OcrSegmentWithAdjust_Deserialize;
+
+/**  应用置信度调整后的字幕段。 */
+export type OcrSegmentWithAdjust_Deserialize = {
+	adjusted_confidence?: number | null,
+	y_penalty?: number | null,
+	iso_penalty?: number | null,
+} & OcrSegment_Deserialize;
+
+/**  应用置信度调整后的字幕段。 */
+export type OcrSegmentWithAdjust_Serialize = {
+	adjusted_confidence?: number | null,
+	y_penalty?: number | null,
+	iso_penalty?: number | null,
+} & OcrSegment_Serialize;
+
+/**
+ *  一条字幕段（extends SubtitleSegment with OCR-specific fields）。
+ * 
+ *  TS 用 `extends SubtitleSegment`；Rust 用 `#[serde(flatten)]` 内嵌。
+ */
+export type OcrSegment_Deserialize = {
+	/**  字幕带纵向值域 `[min_y, max_y]`（可选）。 */
+	y_range?: [(number | null), (number | null)] | null,
+	/**  字幕文本置信度（必填）。 */
+	text_confidence: number | null,
+	/**  该段聚合的帧数（可选）。 */
+	frame_count?: number | null,
+	/**  组成该段的各帧明细（可选）。 */
+	frames?: SegmentFrame[] | null,
+} & SubtitleSegment;
+
+/**
+ *  一条字幕段（extends SubtitleSegment with OCR-specific fields）。
+ * 
+ *  TS 用 `extends SubtitleSegment`；Rust 用 `#[serde(flatten)]` 内嵌。
+ */
+export type OcrSegment_Serialize = {
+	/**  字幕带纵向值域 `[min_y, max_y]`（可选）。 */
+	y_range?: [(number | null), (number | null)],
+	/**  字幕文本置信度（必填）。 */
+	text_confidence: number | null,
+	/**  该段聚合的帧数（可选）。 */
+	frame_count?: number,
+	/**  组成该段的各帧明细（可选）。 */
+	frames?: SegmentFrame[],
+} & SubtitleSegment;
+
 export type OpProbes = OpProbes_Serialize | OpProbes_Deserialize;
 
 export type OpProbes_Deserialize = {
@@ -1078,6 +1164,16 @@ export type RunInfo_Deserialize = {
 
 export type RunInfo_Serialize = {
 	asr: AsrRunInfo_Serialize | null,
+};
+
+/**  组成字幕段的单个帧明细。 */
+export type SegmentFrame = {
+	/**  帧文本。 */
+	text: string,
+	/**  帧时刻（毫秒）。 */
+	timestamp: number,
+	/**  文本置信度。 */
+	text_confidence: number | null,
 };
 
 /**
@@ -1476,6 +1572,16 @@ export type Stages_Serialize = {
 
 /**  可分离的 stem */
 export type Stem = "drums" | "bass" | "other" | "vocals";
+
+/**  一段字幕：文本与时间跨度。 */
+export type SubtitleSegment = {
+	/**  字幕文本。 */
+	text: string,
+	/**  起始时间（毫秒）。 */
+	start_ms: number,
+	/**  结束时间（毫秒）。 */
+	end_ms: number,
+};
 
 /**  字幕源 */
 export type SubtitleSource = "asr" | "sf_ocr" | "asr_ocr";

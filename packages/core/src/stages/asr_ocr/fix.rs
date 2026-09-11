@@ -403,7 +403,7 @@ pub fn stage_asr_ocr_fix(ctx: &TaskCtx) -> Result<()> {
         .join(" ");
     let merged_result = AsrOcrMergedResult {
         audio_info: AudioInfo {
-            duration: asr_ocr_segs.last().map(|s| s.base.end_ms).unwrap_or(0),
+            duration: asr_ocr_segs.last().map(|s| s.base.end_ms as u64).unwrap_or(0),
         },
         engine: "asr_ocr".into(),
         fusion_params: serde_json::json!({
@@ -426,7 +426,7 @@ pub fn stage_asr_ocr_fix(ctx: &TaskCtx) -> Result<()> {
         .and_then(|v| v.get("mix_audio"))
         .and_then(|v| v.get("maxAdvanceMs"))
         .and_then(|v| v.as_u64())
-        .unwrap_or(500);
+        .unwrap_or(500) as u32;
     // Convert OcrSegmentWithAdjust to OcrSegment for fix_overlap
     let ocr_segs_for_fix: Vec<OcrSegment> = seg_filter
         .result

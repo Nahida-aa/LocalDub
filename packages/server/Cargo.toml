@@ -21,6 +21,7 @@ specta.workspace = true
 config-rs.workspace = true
 paths = { path = "../paths" }
 ld-core.workspace = true
+subtitle-ocr-post.workspace = true
 device-rs.workspace = true
 fs.workspace = true
 fnrpc.workspace = true

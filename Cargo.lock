@@ -3240,9 +3240,10 @@ dependencies = [
 [[package]]
 name = "ocr-types"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/vision-lab?rev=f0e03a7#f0e03a7fe9edf84bec6ee94c683eba3b50d141d1"
+source = "git+https://github.com/Nahida-aa/vision-lab?rev=7882ef6#7882ef6f92c223360e534c499b640cd75adaf4eb"
 dependencies = [
  "serde",
+ "specta",
 ]
 
 [[package]]
@@ -4435,6 +4436,7 @@ dependencies = [
  "serde",
  "serde_json",
  "specta",
+ "subtitle-ocr-post",
  "tokio",
  "tower",
  "tower-http 0.5.2",
@@ -4692,11 +4694,12 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 [[package]]
 name = "subtitle-ocr-post"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/vision-lab?rev=f0e03a7#f0e03a7fe9edf84bec6ee94c683eba3b50d141d1"
+source = "git+https://github.com/Nahida-aa/vision-lab?rev=7882ef6#7882ef6f92c223360e534c499b640cd75adaf4eb"
 dependencies = [
  "ocr-types",
  "serde",
  "serde_json",
+ "specta",
 ]
 
 [[package]]

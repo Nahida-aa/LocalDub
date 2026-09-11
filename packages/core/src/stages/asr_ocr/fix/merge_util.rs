@@ -5,7 +5,7 @@ pub fn fix_overlap(
     asr_segs: &[OcrSegment],
     raw_frames: &[FrameResult],
     ocr_segs: &[OcrSegment],
-    max_advance_ms: u64,
+    max_advance_ms: u32,
 ) -> Vec<OcrSegment> {
     let mut fix = asr_segs.to_vec();
     let mut sorted_frames = raw_frames.to_vec();
@@ -20,17 +20,17 @@ pub fn fix_overlap(
         }
         let overlap_end = prev.base.end_ms.min(cur.base.end_ms);
         for f in &sorted_frames {
-            if f.timestamp < cur.base.start_ms {
+            if f.timestamp < cur.base.start_ms as u64 {
                 continue;
             }
-            if f.timestamp > overlap_end {
+            if f.timestamp > overlap_end as u64 {
                 break;
             }
             let d_cur = edit_distance(&f.text, &cur.base.text);
             let d_prev = edit_distance(&f.text, &prev.base.text);
             if d_cur <= 2 && d_cur < d_prev {
-                fix[i - 1].base.end_ms = f.timestamp;
-                fix[i].base.start_ms = f.timestamp;
+                fix[i - 1].base.end_ms = f.timestamp as u32;
+                fix[i].base.start_ms = f.timestamp as u32;
                 break;
             }
         }

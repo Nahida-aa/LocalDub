@@ -22,8 +22,8 @@ tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }
 ffmpeg-next.workspace = true
 regex.workspace = true
 voxcpm-cloud = { git = "https://github.com/Nahida-aa/vox-lab", tag = "v0.1.2" }
-ocr-types = { git = "https://github.com/Nahida-aa/vision-lab", rev = "f0e03a7" }
-subtitle-ocr-post = { git = "https://github.com/Nahida-aa/vision-lab", rev = "f0e03a7" }
+ocr-types = { git = "https://github.com/Nahida-aa/vision-lab", rev = "7882ef6", features = ["specta-types"] }
+subtitle-ocr-post = { git = "https://github.com/Nahida-aa/vision-lab", rev = "7882ef6", features = ["specta-types"] }
 pacer-rs.workspace = true
 reqwest.workspace = true
 indicatif.workspace = true

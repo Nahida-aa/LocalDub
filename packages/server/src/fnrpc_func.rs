@@ -6,6 +6,7 @@ use ld_core::stages::{
     translate::out::{TranslateResult, TranslateSegment},
     tts::out::{TtsFile, TtsSegment},
 };
+use subtitle_ocr_post::OcrSegmentFilterResult;
 
 use crate::{
     ctx::Ctx,
@@ -72,6 +73,7 @@ pub fn build_fn_rpc_router() -> fnrpc::router::RpcRouter<Ctx> {
         .register_type::<TtsSegment>()
         .register_type::<Timing>()
         .register_type::<TimingsFile>()
+        .register_type::<OcrSegmentFilterResult>()
         .layer(TracingLayer)
         .build()
 }
