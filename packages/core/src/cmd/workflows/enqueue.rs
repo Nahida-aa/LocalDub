@@ -27,8 +27,8 @@ pub fn enqueue_dir(input: &Input) -> anyhow::Result<String> {
     let (host, port) = discover_server();
     let url = format!("http://{host}:{port}/fnrpc/enqueue_dir");
 
-    let body = serde_json::to_value(input)
-        .map_err(|e| anyhow::anyhow!("序列化 input 失败: {e}"))?;
+    let body =
+        serde_json::to_value(input).map_err(|e| anyhow::anyhow!("序列化 input 失败: {e}"))?;
 
     let resp = http_client()?
         .post(&url)
@@ -52,8 +52,7 @@ pub fn enqueue_dir(input: &Input) -> anyhow::Result<String> {
         .get("json")
         .cloned()
         .unwrap_or_else(|| serde_json::json!({"scanned":0,"enqueued":0,"skipped":0}));
-    let summary = serde_json::to_string_pretty(&result)
-        .unwrap_or_else(|_| format!("{result}"));
+    let summary = serde_json::to_string_pretty(&result).unwrap_or_else(|_| format!("{result}"));
     println!("[cli] enqueue_dir 摘要: {summary}");
     Ok(summary)
 }
@@ -64,8 +63,8 @@ fn enqueue_with(input: &Input, action: &str) -> anyhow::Result<String> {
     // 入队命令名与动作同名: enqueue_start / enqueue_continue / enqueue_import
     let url = format!("http://{host}:{port}/fnrpc/enqueue_{action}");
 
-    let mut body_value = serde_json::to_value(input)
-        .map_err(|e| anyhow::anyhow!("序列化 input 失败: {e}"))?;
+    let mut body_value =
+        serde_json::to_value(input).map_err(|e| anyhow::anyhow!("序列化 input 失败: {e}"))?;
     // 入队的是「任务本身」: 把 CLI 的 enqueue_* 命令动作
     // 还原为 worker 实际执行的动作 (队列项按 action 分派执行)。
     if let Some(workflow) = body_value.get_mut("workflow") {

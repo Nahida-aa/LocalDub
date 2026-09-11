@@ -1,7 +1,7 @@
 //! 全局输入参数表单: 以表单编辑仓库根 input.jsonc 的常用字段。
 //!
 //! 与 `input.jsonc` 文本 tab 并存: 表单适合快速改常用字段, 冷门/未覆盖字段
-//! (各 stage 的详细参数) 仍走文本编辑。
+//! (各 step 的详细参数) 仍走文本编辑。
 //!
 //! 保存语义: 用 jsonc-parser 的 modify/applyEdits 按字段路径定点编辑 —— 非空字段写入,
 //! 空字段删除属性, **文件内注释与其他字段原样保留**; 写前仍备份到 `input.jsonc.bak`。
@@ -24,7 +24,7 @@ import {
   PIPELINES,
   SERVER_ACTIONS,
   SERVER_NAMES,
-  STAGES,
+  STEPS,
   SUBTITLE_SOURCES,
   WORKFLOW_ACTIONS,
   langLabel,
@@ -36,7 +36,7 @@ type FormState = {
   command: string;
   action: string;
   url: string;
-  workflowDir: string;
+  videoDir: string;
   continueFrom: string;
   targetStep: string;
   pipeline: string;
@@ -51,7 +51,7 @@ const emptyForm = (): FormState => ({
   command: "workflow",
   action: "",
   url: "",
-  workflowDir: "",
+  videoDir: "",
   continueFrom: "",
   targetStep: "",
   pipeline: "",
@@ -87,7 +87,7 @@ export function InputFormSettings() {
         set(["command"], value.command);
         set(["workflow", "action"], value.action);
         set(["workflow", "url"], value.url);
-        set(["workflow", "workflowDir"], value.workflowDir);
+        set(["workflow", "videoDir"], value.videoDir);
         set(["workflow", "continueFrom"], value.continueFrom);
         set(["workflow", "targetStep"], value.targetStep);
         set(["workflow", "pipeline"], value.pipeline);
@@ -118,7 +118,7 @@ export function InputFormSettings() {
       command: typeof p.command === "string" ? p.command : "workflow",
       action: String(t.action ?? ""),
       url: String(t.url ?? ""),
-      workflowDir: String(t.workflowDir ?? ""),
+      videoDir: String(t.videoDir ?? ""),
       continueFrom: String(t.continueFrom ?? ""),
       targetStep: String(t.targetStep ?? ""),
       pipeline: String(t.pipeline ?? ""),
@@ -184,10 +184,10 @@ export function InputFormSettings() {
                 />
               )}
             </form.Field>
-            <form.Field name="workflowDir">
+            <form.Field name="videoDir">
               {(field) => (
                 <CardInput
-                  title="workflow.workflowDir"
+                  title="workflow.videoDir"
                   description="workflow 目录 (continue / enqueue_continue / status 用)"
                   field={field}
                   placeholder="workfolder/大/90"
@@ -199,9 +199,9 @@ export function InputFormSettings() {
               {(field) => (
                 <CardSelect
                   title="workflow.continueFrom"
-                  description="从哪个 stage 开始续跑 (空 = 不指定)"
+                  description="从哪个 step 开始续跑 (空 = 不指定)"
                   field={field}
-                  options={STAGES}
+                  options={STEPS}
                 />
               )}
             </form.Field>
@@ -209,9 +209,9 @@ export function InputFormSettings() {
               {(field) => (
                 <CardSelect
                   title="workflow.targetStep"
-                  description="跑到此 stage 后停止 (空 = 跑到最后)"
+                  description="跑到此 step 后停止 (空 = 跑到最后)"
                   field={field}
-                  options={STAGES}
+                  options={STEPS}
                 />
               )}
             </form.Field>
@@ -281,7 +281,7 @@ export function InputFormSettings() {
             </form.Field>
             <p class="text-xs text-gray-500">
               保存只更新表单覆盖的字段（文件内注释与未列出的字段保持不变），写前仍备份到{" "}
-              {INPUT_PATH}.bak；各 stage 详细参数需要在 input.jsonc 文本页编辑。
+              {INPUT_PATH}.bak；各 step 详细参数需要在 input.jsonc 文本页编辑。
             </p>
           </ScrollArea>
         </Show>

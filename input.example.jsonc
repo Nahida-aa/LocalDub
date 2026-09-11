@@ -21,7 +21,7 @@
     "action": "discovery",
     "name": "voxcpm_torch_gradio",
   },
-  "stages": {
+  "steps": {
     "separate": {
       "runtime": "burn-tch",
       "device": "cpu",

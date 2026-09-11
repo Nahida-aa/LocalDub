@@ -10,7 +10,7 @@
 
 - LocalDub 核心的本质不是"pipeline",而是**可恢复的「文件产物构建图」(file-artifact DAG)**:
   - `ctx.json` 只是状态索引;真正处于中心位置的是被外部工具(ffmpeg / whisper.cpp / subtitle-finder / subtitle-ocr)直接读写**的产物文件**(`asr.json`、`timings.json`、srt、`tts/wavs/*.wav`)。
-  - 阶段的有序数组(`DUB_STAGES` 等)是**隐式 DAG**;`separate` / `asr` / `sf_ocr*` 三路在 `translate` 汇合,是真实存在的 fan-out。
+  - 阶段的有序数组(`DUB_STEPS` 等)是**隐式 DAG**;`separate` / `asr` / `sf_ocr*` 三路在 `translate` 汇合,是真实存在的 fan-out。
 - 调研过的三个候选库(dagflowjs / @octabits-io/flow / TanStack Workflow)分属另外两大家族(declarative DAG 与 durable replay),与「文件产物=状态」模型是**两本账**,都没有 Checkpoint 落盘到文件、被外部工具消费的建模。
 - **裁决:不采纳第三方库,自研 ~150 行调度器(方案 C),吸收 octaflow/TanStack 的 gate / retry 分级 / observer 设计。** 概念与语言无关,不阻碍 ld-core Rust 迁移。
 - 附:用户对本领域不熟悉 → 第 5 节给了精读路径。
@@ -23,13 +23,13 @@
 
 | 层         | 内容                                                                                                                | 角色                                                    |
 | ---------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `ctx.json` | task 元数据 + 每 stage 的 `status/started_at/completed_at/progress/last_message/error_message`                      | **状态索引**(四态:pending / running / success / failed) |
+| `ctx.json` | task 元数据 + 每 step 的 `status/started_at/completed_at/progress/last_message/error_message`                       | **状态索引**(四态:pending / running / success / failed) |
 | 产物文件   | `asr.json`、`translate.[dstLang].json`、`split_audio.json`、`timings.json`、`tts/wavs/NNNN.wav`、分隔后的 vocals 等 | **真正的状态与交付物**,被外部工具读写                   |
 
 关键文件:
 
 - `packages/core/context/context.ts`、`packages/core/context/types.ts` — `TaskStep` 记录与 `setStep/readCtx`
-- `packages/core/stages/utils/stages.ts` — `DUB_STAGES` / `DUB_SF_OCR_STAGES` / `DUB_ASR_OCR_STAGES` / `SUBTITLE_STAGES` + `getSteps()` 动态筛选(按 `subtitleSource` 与 `translate.enabled`)
+- `packages/core/steps/utils/steps.ts` — `DUB_STEPS` / `DUB_SF_OCR_STEPS` / `DUB_ASR_OCR_STEPS` / `SUBTITLE_STEPS` + `getSteps()` 动态筛选(按 `subtitleSource` 与 `translate.enabled`)
 
 ### 1.2 阶段列表 = 隐式 DAG
 
@@ -55,16 +55,16 @@ video_source
 
 可配置的 fan-out 与依赖:
 
-- `asr` 读 `vocalsPath`(`useSeparated=true`)或 `video_source`(`useSeparated=false`)→ `packages/core/stages/asr/asr.ts:30-53`。
-- **GPU/CPU 由参数控制**:`asr.ts:55-58` 逐 stage 解析 `runtime`/`device`。因此调度器的**资源互斥键必须以「按参数解析后的实际资源占用」为准**,不可硬编码 "OCR=CPU / demucs=GPU"。
+- `asr` 读 `vocalsPath`(`useSeparated=true`)或 `video_source`(`useSeparated=false`)→ `packages/core/steps/asr/asr.ts:30-53`。
+- **GPU/CPU 由参数控制**:`asr.ts:55-58` 逐 step 解析 `runtime`/`device`。因此调度器的**资源互斥键必须以「按参数解析后的实际资源占用」为准**,不可硬编码 "OCR=CPU / demucs=GPU"。
 
 ### 1.3 现有恢复语义(并行化时的改造目标)
 
-- 线性 resume:`continue` 找到第一个非 success 的 stage 续跑,跳过已成功段 → `packages/core/tasks/continue.ts:79-114`。
-- `continueFrom`:把从该 stage 起的 N 个 stage 全重置为 pending,再跑。
-- pipeline 切换:补写不存在的新 stage,并**强制重跑 `mix_video`**(不同 pipeline 产物不同)→ `continue.ts:42-70`。
+- 线性 resume:`continue` 找到第一个非 success 的 step 续跑,跳过已成功段 → `packages/core/tasks/continue.ts:79-114`。
+- `continueFrom`:把从该 step 起的 N 个 step 全重置为 pending,再跑。
+- pipeline 切换:补写不存在的新 step,并**强制重跑 `mix_video`**(不同 pipeline 产物不同)→ `continue.ts:42-70`。
 - make 风格 up-to-date 检查已存在:`split_audio.ts:121` 用 `statSync(translationFile).mtimeMs > statSync(vocals段).mtimeMs` 判断是否需要重跑。
-- `current_stage` 是单值;并行化后需要 `current_stages: string[]`,影响 App/SSE 的 wire format。
+- `current_step` 是单值;并行化后需要 `current_steps: string[]`,影响 App/SSE 的 wire format。
 
 ---
 
@@ -140,12 +140,12 @@ video_source
 **推荐 C。** 理由:
 
 1. 你的恢复语义(continue 找首个非 success、continueFrom 后代重置、pipeline 切换 backfill、mtime up-to-date)比任何库都更适合"文件"承载,自研才能无损保留。
-2. 并行化的真实工作量不在调度(串行 for → in-degree 队列 ~40 行),而在 **resume 语义改写**(线性 startIdx → 失败节点 + 后代闭包重置)与 `current_stage → current_stages` 的 API 改动——这恰恰是库接管不了、必须自己做的部分。
+2. 并行化的真实工作量不在调度(串行 for → in-degree 队列 ~40 行),而在 **resume 语义改写**(线性 startIdx → 失败节点 + 后代闭包重置)与 `current_step → current_steps` 的 API 改动——这恰恰是库接管不了、必须自己做的部分。
 3. 概念(就绪、互斥、幂等、retry 分级)语言无关,与 ld-core Rust 迁移方向一致;个人经验也建议先动手(done > perfect)。
 
 C 的实现要素(自研调度器候选清单):
 
-- 显式边表:每 stage 声明 `needs: StepName[]`(或按 pipeline 变体的静态边表)
+- 显式边表:每 step 声明 `needs: StepName[]`(或按 pipeline 变体的静态边表)
 - artifact-exists / mtime 判完成(复用现有逻辑,`split_audio.ts:121` 已有先例)
 - in-degree 就绪队列 + 并发上限;**资源互斥键来自「参数解析后的实际 device/runtime」**,同物理资源互斥,其余并发
 - continue 改写:失败节点 + 其传递闭包重置为 pending;`continueFrom`/`targetStep` 同理
@@ -242,19 +242,19 @@ ld-core 现有依赖已经完备:**tokio**(rt/sync/time,已精简)、**tracing**
 
 ### 6.7 自研实现要素(Rust 版)
 
-- **显式边表**:每 stage 声明 `needs: Vec<StepName>`(或按 pipeline 变体的静态边表),用 petgraph 构建有向图 → `toposort()` 得到拓扑序
+- **显式边表**:每 step 声明 `needs: Vec<StepName>`(或按 pipeline 变体的静态边表),用 petgraph 构建有向图 → `toposort()` 得到拓扑序
 - **就绪队列**:petgraph `Graph::neighbors_directed(Incoming)` + in-degree 计数器,完成一步后递减;in-degree=0 入队
 - **资源互斥门控**:按参数解析后的 `runtime`/`device` 生成资源占用描述符,同物理资源互斥 → `tokio::sync::Semaphore`(已由 ld-core 引入 tokio)
-- **checkpoint 文件**:`<task_dir>/.pipeline-checkpoint.json` → serde_json,记录每 stage 的 `status/started_at/completed_at/error_message`,与现有 ctx.json 同格式
+- **checkpoint 文件**:`<task_dir>/.pipeline-checkpoint.json` → serde_json,记录每 step 的 `status/started_at/completed_at/error_message`,与现有 ctx.json 同格式
 - **continue 语义**:失败节点 + 其传递闭包(petgraph reachable)重置为 pending;`continueFrom`/`targetStep` 同理
-- **observer**:`tracing::info!`(ld-core 已有 tracing 依赖 + tracing-subscriber),每个 stage 的开始/完成/失败 emit span
+- **observer**:`tracing::info!`(ld-core 已有 tracing 依赖 + tracing-subscriber),每个 step 的开始/完成/失败 emit span
 - **从 TS 渐进迁移**:先在 TS 侧验证 DAG 边表 + resume 语义,再用 Rust 实现同规格的调度器并替换 `runPipeline`/`continuePipeline`
 
 ---
 
 ## 附:参考与来源
 
-- LocalDub 核心代码(TS):`packages/core/stages/`、`packages/core/tasks/start.ts`、`packages/core/tasks/continue.ts`、`packages/core/context/`
+- LocalDub 核心代码(TS):`packages/core/steps/`、`packages/core/tasks/start.ts`、`packages/core/tasks/continue.ts`、`packages/core/context/`
 - LocalDub 核心代码(Rust):`packages/core/Cargo.toml`(ld-core)、`packages/pacer-rs/`
 - TS 候选库:github.com/abdullah2993/dagflowjs;npmjs.com/package/@octabits-io/flow(renamed octaflow)
 - Rust 候选库:github.com/sayiir/sayiir(sayiir v1.0.0,PersistentBackend trait);github.com/SamuelXing/durare(durare v0.3,DBOS-compatible)

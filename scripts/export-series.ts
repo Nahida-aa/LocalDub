@@ -10,7 +10,7 @@ const WORKFOLDER = process.env["WORKFOLDER"]
 // 优先读 Rust 写回 ctx.json 的 final_video_path（权威成片路径），
 // 再按目录布局回退候选。当前 Rust 管线输出到 mix_video/，旧 TS/更老布局为
 // merge_video/ / media/，final_video_dir() 见
-// (packages/core/src/stages/utils/mod.rs)：
+// (packages/core/src/steps/utils/mod.rs)：
 // 1. <集>/ctx.json  final_video_path
 // 2. dub + sf_ocr:           <集>/mix_video/dub_sf_ocr/<集>.mp4 (首选, 关键帧 OCR 最优字幕源)
 // 3. dub + asr_ocr:          <集>/mix_video/dub_asr_ocr/<集>.mp4

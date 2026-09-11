@@ -23,13 +23,13 @@ import { StepStatusBadge } from "./StepStatusBadge";
 import { useMutation, useQueryClient } from "@tanstack/solid-query";
 import { StepName, WorkflowCtx, WorkflowStep } from "@repo/sdk/index";
 
-export const stages_to_map = (
-  stages: (WorkflowStep | undefined)[],
+export const steps_to_map = (
+  steps: (WorkflowStep | undefined)[],
 ): Record<StepName, WorkflowStep | undefined> => {
-  return stages.reduce(
-    (acc, stage) => {
-      if (stage === undefined) return acc;
-      acc[stage.name as StepName] = stage;
+  return steps.reduce(
+    (acc, step) => {
+      if (step === undefined) return acc;
+      acc[step.name as StepName] = step;
       return acc;
     },
     {} as Record<StepName, WorkflowStep | undefined>,
@@ -38,13 +38,13 @@ export const stages_to_map = (
 
 export const WorkflowControlPanel = (p: {
   ctx: WorkflowCtx;
-  // onResumeFrom: (stageName: string | null) => void;
+  // onResumeFrom: (stepName: string | null) => void;
 }) => {
   const params = useParams({ from: "/group/$id/$videoId" });
-  const workflowDir = `workfolder/${params().id}/${p.ctx.workflow.id}`;
-  const stages = () => p.ctx.stages ?? [];
-  const stage_map = () => stages_to_map(stages() ?? []);
-  const tabs = () => ["root", ...stages().map((s) => s.name)] as StepTab[];
+  const videoDir = `workfolder/${params().id}/${p.ctx.workflow.id}`;
+  const steps = () => p.ctx.steps ?? [];
+  const step_map = () => steps_to_map(steps() ?? []);
+  const tabs = () => ["root", ...steps().map((s) => s.name)] as StepTab[];
   const resumeFrom = use_resumeFrom();
   const runningStep = useRunningStep();
   const viewingTab = useViewingTab();
@@ -54,14 +54,14 @@ export const WorkflowControlPanel = (p: {
    * 跳转到对应阶段前一个 tab 让用户确认\
    * 然后在内容界面点击运行按钮才会真的继续运行
    */
-  const handleResumeFrom = (stageName?: StepTab | null) => {
+  const handleResumeFrom = (stepName?: StepTab | null) => {
     const allTabs = tabs();
-    const idx = allTabs.indexOf(stageName ?? "root");
+    const idx = allTabs.indexOf(stepName ?? "root");
     if (idx > 0) {
       setViewingTab(allTabs[idx - 1]);
     }
-    setRunningStep(stageName); // 高亮三角所在的当前 tab
-    set_resumeFrom(stageName === "root" ? null : stageName);
+    setRunningStep(stepName); // 高亮三角所在的当前 tab
+    set_resumeFrom(stepName === "root" ? null : stepName);
   };
 
   const resume_workflow = useMutation(() =>
@@ -70,10 +70,10 @@ export const WorkflowControlPanel = (p: {
         console.log("[continue] 继续运行 完成");
         // 运行结束后立即刷新 ctx 与文件树（watch 事件通常已覆盖，这里兜底）
         qc.invalidateQueries({
-          queryKey: client.get_workflow_ctx.queryKey(workflowDir),
+          queryKey: client.get_workflow_ctx.queryKey(videoDir),
         });
         qc.invalidateQueries({
-          queryKey: client.list_app_directory.queryKey(workflowDir),
+          queryKey: client.list_app_directory.queryKey(videoDir),
         });
       },
       onError: (error) => {
@@ -82,9 +82,9 @@ export const WorkflowControlPanel = (p: {
     }),
   );
   const handleConfirmResume = () => {
-    const stage = resumeFrom();
-    if (!stage) return;
-    resume_workflow.mutate([workflowDir, stage]);
+    const step = resumeFrom();
+    if (!step) return;
+    resume_workflow.mutate([videoDir, step]);
     set_resumeFrom(null);
     setViewingTab(runningStep());
   };
@@ -101,7 +101,7 @@ export const WorkflowControlPanel = (p: {
         <TabsList class="w-30">
           <For each={tabs()}>
             {(tab) => {
-              const status = () => (tab !== "root" ? stage_map()[tab as StepName]?.status : null);
+              const status = () => (tab !== "root" ? step_map()[tab as StepName]?.status : null);
               return (
                 <TabsTrigger value={tab} class="w-full justify-start">
                   <ContextMenu>
@@ -110,7 +110,7 @@ export const WorkflowControlPanel = (p: {
                       <Show when={status()}>
                         <StepStatusBadge
                           status={status()!}
-                          progress={stage_map()[tab as StepName]?.progress}
+                          progress={step_map()[tab as StepName]?.progress}
                         />
                       </Show>
                     </ContextMenuTrigger>
@@ -147,7 +147,7 @@ export const WorkflowControlPanel = (p: {
                 </div>
               </Show>
               <Show when={viewingTab() === tab}>
-                <FileTree relativeDir={tab === "root" ? workflowDir : `${workflowDir}/${tab}`} />
+                <FileTree relativeDir={tab === "root" ? videoDir : `${videoDir}/${tab}`} />
               </Show>
             </TabsContent>
           )}

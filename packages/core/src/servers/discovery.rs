@@ -74,9 +74,7 @@ pub async fn find_server_via_mdns_all(
     // mdns-sd-discovery 是 tokio async (avahi D-Bus)。若当前不在 tokio runtime
     // (如同步 cli 调用), 自建一个临时 runtime 跑 browse。
     match tokio::runtime::Handle::try_current() {
-        Ok(_) => {
-            browse_mdns(type_, timeout).await
-        }
+        Ok(_) => browse_mdns(type_, timeout).await,
         Err(_) => {
             let rt = match tokio::runtime::Builder::new_current_thread()
                 .enable_all()

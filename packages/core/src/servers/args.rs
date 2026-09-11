@@ -5,9 +5,7 @@ use config_rs::servers::ServerType;
 
 /// 服务器操作 (镜像 packages/core/servers/input.ts 的 action 枚举)
 /// (serde 与 clap 参数值统一为 lowercase)
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type, ValueEnum,
-)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type, ValueEnum)]
 #[serde(rename_all = "lowercase")]
 #[value(rename_all = "lowercase")]
 pub enum ServerAction {

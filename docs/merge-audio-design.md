@@ -15,7 +15,7 @@ TTS → audiostretchy (speed = base × localFactor) → 直接拼入 dubbing
 - **变速器**: `audiostretchy` (WSOLA 算法)
 - **无中间文件**: 内存拉伸后直接拼入最终 dubbing
 
-## TS 当前 (`packages/cli/src/feat/stages/merge_audio.ts`)
+## TS 当前 (`packages/cli/src/feat/steps/merge_audio.ts`)
 
 ```
 TTS → areverse silenceremove → _trimmed.wav

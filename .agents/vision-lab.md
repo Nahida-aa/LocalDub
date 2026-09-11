@@ -20,7 +20,7 @@ OCR 核心（`subtitle-finder` / `subtitle-ocr` / `rapidocr-ort` / `geometry`）
 
 ## 现状与继承问题（2026-08）
 
-- `packages/core/src/stages/sf_ocr` 用 vision-lab release 二进制跑关键帧策略
+- `packages/core/src/steps/sf_ocr` 用 vision-lab release 二进制跑关键帧策略
   （subtitle-finder 提关键帧 → subtitle-ocr 识别 → ocr-post 后处理）。
 - **长视频关键帧检测修复**（ocr-lab `7b12630`）：修复检测阶段 `fn_start` 涨过 FORWARD
   窗口未 `advance_to`、`get_frame` 越界导致提前 break 的 bug。实测 170s/5100 帧参考视频

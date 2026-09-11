@@ -30,7 +30,7 @@
   "overrides": {
     "onnxruntime-node": "1.26.0"
   },
-  "lint-staged": {
+  "lint-stepd": {
     "*": "oxfmt --no-error-on-unmatched-pattern"
   }
 }

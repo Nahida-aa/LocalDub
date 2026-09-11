@@ -59,7 +59,7 @@ name: "solidjs-reactivity"
 const asrQuery = useQuery(() =>
   client.read_app_file_text.queryOptions(
     `${taskDir}/asr/asr.json`,
-    { enabled: stage_map().asr?.status === "success" }, // 或 file_exists
+    { enabled: step_map().asr?.status === "success" }, // 或 file_exists
   ),
 );
 // 问题：
@@ -70,7 +70,7 @@ const asrQuery = useQuery(() =>
 
 **正确做法：把"是否该读"和"何时刷新"拆成两件事。**
 
-1. **是否该读（初始条件）**：用 `enabled`（文件存在 / stage 成功均可）。
+1. **是否该读（初始条件）**：用 `enabled`（文件存在 / step 成功均可）。
 2. **何时刷新（内容变化）**：靠文件树订阅事件 `watch_task_tree` 收到该路径的 `Changed`/`Created` 后，显式 `queryClient.invalidateQueries({ queryKey })` 让缓存失效并重拉。
 
 ```ts

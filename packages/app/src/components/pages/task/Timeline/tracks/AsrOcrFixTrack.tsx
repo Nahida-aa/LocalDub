@@ -11,7 +11,7 @@ import type { Track, TrackSegment } from "../consts";
 import { client } from "#/integrations/fnrpc/client.ts";
 import { useMutation } from "@tanstack/solid-query";
 import { useViewingTab } from "../../WorkflowControlPanel/workflowControlPanelStore";
-import { STAGE_TRACKS } from "./const";
+import { STEP_TRACKS } from "./const";
 import { useTrackData } from "./useTrackData";
 import type { BaseTrackProps } from "./shared";
 import { OcrSegment, OcrSegmentFilterResult } from "@repo/sdk/index";
@@ -82,20 +82,20 @@ function deleteAt(segments: TrackSegment[], index: number): TrackSegment[] {
 }
 
 export function AsrOcrFixTrack(props: Props) {
-  const { workflowDir, pxPerMs, onSeek, color } = props;
+  const { videoDir, pxPerMs, onSeek, color } = props;
   const track = () => props.track;
   const isSf = () => track().id === "sf_ocr_fix";
   const viewingTab = useViewingTab();
 
   const primaryPath = () =>
     isSf()
-      ? `${workflowDir}/sf_ocr_fix/segment_filter_llm_fix.json`
-      : `${workflowDir}/asr_ocr_fix/asr_ocr_fused_llm_fix.json`;
-  const fallbackPath = () => `${workflowDir}/sf_ocr_fix/segment_filter.json`;
+      ? `${videoDir}/sf_ocr_fix/segment_filter_llm_fix.json`
+      : `${videoDir}/asr_ocr_fix/asr_ocr_fused_llm_fix.json`;
+  const fallbackPath = () => `${videoDir}/sf_ocr_fix/segment_filter.json`;
 
   // sf_ocr_fix：优先 LLM 修正产物，读取失败则回落到段过滤产物
   const { q, fb, active, segments } = useTrackData({
-    workflowDir,
+    videoDir,
     trackId: track().id,
     path: primaryPath,
     fallbackPath: () => (isSf() ? fallbackPath() : undefined),
@@ -131,7 +131,7 @@ export function AsrOcrFixTrack(props: Props) {
   // ---- 联动删除（校对 + 译文同步删同索引）：占位，待服务端 RPC，见 ROADMAP.md ----
   const tabTracks = () => {
     const v = viewingTab();
-    return v === "root" ? [] : (STAGE_TRACKS[v] ?? []);
+    return v === "root" ? [] : (STEP_TRACKS[v] ?? []);
   };
   const showLinkedDelete = () =>
     tabTracks().includes("asr_ocr_fix") && tabTracks().includes("translation");

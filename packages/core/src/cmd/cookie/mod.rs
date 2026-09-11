@@ -6,7 +6,7 @@
 
 use std::io::Read;
 
-use anyhow::{Context, anyhow};
+use anyhow::{anyhow, Context};
 use config_rs::path::models::youtube_cookie_path;
 use serde::{Deserialize, Serialize};
 
@@ -48,8 +48,7 @@ pub fn set_cookie(content: &str) -> anyhow::Result<()> {
     }
     let path = youtube_cookie_path();
     if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)
-            .with_context(|| format!("创建 cookie 目录失败: {dir:?}"))?;
+        std::fs::create_dir_all(dir).with_context(|| format!("创建 cookie 目录失败: {dir:?}"))?;
     }
     std::fs::write(&path, content).with_context(|| format!("写入 cookie 失败: {path:?}"))?;
     Ok(())

@@ -17,7 +17,7 @@ import {
   useFps,
 } from "#/components/app/FileContent/store/videoViewer";
 import { useViewingTab } from "./WorkflowControlPanel/workflowControlPanelStore";
-import { STAGE_TRACKS, TRACK_DEFS, type TrackDef } from "./Timeline/tracks/const";
+import { STEP_TRACKS, TRACK_DEFS, type TrackDef } from "./Timeline/tracks/const";
 import { useWorkflowTreeEvents } from "./useWorkflowTreeEvents";
 import {
   addTab,
@@ -41,8 +41,8 @@ interface Props {
 
 export function VideoDetailPage(props: Props) {
   // console.log('[VideoDetailPage] props:', props);
-  const workflowDir = `workfolder/${props.groupId}/${props.videoId}`;
-  const workflowCtxQ = useQuery(() => client.get_workflow_ctx.queryOptions(workflowDir));
+  const videoDir = `workfolder/${props.groupId}/${props.videoId}`;
+  const workflowCtxQ = useQuery(() => client.get_workflow_ctx.queryOptions(videoDir));
   // console.log('[VideoDetailPage] workflowCtxQ:', workflowCtxQ);
 
   const [videoRef, setVideoRef] = createSignal<HTMLVideoElement | null>(null);
@@ -58,7 +58,7 @@ export function VideoDetailPage(props: Props) {
       qc.invalidateQueries({
         queryKey: client.read_app_file_text.queryKey(rel),
       });
-      // ctx.json 变化（续跑/运行中阶段状态流转）→ 刷新任务上下文，让 stage 徽章实时更新。
+      // ctx.json 变化（续跑/运行中阶段状态流转）→ 刷新任务上下文，让 step 徽章实时更新。
       if (rel.endsWith("ctx.json")) {
         qc.invalidateQueries({
           queryKey: client.get_workflow_ctx.queryKey(
@@ -82,8 +82,8 @@ export function VideoDetailPage(props: Props) {
 
   createEffect(() => {
     const st = workflowCtxQ.status;
-    const stages = (workflowCtxQ.data?.stages ?? []).map((s) => `${s.name}:${s.status}`).join(",");
-    trace(`[TRACE-ctx] status=${st} stages=${stages}`);
+    const steps = (workflowCtxQ.data?.steps ?? []).map((s) => `${s.name}:${s.status}`).join(",");
+    trace(`[TRACE-ctx] status=${st} steps=${steps}`);
   });
 
   // 默认打开本任务视频: 有最终视频(已跑完 mix_video)则用它, 否则 video_source.mp4。
@@ -94,13 +94,13 @@ export function VideoDetailPage(props: Props) {
     const ctx = workflowCtxQ.data;
     if (!ctx || defaultOpened) return;
     defaultOpened = true;
-    if (activePath()?.startsWith(workflowDir)) return;
+    if (activePath()?.startsWith(videoDir)) return;
 
     const finalRel = ctx.workflow.final_video_path
       ? toRelPath(ctx.workflow.final_video_path)
       : null;
-    const isFinal = !!finalRel?.startsWith(workflowDir);
-    const defaultRel = isFinal ? finalRel! : `${workflowDir}/video_source.mp4`;
+    const isFinal = !!finalRel?.startsWith(videoDir);
+    const defaultRel = isFinal ? finalRel! : `${videoDir}/video_source.mp4`;
     addTab({ path: defaultRel, label: defaultRel.split("/").pop()! });
     setActivePath(defaultRel);
   });
@@ -138,7 +138,7 @@ export function VideoDetailPage(props: Props) {
     const defs: TrackDef[] =
       v === "root"
         ? TRACK_DEFS
-        : (STAGE_TRACKS[v] ?? [])
+        : (STEP_TRACKS[v] ?? [])
             .map((id) => TRACK_DEFS.find((d) => d.id === id))
             .filter((d): d is TrackDef => !!d);
     return defs.map((d) => ({ id: d.id, label: d.label, segments: [], color: d.color }));
@@ -175,7 +175,7 @@ export function VideoDetailPage(props: Props) {
           currentTime={currentTime()}
           fps={fps()}
           onSeek={onSeek}
-          workflowDir={workflowDir}
+          videoDir={videoDir}
         />
       </div>
       {/*</Show>*/}

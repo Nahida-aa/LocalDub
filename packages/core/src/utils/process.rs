@@ -45,9 +45,15 @@ where
             Ok(Some(status)) => {
                 let mut stdout = String::new();
                 let mut stderr = String::new();
-                let _ = child.stdout.take().map(|mut h| h.read_to_string(&mut stdout));
+                let _ = child
+                    .stdout
+                    .take()
+                    .map(|mut h| h.read_to_string(&mut stdout));
                 if capture_stderr {
-                    let _ = child.stderr.take().map(|mut h| h.read_to_string(&mut stderr));
+                    let _ = child
+                        .stderr
+                        .take()
+                        .map(|mut h| h.read_to_string(&mut stderr));
                 }
                 return (
                     status.success(),

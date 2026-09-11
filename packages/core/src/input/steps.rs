@@ -1,24 +1,24 @@
 use serde::{Deserialize, Serialize};
 
-use crate::stages::asr::args::AsrArgs;
-use crate::stages::asr::fix_args::AsrFixArgs;
-use crate::stages::asr_ocr::args::AsrOcrArgs;
-use crate::stages::asr_ocr::fix_args::AsrOcrFixArgs;
-use crate::stages::asr_ocr::pre_args::AsrOcrPreArgs;
-use crate::stages::mix_audio::args::MixAudioArgs;
-use crate::stages::mix_video::args::MixVideoArgs;
-use crate::stages::separate::SeparateArgs;
-use crate::stages::sf_ocr::args::SfOcrArgs;
-use crate::stages::sf_ocr::fix_args::OcrFixArgs;
-use crate::stages::split_audio::SplitAudioArgs;
-use crate::stages::translate::args::TranslateArgs;
-use crate::stages::tts::args::TtsArgs;
+use crate::steps::asr::args::AsrArgs;
+use crate::steps::asr::fix_args::AsrFixArgs;
+use crate::steps::asr_ocr::args::AsrOcrArgs;
+use crate::steps::asr_ocr::fix_args::AsrOcrFixArgs;
+use crate::steps::asr_ocr::pre_args::AsrOcrPreArgs;
+use crate::steps::mix_audio::args::MixAudioArgs;
+use crate::steps::mix_video::args::MixVideoArgs;
+use crate::steps::separate::SeparateArgs;
+use crate::steps::sf_ocr::args::SfOcrArgs;
+use crate::steps::sf_ocr::fix_args::OcrFixArgs;
+use crate::steps::split_audio::SplitAudioArgs;
+use crate::steps::translate::args::TranslateArgs;
+use crate::steps::tts::args::TtsArgs;
 
 /// 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StepsSchema)
 ///
-/// mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的
+/// mix_audio / mix_video 直接使用 `crate::steps::{mix_audio,mix_video}::args` 的
 /// 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。
-/// sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。
+/// sf_ocr / asr_ocr 系列同样复用各自 step 目录下的 args 定义。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Steps {
     #[serde(default)]

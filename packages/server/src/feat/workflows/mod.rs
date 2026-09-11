@@ -49,7 +49,7 @@ pub async fn get_workflow_ctx(workflow_dir: String) -> Result<WorkflowCtx, Strin
 }
 
 #[fnrpc::rpc_mutate]
-pub async fn continue_workflow(workflow_dir: String, from_stage: String) -> Result<(), String> {
+pub async fn continue_workflow(workflow_dir: String, from_step: String) -> Result<(), String> {
     let abs_workflow_dir = repo_root().join(&workflow_dir);
     let abs_workflow_dir_str = abs_workflow_dir
         .to_str()
@@ -74,9 +74,9 @@ pub async fn continue_workflow(workflow_dir: String, from_stage: String) -> Resu
     let workflow = input_value
         .get_mut("workflow")
         .ok_or_else(|| "input 缺少 workflow 字段".to_string())?;
-    workflow["workflowDir"] = serde_json::Value::String(abs_workflow_dir_str.clone());
+    workflow["videoDir"] = serde_json::Value::String(abs_workflow_dir_str.clone());
     workflow["action"] = serde_json::Value::String("continue".into());
-    workflow["continueFrom"] = serde_json::Value::String(from_stage);
+    workflow["continueFrom"] = serde_json::Value::String(from_step);
 
     let input: Input =
         serde_json::from_value(input_value).map_err(|e| format!("parse input failed: {}", e))?;
@@ -103,7 +103,7 @@ pub async fn continue_workflow(workflow_dir: String, from_stage: String) -> Resu
     }
 }
 
-/// 重新生成指定 TTS 段 (续跑模式: continueFrom=tts + stages.tts.regenIndices)。
+/// 重新生成指定 TTS 段 (续跑模式: continueFrom=tts + steps.tts.regenIndices)。
 ///
 /// `continue_run=true` 时重生成后继续跑完整个 pipeline (镜像 input.jsonc 手工改
 /// `regenIndices` 后「从 tts 继续运行」); `false` 时只重生成, 到 tts 阶段结束即停
@@ -120,7 +120,7 @@ pub async fn regen_tts(
         .ok_or_else(|| "invalid workflow_dir".to_string())?
         .to_string();
 
-    // 读 ctx.json 的 input 字段作为续跑基准配置 (仅改写 workflow / stages.tts, 其余保留)。
+    // 读 ctx.json 的 input 字段作为续跑基准配置 (仅改写 workflow / steps.tts, 其余保留)。
     let ctx_path = abs_workflow_dir.join("ctx.json");
     let ctx_raw =
         std::fs::read_to_string(&ctx_path).map_err(|e| format!("read ctx.json failed: {}", e))?;
@@ -134,7 +134,7 @@ pub async fn regen_tts(
     let workflow = input_value
         .get_mut("workflow")
         .ok_or_else(|| "input 缺少 workflow 字段".to_string())?;
-    workflow["workflowDir"] = serde_json::Value::String(abs_workflow_dir_str.clone());
+    workflow["videoDir"] = serde_json::Value::String(abs_workflow_dir_str.clone());
     workflow["action"] = serde_json::Value::String("continue".into());
     workflow["continueFrom"] = serde_json::Value::String("tts".into());
     if continue_run {
@@ -145,16 +145,16 @@ pub async fn regen_tts(
         workflow["targetStep"] = serde_json::Value::String("tts".into());
     }
 
-    // 合并 regenIndices 到 stages.tts (镜像手工在 input.jsonc 里配置 regenIndices)。
-    match input_value["stages"].as_object_mut() {
-        Some(stages_obj) => {
-            let tts = stages_obj
+    // 合并 regenIndices 到 steps.tts (镜像手工在 input.jsonc 里配置 regenIndices)。
+    match input_value["steps"].as_object_mut() {
+        Some(steps_obj) => {
+            let tts = steps_obj
                 .entry("tts".to_string())
                 .or_insert_with(|| serde_json::json!({}));
             tts["regenIndices"] = serde_json::json!(seg_indices);
         }
         None => {
-            input_value["stages"] = serde_json::json!({ "tts": { "regenIndices": seg_indices } });
+            input_value["steps"] = serde_json::json!({ "tts": { "regenIndices": seg_indices } });
         }
     }
 
@@ -196,7 +196,7 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
             "pipeline": "dub",
             "subtitleSource": "sf_ocr",
         },
-        "stages": {
+        "steps": {
             "separate": {"runtime": "burn-tch", "device": "cpu", "always": true},
             "asr": {"runtime": "ggml", "device": "vulkan", "useSeparated": true,
                     "mixMode": "sidechain", "vad": true, "vadModel": "silero-v6", "wordsOutput": true},
@@ -217,7 +217,7 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
         serde_json::from_value(base).map_err(|e| format!("parse input failed: {}", e))?;
 
     // 只跑导入 (拷贝/下载 + 探测 + 写 ctx.json), 拿到 workflow_dir 立即返回;
-    // 完整 pipeline 在后台跑, 前端跳转任务页后由 ctx watcher 实时刷新 stage 徽章。
+    // 完整 pipeline 在后台跑, 前端跳转任务页后由 ctx watcher 实时刷新 step 徽章。
     let ctx = tokio::task::spawn_blocking(move || {
         ld_core::workflows::import::download::import_video(&input)
             .map_err(|e| format!("import_video 失败: {e:#}"))

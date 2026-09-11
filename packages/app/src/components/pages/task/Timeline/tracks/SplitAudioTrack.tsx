@@ -83,16 +83,16 @@ function deleteAt(segments: TrackSegment[], index: number): TrackSegment[] {
 }
 
 export function SplitAudioTrack(props: Props) {
-  const { workflowDir, pxPerMs, onSeek, color } = props;
+  const { videoDir, pxPerMs, onSeek, color } = props;
   const track = () => props.track;
   const isTimings = () => track().id === "split_audio_timings";
   const { segments } = useTrackData({
-    workflowDir,
+    videoDir,
     trackId: track().id,
     path: () =>
       isTimings()
-        ? `${workflowDir}/split_audio/timings.json`
-        : `${workflowDir}/split_audio/split_audio.json`,
+        ? `${videoDir}/split_audio/timings.json`
+        : `${videoDir}/split_audio/split_audio.json`,
     parse: (text) => {
       const data = JSON.parse(text) as { segments?: SplitAudioSegment[] };
       return (data.segments || []).map((item, i: number) => ({
@@ -107,8 +107,8 @@ export function SplitAudioTrack(props: Props) {
   });
   const filePath = () =>
     isTimings()
-      ? `${workflowDir}/split_audio/timings.json`
-      : `${workflowDir}/split_audio/split_audio.json`;
+      ? `${videoDir}/split_audio/timings.json`
+      : `${videoDir}/split_audio/split_audio.json`;
 
   const handleInsertBefore = async (segIndex: number) => {
     const newSegments = insertAt(segments(), segIndex, false);
@@ -170,7 +170,7 @@ export function SplitAudioTrack(props: Props) {
     const seg = segments()[segIndex];
     if (!seg) return;
     const idx = String(segIndex + 1).padStart(4, "0");
-    const url = mediaUrl(`${workflowDir}/split_audio/vocals/${idx}.wav`);
+    const url = mediaUrl(`${videoDir}/split_audio/vocals/${idx}.wav`);
     const label = `#${segIndex + 1} ${seg.text}`;
 
     openModal(

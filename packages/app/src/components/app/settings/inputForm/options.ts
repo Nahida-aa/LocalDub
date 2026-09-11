@@ -34,7 +34,7 @@ const WORKFLOW_ACTIONS = keysOf({
   generate_meta: "",
 } satisfies Record<WorkflowAction, string>);
 
-const STAGES = [
+const STEPS = [
   "",
   ...keysOf({
     separate: "",
@@ -142,7 +142,7 @@ export {
   PIPELINES,
   SERVER_ACTIONS,
   SERVER_NAMES,
-  STAGES,
+  STEPS,
   SUBTITLE_SOURCES,
   WORKFLOW_ACTIONS,
   langLabel,

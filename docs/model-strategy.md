@@ -6,7 +6,7 @@
 |--------|---------|-------------|
 | **Architecture** | DiT (Diffusion Transformer) | LLM + Flow Matching + HiFT |
 | **Backbone** | MiniCPM-4 (2B) | Qwen2 (~0.5B) |
-| **Pipeline stages** | LocEnc 12L → TSLM 28L → RALM 8L → LocDiT 12L | LLM backbone → Flow decoder → HiFT vocoder |
+| **Pipeline steps** | LocEnc 12L → TSLM 28L → RALM 8L → LocDiT 12L | LLM backbone → Flow decoder → HiFT vocoder |
 | **ONNX models** | 4 (prefill, decode, vae_enc, vae_dec) | 14 (text_emb, llm_initial, llm_decode, flow, hift...) |
 | **Output SR** | 48 kHz (built-in super-resolution) | 24 kHz |
 | **RTF CPU** | **~7-10×** | **~18-44×** |
@@ -15,7 +15,7 @@
 | **ONNX WebGPU** | ⚠️ Works short, OOM medium+ | N/A |
 | **ONNX CUDA** | ❌ Missing cuDNN 9 | ❌ Missing cuDNN 9 |
 | **llama.cpp potential** | Low (DiT bottleneck, not LLM) | High (LLM is 56-63% time, Qwen2-based) |
-| **Code complexity** | Simpler (single model) | Complex (3-stage pipeline) |
+| **Code complexity** | Simpler (single model) | Complex (3-step pipeline) |
 
 ## Performance (CPU, same English texts)
 

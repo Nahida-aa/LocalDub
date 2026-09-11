@@ -260,7 +260,7 @@ function setupJs(nodeModules: string) {
 // ---------------------------------------------------------------------------
 
 interface CliConfig {
-	stages?: {
+	steps?: {
 		separate?: { runtime?: string };
 		tts?: { runtime?: string };
 		asr_ocr?: { runtime?: string };
@@ -268,9 +268,9 @@ interface CliConfig {
 }
 
 function setupSubmodules(config: CliConfig, venv: string) {
-	const sepRuntime = config.stages?.separate?.runtime;
-	const ttsRuntime = config.stages?.tts?.runtime;
-	const ocrRuntime = config.stages?.asr_ocr?.runtime;
+	const sepRuntime = config.steps?.separate?.runtime;
+	const ttsRuntime = config.steps?.tts?.runtime;
+	const ocrRuntime = config.steps?.asr_ocr?.runtime;
 
 	const needed: string[] = [];
 	if (sepRuntime === 'pytorch' || sepRuntime === 'ggml') {
@@ -900,7 +900,7 @@ function main() {
 	if (existsSync(configPath)) {
 		try {
 			config = JSON.parse(readFileSync(configPath, 'utf-8'));
-			log(`separate.runtime=${config.stages?.separate?.runtime}, tts.runtime=${config.stages?.tts?.runtime}, asr_ocr.runtime=${config.stages?.asr_ocr?.runtime}`, 'cyan');
+			log(`separate.runtime=${config.steps?.separate?.runtime}, tts.runtime=${config.steps?.tts?.runtime}, asr_ocr.runtime=${config.steps?.asr_ocr?.runtime}`, 'cyan');
 		} catch {
 			log('config.json 解析失败', 'yellow');
 		}
@@ -921,7 +921,7 @@ function main() {
 	setupSubmodules(config, venv);
 
 	// OCR C++ 编译：根据 runtime 选择编译目标
-	const ocrRuntime = config.stages?.asr_ocr?.runtime;
+	const ocrRuntime = config.steps?.asr_ocr?.runtime;
 
 	if (!skipOcr) {
 		if (ocrRuntime === 'ort-cpp') {

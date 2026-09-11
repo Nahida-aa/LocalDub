@@ -50,18 +50,18 @@ export const tStatus = (status: keyof typeof statusMap) => {
   return statusMap[status];
 };
 
-const stageMap = {
-  root: m.stage_root,
-  separate: m.stage_separate,
-  separate_after: m.stage_separate_after,
-  asr: m.stage_asr,
-  asr_ocr_pre: m.stage_asr_ocr_pre,
-  asr_ocr: m.stage_asr_ocr,
-  asr_ocr_fix: m.stage_asr_ocr_fix,
-  translate: m.stage_translate,
+const stepMap = {
+  root: m.step_root,
+  separate: m.step_separate,
+  separate_after: m.step_separate_after,
+  asr: m.step_asr,
+  asr_ocr_pre: m.step_asr_ocr_pre,
+  asr_ocr: m.step_asr_ocr,
+  asr_ocr_fix: m.step_asr_ocr_fix,
+  translate: m.step_translate,
 };
-export const tStep = (stage: keyof typeof stageMap) => {
-  return stageMap[stage];
+export const tStep = (step: keyof typeof stepMap) => {
+  return stepMap[step];
 };
 const identityTypeMap = {
   creator: m.identityType_creator,

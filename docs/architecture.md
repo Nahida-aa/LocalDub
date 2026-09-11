@@ -30,11 +30,11 @@ Input (YouTube/Bilibili/Local)
 ```
 backend/app/
 ├── main.py           # FastAPI entry + routes
-├── pipeline.py       # PipelineRunner: orchestrates 9 stages
-├── stages.py         # StepSpec definitions
+├── pipeline.py       # PipelineRunner: orchestrates 9 steps
+├── steps.py         # StepSpec definitions
 ├── worker.py         # Single-thread FIFO worker
 ├── config.py         # Paths & env vars
-├── database.py       # SQLite (tasks, task_stages, settings)
+├── database.py       # SQLite (tasks, task_steps, settings)
 ├── devices.py        # Per-component device selection
 ├── adapters/         # Model adapters
 │   ├── demucs.py         # Voice separation (CPU)
@@ -49,7 +49,7 @@ backend/app/
 
 ## TTS / Voice Cloning
 
-The TTS stage (stage 6) uses **VoxCPM2** (OpenBMB/VoxCPM2):
+The TTS step (step 6) uses **VoxCPM2** (OpenBMB/VoxCPM2):
 
 - **Runtime**: Python PyTorch (`voxcpm` PyPI package)
 - **Device**: CPU (GPU forward pass segfaults on RDNA 3)

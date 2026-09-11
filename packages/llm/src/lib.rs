@@ -1,7 +1,7 @@
 //! LLM 客户端 (镜像 TS `packages/core/ml/llm/openai.ts` 的 `chat_completions`)。
 //!
 //! 提供 OpenAI 兼容的 `/chat/completions` 同步调用, 供 sf_ocr_fix / asr_fix / translate
-//! 等 stage 的 LLM 修正使用。参数来源为各 stage 的 `LlmFixArgs` (llmModel / llmApiBase),
+//! 等 step 的 LLM 修正使用。参数来源为各 step 的 `LlmFixArgs` (llmModel / llmApiBase),
 //! 不依赖全局 env 单例 (与 Rust core 设计一致)。
 
 mod llm_fix_args;

@@ -23,16 +23,16 @@ export const setViewingTab = (tab?: StepTab | null) =>
 
 export const useRunningStep = () =>
   useSelector(workflowControlPanelStore, (state) => state.runningStep);
-export const setRunningStep = (stage?: StepTab | null) =>
+export const setRunningStep = (step?: StepTab | null) =>
   workflowControlPanelStore.setState((state) => ({
     ...state,
-    runningStep: stage ?? "root",
+    runningStep: step ?? "root",
   }));
 
 export const use_resumeFrom = () =>
   useSelector(workflowControlPanelStore, (state) => state.resumeFrom);
-export const set_resumeFrom = (stage?: StepName | null) =>
+export const set_resumeFrom = (step?: StepName | null) =>
   workflowControlPanelStore.setState((state) => ({
     ...state,
-    resumeFrom: stage,
+    resumeFrom: step,
   }));

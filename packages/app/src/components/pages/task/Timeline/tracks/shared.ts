@@ -7,7 +7,7 @@ export interface BaseTrackProps {
   pxPerMs: number;
   onSeek: (ms: number) => void;
   color: string;
-  workflowDir: string;
+  videoDir: string;
 }
 
 export function deleteAt(segments: TrackSegment[], index: number): TrackSegment[] {

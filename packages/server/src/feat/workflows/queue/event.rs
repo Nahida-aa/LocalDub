@@ -43,7 +43,7 @@ pub struct QueueEntry {
     pub input: Option<Input>,
     /// 展示: start/continue/import
     pub action: Option<String>,
-    /// 展示: start=url / continue|import=workflowDir
+    /// 展示: start=url / continue|import=videoDir
     pub target: Option<String>,
 }
 

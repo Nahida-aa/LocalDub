@@ -40,11 +40,11 @@ function toRelativePath(absOrRel: string): string {
 /// - 二进制(媒体)与 JSON 走不同刷新通道，这里只负责事件分发，不读内容。
 /// - 前端 debounce 200ms：同一路径在窗口内的多次事件合并为一次回调，
 ///   与后端 flush debounce 互补，避免流式写入时短暂抖动触发大量 invalidate/刷新。
-export function useWorkflowTreeEvents(workflowDir: string, handlers: WorkflowTreeHandlers) {
-  // 把 workflowDir 也转成相对形式，用于校验事件是否属于本任务（避免误伤其他任务）。
-  const baseRel = toRelativePath(workflowDir); // 形如 workfolder/group/workflow
+export function useWorkflowTreeEvents(videoDir: string, handlers: WorkflowTreeHandlers) {
+  // 把 videoDir 也转成相对形式，用于校验事件是否属于本任务（避免误伤其他任务）。
+  const baseRel = toRelativePath(videoDir); // 形如 workfolder/group/workflow
 
-  const cancel = consumeEventIterator<PathEvent>(fnrpc.watch_workflow_tree(workflowDir), {
+  const cancel = consumeEventIterator<PathEvent>(fnrpc.watch_workflow_tree(videoDir), {
     onEvent: (event) => {
       const rel = toRelativePath(event.path);
       // 只处理属于当前任务子树、且确实是文件变化的事件。

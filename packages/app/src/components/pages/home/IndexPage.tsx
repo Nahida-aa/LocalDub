@@ -111,7 +111,7 @@ export function IndexPage() {
                         <StatusBadge status={workflow.status} />
                         <span class="truncate">{workflow.id}</span>
                         <span class="text-xs text-muted-foreground">
-                          {workflow.current_stage || "—"}
+                          {workflow.current_step || "—"}
                         </span>
                         <span class="text-xs text-muted-foreground">
                           {timeAgo(workflow.completed_at || workflow.created_at)}

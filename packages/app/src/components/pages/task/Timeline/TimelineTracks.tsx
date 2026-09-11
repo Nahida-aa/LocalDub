@@ -16,7 +16,7 @@ interface Props {
   onSeek: (ms: number) => void;
   trackColor: (index: number, track: Track) => string;
   onScroll: () => void;
-  workflowDir?: string;
+  videoDir?: string;
 }
 
 interface TrackComponentProps {
@@ -25,7 +25,7 @@ interface TrackComponentProps {
   pxPerMs: number;
   onSeek: (ms: number) => void;
   color: string;
-  workflowDir: string;
+  videoDir: string;
 }
 
 const trackComponents: Record<string, Component<TrackComponentProps>> = {
@@ -92,7 +92,7 @@ export function TimelineTracks(props: Props) {
                 pxPerMs={props.pxPerMs}
                 onSeek={props.onSeek}
                 color={c}
-                workflowDir={props.workflowDir ?? ""}
+                videoDir={props.videoDir ?? ""}
               />
             );
           }}

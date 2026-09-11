@@ -1,7 +1,7 @@
 # Pipeline Architecture
 
 ```ts
-export const DUB_STAGES: StepSpec[] = [
+export const DUB_STEPS: StepSpec[] = [
   { name: "download", label: "Download" },
   { name: "separate", label: "Demucs" },
   { name: "asr", label: "Whisper" },
@@ -13,7 +13,7 @@ export const DUB_STAGES: StepSpec[] = [
   { name: "mix_video", label: "Merge video" },
 ];
 
-export const SUBTITLE_STAGES: StepSpec[] = [
+export const SUBTITLE_STEPS: StepSpec[] = [
   { name: "download", label: "Download" },
   { name: "separate", label: "Demucs" }, // 默认不是必须
   { name: "asr", label: "Whisper" },
@@ -101,7 +101,7 @@ flowchart
   │   ├── video_final.mp4         # [mix_video] dub output
   │   └── video_final_subtitle.mp4# [mix_video] subtitle output
   ├── metadata/
-  │   ├── local_info.json         # mode, languages, stage overrides
+  │   ├── local_info.json         # mode, languages, step overrides
   │   ├── ytdlp_info.json         # [download] video metadata (yt-dlp --dump-json)
   │   ├── asr.json                # [asr] raw Whisper output (segments + words)
   │   ├── asr_fix.json          # [asr_fix] padded sentence timings
@@ -139,7 +139,7 @@ From URL (yt-dlp) or local file (ffmpeg import).
 | -------------------------- | -------------------- | ---------------------------------- |
 | `media/video_source.mp4`   | ffmpeg/yt-dlp        | Transcoded MP4 (H.264 + AAC)       |
 | `metadata/ytdlp_info.json` | yt-dlp `--dump-json` | Title, description, uploader, etc. |
-| `metadata/local_info.json` | written by stage     | Title, source, mode, languages     |
+| `metadata/local_info.json` | written by step      | Title, source, mode, languages     |
 
 ---
 
@@ -203,15 +203,15 @@ Refine ASR timings — pad short segments, merge adjacent same-speaker segments.
 | ------------------- | ------ | ------------------ |
 | `metadata/asr.json` | asr    | Raw Whisper output |
 
-| Output                  | Destination      | Description                               |
-| ----------------------- | ---------------- | ----------------------------------------- |
-| `metadata/asr_fix.json` | written by stage | Same schema as `asr.json`, timings padded |
+| Output                  | Destination     | Description                               |
+| ----------------------- | --------------- | ----------------------------------------- |
+| `metadata/asr_fix.json` | written by step | Same schema as `asr.json`, timings padded |
 
 ---
 
 ### translate
 
-Translate ASR text via LLM (OpenAI-compatible API). 可跳过：`config.stages.translate.enabled = false` — 此时下游直接使用原文。
+Translate ASR text via LLM (OpenAI-compatible API). 可跳过：`config.steps.translate.enabled = false` — 此时下游直接使用原文。
 
 | Input                                | Source        | Description                                       |
 | ------------------------------------ | ------------- | ------------------------------------------------- |
@@ -255,7 +255,7 @@ Slice vocals WAV into per-segment reference clips using translation timings.
 | Output                       | Destination              | Description                                      |
 | ---------------------------- | ------------------------ | ------------------------------------------------ |
 | `segments/vocals/<NNNN>.wav` | ffmpeg `-ss -to -c copy` | Per-segment WAV clips (44 bytes for empty)       |
-| `metadata/timings.json`      | written by stage         | Segment timings with src/dst text                |
+| `metadata/timings.json`      | written by step          | Segment timings with src/dst text                |
 | (dir cleared on re-run)      |                          | If translation file is newer than existing clips |
 
 ---
@@ -290,7 +290,7 @@ Concatenate TTS segments into a continuous dubbing track with tempo adjustment a
 | Output                          | Destination       | Description                                  |
 | ------------------------------- | ----------------- | -------------------------------------------- |
 | `tmp/audio_dubbing.wav`         | ffmpeg concat     | Final dubbing audio track                    |
-| `metadata/timings.json`         | written by stage  | Updated timings with `actual_start/end_time` |
+| `metadata/timings.json`         | written by step   | Updated timings with `actual_start/end_time` |
 | `segments/stretched/<NNNN>.wav` | ffmpeg atempo     | Tempo-adjusted clips                         |
 | `tmp/silence_<N>.wav`           | ffmpeg `anullsrc` | Gap-filler silence                           |
 
@@ -322,7 +322,7 @@ Both modes produce an SRT subtitle file at `metadata/subtitles.<lang>.srt`.
 | -------------------------------- | ----------------- | ------------------------------------------ |
 | `media/video_final.mp4`          | ffmpeg (dub)      | H.264 video + dubbed audio + subtitles     |
 | `media/video_final_subtitle.mp4` | ffmpeg (subtitle) | H.264 video + original audio + burned subs |
-| `metadata/subtitles.<lang>.srt`  | written by stage  | Subtitle file (both modes)                 |
+| `metadata/subtitles.<lang>.srt`  | written by step   | Subtitle file (both modes)                 |
 | `tmp/audio_mixed.m4a`            | ffmpeg amix (dub) | Vocals (1.0) + BGM (0.30) mix              |
 
 ---
@@ -337,7 +337,7 @@ Both modes produce an SRT subtitle file at `metadata/subtitles.<lang>.srt`.
 | `url`              | text NOT NULL | Source URL                     | creation  |
 | `title`            | text?         | Video title                    | download  |
 | `status`           | text NOT NULL | pending/running/success/failed | pipeline  |
-| `current_stage`    | text?         | Currently executing stage      | pipeline  |
+| `current_step`     | text?         | Currently executing step       | pipeline  |
 | `task_dir`         | text?         | Relative path to session dir   | download  |
 | `final_video_path` | text?         | API path to output video       | mix_video |
 | `error_message`    | text?         | Failure reason                 | pipeline  |
@@ -345,7 +345,7 @@ Both modes produce an SRT subtitle file at `metadata/subtitles.<lang>.srt`.
 | `started_at`       | text?         | ISO timestamp                  | pipeline  |
 | `completed_at`     | text?         | ISO timestamp                  | pipeline  |
 
-### `task_stages` table
+### `task_steps` table
 
 Composite PK: `(task_id, name)`, FK → `tasks.id ON DELETE CASCADE`.
 

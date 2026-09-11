@@ -1,7 +1,7 @@
 //! `inputctl` — LocalDub `input.jsonc` / `input.json` 编辑/查询/校验工具。
 //!
 //! 解决 JSONC (带注释 + 尾随逗号) 难以用 `jq` / `python -m json` 安全修改的问题:
-//! - `get <path>`      读取字段 (如 `workflow.continueFrom`, `stages.tts.runtime`)
+//! - `get <path>`      读取字段 (如 `workflow.continueFrom`, `steps.tts.runtime`)
 //! - `set <path> <val>` 写入字段; 默认**保留 JSONC 注释/格式** (CST span 级替换),
 //!                       加 `--json` 则整体重写为标准 JSON (丢注释)
 //! - `validate`        用 ld_core::Input 反序列化 + .validate() 做宽松校验
@@ -59,7 +59,8 @@ fn set_non_preserving(
     path: &[String],
     value: &serde_json::Value,
 ) -> anyhow::Result<String> {
-    let mut doc = parse_jsonc(text).with_context(|| "解析 input JSON 失败 (非保留模式)".to_string())?;
+    let mut doc =
+        parse_jsonc(text).with_context(|| "解析 input JSON 失败 (非保留模式)".to_string())?;
     set_in_json(&mut doc, path, value)
         .with_context(|| format!("设置路径 {} 失败", path.join(".")))?;
     Ok(serde_json::to_string_pretty(&doc)?)
@@ -209,17 +210,17 @@ fn get_in_json(doc: &serde_json::Value, path: &[String]) -> anyhow::Result<serde
 fn usage() -> String {
     "\
 用法:
-  inputctl get <path>            读取字段 (如 workflow.continueFrom / stages.tts.runtime)
+  inputctl get <path>            读取字段 (如 workflow.continueFrom / steps.tts.runtime)
   inputctl set <path> <value>   写入字段 (默认保留 JSONC 注释/格式)
   inputctl set --json <path> <value>  写入并整体重写为标准 JSON (丢注释)
   inputctl validate             用 ld_core::Input 做宽松校验
   inputctl path                打印实际解析到的 input 文件路径
 
 示例:
-  inputctl get workflow.workflowDir
+  inputctl get workflow.videoDir
   inputctl set workflow.continueFrom mix_video
-  inputctl set stages.tts.runtime cloud
-  inputctl set stages.tts.regenIndices '[1,2,3]'
+  inputctl set steps.tts.runtime cloud
+  inputctl set steps.tts.regenIndices '[1,2,3]'
   inputctl validate
 "
     .to_string()
@@ -240,8 +241,8 @@ fn run() -> anyhow::Result<()> {
         }
         "validate" => {
             let p = resolve_input_path()?;
-            let input = parse_repo_input()
-                .with_context(|| format!("解析 input 失败: {}", p.display()))?;
+            let input =
+                parse_repo_input().with_context(|| format!("解析 input 失败: {}", p.display()))?;
             input
                 .validate()
                 .map_err(|e| anyhow!("input 校验失败: {e}"))?;

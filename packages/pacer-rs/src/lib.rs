@@ -3,7 +3,7 @@
 //! baseWait=1000 / maxWait=2000 / jitter=0.3).
 //!
 //! Deliberately blocking rather than async: all current call sites (gradio_client,
-//! stage_tts) run in a blocking environment such as spawn_blocking; an async variant
+//! step_tts) run in a blocking environment such as spawn_blocking; an async variant
 //! will be added later once async callers actually exist.
 //!
 //! ```

@@ -36,7 +36,7 @@ bun run run
       "device": "cuda"
     }
   },
-  "stages": {
+  "steps": {
     "translate": {
       "targetLang": "vi"
     },
@@ -50,18 +50,18 @@ bun run run
 
 ## 引擎说明
 
-| stage     | runtime                      | 说明                                                                      |
+| step     | runtime                      | 说明                                                                      |
 | --------- | ---------------------------- | ------------------------------------------------------------------------- |
 | separate  | `ort` / `pytorch`            | ort=onnxruntime-node(CPU), pytorch=Demucs Python 子进程(cuda/mps/cpu)     |
 | asr       | `faster-whisper` / `pytorch` | faster-whisper=CTranslate2, pytorch=openai-whisper                        |
 | tts       | `ort` / `pytorch` / `cloud`  | ort=onnxruntime-node,VoxCPM, pytorch=VoxCPM Python 子进程, cloud=远程 API |
 | translate | —                            | OpenAI 兼容 API，从环境变量读取                                           |
 
-## 阶段参数 (`stages`)
+## 阶段参数 (`steps`)
 
-每个 stage 的可选参数，与 `engines` 同层级。当前支持：
+每个 step 的可选参数，与 `engines` 同层级。当前支持：
 
-| stage       | 参数         | 类型           | 说明                                                                     |
+| step       | 参数         | 类型           | 说明                                                                     |
 | ----------- | ------------ | -------------- | ------------------------------------------------------------------------ |
 | `translate` | `targetLang` | string         | 目标语言，如 en, ja, vi；优先于 createTask.targetLang                    |
 | `mix_video` | `fontSize`   | number (1-200) | 字幕字号，不填则自动                                                     |
@@ -76,11 +76,11 @@ bun run run
 // 查看任务状态
 { "command": "taskStatus", "taskStatus": { "taskId": "xxx" } }
 
-// 从指定 stage 恢复
+// 从指定 step 恢复
 { "command": "resumeTask", "resumeTask": { "taskId": "xxx", "resumeFrom": "tts" } }
 
-// 重跑单个 stage
-{ "command": "rerunStep", "rerunStep": { "taskId": "xxx", "stageName": "tts" } }
+// 重跑单个 step
+{ "command": "rerunStep", "rerunStep": { "taskId": "xxx", "stepName": "tts" } }
 
 // 查看设备信息
 { "command": "deviceInfo" }

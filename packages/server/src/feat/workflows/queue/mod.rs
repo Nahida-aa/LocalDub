@@ -21,9 +21,9 @@ use std::sync::{Arc, Mutex};
 use ld_core::input::Input;
 
 use event::{
-    entry_action_target, parse_event, Checkpoint, QueueEvent, TerminalEntry, KEEP_TERMINAL,
+    Checkpoint, KEEP_TERMINAL, QueueEvent, TerminalEntry, entry_action_target, parse_event,
 };
-use persist::{append_event, write_checkpoint, ROTATE_BYTES};
+use persist::{ROTATE_BYTES, append_event, write_checkpoint};
 
 /// 事件折叠: 更新内存的活跃区与终态缓存 (重放与运行终态共用)。
 fn finish_entry(
@@ -399,13 +399,14 @@ impl WorkflowQueue {
     }
 }
 
-/// 队列任务的日志标识: start 用 url, continue/import 用 workflowDir。
+/// 队列任务的日志标识: start 用 url, continue/import 用 videoDir。
 fn entry_target(input: &Input) -> &str {
     let workflow = match input.workflow.as_ref() {
         Some(t) => t,
         None => return "-",
     };
-    workflow.url
+    workflow
+        .url
         .as_deref()
         .or(workflow.workflow_dir.as_deref())
         .unwrap_or("-")

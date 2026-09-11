@@ -287,7 +287,7 @@ pub fn auto_group_id_and_video_id(url: &str) -> anyhow::Result<AutoInfo> {
 
                 let workflow_dir = workfolder().join(&ret.group_id).join(&ret.video_id);
                 if let Err(e) = std::fs::create_dir_all(&workflow_dir) {
-                    warn!("[autoGroupIdAndVideoId] 创建 workflowDir 失败: {e}");
+                    warn!("[autoGroupIdAndVideoId] 创建 videoDir 失败: {e}");
                 } else if let Err(e) = std::fs::write(
                     workflow_dir.join("ytdlp_info.json"),
                     serde_json::to_string_pretty(&info).unwrap_or_default(),
@@ -503,11 +503,16 @@ pub fn run_yt_dlp_download(args: &[String]) -> anyhow::Result<String> {
     let argv: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
     let mut argv = argv;
     argv.push("--newline");
-    run_with_progress(&bin, &argv, "[下载] [{bar:30.cyan/blue}] {pos}% ({eta})", |line, pb| {
-        if let Some(pct) = parse_ytdlp_pct(line) {
-            pb.set_position(pct);
-        }
-    })
+    run_with_progress(
+        &bin,
+        &argv,
+        "[下载] [{bar:30.cyan/blue}] {pos}% ({eta})",
+        |line, pb| {
+            if let Some(pct) = parse_ytdlp_pct(line) {
+                pb.set_position(pct);
+            }
+        },
+    )
     .map_err(|e| {
         let msg = format!("{e}");
         let stderr = msg.split_once(": ").map(|(_, r)| r).unwrap_or(&msg);
@@ -748,9 +753,8 @@ mod tests {
 
     #[test]
     fn classify_ytdlp_cookie_expired() {
-        let msg = classify_ytdlp_error(
-            "ERROR: [youtube] abc: Sign in to confirm you're not a bot. ...",
-        );
+        let msg =
+            classify_ytdlp_error("ERROR: [youtube] abc: Sign in to confirm you're not a bot. ...");
         assert!(msg.contains("cookie"), "应为 cookie 提示: {msg}");
         assert!(msg.contains("command=cookie"), "应提示导出 cookie: {msg}");
     }
@@ -785,7 +789,10 @@ mod tests {
             Some(45)
         );
         assert_eq!(parse_ytdlp_pct("[download]  100% of 1.00MiB"), Some(100));
-        assert_eq!(parse_ytdlp_pct("[youtube] 2g63UXaynaA: Downloading webpage"), None);
+        assert_eq!(
+            parse_ytdlp_pct("[youtube] 2g63UXaynaA: Downloading webpage"),
+            None
+        );
         assert_eq!(parse_ytdlp_pct("[Merger] Merging formats into ..."), None);
     }
 
@@ -794,7 +801,10 @@ mod tests {
         // duration 60s = 60_000_000 us
         let dur = 60_000_000i64;
         assert_eq!(
-            parse_ffmpeg_pct("frame= 1200 fps= 30 q=28.0 size=   1024kB time=00:00:30.00 bitrate=...", dur),
+            parse_ffmpeg_pct(
+                "frame= 1200 fps= 30 q=28.0 size=   1024kB time=00:00:30.00 bitrate=...",
+                dur
+            ),
             Some(50)
         );
         // 12s / 60s = 20%
@@ -803,10 +813,7 @@ mod tests {
             Some(20)
         );
         // 超过时长 clamp 100
-        assert_eq!(
-            parse_ffmpeg_pct("time=00:01:10.00", dur),
-            Some(100)
-        );
+        assert_eq!(parse_ffmpeg_pct("time=00:01:10.00", dur), Some(100));
         // 非 time 行 → None
         assert_eq!(parse_ffmpeg_pct("frame= 100 fps= 30", dur), None);
         // duration 未知 (0) → None

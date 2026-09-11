@@ -18,12 +18,12 @@ import { TtsFile, TtsSegment } from "@repo/sdk/index";
 type Props = BaseTrackProps;
 
 export function TtsTrack(props: Props) {
-  const { workflowDir, pxPerMs, onSeek, color } = props;
+  const { videoDir, pxPerMs, onSeek, color } = props;
   const track = () => props.track;
   const { segments } = useTrackData({
-    workflowDir,
+    videoDir,
     trackId: track().id,
-    path: () => `${workflowDir}/tts/tts.json`,
+    path: () => `${videoDir}/tts/tts.json`,
     parse: (text) => {
       const data: TtsFile = JSON.parse(text);
       return (data.segments || []).map((item, i: number) => ({
@@ -43,7 +43,7 @@ export function TtsTrack(props: Props) {
     const raw = seg.raw as TtsSegment | undefined;
     if (!raw || raw.status === "error" || raw.status === "empty") return;
     const idx = String(segIndex + 1).padStart(4, "0");
-    const url = mediaUrl(`${workflowDir}/tts/wavs/${idx}.wav`);
+    const url = mediaUrl(`${videoDir}/tts/wavs/${idx}.wav`);
     const label = `#${segIndex + 1} ${seg.text}`;
 
     openModal(
@@ -91,7 +91,7 @@ export function TtsTrack(props: Props) {
   );
   const handleRegen = (segIndex: number, continueRun: boolean) => {
     if (regen.isPending) return;
-    regen.mutate([workflowDir, [segIndex + 1], continueRun]);
+    regen.mutate([videoDir, [segIndex + 1], continueRun]);
   };
 
   return (

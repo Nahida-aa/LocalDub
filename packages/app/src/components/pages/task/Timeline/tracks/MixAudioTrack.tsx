@@ -109,12 +109,12 @@ function deleteAt(segments: TrackSegment[], index: number): TrackSegment[] {
 }
 
 export function MixAudioTrack(props: Props) {
-  const { workflowDir, pxPerMs, onSeek, color } = props;
+  const { videoDir, pxPerMs, onSeek, color } = props;
   const track = () => props.track;
   const { segments } = useTrackData({
-    workflowDir,
+    videoDir,
     trackId: track().id,
-    path: () => `${workflowDir}/mix_audio/timings.json`,
+    path: () => `${videoDir}/mix_audio/timings.json`,
     parse: (text) => {
       const data: TimingsFile = JSON.parse(text);
       return (data.segments || []).map((item, i: number) => ({
@@ -127,13 +127,13 @@ export function MixAudioTrack(props: Props) {
     },
     label: () => "mix_audio/timings.json",
   });
-  const filePath = () => `${workflowDir}/mix_audio/timings.json`;
+  const filePath = () => `${videoDir}/mix_audio/timings.json`;
 
   const handlePlay = (segIndex: number) => {
     const seg = segments()[segIndex];
     if (!seg) return;
     const idx = String(segIndex + 1).padStart(4, "0");
-    const url = mediaUrl(`${workflowDir}/mix_audio/stretched/${idx}.wav`);
+    const url = mediaUrl(`${videoDir}/mix_audio/stretched/${idx}.wav`);
     const label = `#${segIndex + 1} ${seg.text}`;
 
     openModal(

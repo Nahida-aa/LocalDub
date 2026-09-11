@@ -7,6 +7,7 @@
 ## 结论：f290274 是完整干净基线
 
 实测确认 **`f290274`**：
+
 - 编辑 asr_ocr_fix → **不归零**
 - 上下文查询（get_task_ctx）刷新 → **不归零**
 - 硬刷新（冷启动）→ 轨道**稳定唯一**（TimelineTracks 用 `<For>`，无重复）
@@ -16,10 +17,12 @@
 ## bug 机制（已定位）
 
 滚动归零的触发条件，二者缺一不可：
+
 1. 轨道行 **remount（DOM 重建）**，且
 2. 重建链路导致滚动容器 scrollWidth/clientWidth 变化 → 浏览器把 scrollLeft clamp 到有效范围（回 0）
 
 历史上两种途径触发：
+
 - **A. 轨道组件内读取 shared query result（`useQuery` 并渲染 `.data`）** 组合 remount → 归零。
   - 仅订阅不读取（B 层）不归零；读取任意 shared query result 都会命中。
 - **B. 父层 `tracks()` 组装数组整体重建**（每查一次重建全部 track 对象 → `<For>` 全量重建轨道 DOM）→ 归零。
@@ -67,7 +70,7 @@
 
 不再由 `TaskDetailPage` 集中 7 个 query + 组装 `tracks()` 数组下发给 Timeline，改为：
 
-1. 父层只下发**稳定引用**的轨道定义（`id/label/color/filePath/stageName`，不含数据），按 `viewingTab` + `STAGE_TRACKS` + stage status 决定显示哪些行，`createMemo` + 按 id 缓存引用 → Timeline `<For>` item 引用不变 → **轨道行永不 remount**。
+1. 父层只下发**稳定引用**的轨道定义（`id/label/color/filePath/stepName`，不含数据），按 `viewingTab` + `STEP_TRACKS` + step status 决定显示哪些行，`createMemo` + 按 id 缓存引用 → Timeline `<For>` item 引用不变 → **轨道行永不 remount**。
 2. 各轨道组件（`AsrTrack` 等）内部 `useQuery(read_app_file_text, filePath)` + parse，mutation 后 invalidate 自己的 read key → 仅自身 rerender（行容器 `h-16` 固定，scrollWidth 不变）→ 无 clamp。
 3. 只读轨道（mix_audio_timings / split_audio_timings）用通用 `ReadOnlyFileTrack`。
 

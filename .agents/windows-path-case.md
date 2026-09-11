@@ -61,7 +61,7 @@ const LIB_PATH_KEY = getLibPathKey();
 | 文件 | 说明 |
 |------|------|
 | `packages/cli/src/ml/ocr/runtimes/ort-cpp.ts` | OCR OpenCV C++ 运行时 |
-| `packages/cli/src/feat/stages/asr/asr.ts` | ASR whisper.cpp 运行时 |
+| `packages/cli/src/feat/steps/asr/asr.ts` | ASR whisper.cpp 运行时 |
 
 ## 排查 checklist
 

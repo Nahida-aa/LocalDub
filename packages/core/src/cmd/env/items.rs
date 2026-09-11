@@ -12,8 +12,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use serde_json::json;
 use chrono;
+use serde_json::json;
 
 use config_rs::env::{openai_api_key, openai_base_url};
 use config_rs::path::models::{bin_dir, demucs_model_dir, voxcpm_model_dir, whisper_model_dir};
@@ -917,7 +917,9 @@ fn release_bin_url(spec: &ReleaseBinSpec, asset: &str) -> String {
 /// 读取版本戳
 fn read_version_stamp(path: &Path) -> Option<serde_json::Value> {
     if path.exists() {
-        std::fs::read_to_string(path).ok().and_then(|s| serde_json::from_str(&s).ok())
+        std::fs::read_to_string(path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
     } else {
         None
     }
@@ -987,7 +989,11 @@ fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
     #[cfg(target_os = "linux")]
     {
         let bin_dir = bin_dir();
-        let lib_path = format!("{}:{}", bin_dir.display(), std::env::var("LD_LIBRARY_PATH").unwrap_or_default());
+        let lib_path = format!(
+            "{}:{}",
+            bin_dir.display(),
+            std::env::var("LD_LIBRARY_PATH").unwrap_or_default()
+        );
         let mut cmd = Command::new("ldd");
         cmd.arg(path.as_os_str()).env("LD_LIBRARY_PATH", &lib_path);
         cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -1011,8 +1017,14 @@ fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
 
     // 版本戳校验
     let stamp = read_version_stamp(&release_version_path(spec));
-    let tag_ok = stamp.as_ref().and_then(|v| v.get("tag").and_then(|t| t.as_str())) == Some(spec.tag);
-    let sha_ok = stamp.as_ref().and_then(|v| v.get("sha256").and_then(|s| s.as_str())) == Some(sha256);
+    let tag_ok = stamp
+        .as_ref()
+        .and_then(|v| v.get("tag").and_then(|t| t.as_str()))
+        == Some(spec.tag);
+    let sha_ok = stamp
+        .as_ref()
+        .and_then(|v| v.get("sha256").and_then(|s| s.as_str()))
+        == Some(sha256);
 
     if !tag_ok || !sha_ok {
         let missing = match (tag_ok, sha_ok) {
@@ -1064,7 +1076,8 @@ fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
 
     let client = match reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
-        .build() {
+        .build()
+    {
         Ok(c) => c,
         Err(e) => {
             return CheckResult {
@@ -1371,7 +1384,8 @@ mod tests {
         let file = std::fs::File::create(zip_path).map_err(|e| e.to_string())?;
         let mut zw = zip::ZipWriter::new(file);
         for (name, data) in entries {
-            zw.start_file(*name, FileOptions::default()).map_err(|e| e.to_string())?;
+            zw.start_file(*name, FileOptions::default())
+                .map_err(|e| e.to_string())?;
             zw.write_all(data).map_err(|e| e.to_string())?;
         }
         zw.finish().map_err(|e| e.to_string())?;
@@ -1412,7 +1426,11 @@ mod tests {
         let dir = tmp_dir("escape");
         let zip_path = dir.join("b.zip");
         // 含 ../ 或绝对路径的条目: file_name() 会剥离目录前缀, 只平铺 basename, 无法逃逸。
-        write_zip(&zip_path, &[("../../evil.exe", b"evil"), ("/abs/path.dll", b"abs")]).unwrap();
+        write_zip(
+            &zip_path,
+            &[("../../evil.exe", b"evil"), ("/abs/path.dll", b"abs")],
+        )
+        .unwrap();
 
         extract_zip_flat(&dir, &zip_path).unwrap();
         // 全部落在目标目录内, 没有逃逸到临时目录上层
@@ -1430,7 +1448,10 @@ mod tests {
         // basename 就是 .. (如条目名 "..") → 拒绝
         write_zip(&zip_path, &[("..", b"x")]).unwrap();
         let err = extract_zip_flat(&dir, &zip_path).unwrap_err();
-        assert!(err.contains("zip 条目非法"), "应拒绝 => basename, got: {err}");
+        assert!(
+            err.contains("zip 条目非法"),
+            "应拒绝 => basename, got: {err}"
+        );
     }
 
     #[test]
@@ -1441,7 +1462,10 @@ mod tests {
         write_zip(&zip_path, &[("subtitle-ocr.exe", b"fresh")]).unwrap();
 
         extract_zip_flat(&dir, &zip_path).unwrap();
-        assert_eq!(std::fs::read(dir.join("subtitle-ocr.exe")).unwrap(), b"fresh");
+        assert_eq!(
+            std::fs::read(dir.join("subtitle-ocr.exe")).unwrap(),
+            b"fresh"
+        );
     }
 
     #[test]

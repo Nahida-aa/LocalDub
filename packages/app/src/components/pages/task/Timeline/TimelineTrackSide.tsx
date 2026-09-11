@@ -6,7 +6,7 @@ interface Props {
   ref: (el: HTMLDivElement) => void;
   tracks: Track[];
   trackColor: (index: number, track: Track) => string;
-  workflowDir: string;
+  videoDir: string;
 }
 
 export function TimelineTrackSide(props: Props) {
@@ -19,7 +19,7 @@ export function TimelineTrackSide(props: Props) {
       <div ref={props.ref} class="flex-1 overflow-y-auto overflow-x-hidden">
         <For each={props.tracks}>
           {(track, i) => {
-            const m = () => meta()[`${props.workflowDir}/${track.id}`];
+            const m = () => meta()[`${props.videoDir}/${track.id}`];
             const show = () => !!m()?.present;
             const label = () => m()?.label ?? track.label;
             return (
