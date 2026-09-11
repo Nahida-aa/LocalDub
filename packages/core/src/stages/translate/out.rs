@@ -14,9 +14,9 @@ pub struct TranslateSegment {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dst_lang: Option<String>,
     /// 段起点 (ms)
-    pub start_ms: u64,
+    pub start_ms: u32,
     /// 段终点 (ms)
-    pub end_ms: u64,
+    pub end_ms: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub speaker: Option<String>,
 }
@@ -58,8 +58,8 @@ pub struct TranslatePartialSegment {
     pub src_lang: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dst_lang: Option<String>,
-    pub start_ms: u64,
-    pub end_ms: u64,
+    pub start_ms: u32,
+    pub end_ms: u32,
     /// 所属 batch 索引 (0-based)
     #[serde(default)]
     pub batch_index: usize,

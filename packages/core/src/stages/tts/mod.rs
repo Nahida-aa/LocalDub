@@ -232,8 +232,8 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
             }
         }
 
-        let start_ms = item.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0);
-        let end_ms = item.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0);
+        let start_ms = item.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+        let end_ms = item.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
         let text = item
             .get("dst")
             .and_then(|t| t.as_str())
@@ -289,8 +289,8 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
                     timing: crate::stages::split_audio::out::SplitAudioTiming {
                         seg_idx: (i + 1) as u32,
                         text: item_text.clone(),
-                        start_ms,
-                        end_ms: start_ms + dur,
+                        start_ms: start_ms as u32,
+                        end_ms: start_ms + dur as u32,
                         dst: text.clone(),
                         src_lang: item
                             .get("src_lang")
@@ -307,7 +307,7 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
                         text_confidence: None,
                     },
                     slot_end_ms: end_ms,
-                    tts_duration_ms: dur,
+                    tts_duration_ms: dur as u32,
                     status: "skipped".to_string(),
                 });
                 continue;
@@ -525,7 +525,7 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
                 seg_idx: (i + 1) as u32,
                 text: item_text.clone(),
                 start_ms,
-                end_ms: start_ms + tts_duration,
+                end_ms: start_ms + tts_duration as u32,
                 dst: text.clone(),
                 src_lang: item
                     .get("src_lang")
@@ -542,7 +542,7 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
                 text_confidence: None,
             },
             slot_end_ms: end_ms,
-            tts_duration_ms: tts_duration,
+            tts_duration_ms: tts_duration as u32,
             status: "success".to_string(),
         });
     }

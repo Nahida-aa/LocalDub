@@ -519,8 +519,8 @@ pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
                 .unwrap_or_default(),
             src_lang: Some(src_lang.clone()),
             dst_lang: Some(target_lang.clone()),
-            start_ms: u.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0),
-            end_ms: u.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0),
+            start_ms: u.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+            end_ms: u.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
             speaker: None,
         })
         .collect();
@@ -602,12 +602,12 @@ fn write_partial(
                     .get(gi)
                     .and_then(|u| u.get("start_ms"))
                     .and_then(|v| v.as_u64())
-                    .unwrap_or(0),
+                    .unwrap_or(0) as u32,
                 end_ms: srt_segments
                     .get(gi)
                     .and_then(|u| u.get("end_ms"))
                     .and_then(|v| v.as_u64())
-                    .unwrap_or(0),
+                    .unwrap_or(0) as u32,
                 batch_index: bi,
                 missing,
             }

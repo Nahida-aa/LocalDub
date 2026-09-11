@@ -183,7 +183,7 @@ fn build_meta_prompt(segs: &[SrtSeg], title: Option<&str>) -> String {
 }
 
 /// 毫秒 → `MM:SS` (如 81200 → 01:21)。
-fn format_ts(ms: u64) -> String {
+fn format_ts(ms: u32) -> String {
     let total = ms / 1000;
     let mm = total / 60;
     let ss = total % 60;

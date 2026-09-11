@@ -708,7 +708,7 @@ export type ModelServerStatus_Deserialize = {
 	status: ServerRunState,
 	/**  探测到的端口; 无 mDNS 实例时为 `None`。 */
 	port?: number | null,
-	uptime_s: bigint,
+	uptime_s: number,
 	models: { [key in string]: ModelStatus },
 	message?: string | null,
 };
@@ -720,7 +720,7 @@ export type ModelServerStatus_Serialize = {
 	status: ServerRunState,
 	/**  探测到的端口; 无 mDNS 实例时为 `None`。 */
 	port: number | null,
-	uptime_s: bigint,
+	uptime_s: number,
 	models: { [key in string]: ModelStatus },
 	message: string | null,
 };
@@ -1215,9 +1215,9 @@ export type SplitAudioArgs_Deserialize = {
 	/**  是否启用静音检测对齐: 修正 segments 前后静音导致的偏移 */
 	vadAlign?: boolean,
 	/**  段落切块前缘 padding (ms), 避免语音被截断 */
-	startPadMs?: bigint,
+	startPadMs?: number,
 	/**  段落切块后缘 padding (ms), 避免语音被截断 */
-	endPadMs?: bigint,
+	endPadMs?: number,
 	/**  人声文件路径, 调试使用 */
 	vocalsFilePath?: string | null,
 	/**  原始视频音频路径, 调试使用 */
@@ -1239,9 +1239,9 @@ export type SplitAudioArgs_Serialize = {
 	/**  是否启用静音检测对齐: 修正 segments 前后静音导致的偏移 */
 	vadAlign: boolean,
 	/**  段落切块前缘 padding (ms), 避免语音被截断 */
-	startPadMs: bigint,
+	startPadMs: number,
 	/**  段落切块后缘 padding (ms), 避免语音被截断 */
-	endPadMs: bigint,
+	endPadMs: number,
 	/**  人声文件路径, 调试使用 */
 	vocalsFilePath: string | null,
 	/**  原始视频音频路径, 调试使用 */
@@ -1254,17 +1254,17 @@ export type SplitAudioSegment = SplitAudioSegment_Serialize | SplitAudioSegment_
 /**  切分片段 (镜像 TS `SplitAudioSegment` = SplitAudioTiming + split bounds) */
 export type SplitAudioSegment_Deserialize = {
 	/**  padSegments 切分音频的起点 */
-	split_start_ms: bigint,
+	split_start_ms: number,
 	/**  padSegments 切分音频的终点 */
-	split_end_ms: bigint,
+	split_end_ms: number,
 } & SplitAudioTiming_Deserialize;
 
 /**  切分片段 (镜像 TS `SplitAudioSegment` = SplitAudioTiming + split bounds) */
 export type SplitAudioSegment_Serialize = {
 	/**  padSegments 切分音频的起点 */
-	split_start_ms: bigint,
+	split_start_ms: number,
 	/**  padSegments 切分音频的终点 */
-	split_end_ms: bigint,
+	split_end_ms: number,
 } & SplitAudioTiming_Serialize;
 
 /**  意图时序片段 (镜像 TS `SplitAudioTiming`, 继承 TranslateSegment + SubtitleSegment) */
@@ -1274,8 +1274,8 @@ export type SplitAudioTiming = SplitAudioTiming_Serialize | SplitAudioTiming_Des
 export type SplitAudioTiming_Deserialize = {
 	seg_idx: number,
 	text: string,
-	start_ms: bigint,
-	end_ms: bigint,
+	start_ms: number,
+	end_ms: number,
 	text_confidence?: number | null,
 	dst: string,
 	src_lang?: string | null,
@@ -1287,8 +1287,8 @@ export type SplitAudioTiming_Deserialize = {
 export type SplitAudioTiming_Serialize = {
 	seg_idx: number,
 	text: string,
-	start_ms: bigint,
-	end_ms: bigint,
+	start_ms: number,
+	end_ms: number,
 	text_confidence?: number | null,
 	dst: string,
 	src_lang?: string,
@@ -1548,45 +1548,45 @@ export type Timing = Timing_Serialize | Timing_Deserialize;
 /**  单段对齐时序 (镜像 TS `Timing` = SplitAudioTiming + 对齐字段)。 */
 export type Timing_Deserialize = {
 	/**  原始时间槽长度 (end - start) */
-	original_duration_ms: bigint,
+	original_duration_ms: number,
 	/**  TTS 生成的音频时长 */
-	tts_duration_ms: bigint,
+	tts_duration_ms: number,
 	/**  去尾静音 + rubberband 拉伸后时长 */
-	stretched_duration_ms: bigint,
+	stretched_duration_ms: number,
 	/**  加速 (拉伸) 比例 (>1.0 = 加速) */
 	stretch_ratio: number | null,
 	/**  drift 累加 (ms) */
-	drift_ms: bigint,
+	drift_ms: number,
 	/**  从前面间隙借的时间 (实际比 start 提前) */
-	advance_ms: bigint,
+	advance_ms: number,
 	/**  从后面间隙借的时间 (实际比 end 延后) */
-	delay_ms: bigint,
+	delay_ms: number,
 	/**  实际开始时间 (考虑了 advance) */
-	actual_start: bigint,
+	actual_start: number,
 	/**  实际结束时间 (考虑了 delay) */
-	actual_end: bigint,
+	actual_end: number,
 } & SplitAudioTiming_Deserialize;
 
 /**  单段对齐时序 (镜像 TS `Timing` = SplitAudioTiming + 对齐字段)。 */
 export type Timing_Serialize = {
 	/**  原始时间槽长度 (end - start) */
-	original_duration_ms: bigint,
+	original_duration_ms: number,
 	/**  TTS 生成的音频时长 */
-	tts_duration_ms: bigint,
+	tts_duration_ms: number,
 	/**  去尾静音 + rubberband 拉伸后时长 */
-	stretched_duration_ms: bigint,
+	stretched_duration_ms: number,
 	/**  加速 (拉伸) 比例 (>1.0 = 加速) */
 	stretch_ratio: number | null,
 	/**  drift 累加 (ms) */
-	drift_ms: bigint,
+	drift_ms: number,
 	/**  从前面间隙借的时间 (实际比 start 提前) */
-	advance_ms: bigint,
+	advance_ms: number,
 	/**  从后面间隙借的时间 (实际比 end 延后) */
-	delay_ms: bigint,
+	delay_ms: number,
 	/**  实际开始时间 (考虑了 advance) */
-	actual_start: bigint,
+	actual_start: number,
 	/**  实际结束时间 (考虑了 delay) */
-	actual_end: bigint,
+	actual_end: number,
 } & SplitAudioTiming_Serialize;
 
 /**  `mix_audio/timings.json` (镜像 TS `TimingsFile`)。 */
@@ -1685,9 +1685,9 @@ export type TranslateSegment_Deserialize = {
 	src_lang?: string | null,
 	dst_lang?: string | null,
 	/**  段起点 (ms) */
-	start_ms: bigint,
+	start_ms: number,
 	/**  段终点 (ms) */
-	end_ms: bigint,
+	end_ms: number,
 	speaker?: string | null,
 };
 
@@ -1700,9 +1700,9 @@ export type TranslateSegment_Serialize = {
 	src_lang?: string,
 	dst_lang?: string,
 	/**  段起点 (ms) */
-	start_ms: bigint,
+	start_ms: number,
 	/**  段终点 (ms) */
-	end_ms: bigint,
+	end_ms: number,
 	speaker?: string,
 };
 
@@ -1783,9 +1783,9 @@ export type TtsSegment = TtsSegment_Serialize | TtsSegment_Deserialize;
 /**  单条 TTS 段 (镜像 TS `TtsSegment` = SplitAudioTiming + tts 字段)。 */
 export type TtsSegment_Deserialize = {
 	/**  split_audio end_ms (原始槽位终点, 参考) */
-	slot_end_ms: bigint,
+	slot_end_ms: number,
 	/**  TTS 生成音频时长 */
-	tts_duration_ms: bigint,
+	tts_duration_ms: number,
 	/**  状态: success / skipped / error / empty */
 	status: string,
 } & SplitAudioTiming_Deserialize;
@@ -1793,9 +1793,9 @@ export type TtsSegment_Deserialize = {
 /**  单条 TTS 段 (镜像 TS `TtsSegment` = SplitAudioTiming + tts 字段)。 */
 export type TtsSegment_Serialize = {
 	/**  split_audio end_ms (原始槽位终点, 参考) */
-	slot_end_ms: bigint,
+	slot_end_ms: number,
 	/**  TTS 生成音频时长 */
-	tts_duration_ms: bigint,
+	tts_duration_ms: number,
 	/**  状态: success / skipped / error / empty */
 	status: string,
 } & SplitAudioTiming_Serialize;

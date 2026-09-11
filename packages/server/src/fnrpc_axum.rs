@@ -17,7 +17,7 @@ static START: OnceLock<Instant> = OnceLock::new();
 /// `probe_server_status` / `cli servers status` 探测)。主服务器本身无模型,
 /// `models` 为空; uptime 用进程启动时刻。
 async fn status_handler() -> axum::Json<ModelServerStatus> {
-    let uptime_s = START.get().map(|t| t.elapsed().as_secs()).unwrap_or(0);
+    let uptime_s = START.get().map(|t| t.elapsed().as_secs()).unwrap_or(0) as u32;
     axum::Json(ModelServerStatus {
         host: Some("127.0.0.1".to_string()),
         status: ServerRunState::Running,

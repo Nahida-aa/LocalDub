@@ -17,10 +17,10 @@ pub struct SplitAudioArgs {
     pub vad_align: bool,
     /// 段落切块前缘 padding (ms), 避免语音被截断
     #[serde(default = "default_start_pad_ms")]
-    pub start_pad_ms: u64,
+    pub start_pad_ms: u32,
     /// 段落切块后缘 padding (ms), 避免语音被截断
     #[serde(default = "default_end_pad_ms")]
-    pub end_pad_ms: u64,
+    pub end_pad_ms: u32,
     /// 人声文件路径, 调试使用
     pub vocals_file_path: Option<String>,
     /// 原始视频音频路径, 调试使用
@@ -39,10 +39,10 @@ impl Default for SplitAudioArgs {
     }
 }
 
-fn default_start_pad_ms() -> u64 {
+fn default_start_pad_ms() -> u32 {
     100
 }
 
-fn default_end_pad_ms() -> u64 {
+fn default_end_pad_ms() -> u32 {
     300
 }

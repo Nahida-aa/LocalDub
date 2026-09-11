@@ -2,8 +2,8 @@
 
 /// 带时间轴的段 (至少需要 start/end)。
 pub trait SegmentBounds {
-    fn start_ms(&self) -> u64;
-    fn end_ms(&self) -> u64;
+    fn start_ms(&self) -> u32;
+    fn end_ms(&self) -> u32;
 }
 
 /// 给各段时间轴加前后 padding (默认前 100ms / 后 300ms), 避免切块时把语音截断。
@@ -15,16 +15,16 @@ pub trait SegmentBounds {
 /// 返回带 `split_start_ms` / `split_end_ms` 的新 Vec, 不修改原数组。
 pub fn pad_segments<T: SegmentBounds>(
     segments: &[T],
-    start_pad: u64,
-    end_pad: u64,
-) -> Vec<(u64, u64)> {
+    start_pad: u32,
+    end_pad: u32,
+) -> Vec<(u32, u32)> {
     if segments.is_empty() {
         return Vec::new();
     }
-    let min_gap: u64 = 50;
+    let min_gap: u32 = 50;
     let total = start_pad + end_pad;
 
-    let start_pad_at = |idx: usize| -> u64 {
+    let start_pad_at = |idx: usize| -> u32 {
         let orig = segments[idx].start_ms();
         if idx == 0 {
             return orig.saturating_sub(start_pad);
@@ -41,7 +41,7 @@ pub fn pad_segments<T: SegmentBounds>(
         prev_end + gap / 2
     };
 
-    let end_pad_at = |idx: usize| -> u64 {
+    let end_pad_at = |idx: usize| -> u32 {
         let orig = segments[idx].end_ms();
         if idx == segments.len() - 1 {
             return orig + end_pad;
@@ -74,14 +74,14 @@ mod tests {
     use super::*;
 
     struct Seg {
-        s: u64,
-        e: u64,
+        s: u32,
+        e: u32,
     }
     impl SegmentBounds for Seg {
-        fn start_ms(&self) -> u64 {
+        fn start_ms(&self) -> u32 {
             self.s
         }
-        fn end_ms(&self) -> u64 {
+        fn end_ms(&self) -> u32 {
             self.e
         }
     }

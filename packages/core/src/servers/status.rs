@@ -55,7 +55,7 @@ pub struct ModelServerStatus {
     pub status: ServerRunState,
     /// 探测到的端口; 无 mDNS 实例时为 `None`。
     pub port: Option<u16>,
-    pub uptime_s: u64,
+    pub uptime_s: u32,
     pub models: HashMap<String, ModelStatus>,
     pub message: Option<String>,
 }

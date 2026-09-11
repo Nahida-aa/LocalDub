@@ -14,7 +14,7 @@ use std::path::Path;
 use tracing::info;
 
 const SPLIT_PAT: &str = r"[，,。！？.!?]";
-const MIN_SUB_DUR: u64 = 800;
+const MIN_SUB_DUR: u32 = 800;
 
 /// Find word indices where seg.text contains spaces (e.g. "陆 陆直循").
 fn find_space_splits(text: &str, words: &[crate::stages::asr::out::AsrWord]) -> Vec<usize> {
@@ -66,8 +66,8 @@ struct AsrSplitResultMeta {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SubtitleSegment {
     pub text: String,
-    pub start_ms: u64,
-    pub end_ms: u64,
+    pub start_ms: u32,
+    pub end_ms: u32,
 }
 
 /// Split long ASR segments by punctuation using word-level timestamps.
@@ -244,7 +244,7 @@ pub fn stage_asr_ocr_pre(ctx: &TaskCtx) -> Result<()> {
         } else {
             let mut t = (seg.end_ms as f64).round() as u64;
             let start = seg.start_ms;
-            while t >= start {
+            while t >= start as u64 {
                 all_timestamps.insert(t);
                 if t < regular_step_ms {
                     break;
@@ -310,7 +310,7 @@ mod tests {
     use super::*;
     use crate::stages::asr::out::AsrWord;
 
-    fn make_asr_seg(text: &str, start: u64, end: u64, words: Option<Vec<AsrWord>>) -> AsrSegment {
+    fn make_asr_seg(text: &str, start: u32, end: u32, words: Option<Vec<AsrWord>>) -> AsrSegment {
         AsrSegment {
             text: text.into(),
             start_ms: start,

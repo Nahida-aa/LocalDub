@@ -10,9 +10,9 @@ pub struct TtsSegment {
     #[serde(flatten)]
     pub timing: SplitAudioTiming,
     /// split_audio end_ms (原始槽位终点, 参考)
-    pub slot_end_ms: u64,
+    pub slot_end_ms: u32,
     /// TTS 生成音频时长
-    pub tts_duration_ms: u64,
+    pub tts_duration_ms: u32,
     /// 状态: success / skipped / error / empty
     pub status: String,
 }

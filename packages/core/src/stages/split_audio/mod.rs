@@ -44,10 +44,10 @@ pub fn read_args(ctx: &TaskCtx) -> SplitAudioArgs {
 
 /// SplitAudioTiming 实现 SegmentBounds (pad_segments 用 start/end)。
 impl SegmentBounds for SplitAudioTiming {
-    fn start_ms(&self) -> u64 {
+    fn start_ms(&self) -> u32 {
         self.start_ms
     }
-    fn end_ms(&self) -> u64 {
+    fn end_ms(&self) -> u32 {
         self.end_ms
     }
 }
@@ -125,8 +125,8 @@ pub fn stage_split_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
                     .and_then(|t| t.as_str())
                     .unwrap_or("")
                     .to_string(),
-                start_ms: seg.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0),
-                end_ms: seg.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0),
+                start_ms: seg.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                end_ms: seg.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
                 dst: seg
                     .get("dst")
                     .and_then(|t| t.as_str())
@@ -160,8 +160,8 @@ pub fn stage_split_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
                 SplitAudioTiming {
                     seg_idx: (i + 1) as u32,
                     text: text.clone(),
-                    start_ms: seg.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0),
-                    end_ms: seg.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0),
+                    start_ms: seg.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                    end_ms: seg.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
                     dst: text, // 未翻译时 dst 直接用原文
                     src_lang: Some(src_lang.clone()),
                     dst_lang: Some(src_lang.clone()),
@@ -234,8 +234,8 @@ pub fn stage_split_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
                 tracing::info!("#{} invalid ({} >= {}), empty wav", i + 1, start_ms, end_ms);
                 continue;
             }
-            let start = start_ms;
-            let end = total_ms.min(end_ms);
+            let start = start_ms as u64;
+            let end = total_ms.min(end_ms as u64);
             if end <= start {
                 fs::write(&out_path, vec![0u8; 44]).ok();
                 continue;

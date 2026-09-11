@@ -10,23 +10,23 @@ pub struct Timing {
     #[serde(flatten)]
     pub timing: SplitAudioTiming,
     /// 原始时间槽长度 (end - start)
-    pub original_duration_ms: u64,
+    pub original_duration_ms: u32,
     /// TTS 生成的音频时长
-    pub tts_duration_ms: u64,
+    pub tts_duration_ms: u32,
     /// 去尾静音 + rubberband 拉伸后时长
-    pub stretched_duration_ms: u64,
+    pub stretched_duration_ms: u32,
     /// 加速 (拉伸) 比例 (>1.0 = 加速)
     pub stretch_ratio: f64,
     /// drift 累加 (ms)
-    pub drift_ms: i64,
+    pub drift_ms: i32,
     /// 从前面间隙借的时间 (实际比 start 提前)
-    pub advance_ms: u64,
+    pub advance_ms: u32,
     /// 从后面间隙借的时间 (实际比 end 延后)
-    pub delay_ms: u64,
+    pub delay_ms: u32,
     /// 实际开始时间 (考虑了 advance)
-    pub actual_start: u64,
+    pub actual_start: u32,
     /// 实际结束时间 (考虑了 delay)
-    pub actual_end: u64,
+    pub actual_end: u32,
 }
 
 /// `mix_audio/timings.json` (镜像 TS `TimingsFile`)。

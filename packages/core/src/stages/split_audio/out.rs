@@ -12,8 +12,8 @@ pub struct TranslateResultMeta {
 pub struct SplitAudioTiming {
     pub seg_idx: u32,
     pub text: String,
-    pub start_ms: u64,
-    pub end_ms: u64,
+    pub start_ms: u32,
+    pub end_ms: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text_confidence: Option<f64>,
     pub dst: String,
@@ -31,9 +31,9 @@ pub struct SplitAudioSegment {
     #[serde(flatten)]
     pub timing: SplitAudioTiming,
     /// padSegments 切分音频的起点
-    pub split_start_ms: u64,
+    pub split_start_ms: u32,
     /// padSegments 切分音频的终点
-    pub split_end_ms: u64,
+    pub split_end_ms: u32,
 }
 
 /// `split_audio/split_audio.json` (padSegments 后时序 + meta)

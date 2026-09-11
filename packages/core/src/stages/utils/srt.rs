@@ -8,19 +8,19 @@ use std::path::Path;
 /// 单条 SRT 输入 (调用方负责从各 stage 结果映射到该结构)。
 #[derive(Debug, Clone)]
 pub struct SrtSeg {
-    pub start_ms: u64,
-    pub end_ms: u64,
+    pub start_ms: u32,
+    pub end_ms: u32,
     /// 翻译后文本 (优先); use_source=true 时改用 source
     pub dst: String,
     /// 原文 (use_source 时使用)
     pub text: String,
     /// 实际开始/结束时间 (Timing 携带, 覆盖 start_ms/end_ms)
-    pub actual_start: Option<u64>,
-    pub actual_end: Option<u64>,
+    pub actual_start: Option<u32>,
+    pub actual_end: Option<u32>,
 }
 
 /// 毫秒 → SRT 时间 `HH:MM:SS,mmm` (镜像 TS `srtTime`)。
-fn srt_time(ms: u64) -> String {
+fn srt_time(ms: u32) -> String {
     let total_secs = ms / 1000;
     let hh = total_secs / 3600;
     let mm = (total_secs % 3600) / 60;
@@ -155,16 +155,16 @@ fn is_srt_time(t: &str) -> bool {
     hh.is_some() && mm.is_some() && ss.is_some() && ms.is_some() && ms.unwrap() < 1000
 }
 
-fn parse_srt_time(t: &str) -> u64 {
+fn parse_srt_time(t: &str) -> u32 {
     let parts: Vec<&str> = t.split(':').collect();
     if parts.len() != 3 {
         return 0;
     }
-    let h: u64 = parts[0].parse().unwrap_or(0);
-    let m: u64 = parts[1].parse().unwrap_or(0);
+    let h: u32 = parts[0].parse().unwrap_or(0);
+    let m: u32 = parts[1].parse().unwrap_or(0);
     let rest: Vec<&str> = parts[2].split(',').collect();
-    let s: u64 = rest.first().and_then(|x| x.parse().ok()).unwrap_or(0);
-    let ms: u64 = rest.get(1).and_then(|x| x.parse().ok()).unwrap_or(0);
+    let s: u32 = rest.first().and_then(|x| x.parse().ok()).unwrap_or(0);
+    let ms: u32 = rest.get(1).and_then(|x| x.parse().ok()).unwrap_or(0);
     (h * 3600 + m * 60 + s) * 1000 + ms
 }
 
@@ -173,7 +173,7 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    fn seg(start: u64, end: u64, dst: &str, text: &str) -> SrtSeg {
+    fn seg(start: u32, end: u32, dst: &str, text: &str) -> SrtSeg {
         SrtSeg {
             start_ms: start,
             end_ms: end,

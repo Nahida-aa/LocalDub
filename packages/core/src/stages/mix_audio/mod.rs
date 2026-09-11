@@ -243,8 +243,8 @@ pub fn stage_mix_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
             timing: crate::stages::split_audio::out::SplitAudioTiming {
                 seg_idx: (i + 1) as u32,
                 text,
-                start_ms,
-                end_ms,
+                start_ms: start_ms as u32,
+                end_ms: end_ms as u32,
                 dst: item
                     .get("dst")
                     .and_then(|t| t.as_str())
@@ -264,15 +264,15 @@ pub fn stage_mix_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
                     .map(String::from),
                 text_confidence: None,
             },
-            original_duration_ms: original_slot_base_ms,
-            tts_duration_ms: tts_ms,
-            stretched_duration_ms: stretched_ms as u64,
+            original_duration_ms: original_slot_base_ms as u32,
+            tts_duration_ms: tts_ms as u32,
+            stretched_duration_ms: stretched_ms as u32,
             stretch_ratio,
-            drift_ms: drift_ms,
-            advance_ms: advance_ms as u64,
-            delay_ms: delay_ms as u64,
-            actual_start: real_start_ms as u64,
-            actual_end: real_end_ms as u64,
+            drift_ms: drift_ms as i32,
+            advance_ms: advance_ms as u32,
+            delay_ms: delay_ms as u32,
+            actual_start: real_start_ms as u32,
+            actual_end: real_end_ms as u32,
         });
     }
 

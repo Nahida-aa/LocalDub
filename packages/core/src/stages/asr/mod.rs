@@ -276,8 +276,8 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
                     }
                     let mut shifted = raw_words;
                     for w in &mut shifted {
-                        w.start = (w.start as i64 + offset).max(0) as u64;
-                        w.end = (w.end as i64 + offset).max(0) as u64;
+                        w.start = ((w.start as i64 + offset).max(0)) as u32;
+                        w.end = ((w.end as i64 + offset).max(0)) as u32;
                     }
                     let probs: Vec<f64> = shifted
                         .iter()
@@ -466,7 +466,7 @@ fn postprocess_hallucination(asr_file: &std::path::Path, audio_path: &str) -> an
 /// 取某时间区间的 RMS 能量 (linear), 通过 ffmpeg astats 解析 (镜像 TS `segmentRms`)。
 ///
 /// 返回 linear RMS; 解析失败返回 0。
-fn segment_rms(audio_path: &str, start_ms: u64, end_ms: u64) -> f64 {
+fn segment_rms(audio_path: &str, start_ms: u32, end_ms: u32) -> f64 {
     let args = [
         "-y".to_string(),
         "-i".to_string(),

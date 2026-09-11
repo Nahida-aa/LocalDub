@@ -318,8 +318,8 @@ fn extract_segs_from_value(data: &serde_json::Value) -> anyhow::Result<Vec<SrtSe
     Ok(segments
         .iter()
         .map(|s| {
-            let start_ms = s.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0);
-            let end_ms = s.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0);
+            let start_ms = s.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
+            let end_ms = s.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
             let text = s
                 .get("text")
                 .and_then(|v| v.as_str())
@@ -410,16 +410,16 @@ pub fn read_srt_file_to_segs(path: &str) -> anyhow::Result<Vec<SrtSeg>> {
     Ok(segs)
 }
 
-fn parse_srt_time(t: &str) -> u64 {
+fn parse_srt_time(t: &str) -> u32 {
     let parts: Vec<&str> = t.split(':').collect();
     if parts.len() != 3 {
         return 0;
     }
-    let h: u64 = parts[0].parse().unwrap_or(0);
-    let m: u64 = parts[1].parse().unwrap_or(0);
+    let h: u32 = parts[0].parse().unwrap_or(0);
+    let m: u32 = parts[1].parse().unwrap_or(0);
     let rest: Vec<&str> = parts[2].split(',').collect();
-    let s: u64 = rest.first().and_then(|x| x.parse().ok()).unwrap_or(0);
-    let ms: u64 = rest.get(1).and_then(|x| x.parse().ok()).unwrap_or(0);
+    let s: u32 = rest.first().and_then(|x| x.parse().ok()).unwrap_or(0);
+    let ms: u32 = rest.get(1).and_then(|x| x.parse().ok()).unwrap_or(0);
     (h * 3600 + m * 60 + s) * 1000 + ms
 }
 

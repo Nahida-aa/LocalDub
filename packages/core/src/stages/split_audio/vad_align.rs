@@ -84,8 +84,8 @@ pub fn apply_vad_align(
         } else {
             detect_speech_start_ms_seek(
                 source_audio,
-                start_ms,
-                total_ms.min(end_ms),
+                start_ms as u64,
+                total_ms.min(end_ms as u64),
                 vocals_segment_dir,
             )
         };
@@ -94,8 +94,8 @@ pub fn apply_vad_align(
         }
 
         let cut_start = segments[i].split_start_ms;
-        let new_cut_start = cut_start + removed - 80; // 保留 80ms 呼吸余量
-        if new_cut_start >= end_ms {
+        let new_cut_start = cut_start as u64 + removed - 80; // 保留 80ms 呼吸余量
+        if (new_cut_start as u32) >= end_ms {
             tracing::warn!(
                 "vadAlign #{}: would exceed end ({} >= {}), skipping",
                 i + 1,
@@ -113,7 +113,7 @@ pub fn apply_vad_align(
         );
 
         if has_vocals {
-            let new_end = (total_ms.min(end_ms + 160)).min(new_cut_start + 1);
+            let new_end = (total_ms.min(end_ms as u64 + 160)).min(new_cut_start + 1);
             if new_end > new_cut_start {
                 let _ = crate::stages::split_audio::util::cut_audio_range(
                     source_audio,
@@ -124,9 +124,10 @@ pub fn apply_vad_align(
             }
         }
 
-        segments[i].split_start_ms = new_cut_start;
+        segments[i].split_start_ms = new_cut_start as u32;
         if let Some(t) = timings.get_mut(i) {
-            t.start_ms = t.start_ms.saturating_add(removed).saturating_sub(80);
+            let adj = (t.start_ms as u64 + removed).saturating_sub(80);
+            t.start_ms = adj.min(u32::MAX as u64) as u32;
         }
         corrected = true;
     }

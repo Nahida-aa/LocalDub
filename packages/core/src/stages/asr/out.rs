@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AsrWord {
     pub word: String,
-    pub start: u64,
-    pub end: u64,
+    pub start: u32,
+    pub end: u32,
     pub probability: f64,
 }
 
@@ -17,9 +17,9 @@ pub struct AsrSegment {
     /// 文本 (已 trim)
     pub text: String,
     /// 起始, 单位 ms
-    pub start_ms: u64,
+    pub start_ms: u32,
     /// 结束, 单位 ms
-    pub end_ms: u64,
+    pub end_ms: u32,
     /// 词级时间戳 (whisper.cpp `-ojf` + wordsOutput 时填充)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub words: Option<Vec<AsrWord>>,
@@ -56,7 +56,7 @@ pub struct AsrResultBody {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AsrResultMeta {
     /// 视频总时长, 单位 ms
-    pub audio_duration: u64,
+    pub audio_duration: u32,
     /// 运行设备
     pub device: String,
     /// 检测到的语言代码 (如 "en"、"zh")
@@ -105,9 +105,9 @@ pub struct WhisperJsonSegment {
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct WhisperOffset {
     #[serde(default)]
-    pub from: u64,
+    pub from: u32,
     #[serde(default)]
-    pub to: u64,
+    pub to: u32,
 }
 
 /// whisper.cpp `-ojf` 顶层 JSON
