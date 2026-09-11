@@ -40,7 +40,7 @@ export const WorkflowControlPanel = (p: {
   ctx: WorkflowCtx;
   // onResumeFrom: (stageName: string | null) => void;
 }) => {
-  const params = useParams({ from: "/group/$id/$workflowId" });
+  const params = useParams({ from: "/group/$id/$videoId" });
   const workflowDir = `workfolder/${params().id}/${p.ctx.workflow.id}`;
   const stages = () => p.ctx.stages ?? [];
   const stage_map = () => stages_to_map(stages() ?? []);

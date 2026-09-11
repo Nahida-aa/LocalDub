@@ -11,7 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GroupIdIndexRouteImport } from './routes/group/$id/index'
-import { Route as GroupIdWorkflowIdRouteImport } from './routes/group/$id/$workflowId'
+import { Route as GroupIdVideoIdRouteImport } from './routes/group/$id/$videoId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -23,39 +23,39 @@ const GroupIdIndexRoute = GroupIdIndexRouteImport.update({
   path: '/group/$id/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const GroupIdWorkflowIdRoute = GroupIdWorkflowIdRouteImport.update({
-  id: '/group/$id/$workflowId',
-  path: '/group/$id/$workflowId',
+const GroupIdVideoIdRoute = GroupIdVideoIdRouteImport.update({
+  id: '/group/$id/$videoId',
+  path: '/group/$id/$videoId',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/group/$id/$workflowId': typeof GroupIdWorkflowIdRoute
+  '/group/$id/$videoId': typeof GroupIdVideoIdRoute
   '/group/$id/': typeof GroupIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/group/$id/$workflowId': typeof GroupIdWorkflowIdRoute
+  '/group/$id/$videoId': typeof GroupIdVideoIdRoute
   '/group/$id': typeof GroupIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/group/$id/$workflowId': typeof GroupIdWorkflowIdRoute
+  '/group/$id/$videoId': typeof GroupIdVideoIdRoute
   '/group/$id/': typeof GroupIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/group/$id/$workflowId' | '/group/$id/'
+  fullPaths: '/' | '/group/$id/$videoId' | '/group/$id/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/group/$id/$workflowId' | '/group/$id'
-  id: '__root__' | '/' | '/group/$id/$workflowId' | '/group/$id/'
+  to: '/' | '/group/$id/$videoId' | '/group/$id'
+  id: '__root__' | '/' | '/group/$id/$videoId' | '/group/$id/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  GroupIdWorkflowIdRoute: typeof GroupIdWorkflowIdRoute
+  GroupIdVideoIdRoute: typeof GroupIdVideoIdRoute
   GroupIdIndexRoute: typeof GroupIdIndexRoute
 }
 
@@ -75,11 +75,11 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof GroupIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/group/$id/$workflowId': {
-      id: '/group/$id/$workflowId'
-      path: '/group/$id/$workflowId'
-      fullPath: '/group/$id/$workflowId'
-      preLoaderRoute: typeof GroupIdWorkflowIdRouteImport
+    '/group/$id/$videoId': {
+      id: '/group/$id/$videoId'
+      path: '/group/$id/$videoId'
+      fullPath: '/group/$id/$videoId'
+      preLoaderRoute: typeof GroupIdVideoIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -87,7 +87,7 @@ declare module '@tanstack/solid-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  GroupIdWorkflowIdRoute: GroupIdWorkflowIdRoute,
+  GroupIdVideoIdRoute: GroupIdVideoIdRoute,
   GroupIdIndexRoute: GroupIdIndexRoute,
 }
 export const routeTree = rootRouteImport

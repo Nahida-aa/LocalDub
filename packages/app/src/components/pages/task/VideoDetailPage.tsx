@@ -36,12 +36,12 @@ function toRelPath(absOrRel: string): string {
 
 interface Props {
   groupId: string;
-  workflowId: string;
+  videoId: string;
 }
 
 export function VideoDetailPage(props: Props) {
   // console.log('[VideoDetailPage] props:', props);
-  const workflowDir = `workfolder/${props.groupId}/${props.workflowId}`;
+  const workflowDir = `workfolder/${props.groupId}/${props.videoId}`;
   const workflowCtxQ = useQuery(() => client.get_workflow_ctx.queryOptions(workflowDir));
   // console.log('[VideoDetailPage] workflowCtxQ:', workflowCtxQ);
 
@@ -52,7 +52,7 @@ export function VideoDetailPage(props: Props) {
   // （TanStack Query 缓存），媒体文件走媒体版本号（axum ServeDir，不进 Query）。
   // 轨道数据由各轨道组件自取（read_app_file_text），这里精确失效对应路径即可，
   // 组件会在查询重建后自动刷新/显隐。
-  useWorkflowTreeEvents(`workfolder/${props.groupId}/${props.workflowId}`, {
+  useWorkflowTreeEvents(`workfolder/${props.groupId}/${props.videoId}`, {
     onFile: (rel) => {
       // 精确匹配：仅失效与该路径对应的 read_app_file_text 查询，避免惊扰其他文件。
       qc.invalidateQueries({
@@ -62,7 +62,7 @@ export function VideoDetailPage(props: Props) {
       if (rel.endsWith("ctx.json")) {
         qc.invalidateQueries({
           queryKey: client.get_workflow_ctx.queryKey(
-            `workfolder/${props.groupId}/${props.workflowId}`,
+            `workfolder/${props.groupId}/${props.videoId}`,
           ),
         });
       }
@@ -74,7 +74,7 @@ export function VideoDetailPage(props: Props) {
       // FileTree 目录列表保持最新（root 目录；各 tab 目录由 FileTree 懒挂载时重新拉取）
       qc.invalidateQueries({
         queryKey: client.list_app_directory.queryKey(
-          `workfolder/${props.groupId}/${props.workflowId}`,
+          `workfolder/${props.groupId}/${props.videoId}`,
         ),
       });
     },

@@ -67,7 +67,7 @@ const StartWorkflowContent = () => {
         const parts = relDir.replace(/\\/g, "/").split("/").filter(Boolean);
         const [group, workflow] = parts.slice(-2);
         if (group && workflow) {
-          navigate({ to: "/group/$id/$workflowId", params: { id: group, workflowId: workflow } });
+          navigate({ to: "/group/$id/$videoId", params: { id: group, videoId: workflow } });
         }
       },
       onError: (e) => toastError(e, "开始任务失败"),

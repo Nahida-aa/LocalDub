@@ -7,8 +7,8 @@ export const Route = createFileRoute("/")({
       const last = localStorage.getItem("localdub_last_video");
       if (last) {
         try {
-          const { groupId, workflowId } = JSON.parse(last);
-          throw redirect({ to: "/group/$id/$workflowId", params: { id: groupId, workflowId } });
+          const { groupId, videoId } = JSON.parse(last);
+          throw redirect({ to: "/group/$id/$videoId", params: { id: groupId, videoId } });
         } catch {
           localStorage.removeItem("localdub_last_video");
         }
