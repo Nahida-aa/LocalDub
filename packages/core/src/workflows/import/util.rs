@@ -5,12 +5,14 @@
 //! 直接 spawn `ffmpeg` 二进制, argv 与 TS 相同; 仅帧率探测用 `ffmpeg-next` (贴合
 //! 仓库现有用法)。
 
+pub mod mime_type;
+
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use anyhow::{Context, anyhow};
+use anyhow::{anyhow, Context};
 use indicatif::{ProgressBar, ProgressStyle};
 use tracing::{info, warn};
 

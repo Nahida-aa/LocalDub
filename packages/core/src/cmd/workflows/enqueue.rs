@@ -21,6 +21,43 @@ pub fn enqueue_import(input: &Input) -> anyhow::Result<String> {
     enqueue_with(input, "import")
 }
 
+/// 批量入队一个本地目录: server 扫描顶层视频文件, 每个去重后入队一条 action=start 任务。
+/// 返回摘要 `{scanned,enqueued,skipped}` (由主服务器填好)。
+pub fn enqueue_dir(input: &Input) -> anyhow::Result<String> {
+    let (host, port) = discover_server();
+    let url = format!("http://{host}:{port}/fnrpc/enqueue_dir");
+
+    let body = serde_json::to_value(input)
+        .map_err(|e| anyhow::anyhow!("序列化 input 失败: {e}"))?;
+
+    let resp = http_client()?
+        .post(&url)
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .map_err(|e| anyhow::anyhow!("调用主服务器 enqueue_dir 失败 ({url}): {e}"))?;
+
+    let status = resp.status();
+    if !status.is_success() {
+        let text = resp.text().unwrap_or_default();
+        return Err(anyhow::anyhow!(
+            "主服务器 enqueue_dir 失败 ({url}): HTTP {} {text}",
+            status.as_u16()
+        ));
+    }
+    let json: serde_json::Value = resp
+        .json()
+        .map_err(|e| anyhow::anyhow!("解析 enqueue_dir 响应失败: {e}"))?;
+    let result = json
+        .get("json")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({"scanned":0,"enqueued":0,"skipped":0}));
+    let summary = serde_json::to_string_pretty(&result)
+        .unwrap_or_else(|_| format!("{result}"));
+    println!("[cli] enqueue_dir 摘要: {summary}");
+    Ok(summary)
+}
+
 fn enqueue_with(input: &Input, action: &str) -> anyhow::Result<String> {
     // 用服务器发现找主服务器地址 (优先 IPv4, 避免 link-local IPv6 无法连接)。
     let (host, port) = discover_server();

@@ -21,6 +21,10 @@ pub enum WorkflowAction {
     EnqueueContinue,
     #[serde(rename = "enqueue_import")]
     EnqueueImport,
+    /// 批量入队目录: 扫描本地目录顶层视频文件, 每个去重后入队一条 action=start 任务。
+    /// (目录是入队动作的入参, 队列粒度仍是单视频 start 事件。)
+    #[serde(rename = "enqueue_dir")]
+    EnqueueDir,
     #[serde(rename = "list_queue")]
     ListQueue,
     #[serde(rename = "cancel_queue")]

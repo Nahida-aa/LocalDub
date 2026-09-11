@@ -11,7 +11,10 @@ use config_rs::{
 };
 
 use ld_core::{
-    cmd::workflows::get_workflow::GroupInfo,
+    cmd::workflows::{
+        enqueue_dir::{DirScanOutput, scan_dir_videos},
+        get_workflow::{EnqueueDirResult, GroupInfo},
+    },
     context::{
         self,
         WorkflowCtx,
@@ -283,6 +286,45 @@ pub async fn enqueue_import(ctx: &Ctx, input: Input) -> Result<u64, String> {
 #[fnrpc::rpc_query]
 pub async fn list_queue(ctx: &Ctx) -> Vec<QueueEntry> {
     ctx.state.queue.snapshot()
+}
+
+/// 批量入队一个本地目录: 扫描顶层视频文件, 每个去重后入队一条 action=start 任务。
+/// 返回摘要 (扫描/入队/跳过计数)。
+#[fnrpc::rpc_mutate]
+pub async fn enqueue_dir(ctx: &Ctx, input: Input) -> Result<EnqueueDirResult, String> {
+    use std::path::Path;
+
+    let url = input
+        .workflow
+        .as_ref()
+        .and_then(|w| w.url.as_deref())
+        .ok_or_else(|| "enqueue_dir 需要 workflow.url (本地目录路径)".to_string())?;
+
+    let dir = Path::new(url)
+        .canonicalize()
+        .map_err(|e| format!("目录不存在或无法访问 ({url}): {e}"))?;
+
+    if !dir.is_dir() {
+        return Err(format!("{url} 不是一个目录"));
+    }
+
+    let wf_root = config_rs::path::paths::workfolder();
+
+    let DirScanOutput {
+        inputs,
+        result: res,
+    } = scan_dir_videos(&dir, &wf_root, &input);
+    for video_input in inputs {
+        ctx.state.queue.enqueue(video_input);
+    }
+    tracing::info!(
+        "[enqueue_dir] 扫描完成: scanned={} enqueued={} skipped={} errors={}",
+        res.scanned,
+        res.enqueued,
+        res.skipped,
+        res.errors
+    );
+    Ok(res)
 }
 
 /// 取消一个待执行任务 (仅 queued 状态可取消)。

@@ -39,6 +39,9 @@ pub fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
         Some(WorkflowAction::EnqueueImport) => {
             crate::cmd::workflows::enqueue::enqueue_import(input).context("enqueue_import 失败")?;
         }
+        Some(WorkflowAction::EnqueueDir) => {
+            crate::cmd::workflows::enqueue::enqueue_dir(input).context("enqueue_dir 失败")?;
+        }
         Some(WorkflowAction::ListQueue) => {
             crate::cmd::workflows::enqueue::list_queue().context("list_queue 失败")?;
         }

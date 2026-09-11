@@ -12,6 +12,16 @@ pub struct GroupInfo {
     pub workflows: Vec<WorkflowBrief>,
 }
 
+/// enqueue_dir 返回摘要 (扫描/入队/跳过计数)
+#[derive(Debug, Clone, Serialize, Type)]
+pub struct EnqueueDirResult {
+    pub scanned: u32,
+    pub enqueued: u32,
+    pub skipped: u32,
+    pub errors: u32,
+    pub skipped_videos: Vec<String>,
+}
+
 pub fn get_group_list() -> Result<Vec<GroupInfo>, String> {
     let wf = config_rs::env::workfolder();
     let mut groups: Vec<GroupInfo> = Vec::new();

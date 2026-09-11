@@ -1,5 +1,6 @@
 pub mod continue_workflow;
 pub mod enqueue;
+pub mod enqueue_dir;
 pub mod import;
 pub mod get_workflow;
 pub mod meta;

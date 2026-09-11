@@ -19,7 +19,8 @@ use crate::{
         other::{device_info, get_workfolder},
         servers::{find_server, get_server_status, shutdown, start_main, start_voxcpm, stop_voxcpm},
         workflows::{
-            cancel_queue, continue_workflow, enqueue_continue, enqueue_import, enqueue_start,
+            cancel_queue, continue_workflow, enqueue_continue, enqueue_dir, enqueue_import,
+            enqueue_start,
             get_group_list,
             get_workflow_ctx, list_queue, log::watch_workflow_log, regen_tts, start_workflow,
             tree::watch_workflow_tree,
@@ -61,6 +62,7 @@ pub fn build_fn_rpc_router() -> fnrpc::router::RpcRouter<Ctx> {
         .route_fn(enqueue_start)
         .route_fn(enqueue_continue)
         .route_fn(enqueue_import)
+        .route_fn(enqueue_dir)
         .route_fn(list_queue)
         .route_fn(cancel_queue)
         // 导出结果类型 (UI Timeline 渲染 workflow out.json 用, 无对应 RPC 返回)。
