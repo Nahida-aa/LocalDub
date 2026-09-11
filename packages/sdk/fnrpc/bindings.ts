@@ -86,6 +86,14 @@ export type AsrArgs_Serialize = {
 	splitOnWord: boolean,
 };
 
+/**  段置信度 (镜像 TS `AsrSegment.confidence`)。 */
+export type AsrConfidence = {
+	/**  平均置信度 */
+	avg: number | null,
+	/**  最小置信度 */
+	min: number | null,
+};
+
 /**  推理设备 (asr 侧无 webgpu)。 */
 export type AsrDevice = "vulkan" | "cuda" | "cpu" | "mps";
 
@@ -195,6 +203,77 @@ export type AsrOcrPreArgs_Serialize = {
 	fps: number | null,
 };
 
+/**  asr 完整输出 (镜像 TS `AsrResult`)。 */
+export type AsrResult = AsrResult_Serialize | AsrResult_Deserialize;
+
+/**  asr 输出主体 (text + segments)。 */
+export type AsrResultBody = AsrResultBody_Serialize | AsrResultBody_Deserialize;
+
+/**  asr 输出主体 (text + segments)。 */
+export type AsrResultBody_Deserialize = {
+	/**  完整转录文本 (segments 文本用空格拼接) */
+	text: string,
+	segments: AsrSegment_Deserialize[],
+};
+
+/**  asr 输出主体 (text + segments)。 */
+export type AsrResultBody_Serialize = {
+	/**  完整转录文本 (segments 文本用空格拼接) */
+	text: string,
+	segments: AsrSegment_Serialize[],
+};
+
+/**  asr 输出元信息 (镜像 TS `AsrResultMeta`)。 */
+export type AsrResultMeta = AsrResultMeta_Serialize | AsrResultMeta_Deserialize;
+
+/**  asr 输出元信息 (镜像 TS `AsrResultMeta`)。 */
+export type AsrResultMeta_Deserialize = {
+	/**  视频总时长, 单位 ms */
+	audio_duration: number,
+	/**  运行设备 */
+	device: string,
+	/**  检测到的语言代码 (如 "en"、"zh") */
+	detected_language?: string | null,
+	/**  引擎名 ("whisper.cpp") */
+	engine: string,
+	/**  模型路径 */
+	model: string,
+	/**  实际推理用的音频路径 */
+	input_audio: string,
+	/**  实时率 RTF */
+	rtf: number | null,
+};
+
+/**  asr 输出元信息 (镜像 TS `AsrResultMeta`)。 */
+export type AsrResultMeta_Serialize = {
+	/**  视频总时长, 单位 ms */
+	audio_duration: number,
+	/**  运行设备 */
+	device: string,
+	/**  检测到的语言代码 (如 "en"、"zh") */
+	detected_language?: string,
+	/**  引擎名 ("whisper.cpp") */
+	engine: string,
+	/**  模型路径 */
+	model: string,
+	/**  实际推理用的音频路径 */
+	input_audio: string,
+	/**  实时率 RTF */
+	rtf: number | null,
+};
+
+/**  asr 完整输出 (镜像 TS `AsrResult`)。 */
+export type AsrResult_Deserialize = {
+	result: AsrResultBody_Deserialize,
+	meta: AsrResultMeta_Deserialize,
+};
+
+/**  asr 完整输出 (镜像 TS `AsrResult`)。 */
+export type AsrResult_Serialize = {
+	result: AsrResultBody_Serialize,
+	meta: AsrResultMeta_Serialize,
+};
+
 export type AsrRunInfo = AsrRunInfo_Serialize | AsrRunInfo_Deserialize;
 
 export type AsrRunInfo_Deserialize = {
@@ -220,6 +299,45 @@ export type AsrRunInfo_Serialize = {
  *  故用 `rename_all = "kebab-case"` (`FasterWhisper` → `"faster-whisper"`)。
  */
 export type AsrRuntime = "ggml" | "faster-whisper" | "pytorch";
+
+/**  单段转录结果 (镜像 TS `AsrSegment` = SubtitleSegment & { words?, confidence? })。 */
+export type AsrSegment = AsrSegment_Serialize | AsrSegment_Deserialize;
+
+/**  单段转录结果 (镜像 TS `AsrSegment` = SubtitleSegment & { words?, confidence? })。 */
+export type AsrSegment_Deserialize = {
+	/**  文本 (已 trim) */
+	text: string,
+	/**  起始, 单位 ms */
+	start_ms: number,
+	/**  结束, 单位 ms */
+	end_ms: number,
+	/**  词级时间戳 (whisper.cpp `-ojf` + wordsOutput 时填充) */
+	words?: AsrWord[] | null,
+	/**  段置信度统计 (avg/min, 范围 [0,1]) */
+	confidence?: AsrConfidence | null,
+};
+
+/**  单段转录结果 (镜像 TS `AsrSegment` = SubtitleSegment & { words?, confidence? })。 */
+export type AsrSegment_Serialize = {
+	/**  文本 (已 trim) */
+	text: string,
+	/**  起始, 单位 ms */
+	start_ms: number,
+	/**  结束, 单位 ms */
+	end_ms: number,
+	/**  词级时间戳 (whisper.cpp `-ojf` + wordsOutput 时填充) */
+	words?: AsrWord[],
+	/**  段置信度统计 (avg/min, 范围 [0,1]) */
+	confidence?: AsrConfidence,
+};
+
+/**  词级时间戳 (镜像 TS `AsrWord`)。 */
+export type AsrWord = {
+	word: string,
+	start: number,
+	end: number,
+	probability: number | null,
+};
 
 export type Capabilities = {
 	webgpu: boolean,

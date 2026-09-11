@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// 词级时间戳 (镜像 TS `AsrWord`)。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct AsrWord {
     pub word: String,
     pub start: u32,
@@ -12,7 +12,7 @@ pub struct AsrWord {
 }
 
 /// 单段转录结果 (镜像 TS `AsrSegment` = SubtitleSegment & { words?, confidence? })。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct AsrSegment {
     /// 文本 (已 trim)
     pub text: String,
@@ -29,7 +29,7 @@ pub struct AsrSegment {
 }
 
 /// 段置信度 (镜像 TS `AsrSegment.confidence`)。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct AsrConfidence {
     /// 平均置信度
     pub avg: f64,
@@ -38,14 +38,14 @@ pub struct AsrConfidence {
 }
 
 /// asr 完整输出 (镜像 TS `AsrResult`)。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct AsrResult {
     pub result: AsrResultBody,
     pub meta: AsrResultMeta,
 }
 
 /// asr 输出主体 (text + segments)。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct AsrResultBody {
     /// 完整转录文本 (segments 文本用空格拼接)
     pub text: String,
@@ -53,7 +53,7 @@ pub struct AsrResultBody {
 }
 
 /// asr 输出元信息 (镜像 TS `AsrResultMeta`)。
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct AsrResultMeta {
     /// 视频总时长, 单位 ms
     pub audio_duration: u32,
@@ -68,6 +68,7 @@ pub struct AsrResultMeta {
     pub model: String,
     /// 原始 asr 参数 (序列化回写, 便于审计)
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(skip)]
     pub args: Option<serde_json::Value>,
     /// 实际推理用的音频路径
     pub input_audio: String,

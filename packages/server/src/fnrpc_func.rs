@@ -1,5 +1,6 @@
 use fnrpc::middlewares::tracing::TracingLayer;
 use ld_core::stages::{
+    asr::out::AsrResult,
     mix_audio::out::{Timing, TimingsFile},
     split_audio::out::{SplitAudioSegment, SplitAudioTiming},
     translate::out::{TranslateResult, TranslateSegment},
@@ -62,6 +63,7 @@ pub fn build_fn_rpc_router() -> fnrpc::router::RpcRouter<Ctx> {
         .route_fn(list_queue)
         .route_fn(cancel_queue)
         // 导出结果类型 (UI Timeline 渲染 task out.json 用, 无对应 RPC 返回)。
+        .register_type::<AsrResult>()
         .register_type::<TranslateResult>()
         .register_type::<TranslateSegment>()
         .register_type::<SplitAudioSegment>()
