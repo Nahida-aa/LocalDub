@@ -1,4 +1,6 @@
 {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LocalDub 输入",
   "$defs": {
     "Alignment": {
       "anyOf": [
@@ -30,186 +32,151 @@
           "const": "top-right"
         }
       ],
-      "description": " 字幕对齐位置 (镜像 TS `packages/core/stages/mix_video/args.ts` alignmentList)\n\n 顺序即 ffmpeg ass `Alignment` 数值 (1..9), 见 [`alignment_to_ffmpeg`]。",
-      "title": "Alignment"
+      "title": "Alignment",
+      "description": " 字幕对齐位置 (镜像 TS `packages/core/stages/mix_video/args.ts` alignmentList)\n\n 顺序即 ffmpeg ass `Alignment` 数值 (1..9), 见 [`alignment_to_ffmpeg`]。"
     },
-    "AsrArgs": {
+    "AsrRuntime": {
       "anyOf": [
         {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/AsrArgs_Serialize"
-            }
-          },
-          "required": [
-            "Serialize"
-          ],
-          "type": "object"
+          "const": "ggml"
         },
         {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/AsrArgs_Deserialize"
-            }
-          },
-          "required": [
-            "Deserialize"
-          ],
-          "type": "object"
+          "const": "faster-whisper"
+        },
+        {
+          "const": "pytorch"
         }
       ],
-      "description": " asr 阶段参数。",
-      "title": "AsrArgs"
+      "title": "AsrRuntime",
+      "description": " asr 推理运行时。\n\n TS 侧为 `z.enum([\"ggml\", \"faster-whisper\", \"pytorch\"])` (kebab-case),\n 故用 `rename_all = \"kebab-case\"` (`FasterWhisper` → `\"faster-whisper\"`)。"
     },
-    "AsrArgs_Deserialize": {
-      "description": " asr 阶段参数。",
+    "AsrDevice": {
+      "anyOf": [
+        {
+          "const": "vulkan"
+        },
+        {
+          "const": "cuda"
+        },
+        {
+          "const": "cpu"
+        },
+        {
+          "const": "mps"
+        }
+      ],
+      "title": "AsrDevice",
+      "description": " 推理设备 (asr 侧无 webgpu)。"
+    },
+    "MixMode": {
+      "anyOf": [
+        {
+          "const": "vocals"
+        },
+        {
+          "const": "raw-sum"
+        },
+        {
+          "const": "sidechain"
+        }
+      ],
+      "title": "MixMode",
+      "description": " ASR 音频源: vocals=纯分离人声, raw-sum=直接叠加, sidechain=侧链压缩背景音"
+    },
+    "SidechainCompress_Serialize": {
+      "type": "object",
       "properties": {
-        "device": {
-          "$ref": "#/$defs/AsrDevice",
-          "description": " 推理设备, 默认 cuda"
+        "threshold": {
+          "type": "number",
+          "description": " 压缩器阈值, 默认 0.1"
         },
-        "enabled": {
-          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr, 与 translate.enabled 一致)",
-          "type": "boolean"
+        "ratio": {
+          "type": "number",
+          "description": " 压缩比, 默认 20"
         },
-        "maxLen": {
-          "description": " whisper.cpp: 最大段长(字符), 0=不限",
-          "maximum": 4294967295,
-          "minimum": 0,
-          "type": "integer"
+        "attack": {
+          "type": "number",
+          "description": " attack 时间(ms), 默认 1"
         },
-        "mixMode": {
-          "$ref": "#/$defs/MixMode",
-          "description": " ASR 音频源 (默认 sidechain)"
-        },
-        "noSpeechThold": {
-          "description": " whisper.cpp: no-speech 阈值, 默认 0.6",
-          "type": "number"
-        },
-        "reduceBgm": {
-          "description": " 背景音降低量(dB); raw-sum 叠加前衰减, sidechain 时压缩后额外衰减; 默认 -12",
-          "type": "number"
-        },
-        "runtime": {
-          "$ref": "#/$defs/AsrRuntime",
-          "description": " 推理运行时, 默认 pytorch"
-        },
-        "sidechainCompress": {
-          "$ref": "#/$defs/SidechainCompress_Deserialize",
-          "description": " mixMode=sidechain 时侧链压缩器参数"
-        },
-        "splitOnWord": {
-          "description": " whisper.cpp: 按词边界分割",
-          "type": "boolean"
-        },
-        "temperature": {
-          "description": " whisper.cpp: 解码温度, 默认 0.0",
-          "type": "number"
-        },
-        "useGate": {
-          "description": " 对分离后的人声应用 silence gate 过滤静音段噪声",
-          "type": "boolean"
-        },
-        "useSeparated": {
-          "description": " 使用分离后的人声 (target_3_vocals.wav) 而非原始视频音频",
-          "type": "boolean"
-        },
-        "vad": {
-          "description": " whisper.cpp: 启用 VAD",
-          "type": "boolean"
-        },
-        "vadModel": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/VadModel"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " whisper.cpp: VAD 模型, silero-v5 (默认) 或 silero-v6"
-        },
-        "vadThreshold": {
-          "description": " whisper.cpp: VAD 阈值, 默认 0.5",
-          "type": "number"
-        },
-        "vocalAudioPath": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " ASR 输入的人声音频路径, 调试使用"
-        },
-        "wordsOutput": {
-          "description": " 是否在 asr.json 中包含词级时间戳 (words), 分离场景下可能受幻觉影响; 默认关闭, 调试时开启",
-          "type": "boolean"
+        "release": {
+          "type": "number",
+          "description": " release 时间(ms), 默认 200"
         }
       },
-      "title": "AsrArgs_Deserialize",
-      "type": "object"
+      "required": [
+        "threshold",
+        "ratio",
+        "attack",
+        "release"
+      ],
+      "title": "SidechainCompress_Serialize",
+      "description": " 侧链压缩器参数 (镜像 TS `sidechainCompress`)"
+    },
+    "VadModel": {
+      "anyOf": [
+        {
+          "const": "silero-v5"
+        },
+        {
+          "const": "silero-v6"
+        }
+      ],
+      "title": "VadModel",
+      "description": " whisper.cpp VAD 模型"
     },
     "AsrArgs_Serialize": {
-      "description": " asr 阶段参数。",
+      "type": "object",
       "properties": {
+        "runtime": {
+          "$ref": "#/$defs/AsrRuntime",
+          "description": " 推理运行时, 默认 pytorch"
+        },
         "device": {
           "$ref": "#/$defs/AsrDevice",
           "description": " 推理设备, 默认 cuda"
         },
-        "enabled": {
-          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr, 与 translate.enabled 一致)",
-          "type": "boolean"
+        "useSeparated": {
+          "type": "boolean",
+          "description": " 使用分离后的人声 (target_3_vocals.wav) 而非原始视频音频"
         },
-        "maxLen": {
-          "description": " whisper.cpp: 最大段长(字符), 0=不限",
-          "maximum": 4294967295,
-          "minimum": 0,
-          "type": "integer"
+        "enabled": {
+          "type": "boolean",
+          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr, 与 translate.enabled 一致)"
         },
         "mixMode": {
           "$ref": "#/$defs/MixMode",
           "description": " ASR 音频源 (默认 sidechain)"
         },
-        "noSpeechThold": {
-          "description": " whisper.cpp: no-speech 阈值, 默认 0.6",
-          "type": "number"
-        },
         "reduceBgm": {
-          "description": " 背景音降低量(dB); raw-sum 叠加前衰减, sidechain 时压缩后额外衰减; 默认 -12",
-          "type": "number"
+          "type": "number",
+          "description": " 背景音降低量(dB); raw-sum 叠加前衰减, sidechain 时压缩后额外衰减; 默认 -12"
         },
-        "runtime": {
-          "$ref": "#/$defs/AsrRuntime",
-          "description": " 推理运行时, 默认 pytorch"
+        "wordsOutput": {
+          "type": "boolean",
+          "description": " 是否在 asr.json 中包含词级时间戳 (words), 分离场景下可能受幻觉影响; 默认关闭, 调试时开启"
         },
         "sidechainCompress": {
           "$ref": "#/$defs/SidechainCompress_Serialize",
           "description": " mixMode=sidechain 时侧链压缩器参数"
         },
-        "splitOnWord": {
-          "description": " whisper.cpp: 按词边界分割",
-          "type": "boolean"
-        },
-        "temperature": {
-          "description": " whisper.cpp: 解码温度, 默认 0.0",
-          "type": "number"
-        },
         "useGate": {
-          "description": " 对分离后的人声应用 silence gate 过滤静音段噪声",
-          "type": "boolean"
+          "type": "boolean",
+          "description": " 对分离后的人声应用 silence gate 过滤静音段噪声"
         },
-        "useSeparated": {
-          "description": " 使用分离后的人声 (target_3_vocals.wav) 而非原始视频音频",
-          "type": "boolean"
+        "vocalAudioPath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " ASR 输入的人声音频路径, 调试使用"
         },
         "vad": {
-          "description": " whisper.cpp: 启用 VAD",
-          "type": "boolean"
+          "type": "boolean",
+          "description": " whisper.cpp: 启用 VAD"
         },
         "vadModel": {
           "anyOf": [
@@ -223,23 +190,26 @@
           "description": " whisper.cpp: VAD 模型, silero-v5 (默认) 或 silero-v6"
         },
         "vadThreshold": {
-          "description": " whisper.cpp: VAD 阈值, 默认 0.5",
-          "type": "number"
+          "type": "number",
+          "description": " whisper.cpp: VAD 阈值, 默认 0.5"
         },
-        "vocalAudioPath": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " ASR 输入的人声音频路径, 调试使用"
+        "noSpeechThold": {
+          "type": "number",
+          "description": " whisper.cpp: no-speech 阈值, 默认 0.6"
         },
-        "wordsOutput": {
-          "description": " 是否在 asr.json 中包含词级时间戳 (words), 分离场景下可能受幻觉影响; 默认关闭, 调试时开启",
-          "type": "boolean"
+        "temperature": {
+          "type": "number",
+          "description": " whisper.cpp: 解码温度, 默认 0.0"
+        },
+        "maxLen": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "description": " whisper.cpp: 最大段长(字符), 0=不限"
+        },
+        "splitOnWord": {
+          "type": "boolean",
+          "description": " whisper.cpp: 按词边界分割"
         }
       },
       "required": [
@@ -262,103 +232,154 @@
         "splitOnWord"
       ],
       "title": "AsrArgs_Serialize",
-      "type": "object"
+      "description": " asr 阶段参数。"
     },
-    "AsrDevice": {
-      "anyOf": [
-        {
-          "const": "vulkan"
+    "SidechainCompress_Deserialize": {
+      "type": "object",
+      "properties": {
+        "threshold": {
+          "type": "number",
+          "description": " 压缩器阈值, 默认 0.1"
         },
-        {
-          "const": "cuda"
+        "ratio": {
+          "type": "number",
+          "description": " 压缩比, 默认 20"
         },
-        {
-          "const": "cpu"
+        "attack": {
+          "type": "number",
+          "description": " attack 时间(ms), 默认 1"
         },
-        {
-          "const": "mps"
+        "release": {
+          "type": "number",
+          "description": " release 时间(ms), 默认 200"
         }
-      ],
-      "description": " 推理设备 (asr 侧无 webgpu)。",
-      "title": "AsrDevice"
+      },
+      "title": "SidechainCompress_Deserialize",
+      "description": " 侧链压缩器参数 (镜像 TS `sidechainCompress`)"
     },
-    "AsrFixArgs": {
+    "AsrArgs_Deserialize": {
+      "type": "object",
+      "properties": {
+        "runtime": {
+          "$ref": "#/$defs/AsrRuntime",
+          "description": " 推理运行时, 默认 pytorch"
+        },
+        "device": {
+          "$ref": "#/$defs/AsrDevice",
+          "description": " 推理设备, 默认 cuda"
+        },
+        "useSeparated": {
+          "type": "boolean",
+          "description": " 使用分离后的人声 (target_3_vocals.wav) 而非原始视频音频"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr, 与 translate.enabled 一致)"
+        },
+        "mixMode": {
+          "$ref": "#/$defs/MixMode",
+          "description": " ASR 音频源 (默认 sidechain)"
+        },
+        "reduceBgm": {
+          "type": "number",
+          "description": " 背景音降低量(dB); raw-sum 叠加前衰减, sidechain 时压缩后额外衰减; 默认 -12"
+        },
+        "wordsOutput": {
+          "type": "boolean",
+          "description": " 是否在 asr.json 中包含词级时间戳 (words), 分离场景下可能受幻觉影响; 默认关闭, 调试时开启"
+        },
+        "sidechainCompress": {
+          "$ref": "#/$defs/SidechainCompress_Deserialize",
+          "description": " mixMode=sidechain 时侧链压缩器参数"
+        },
+        "useGate": {
+          "type": "boolean",
+          "description": " 对分离后的人声应用 silence gate 过滤静音段噪声"
+        },
+        "vocalAudioPath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " ASR 输入的人声音频路径, 调试使用"
+        },
+        "vad": {
+          "type": "boolean",
+          "description": " whisper.cpp: 启用 VAD"
+        },
+        "vadModel": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VadModel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " whisper.cpp: VAD 模型, silero-v5 (默认) 或 silero-v6"
+        },
+        "vadThreshold": {
+          "type": "number",
+          "description": " whisper.cpp: VAD 阈值, 默认 0.5"
+        },
+        "noSpeechThold": {
+          "type": "number",
+          "description": " whisper.cpp: no-speech 阈值, 默认 0.6"
+        },
+        "temperature": {
+          "type": "number",
+          "description": " whisper.cpp: 解码温度, 默认 0.0"
+        },
+        "maxLen": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "description": " whisper.cpp: 最大段长(字符), 0=不限"
+        },
+        "splitOnWord": {
+          "type": "boolean",
+          "description": " whisper.cpp: 按词边界分割"
+        }
+      },
+      "title": "AsrArgs_Deserialize",
+      "description": " asr 阶段参数。"
+    },
+    "AsrArgs": {
       "anyOf": [
         {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/AsrFixArgs_Serialize"
-            }
-          },
+          "type": "object",
           "required": [
             "Serialize"
           ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
           "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/AsrFixArgs_Deserialize"
+            "Serialize": {
+              "$ref": "#/$defs/AsrArgs_Serialize"
             }
           },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
           "required": [
             "Deserialize"
           ],
-          "type": "object"
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/AsrArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
         }
       ],
-      "description": " asr 阶段修正参数。",
-      "title": "AsrFixArgs"
-    },
-    "AsrFixArgs_Deserialize": {
-      "description": " asr 阶段修正参数。",
-      "properties": {
-        "asrFilePath": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " ASR 结果文件路径, 调试使用"
-        },
-        "domainHint": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\""
-        },
-        "enabled": {
-          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr_fix)",
-          "type": "boolean"
-        },
-        "llmApiBase": {
-          "description": " LLM API 地址",
-          "type": "string"
-        },
-        "llmFix": {
-          "description": " 是否启用 LLM 修正",
-          "type": "boolean"
-        },
-        "llmModel": {
-          "description": " LLM 模型名",
-          "type": "string"
-        }
-      },
-      "title": "AsrFixArgs_Deserialize",
-      "type": "object"
+      "title": "AsrArgs",
+      "description": " asr 阶段参数。"
     },
     "AsrFixArgs_Serialize": {
-      "description": " asr 阶段修正参数。",
+      "type": "object",
       "properties": {
         "asrFilePath": {
           "anyOf": [
@@ -371,6 +392,18 @@
           ],
           "description": " ASR 结果文件路径, 调试使用"
         },
+        "enabled": {
+          "type": "boolean",
+          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr_fix)"
+        },
+        "llmModel": {
+          "type": "string",
+          "description": " LLM 模型名"
+        },
+        "llmApiBase": {
+          "type": "string",
+          "description": " LLM API 地址"
+        },
         "domainHint": {
           "anyOf": [
             {
@@ -382,21 +415,9 @@
           ],
           "description": " 领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\""
         },
-        "enabled": {
-          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr_fix)",
-          "type": "boolean"
-        },
-        "llmApiBase": {
-          "description": " LLM API 地址",
-          "type": "string"
-        },
         "llmFix": {
-          "description": " 是否启用 LLM 修正",
-          "type": "boolean"
-        },
-        "llmModel": {
-          "description": " LLM 模型名",
-          "type": "string"
+          "type": "boolean",
+          "description": " 是否启用 LLM 修正"
         }
       },
       "required": [
@@ -408,308 +429,12 @@
         "llmFix"
       ],
       "title": "AsrFixArgs_Serialize",
-      "type": "object"
+      "description": " asr 阶段修正参数。"
     },
-    "AsrOcrArgs": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/AsrOcrArgs_Serialize"
-            }
-          },
-          "required": [
-            "Serialize"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/AsrOcrArgs_Deserialize"
-            }
-          },
-          "required": [
-            "Deserialize"
-          ],
-          "type": "object"
-        }
-      ],
-      "description": " asr_ocr 阶段参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。",
-      "title": "AsrOcrArgs"
-    },
-    "AsrOcrArgs_Deserialize": {
-      "description": " asr_ocr 阶段参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。",
+    "AsrFixArgs_Deserialize": {
+      "type": "object",
       "properties": {
-        "cleanupFrames": {
-          "description": " 步骤完成后是否删除抽出的帧图片; 默认 false (保留)",
-          "type": "boolean"
-        },
-        "device": {
-          "$ref": "#/$defs/OcrDevice",
-          "description": " OCR 运行设备: cpu, cuda, directml, coreml, rocm, mps"
-        },
-        "runtime": {
-          "$ref": "#/$defs/OcrRuntime",
-          "description": " OCR 推理运行时: ort-rust (opencv)"
-        },
-        "subtitleOnly": {
-          "description": " 只识别字幕区域 (Y轴裁剪); 默认 true",
-          "type": "boolean"
-        },
-        "textConfidenceThreshold": {
-          "description": " OCR 识别置信度阈值, 默认 0.45",
-          "type": "number"
-        }
-      },
-      "title": "AsrOcrArgs_Deserialize",
-      "type": "object"
-    },
-    "AsrOcrArgs_Serialize": {
-      "description": " asr_ocr 阶段参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。",
-      "properties": {
-        "cleanupFrames": {
-          "description": " 步骤完成后是否删除抽出的帧图片; 默认 false (保留)",
-          "type": "boolean"
-        },
-        "device": {
-          "$ref": "#/$defs/OcrDevice",
-          "description": " OCR 运行设备: cpu, cuda, directml, coreml, rocm, mps"
-        },
-        "runtime": {
-          "$ref": "#/$defs/OcrRuntime",
-          "description": " OCR 推理运行时: ort-rust (opencv)"
-        },
-        "subtitleOnly": {
-          "description": " 只识别字幕区域 (Y轴裁剪); 默认 true",
-          "type": "boolean"
-        },
-        "textConfidenceThreshold": {
-          "description": " OCR 识别置信度阈值, 默认 0.45",
-          "type": "number"
-        }
-      },
-      "required": [
-        "runtime",
-        "device",
-        "textConfidenceThreshold",
-        "subtitleOnly",
-        "cleanupFrames"
-      ],
-      "title": "AsrOcrArgs_Serialize",
-      "type": "object"
-    },
-    "AsrOcrFixArgs": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/AsrOcrFixArgs_Serialize"
-            }
-          },
-          "required": [
-            "Serialize"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/AsrOcrFixArgs_Deserialize"
-            }
-          },
-          "required": [
-            "Deserialize"
-          ],
-          "type": "object"
-        }
-      ],
-      "description": " asr_ocr 阶段 OCR 修正参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。",
-      "title": "AsrOcrFixArgs"
-    },
-    "AsrOcrFixArgs_Deserialize": {
-      "allOf": [
-        {
-          "properties": {
-            "isResample": {
-              "description": " 是否重采样",
-              "type": "boolean"
-            }
-          },
-          "type": "object"
-        },
-        {
-          "$ref": "#/$defs/OcrFixArgs_Deserialize"
-        }
-      ],
-      "description": " asr_ocr 阶段 OCR 修正参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。",
-      "title": "AsrOcrFixArgs_Deserialize"
-    },
-    "AsrOcrFixArgs_Serialize": {
-      "allOf": [
-        {
-          "properties": {
-            "isResample": {
-              "description": " 是否重采样",
-              "type": "boolean"
-            }
-          },
-          "required": [
-            "isResample"
-          ],
-          "type": "object"
-        },
-        {
-          "$ref": "#/$defs/OcrFixArgs_Serialize"
-        }
-      ],
-      "description": " asr_ocr 阶段 OCR 修正参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。",
-      "title": "AsrOcrFixArgs_Serialize"
-    },
-    "AsrOcrPreArgs": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/AsrOcrPreArgs_Serialize"
-            }
-          },
-          "required": [
-            "Serialize"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/AsrOcrPreArgs_Deserialize"
-            }
-          },
-          "required": [
-            "Deserialize"
-          ],
-          "type": "object"
-        }
-      ],
-      "description": " asr_ocr 阶段预处理参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
-      "title": "AsrOcrPreArgs"
-    },
-    "AsrOcrPreArgs_Deserialize": {
-      "description": " asr_ocr 阶段预处理参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
-      "properties": {
-        "fps": {
-          "description": " 帧率 (fps), 越高时间戳越准但越慢; 默认 2",
-          "type": "number"
-        }
-      },
-      "title": "AsrOcrPreArgs_Deserialize",
-      "type": "object"
-    },
-    "AsrOcrPreArgs_Serialize": {
-      "description": " asr_ocr 阶段预处理参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
-      "properties": {
-        "fps": {
-          "description": " 帧率 (fps), 越高时间戳越准但越慢; 默认 2",
-          "type": "number"
-        }
-      },
-      "required": [
-        "fps"
-      ],
-      "title": "AsrOcrPreArgs_Serialize",
-      "type": "object"
-    },
-    "AsrRuntime": {
-      "anyOf": [
-        {
-          "const": "ggml"
-        },
-        {
-          "const": "faster-whisper"
-        },
-        {
-          "const": "pytorch"
-        }
-      ],
-      "description": " asr 推理运行时。\n\n TS 侧为 `z.enum([\"ggml\", \"faster-whisper\", \"pytorch\"])` (kebab-case),\n 故用 `rename_all = \"kebab-case\"` (`FasterWhisper` → `\"faster-whisper\"`)。",
-      "title": "AsrRuntime"
-    },
-    "Command": {
-      "anyOf": [
-        {
-          "const": "task"
-        },
-        {
-          "const": "env"
-        },
-        {
-          "const": "servers"
-        },
-        {
-          "const": "cookie"
-        },
-        {
-          "const": "check"
-        },
-        {
-          "const": "deviceinfo"
-        },
-        {
-          "const": "listmodels"
-        }
-      ],
-      "description": " 命令",
-      "title": "Command"
-    },
-    "CookieAction": {
-      "const": "set",
-      "description": " cookie 动作",
-      "title": "CookieAction"
-    },
-    "CookieArgs": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/CookieArgs_Serialize"
-            }
-          },
-          "required": [
-            "Serialize"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/CookieArgs_Deserialize"
-            }
-          },
-          "required": [
-            "Deserialize"
-          ],
-          "type": "object"
-        }
-      ],
-      "description": " cookie 命令参数 (镜像 TS `CookieArgsSchema`: action=set + service=youtube + content 可选)。",
-      "title": "CookieArgs"
-    },
-    "CookieArgs_Deserialize": {
-      "description": " cookie 命令参数 (镜像 TS `CookieArgsSchema`: action=set + service=youtube + content 可选)。",
-      "properties": {
-        "action": {
-          "$ref": "#/$defs/CookieAction",
-          "description": " 动作: set (当前仅支持)"
-        },
-        "content": {
+        "asrFilePath": {
           "anyOf": [
             {
               "type": "string"
@@ -718,347 +443,20 @@
               "type": "null"
             }
           ],
-          "description": " Netscape cookie 内容; 为空则从 stdin 读取"
+          "description": " ASR 结果文件路径, 调试使用"
         },
-        "service": {
-          "$ref": "#/$defs/CookieService",
-          "description": " 服务: youtube (当前仅支持)"
-        }
-      },
-      "title": "CookieArgs_Deserialize",
-      "type": "object"
-    },
-    "CookieArgs_Serialize": {
-      "description": " cookie 命令参数 (镜像 TS `CookieArgsSchema`: action=set + service=youtube + content 可选)。",
-      "properties": {
-        "action": {
-          "$ref": "#/$defs/CookieAction",
-          "description": " 动作: set (当前仅支持)"
+        "enabled": {
+          "type": "boolean",
+          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr_fix)"
         },
-        "content": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " Netscape cookie 内容; 为空则从 stdin 读取"
+        "llmModel": {
+          "type": "string",
+          "description": " LLM 模型名"
         },
-        "service": {
-          "$ref": "#/$defs/CookieService",
-          "description": " 服务: youtube (当前仅支持)"
-        }
-      },
-      "required": [
-        "action",
-        "service",
-        "content"
-      ],
-      "title": "CookieArgs_Serialize",
-      "type": "object"
-    },
-    "CookieService": {
-      "const": "youtube",
-      "description": " cookie 所属服务",
-      "title": "CookieService"
-    },
-    "Device": {
-      "anyOf": [
-        {
-          "const": "vulkan"
+        "llmApiBase": {
+          "type": "string",
+          "description": " LLM API 地址"
         },
-        {
-          "const": "webgpu"
-        },
-        {
-          "const": "cuda"
-        },
-        {
-          "const": "cpu"
-        },
-        {
-          "const": "mps"
-        }
-      ],
-      "description": " 推理设备",
-      "title": "Device"
-    },
-    "EnvAction": {
-      "anyOf": [
-        {
-          "const": "check"
-        },
-        {
-          "const": "ensure"
-        }
-      ],
-      "description": " env 动作 (也用于 clap `--action` 命令行解析)",
-      "title": "EnvAction"
-    },
-    "EnvArgs": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/EnvArgs_Serialize"
-            }
-          },
-          "required": [
-            "Serialize"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/EnvArgs_Deserialize"
-            }
-          },
-          "required": [
-            "Deserialize"
-          ],
-          "type": "object"
-        }
-      ],
-      "description": " `env` 命令参数。\n\n `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 stages 配置推断)。",
-      "title": "EnvArgs"
-    },
-    "EnvArgs_Deserialize": {
-      "description": " `env` 命令参数。\n\n `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 stages 配置推断)。",
-      "properties": {
-        "action": {
-          "$ref": "#/$defs/EnvAction",
-          "description": " 动作: check (默认) / ensure"
-        },
-        "targets": {
-          "description": " 要检查/ensure 的环境项; 空数组 → 按 input.jsonc 的 stages 配置推断所需项",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "title": "EnvArgs_Deserialize",
-      "type": "object"
-    },
-    "EnvArgs_Serialize": {
-      "description": " `env` 命令参数。\n\n `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 stages 配置推断)。",
-      "properties": {
-        "action": {
-          "$ref": "#/$defs/EnvAction",
-          "description": " 动作: check (默认) / ensure"
-        },
-        "targets": {
-          "description": " 要检查/ensure 的环境项; 空数组 → 按 input.jsonc 的 stages 配置推断所需项",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        }
-      },
-      "required": [
-        "action",
-        "targets"
-      ],
-      "title": "EnvArgs_Serialize",
-      "type": "object"
-    },
-    "Input": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/Input_Serialize"
-            }
-          },
-          "required": [
-            "Serialize"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/Input_Deserialize"
-            }
-          },
-          "required": [
-            "Deserialize"
-          ],
-          "type": "object"
-        }
-      ],
-      "description": " 顶层输入",
-      "title": "Input"
-    },
-    "Input_Deserialize": {
-      "description": " 顶层输入",
-      "properties": {
-        "command": {
-          "$ref": "#/$defs/Command",
-          "description": " 执行命令 (默认 env)"
-        },
-        "cookie": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/CookieArgs_Deserialize"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " cookie 命令参数 (镜像 cmd/cookie/args.ts), 仅 command=cookie 时使用"
-        },
-        "env": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/EnvArgs_Deserialize"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " env 命令参数 (镜像 env/input.ts); targets 为空时按 stages 配置推断所需环境项"
-        },
-        "servers": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ServersArgs_Deserialize"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 服务端参数 (镜像 servers/args.ts), 仅 command=servers 时使用"
-        },
-        "stages": {
-          "$ref": "#/$defs/Stages_Deserialize"
-        },
-        "task": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TaskArgs_Deserialize"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 任务参数, 仅 command=task 时必须"
-        }
-      },
-      "title": "Input_Deserialize",
-      "type": "object"
-    },
-    "Input_Serialize": {
-      "description": " 顶层输入",
-      "properties": {
-        "command": {
-          "$ref": "#/$defs/Command",
-          "description": " 执行命令 (默认 env)"
-        },
-        "cookie": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/CookieArgs_Serialize"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " cookie 命令参数 (镜像 cmd/cookie/args.ts), 仅 command=cookie 时使用"
-        },
-        "env": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/EnvArgs_Serialize"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " env 命令参数 (镜像 env/input.ts); targets 为空时按 stages 配置推断所需环境项"
-        },
-        "servers": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ServersArgs_Serialize"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 服务端参数 (镜像 servers/args.ts), 仅 command=servers 时使用"
-        },
-        "stages": {
-          "$ref": "#/$defs/Stages_Serialize"
-        },
-        "task": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TaskArgs_Serialize"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 任务参数, 仅 command=task 时必须"
-        }
-      },
-      "required": [
-        "task",
-        "command",
-        "servers",
-        "env",
-        "cookie",
-        "stages"
-      ],
-      "title": "Input_Serialize",
-      "type": "object"
-    },
-    "Language": {
-      "description": " 语言标识基础类型: **内部是开放字符串 (事实), 对外提供已知语言视图 (枚举)**。\n\n 源语言是\"事实\" (来自 ASR 识别或用户声明), 值域开放 —— whisper 支持约\n 99 种语言, 超出支持翻译的 23 种 [`TargetLang`] 列表; 若用封闭枚举建模,\n 列表外语言 (it/uk/nl/...) 会被截断丢信息。用 newtype 包字符串:\n - serde 透明 (序列化为 \"it\" 这样的字符串), 任何语言码原样进出\n - [`Language::as_known`] 提供封闭 [`TargetLang`] 视图 (目标语言是\n   \"承诺\", 必须落在支持翻译的语言内, 保持封闭)",
-      "title": "Language",
-      "type": "string"
-    },
-    "LlmFixArgs": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/LlmFixArgs_Serialize"
-            }
-          },
-          "required": [
-            "Serialize"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/LlmFixArgs_Deserialize"
-            }
-          },
-          "required": [
-            "Deserialize"
-          ],
-          "type": "object"
-        }
-      ],
-      "description": " LLM 修正参数。",
-      "title": "LlmFixArgs"
-    },
-    "LlmFixArgs_Deserialize": {
-      "description": " LLM 修正参数。",
-      "properties": {
         "domainHint": {
           "anyOf": [
             {
@@ -1070,374 +468,48 @@
           ],
           "description": " 领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\""
         },
-        "llmApiBase": {
-          "description": " LLM API 地址",
-          "type": "string"
-        },
         "llmFix": {
-          "description": " 是否启用 LLM 修正",
-          "type": "boolean"
-        },
-        "llmModel": {
-          "description": " LLM 模型名",
-          "type": "string"
+          "type": "boolean",
+          "description": " 是否启用 LLM 修正"
         }
       },
-      "title": "LlmFixArgs_Deserialize",
-      "type": "object"
+      "title": "AsrFixArgs_Deserialize",
+      "description": " asr 阶段修正参数。"
     },
-    "LlmFixArgs_Serialize": {
-      "description": " LLM 修正参数。",
-      "properties": {
-        "domainHint": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\""
-        },
-        "llmApiBase": {
-          "description": " LLM API 地址",
-          "type": "string"
-        },
-        "llmFix": {
-          "description": " 是否启用 LLM 修正",
-          "type": "boolean"
-        },
-        "llmModel": {
-          "description": " LLM 模型名",
-          "type": "string"
-        }
-      },
-      "required": [
-        "llmModel",
-        "llmApiBase",
-        "domainHint",
-        "llmFix"
-      ],
-      "title": "LlmFixArgs_Serialize",
-      "type": "object"
-    },
-    "MixAudioArgs": {
+    "AsrFixArgs": {
       "anyOf": [
         {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/MixAudioArgs_Serialize"
-            }
-          },
+          "type": "object",
           "required": [
             "Serialize"
           ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/MixAudioArgs_Deserialize"
-            }
-          },
-          "required": [
-            "Deserialize"
-          ],
-          "type": "object"
-        }
-      ],
-      "description": " mix_audio 阶段参数 (镜像 TS `packages/core/stages/mix_audio/args.ts` MixAudioArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
-      "title": "MixAudioArgs"
-    },
-    "MixAudioArgs_Deserialize": {
-      "description": " mix_audio 阶段参数 (镜像 TS `packages/core/stages/mix_audio/args.ts` MixAudioArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
-      "properties": {
-        "maxAdvanceMs": {
-          "description": " 字幕允许提前显示的最大毫秒数, 利用前段剩余时间; 默认 500",
-          "type": "number"
-        },
-        "maxDelayMs": {
-          "description": " 字幕允许延迟显示的最大毫秒数, 借用后段留白; 默认 500",
-          "type": "number"
-        },
-        "maxSpeed": {
-          "description": " TTS 音频最大变速比, 1.0=不变速; 默认 1.35",
-          "type": "number"
-        }
-      },
-      "title": "MixAudioArgs_Deserialize",
-      "type": "object"
-    },
-    "MixAudioArgs_Serialize": {
-      "description": " mix_audio 阶段参数 (镜像 TS `packages/core/stages/mix_audio/args.ts` MixAudioArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
-      "properties": {
-        "maxAdvanceMs": {
-          "description": " 字幕允许提前显示的最大毫秒数, 利用前段剩余时间; 默认 500",
-          "type": "number"
-        },
-        "maxDelayMs": {
-          "description": " 字幕允许延迟显示的最大毫秒数, 借用后段留白; 默认 500",
-          "type": "number"
-        },
-        "maxSpeed": {
-          "description": " TTS 音频最大变速比, 1.0=不变速; 默认 1.35",
-          "type": "number"
-        }
-      },
-      "required": [
-        "maxSpeed",
-        "maxAdvanceMs",
-        "maxDelayMs"
-      ],
-      "title": "MixAudioArgs_Serialize",
-      "type": "object"
-    },
-    "MixMode": {
-      "anyOf": [
-        {
-          "const": "vocals"
-        },
-        {
-          "const": "raw-sum"
-        },
-        {
-          "const": "sidechain"
-        }
-      ],
-      "description": " ASR 音频源: vocals=纯分离人声, raw-sum=直接叠加, sidechain=侧链压缩背景音",
-      "title": "MixMode"
-    },
-    "MixVideoArgs": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
           "properties": {
             "Serialize": {
-              "$ref": "#/$defs/MixVideoArgs_Serialize"
+              "$ref": "#/$defs/AsrFixArgs_Serialize"
             }
           },
-          "required": [
-            "Serialize"
-          ],
-          "type": "object"
+          "additionalProperties": false
         },
         {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/MixVideoArgs_Deserialize"
-            }
-          },
+          "type": "object",
           "required": [
             "Deserialize"
           ],
-          "type": "object"
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/AsrFixArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
         }
       ],
-      "description": " mix_video 阶段参数 (镜像 TS `packages/core/stages/mix_video/args.ts` MixVideoArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
-      "title": "MixVideoArgs"
+      "title": "AsrFixArgs",
+      "description": " asr 阶段修正参数。"
     },
-    "MixVideoArgs_Deserialize": {
-      "description": " mix_video 阶段参数 (镜像 TS `packages/core/stages/mix_video/args.ts` MixVideoArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
-      "properties": {
-        "alignment": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Alignment"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 对齐位置; 默认 bottom-center"
-        },
-        "bgmGain": {
-          "description": " 背景音乐增益(dB), 0=不变, 负值=衰减; 默认 -6",
-          "type": "number"
-        },
-        "bgmPath": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 调试使用: 外部 bgm 路径"
-        },
-        "dubGain": {
-          "description": " 配音增益(dB), 补偿合成语音偏小的听感差; 默认 3",
-          "type": "number"
-        },
-        "enabled": {
-          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 mix_video)",
-          "type": "boolean"
-        },
-        "font": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " ASS 字幕字体名 (须系统已安装), 默认 Noto Sans CJK SC"
-        },
-        "fontSize": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 字幕字号, 不填则自动: 竖屏 12(zh)/9(其他) ← 横屏 24(zh)/18(其他)\n\n 镜像 TS `z.number()` (允许小数, 与 ASS `FontSize` 一致)。"
-        },
-        "marginV": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 垂直边距(像素), 不填则自动: 竖屏 70 / 横屏 5\n\n 镜像 TS `z.number().min(0)` (允许小数)。"
-        },
-        "outline": {
-          "description": " 描边宽度; 默认 0\n\n 镜像 TS `z.number().min(0).default(0)` (允许小数)。",
-          "type": "number"
-        },
-        "shadow": {
-          "description": " 阴影宽度; 默认 1\n\n 镜像 TS `z.number().min(0).default(1)` (允许小数)。",
-          "type": "number"
-        },
-        "srtPath": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 调试使用: 外部 srt 路径"
-        }
-      },
-      "title": "MixVideoArgs_Deserialize",
-      "type": "object"
-    },
-    "MixVideoArgs_Serialize": {
-      "description": " mix_video 阶段参数 (镜像 TS `packages/core/stages/mix_video/args.ts` MixVideoArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
-      "properties": {
-        "alignment": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Alignment"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 对齐位置; 默认 bottom-center"
-        },
-        "bgmGain": {
-          "description": " 背景音乐增益(dB), 0=不变, 负值=衰减; 默认 -6",
-          "type": "number"
-        },
-        "bgmPath": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 调试使用: 外部 bgm 路径"
-        },
-        "dubGain": {
-          "description": " 配音增益(dB), 补偿合成语音偏小的听感差; 默认 3",
-          "type": "number"
-        },
-        "enabled": {
-          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 mix_video)",
-          "type": "boolean"
-        },
-        "font": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " ASS 字幕字体名 (须系统已安装), 默认 Noto Sans CJK SC"
-        },
-        "fontSize": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 字幕字号, 不填则自动: 竖屏 12(zh)/9(其他) ← 横屏 24(zh)/18(其他)\n\n 镜像 TS `z.number()` (允许小数, 与 ASS `FontSize` 一致)。"
-        },
-        "marginV": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 垂直边距(像素), 不填则自动: 竖屏 70 / 横屏 5\n\n 镜像 TS `z.number().min(0)` (允许小数)。"
-        },
-        "outline": {
-          "description": " 描边宽度; 默认 0\n\n 镜像 TS `z.number().min(0).default(0)` (允许小数)。",
-          "type": "number"
-        },
-        "shadow": {
-          "description": " 阴影宽度; 默认 1\n\n 镜像 TS `z.number().min(0).default(1)` (允许小数)。",
-          "type": "number"
-        },
-        "srtPath": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 调试使用: 外部 srt 路径"
-        }
-      },
-      "required": [
-        "fontSize",
-        "marginV",
-        "alignment",
-        "outline",
-        "shadow",
-        "font",
-        "srtPath",
-        "bgmPath",
-        "bgmGain",
-        "dubGain",
-        "enabled"
-      ],
-      "title": "MixVideoArgs_Serialize",
-      "type": "object"
+    "OcrRuntime": {
+      "const": "ort-rust",
+      "description": " OCR 推理运行时。\n\n ort-rust (opencv)",
+      "title": "OcrRuntime"
     },
     "OcrDevice": {
       "anyOf": [
@@ -1466,131 +538,144 @@
           "description": " mps (Apple Silicon)"
         }
       ],
-      "description": " OCR 运行设备。",
-      "title": "OcrDevice"
+      "title": "OcrDevice",
+      "description": " OCR 运行设备。"
     },
-    "OcrFixArgs": {
+    "AsrOcrArgs_Serialize": {
+      "type": "object",
+      "properties": {
+        "runtime": {
+          "$ref": "#/$defs/OcrRuntime",
+          "description": " OCR 推理运行时: ort-rust (opencv)"
+        },
+        "device": {
+          "$ref": "#/$defs/OcrDevice",
+          "description": " OCR 运行设备: cpu, cuda, directml, coreml, rocm, mps"
+        },
+        "textConfidenceThreshold": {
+          "type": "number",
+          "description": " OCR 识别置信度阈值, 默认 0.45"
+        },
+        "subtitleOnly": {
+          "type": "boolean",
+          "description": " 只识别字幕区域 (Y轴裁剪); 默认 true"
+        },
+        "cleanupFrames": {
+          "type": "boolean",
+          "description": " 步骤完成后是否删除抽出的帧图片; 默认 false (保留)"
+        }
+      },
+      "required": [
+        "runtime",
+        "device",
+        "textConfidenceThreshold",
+        "subtitleOnly",
+        "cleanupFrames"
+      ],
+      "title": "AsrOcrArgs_Serialize",
+      "description": " asr_ocr 阶段参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。"
+    },
+    "AsrOcrArgs_Deserialize": {
+      "type": "object",
+      "properties": {
+        "runtime": {
+          "$ref": "#/$defs/OcrRuntime",
+          "description": " OCR 推理运行时: ort-rust (opencv)"
+        },
+        "device": {
+          "$ref": "#/$defs/OcrDevice",
+          "description": " OCR 运行设备: cpu, cuda, directml, coreml, rocm, mps"
+        },
+        "textConfidenceThreshold": {
+          "type": "number",
+          "description": " OCR 识别置信度阈值, 默认 0.45"
+        },
+        "subtitleOnly": {
+          "type": "boolean",
+          "description": " 只识别字幕区域 (Y轴裁剪); 默认 true"
+        },
+        "cleanupFrames": {
+          "type": "boolean",
+          "description": " 步骤完成后是否删除抽出的帧图片; 默认 false (保留)"
+        }
+      },
+      "title": "AsrOcrArgs_Deserialize",
+      "description": " asr_ocr 阶段参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。"
+    },
+    "AsrOcrArgs": {
       "anyOf": [
         {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/OcrFixArgs_Serialize"
-            }
-          },
+          "type": "object",
           "required": [
             "Serialize"
           ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
           "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/OcrFixArgs_Deserialize"
+            "Serialize": {
+              "$ref": "#/$defs/AsrOcrArgs_Serialize"
             }
           },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
           "required": [
             "Deserialize"
           ],
-          "type": "object"
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/AsrOcrArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
         }
       ],
-      "description": " sf_ocr 阶段 OCR 修正参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
-      "title": "OcrFixArgs"
-    },
-    "OcrFixArgs_Deserialize": {
-      "description": " sf_ocr 阶段 OCR 修正参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
-      "properties": {
-        "adjustIsoWeight": {
-          "description": " 孤立程度在调整置信度中的权重 (0~1); 默认 0.2",
-          "type": "number"
-        },
-        "adjustYFactor": {
-          "description": " Y 偏移惩罚归一化系数: 偏移量 / (videoHeight × adjustYFactor); 越小越严格; 默认 0.08",
-          "type": "number"
-        },
-        "adjustYWeight": {
-          "description": " Y 偏移在调整置信度中的权重 (0~1); 默认 0.8",
-          "type": "number"
-        },
-        "adjustedConfidenceThreshold": {
-          "description": " 字幕段置信度阈值（0-1）：ocr-post filter-segment 用 adjusted_confidence_threshold 过滤，低于此值丢弃；默认 0.45",
-          "type": "number"
-        },
-        "boxAdjustedThreshold": {
-          "description": " box调整的置信度阈值: confidence < 此值则进行box调整; 默认 0.5",
-          "type": "number"
-        },
-        "dedupEditDistance": {
-          "description": " dedupOverlap 的编辑距离阈值: edit_distance ≤ 此值则合并; 默认 1",
-          "maximum": 4294967295,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "domainHint": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\""
-        },
-        "isMergeSubstring": {
-          "description": " 是否合并子串",
-          "type": "boolean"
-        },
-        "isoThresholdMs": {
-          "description": " 单帧孤立惩罚的参考时间 (ms)，在此时长内无同文帧则视为完全孤立; 默认 1500",
-          "type": "number"
-        },
-        "llmApiBase": {
-          "description": " LLM API 地址",
-          "type": "string"
-        },
-        "llmFix": {
-          "description": " 是否启用 LLM 修正",
-          "type": "boolean"
-        },
-        "llmModel": {
-          "description": " LLM 模型名",
-          "type": "string"
-        }
-      },
-      "title": "OcrFixArgs_Deserialize",
-      "type": "object"
+      "title": "AsrOcrArgs",
+      "description": " asr_ocr 阶段参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。"
     },
     "OcrFixArgs_Serialize": {
-      "description": " sf_ocr 阶段 OCR 修正参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
+      "type": "object",
       "properties": {
-        "adjustIsoWeight": {
-          "description": " 孤立程度在调整置信度中的权重 (0~1); 默认 0.2",
-          "type": "number"
+        "adjustedConfidenceThreshold": {
+          "type": "number",
+          "description": " 字幕段置信度阈值（0-1）：ocr-post filter-segment 用 adjusted_confidence_threshold 过滤，低于此值丢弃；默认 0.45"
         },
-        "adjustYFactor": {
-          "description": " Y 偏移惩罚归一化系数: 偏移量 / (videoHeight × adjustYFactor); 越小越严格; 默认 0.08",
-          "type": "number"
+        "isoThresholdMs": {
+          "type": "number",
+          "description": " 单帧孤立惩罚的参考时间 (ms)，在此时长内无同文帧则视为完全孤立; 默认 1500"
         },
         "adjustYWeight": {
-          "description": " Y 偏移在调整置信度中的权重 (0~1); 默认 0.8",
-          "type": "number"
+          "type": "number",
+          "description": " Y 偏移在调整置信度中的权重 (0~1); 默认 0.8"
         },
-        "adjustedConfidenceThreshold": {
-          "description": " 字幕段置信度阈值（0-1）：ocr-post filter-segment 用 adjusted_confidence_threshold 过滤，低于此值丢弃；默认 0.45",
-          "type": "number"
+        "adjustIsoWeight": {
+          "type": "number",
+          "description": " 孤立程度在调整置信度中的权重 (0~1); 默认 0.2"
+        },
+        "adjustYFactor": {
+          "type": "number",
+          "description": " Y 偏移惩罚归一化系数: 偏移量 / (videoHeight × adjustYFactor); 越小越严格; 默认 0.08"
         },
         "boxAdjustedThreshold": {
-          "description": " box调整的置信度阈值: confidence < 此值则进行box调整; 默认 0.5",
-          "type": "number"
+          "type": "number",
+          "description": " box调整的置信度阈值: confidence < 此值则进行box调整; 默认 0.5"
+        },
+        "isMergeSubstring": {
+          "type": "boolean",
+          "description": " 是否合并子串"
         },
         "dedupEditDistance": {
-          "description": " dedupOverlap 的编辑距离阈值: edit_distance ≤ 此值则合并; 默认 1",
-          "maximum": 4294967295,
+          "type": "integer",
           "minimum": 0,
-          "type": "integer"
+          "maximum": 4294967295,
+          "description": " dedupOverlap 的编辑距离阈值: edit_distance ≤ 此值则合并; 默认 1"
+        },
+        "llmModel": {
+          "type": "string",
+          "description": " LLM 模型名"
+        },
+        "llmApiBase": {
+          "type": "string",
+          "description": " LLM API 地址"
         },
         "domainHint": {
           "anyOf": [
@@ -1603,25 +688,9 @@
           ],
           "description": " 领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\""
         },
-        "isMergeSubstring": {
-          "description": " 是否合并子串",
-          "type": "boolean"
-        },
-        "isoThresholdMs": {
-          "description": " 单帧孤立惩罚的参考时间 (ms)，在此时长内无同文帧则视为完全孤立; 默认 1500",
-          "type": "number"
-        },
-        "llmApiBase": {
-          "description": " LLM API 地址",
-          "type": "string"
-        },
         "llmFix": {
-          "description": " 是否启用 LLM 修正",
-          "type": "boolean"
-        },
-        "llmModel": {
-          "description": " LLM 模型名",
-          "type": "string"
+          "type": "boolean",
+          "description": " 是否启用 LLM 修正"
         }
       },
       "required": [
@@ -1639,503 +708,369 @@
         "llmFix"
       ],
       "title": "OcrFixArgs_Serialize",
-      "type": "object"
+      "description": " sf_ocr 阶段 OCR 修正参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
     },
-    "OcrRuntime": {
-      "const": "ort-rust",
-      "description": " OCR 推理运行时。\n\n ort-rust (opencv)",
-      "title": "OcrRuntime"
-    },
-    "Pipeline": {
-      "anyOf": [
+    "AsrOcrFixArgs_Serialize": {
+      "allOf": [
         {
-          "const": "dub"
-        },
-        {
-          "const": "subtitle"
-        }
-      ],
-      "description": " 任务模式: dub=配音, subtitle=仅字幕",
-      "title": "Pipeline"
-    },
-    "SeparateArgs": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
+          "type": "object",
           "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/SeparateArgs_Serialize"
+            "isResample": {
+              "type": "boolean",
+              "description": " 是否重采样"
             }
           },
+          "required": [
+            "isResample"
+          ]
+        },
+        {
+          "$ref": "#/$defs/OcrFixArgs_Serialize"
+        }
+      ],
+      "title": "AsrOcrFixArgs_Serialize",
+      "description": " asr_ocr 阶段 OCR 修正参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。"
+    },
+    "OcrFixArgs_Deserialize": {
+      "type": "object",
+      "properties": {
+        "adjustedConfidenceThreshold": {
+          "type": "number",
+          "description": " 字幕段置信度阈值（0-1）：ocr-post filter-segment 用 adjusted_confidence_threshold 过滤，低于此值丢弃；默认 0.45"
+        },
+        "isoThresholdMs": {
+          "type": "number",
+          "description": " 单帧孤立惩罚的参考时间 (ms)，在此时长内无同文帧则视为完全孤立; 默认 1500"
+        },
+        "adjustYWeight": {
+          "type": "number",
+          "description": " Y 偏移在调整置信度中的权重 (0~1); 默认 0.8"
+        },
+        "adjustIsoWeight": {
+          "type": "number",
+          "description": " 孤立程度在调整置信度中的权重 (0~1); 默认 0.2"
+        },
+        "adjustYFactor": {
+          "type": "number",
+          "description": " Y 偏移惩罚归一化系数: 偏移量 / (videoHeight × adjustYFactor); 越小越严格; 默认 0.08"
+        },
+        "boxAdjustedThreshold": {
+          "type": "number",
+          "description": " box调整的置信度阈值: confidence < 此值则进行box调整; 默认 0.5"
+        },
+        "isMergeSubstring": {
+          "type": "boolean",
+          "description": " 是否合并子串"
+        },
+        "dedupEditDistance": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "description": " dedupOverlap 的编辑距离阈值: edit_distance ≤ 此值则合并; 默认 1"
+        },
+        "llmModel": {
+          "type": "string",
+          "description": " LLM 模型名"
+        },
+        "llmApiBase": {
+          "type": "string",
+          "description": " LLM API 地址"
+        },
+        "domainHint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\""
+        },
+        "llmFix": {
+          "type": "boolean",
+          "description": " 是否启用 LLM 修正"
+        }
+      },
+      "title": "OcrFixArgs_Deserialize",
+      "description": " sf_ocr 阶段 OCR 修正参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
+    },
+    "AsrOcrFixArgs_Deserialize": {
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "isResample": {
+              "type": "boolean",
+              "description": " 是否重采样"
+            }
+          }
+        },
+        {
+          "$ref": "#/$defs/OcrFixArgs_Deserialize"
+        }
+      ],
+      "title": "AsrOcrFixArgs_Deserialize",
+      "description": " asr_ocr 阶段 OCR 修正参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。"
+    },
+    "AsrOcrFixArgs": {
+      "anyOf": [
+        {
+          "type": "object",
           "required": [
             "Serialize"
           ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
           "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/SeparateArgs_Deserialize"
+            "Serialize": {
+              "$ref": "#/$defs/AsrOcrFixArgs_Serialize"
             }
           },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
           "required": [
             "Deserialize"
           ],
-          "type": "object"
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/AsrOcrFixArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
         }
       ],
-      "description": " separate 阶段参数 (镜像 TS `packages/core/stages/separate/args.ts` SeparateArgsSchema)\n\n 枚举/数组默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})`), 这里只需处理\n 「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。",
-      "title": "SeparateArgs"
+      "title": "AsrOcrFixArgs",
+      "description": " asr_ocr 阶段 OCR 修正参数。\n\n 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写\n `impl Default` 以保证默认值一致 (与 `input::stages::Asr` 同款处理)。"
     },
-    "SeparateArgs_Deserialize": {
-      "description": " separate 阶段参数 (镜像 TS `packages/core/stages/separate/args.ts` SeparateArgsSchema)\n\n 枚举/数组默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})`), 这里只需处理\n 「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。",
+    "AsrOcrPreArgs_Serialize": {
+      "type": "object",
       "properties": {
-        "always": {
-          "description": " 效果(默认关闭): subtitle 模式下也始终分离人声, 保留 vocals 以便后续切换到 dub;\n dub 流程下始终需要分离人声以保证 tts-vc 的质量",
-          "type": "boolean"
-        },
-        "device": {
-          "$ref": "#/$defs/Device",
-          "description": " torch:cuda (NVIDIA/ROCm), mps (Apple Silicon)"
-        },
-        "runtime": {
-          "$ref": "#/$defs/SeparateRuntime",
-          "description": " 推理运行时"
-        },
-        "stems": {
-          "description": " 需分离的 stems; 暂不被消费",
-          "items": {
-            "$ref": "#/$defs/Stem"
-          },
-          "type": "array"
-        }
-      },
-      "title": "SeparateArgs_Deserialize",
-      "type": "object"
-    },
-    "SeparateArgs_Serialize": {
-      "description": " separate 阶段参数 (镜像 TS `packages/core/stages/separate/args.ts` SeparateArgsSchema)\n\n 枚举/数组默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})`), 这里只需处理\n 「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。",
-      "properties": {
-        "always": {
-          "description": " 效果(默认关闭): subtitle 模式下也始终分离人声, 保留 vocals 以便后续切换到 dub;\n dub 流程下始终需要分离人声以保证 tts-vc 的质量",
-          "type": "boolean"
-        },
-        "device": {
-          "$ref": "#/$defs/Device",
-          "description": " torch:cuda (NVIDIA/ROCm), mps (Apple Silicon)"
-        },
-        "runtime": {
-          "$ref": "#/$defs/SeparateRuntime",
-          "description": " 推理运行时"
-        },
-        "stems": {
-          "description": " 需分离的 stems; 暂不被消费",
-          "items": {
-            "$ref": "#/$defs/Stem"
-          },
-          "type": "array"
+        "fps": {
+          "type": "number",
+          "description": " 帧率 (fps), 越高时间戳越准但越慢; 默认 2"
         }
       },
       "required": [
-        "runtime",
-        "device",
-        "always",
-        "stems"
+        "fps"
       ],
-      "title": "SeparateArgs_Serialize",
-      "type": "object"
+      "title": "AsrOcrPreArgs_Serialize",
+      "description": " asr_ocr 阶段预处理参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
     },
-    "SeparateRuntime": {
-      "anyOf": [
-        {
-          "const": "burn"
-        },
-        {
-          "const": "burn-tch"
-        }
-      ],
-      "description": " separate 推理运行时\n\n TS 侧为 `z.enum([\"burn\", \"burn-tch\"])` (kebab-case), 故用 `rename_all = \"kebab-case\"`\n (`BurnTch` → `\"burn-tch\"`)。原先误用 `lowercase` 会得到 `\"burntch\"`, 与 TS 对不上,\n 导致运行时 `\"burn-tch\"` 解析失败回落默认 (see `read_args_parses_camel_case_fields`)。",
-      "title": "SeparateRuntime"
-    },
-    "ServerAction": {
-      "anyOf": [
-        {
-          "const": "status"
-        },
-        {
-          "const": "start"
-        },
-        {
-          "const": "stop"
-        },
-        {
-          "const": "discovery"
-        }
-      ],
-      "description": " 服务器操作 (镜像 packages/core/servers/input.ts 的 action 枚举)\n (serde 与 clap 参数值统一为 lowercase)",
-      "title": "ServerAction"
-    },
-    "ServerType": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/ServerType_Serialize"
-            }
-          },
-          "required": [
-            "Serialize"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/ServerType_Deserialize"
-            }
-          },
-          "required": [
-            "Deserialize"
-          ],
-          "type": "object"
-        }
-      ],
-      "description": " Server type identifiers for mDNS discovery.\n\n 序列化为 snake_case (voxcpm_torch_gradio), 对齐 TS 侧\n `packages/config/src/servers.ts` 的 serverTypeList。\n (serde 与 clap 参数值统一为 snake_case)",
-      "title": "ServerType"
-    },
-    "ServerType_Deserialize": {
-      "anyOf": [
-        {
-          "const": "main",
-          "description": " LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。\n\n alias \"server\": 历史任务 ctx.json 里持久化的 input.servers.name 是旧值,\n 反序列化需兼容 (序列化输出统一 \"main\")。"
-        },
-        {
-          "const": "server",
-          "description": " LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。\n\n alias \"server\": 历史任务 ctx.json 里持久化的 input.servers.name 是旧值,\n 反序列化需兼容 (序列化输出统一 \"main\")。"
-        },
-        {
-          "const": "voxcpm_torch_gradio"
-        }
-      ],
-      "description": " Server type identifiers for mDNS discovery.\n\n 序列化为 snake_case (voxcpm_torch_gradio), 对齐 TS 侧\n `packages/config/src/servers.ts` 的 serverTypeList。\n (serde 与 clap 参数值统一为 snake_case)",
-      "title": "ServerType_Deserialize"
-    },
-    "ServerType_Serialize": {
-      "anyOf": [
-        {
-          "const": "main",
-          "description": " LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。\n\n alias \"server\": 历史任务 ctx.json 里持久化的 input.servers.name 是旧值,\n 反序列化需兼容 (序列化输出统一 \"main\")。"
-        },
-        {
-          "const": "voxcpm_torch_gradio"
-        }
-      ],
-      "description": " Server type identifiers for mDNS discovery.\n\n 序列化为 snake_case (voxcpm_torch_gradio), 对齐 TS 侧\n `packages/config/src/servers.ts` 的 serverTypeList。\n (serde 与 clap 参数值统一为 snake_case)",
-      "title": "ServerType_Serialize"
-    },
-    "ServersArgs": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/ServersArgs_Serialize"
-            }
-          },
-          "required": [
-            "Serialize"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/ServersArgs_Deserialize"
-            }
-          },
-          "required": [
-            "Deserialize"
-          ],
-          "type": "object"
-        }
-      ],
-      "description": " servers 命令参数 (镜像 packages/core/servers/input.ts 的 ServersArgsSchema)",
-      "title": "ServersArgs"
-    },
-    "ServersArgs_Deserialize": {
-      "description": " servers 命令参数 (镜像 packages/core/servers/input.ts 的 ServersArgsSchema)",
+    "AsrOcrPreArgs_Deserialize": {
+      "type": "object",
       "properties": {
-        "action": {
-          "$ref": "#/$defs/ServerAction",
-          "description": " 服务器操作"
-        },
-        "foreground": {
-          "description": " start 前台模式: 继承终端 stdio (日志实时可见), Ctrl+C 直接终止;\n 默认 false = detach 后台 + 日志落盘 logs/server.log",
-          "type": "boolean"
-        },
-        "name": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ServerType_Deserialize"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 指定操作的服务器, 不传则操作所有"
+        "fps": {
+          "type": "number",
+          "description": " 帧率 (fps), 越高时间戳越准但越慢; 默认 2"
         }
       },
-      "title": "ServersArgs_Deserialize",
-      "type": "object"
+      "title": "AsrOcrPreArgs_Deserialize",
+      "description": " asr_ocr 阶段预处理参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
     },
-    "ServersArgs_Serialize": {
-      "description": " servers 命令参数 (镜像 packages/core/servers/input.ts 的 ServersArgsSchema)",
+    "AsrOcrPreArgs": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/AsrOcrPreArgs_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/AsrOcrPreArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "AsrOcrPreArgs",
+      "description": " asr_ocr 阶段预处理参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
+    },
+    "CheckType": {
+      "anyOf": [
+        {
+          "const": "video"
+        },
+        {
+          "const": "asr"
+        },
+        {
+          "const": "font"
+        }
+      ],
+      "title": "CheckType",
+      "description": " 检查类型 (也用于 clap `--type` 命令行解析)"
+    },
+    "CheckArgs_Serialize": {
+      "type": "object",
       "properties": {
-        "action": {
-          "$ref": "#/$defs/ServerAction",
-          "description": " 服务器操作"
-        },
-        "foreground": {
-          "description": " start 前台模式: 继承终端 stdio (日志实时可见), Ctrl+C 直接终止;\n 默认 false = detach 后台 + 日志落盘 logs/server.log",
-          "type": "boolean"
-        },
-        "name": {
+        "workflowDir": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ServerType_Serialize"
+              "type": "string"
             },
             {
               "type": "null"
             }
           ],
-          "description": " 指定操作的服务器, 不传则操作所有"
+          "description": " 任务目录 (video/asr 检查必需)"
+        },
+        "type": {
+          "$ref": "#/$defs/CheckType",
+          "description": " 检查类型 (默认 video)"
+        }
+      },
+      "required": [
+        "workflowDir",
+        "type"
+      ],
+      "title": "CheckArgs_Serialize",
+      "description": " `check` 命令参数 (镜像 TS `input.check` schema)。\n\n TS: `z.object({ workflowDir: z.string().optional(), type: z.enum([\"video\",\"asr\",\"font\"]).optional().default(\"video\") })`。"
+    },
+    "CheckArgs_Deserialize": {
+      "type": "object",
+      "properties": {
+        "workflowDir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 任务目录 (video/asr 检查必需)"
+        },
+        "type": {
+          "$ref": "#/$defs/CheckType",
+          "description": " 检查类型 (默认 video)"
+        }
+      },
+      "title": "CheckArgs_Deserialize",
+      "description": " `check` 命令参数 (镜像 TS `input.check` schema)。\n\n TS: `z.object({ workflowDir: z.string().optional(), type: z.enum([\"video\",\"asr\",\"font\"]).optional().default(\"video\") })`。"
+    },
+    "CheckArgs": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/CheckArgs_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/CheckArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "CheckArgs",
+      "description": " `check` 命令参数 (镜像 TS `input.check` schema)。\n\n TS: `z.object({ workflowDir: z.string().optional(), type: z.enum([\"video\",\"asr\",\"font\"]).optional().default(\"video\") })`。"
+    },
+    "Command": {
+      "anyOf": [
+        {
+          "const": "workflow"
+        },
+        {
+          "const": "env"
+        },
+        {
+          "const": "servers"
+        },
+        {
+          "const": "cookie"
+        },
+        {
+          "const": "check"
+        },
+        {
+          "const": "deviceInfo"
+        },
+        {
+          "const": "listModels"
+        }
+      ],
+      "title": "Command",
+      "description": " 命令\n\n 命名对齐 TS `commandList` (types.ts): `deviceInfo`/`listModels` 是 camelCase,\n 其余为全小写 (增强 `rename_all = \"lowercase\"` 无法表达, 显式 rename)。"
+    },
+    "CookieAction": {
+      "const": "set",
+      "title": "CookieAction",
+      "description": " cookie 动作"
+    },
+    "CookieService": {
+      "const": "youtube",
+      "title": "CookieService",
+      "description": " cookie 所属服务"
+    },
+    "CookieArgs_Serialize": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/CookieAction",
+          "description": " 动作: set (当前仅支持)"
+        },
+        "service": {
+          "$ref": "#/$defs/CookieService",
+          "description": " 服务: youtube (当前仅支持)"
+        },
+        "content": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " Netscape cookie 内容; 为空则从 stdin 读取"
         }
       },
       "required": [
         "action",
-        "name",
-        "foreground"
+        "service",
+        "content"
       ],
-      "title": "ServersArgs_Serialize",
-      "type": "object"
+      "title": "CookieArgs_Serialize",
+      "description": " cookie 命令参数 (镜像 TS `CookieArgsSchema`: action=set + service=youtube + content 可选)。"
     },
-    "SfOcrArgs": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/SfOcrArgs_Serialize"
-            }
-          },
-          "required": [
-            "Serialize"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/SfOcrArgs_Deserialize"
-            }
-          },
-          "required": [
-            "Deserialize"
-          ],
-          "type": "object"
-        }
-      ],
-      "description": " sf_ocr 阶段参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
-      "title": "SfOcrArgs"
-    },
-    "SfOcrArgs_Deserialize": {
-      "description": " sf_ocr 阶段参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
+    "CookieArgs_Deserialize": {
+      "type": "object",
       "properties": {
-        "cleanupFrames": {
-          "description": " 步骤完成后是否删除抽出的帧图片; 默认 false (保留)",
-          "type": "boolean"
+        "action": {
+          "$ref": "#/$defs/CookieAction",
+          "description": " 动作: set (当前仅支持)"
         },
-        "device": {
-          "$ref": "#/$defs/OcrDevice",
-          "description": " OCR 运行设备: cpu, cuda, directml, coreml, rocm, mps"
+        "service": {
+          "$ref": "#/$defs/CookieService",
+          "description": " 服务: youtube (当前仅支持)"
         },
-        "runtime": {
-          "$ref": "#/$defs/OcrRuntime",
-          "description": " OCR 推理运行时: ort-rust (opencv)"
-        },
-        "subtitleOnly": {
-          "description": " 只识别字幕区域 (Y轴裁剪); 默认 true",
-          "type": "boolean"
-        },
-        "textConfidenceThreshold": {
-          "description": " OCR 识别置信度阈值, 默认 0.45",
-          "type": "number"
-        }
-      },
-      "title": "SfOcrArgs_Deserialize",
-      "type": "object"
-    },
-    "SfOcrArgs_Serialize": {
-      "description": " sf_ocr 阶段参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。",
-      "properties": {
-        "cleanupFrames": {
-          "description": " 步骤完成后是否删除抽出的帧图片; 默认 false (保留)",
-          "type": "boolean"
-        },
-        "device": {
-          "$ref": "#/$defs/OcrDevice",
-          "description": " OCR 运行设备: cpu, cuda, directml, coreml, rocm, mps"
-        },
-        "runtime": {
-          "$ref": "#/$defs/OcrRuntime",
-          "description": " OCR 推理运行时: ort-rust (opencv)"
-        },
-        "subtitleOnly": {
-          "description": " 只识别字幕区域 (Y轴裁剪); 默认 true",
-          "type": "boolean"
-        },
-        "textConfidenceThreshold": {
-          "description": " OCR 识别置信度阈值, 默认 0.45",
-          "type": "number"
-        }
-      },
-      "required": [
-        "runtime",
-        "device",
-        "textConfidenceThreshold",
-        "subtitleOnly",
-        "cleanupFrames"
-      ],
-      "title": "SfOcrArgs_Serialize",
-      "type": "object"
-    },
-    "SidechainCompress": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/SidechainCompress_Serialize"
-            }
-          },
-          "required": [
-            "Serialize"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/SidechainCompress_Deserialize"
-            }
-          },
-          "required": [
-            "Deserialize"
-          ],
-          "type": "object"
-        }
-      ],
-      "description": " 侧链压缩器参数 (镜像 TS `sidechainCompress`)",
-      "title": "SidechainCompress"
-    },
-    "SidechainCompress_Deserialize": {
-      "description": " 侧链压缩器参数 (镜像 TS `sidechainCompress`)",
-      "properties": {
-        "attack": {
-          "description": " attack 时间(ms), 默认 1",
-          "type": "number"
-        },
-        "ratio": {
-          "description": " 压缩比, 默认 20",
-          "type": "number"
-        },
-        "release": {
-          "description": " release 时间(ms), 默认 200",
-          "type": "number"
-        },
-        "threshold": {
-          "description": " 压缩器阈值, 默认 0.1",
-          "type": "number"
-        }
-      },
-      "title": "SidechainCompress_Deserialize",
-      "type": "object"
-    },
-    "SidechainCompress_Serialize": {
-      "description": " 侧链压缩器参数 (镜像 TS `sidechainCompress`)",
-      "properties": {
-        "attack": {
-          "description": " attack 时间(ms), 默认 1",
-          "type": "number"
-        },
-        "ratio": {
-          "description": " 压缩比, 默认 20",
-          "type": "number"
-        },
-        "release": {
-          "description": " release 时间(ms), 默认 200",
-          "type": "number"
-        },
-        "threshold": {
-          "description": " 压缩器阈值, 默认 0.1",
-          "type": "number"
-        }
-      },
-      "required": [
-        "threshold",
-        "ratio",
-        "attack",
-        "release"
-      ],
-      "title": "SidechainCompress_Serialize",
-      "type": "object"
-    },
-    "SplitAudioArgs": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/SplitAudioArgs_Serialize"
-            }
-          },
-          "required": [
-            "Serialize"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/SplitAudioArgs_Deserialize"
-            }
-          },
-          "required": [
-            "Deserialize"
-          ],
-          "type": "object"
-        }
-      ],
-      "description": " split_audio 阶段参数 (镜像 TS `packages/core/stages/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 ctx.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。",
-      "title": "SplitAudioArgs"
-    },
-    "SplitAudioArgs_Deserialize": {
-      "description": " split_audio 阶段参数 (镜像 TS `packages/core/stages/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 ctx.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。",
-      "properties": {
-        "endPadMs": {
-          "description": " 段落切块后缘 padding (ms), 避免语音被截断",
-          "maximum": 18446744073709551615,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "sourceFilePath": {
+        "content": {
           "anyOf": [
             {
               "type": "string"
@@ -2144,305 +1079,192 @@
               "type": "null"
             }
           ],
-          "description": " 原始视频音频路径, 调试使用"
-        },
-        "startPadMs": {
-          "description": " 段落切块前缘 padding (ms), 避免语音被截断",
-          "maximum": 18446744073709551615,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "vadAlign": {
-          "description": " 是否启用静音检测对齐: 修正 segments 前后静音导致的偏移",
-          "type": "boolean"
-        },
-        "vocalsFilePath": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 人声文件路径, 调试使用"
+          "description": " Netscape cookie 内容; 为空则从 stdin 读取"
         }
       },
-      "title": "SplitAudioArgs_Deserialize",
-      "type": "object"
+      "title": "CookieArgs_Deserialize",
+      "description": " cookie 命令参数 (镜像 TS `CookieArgsSchema`: action=set + service=youtube + content 可选)。"
     },
-    "SplitAudioArgs_Serialize": {
-      "description": " split_audio 阶段参数 (镜像 TS `packages/core/stages/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 ctx.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。",
-      "properties": {
-        "endPadMs": {
-          "description": " 段落切块后缘 padding (ms), 避免语音被截断",
-          "maximum": 18446744073709551615,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "sourceFilePath": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 原始视频音频路径, 调试使用"
-        },
-        "startPadMs": {
-          "description": " 段落切块前缘 padding (ms), 避免语音被截断",
-          "maximum": 18446744073709551615,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "vadAlign": {
-          "description": " 是否启用静音检测对齐: 修正 segments 前后静音导致的偏移",
-          "type": "boolean"
-        },
-        "vocalsFilePath": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 人声文件路径, 调试使用"
-        }
-      },
-      "required": [
-        "vadAlign",
-        "startPadMs",
-        "endPadMs",
-        "vocalsFilePath",
-        "sourceFilePath"
-      ],
-      "title": "SplitAudioArgs_Serialize",
-      "type": "object"
-    },
-    "StageName": {
+    "CookieArgs": {
       "anyOf": [
         {
-          "const": "separate"
-        },
-        {
-          "const": "separate_after"
-        },
-        {
-          "const": "asr"
-        },
-        {
-          "const": "asr_fix"
-        },
-        {
-          "const": "sf_ocr_pre"
-        },
-        {
-          "const": "sf_ocr"
-        },
-        {
-          "const": "sf_ocr_fix"
-        },
-        {
-          "const": "asr_ocr_pre"
-        },
-        {
-          "const": "asr_ocr"
-        },
-        {
-          "const": "asr_ocr_fix"
-        },
-        {
-          "const": "translate"
-        },
-        {
-          "const": "split_audio"
-        },
-        {
-          "const": "tts"
-        },
-        {
-          "const": "mix_audio"
-        },
-        {
-          "const": "mix_video"
-        }
-      ],
-      "description": " pipeline 阶段名 (stagesList)",
-      "title": "StageName"
-    },
-    "Stages": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/Stages_Serialize"
-            }
-          },
+          "type": "object",
           "required": [
             "Serialize"
           ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
           "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/Stages_Deserialize"
+            "Serialize": {
+              "$ref": "#/$defs/CookieArgs_Serialize"
             }
           },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
           "required": [
             "Deserialize"
           ],
-          "type": "object"
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/CookieArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
         }
       ],
-      "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StagesSchema)\n\n mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。",
-      "title": "Stages"
+      "title": "CookieArgs",
+      "description": " cookie 命令参数 (镜像 TS `CookieArgsSchema`: action=set + service=youtube + content 可选)。"
     },
-    "Stages_Deserialize": {
-      "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StagesSchema)\n\n mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。",
-      "properties": {
-        "asr": {
-          "$ref": "#/$defs/AsrArgs_Deserialize"
+    "Device": {
+      "anyOf": [
+        {
+          "const": "vulkan"
         },
-        "asr_fix": {
-          "$ref": "#/$defs/AsrFixArgs_Deserialize"
+        {
+          "const": "webgpu"
         },
-        "asr_ocr": {
-          "$ref": "#/$defs/AsrOcrArgs_Deserialize"
+        {
+          "const": "cuda"
         },
-        "asr_ocr_fix": {
-          "$ref": "#/$defs/AsrOcrFixArgs_Deserialize"
+        {
+          "const": "cpu"
         },
-        "asr_ocr_pre": {
-          "$ref": "#/$defs/AsrOcrPreArgs_Deserialize"
-        },
-        "mix_audio": {
-          "$ref": "#/$defs/MixAudioArgs_Deserialize"
-        },
-        "mix_video": {
-          "$ref": "#/$defs/MixVideoArgs_Deserialize"
-        },
-        "separate": {
-          "$ref": "#/$defs/SeparateArgs_Deserialize"
-        },
-        "sf_ocr": {
-          "$ref": "#/$defs/SfOcrArgs_Deserialize"
-        },
-        "sf_ocr_fix": {
-          "$ref": "#/$defs/OcrFixArgs_Deserialize"
-        },
-        "split_audio": {
-          "$ref": "#/$defs/SplitAudioArgs_Deserialize"
-        },
-        "translate": {
-          "$ref": "#/$defs/TranslateArgs_Deserialize"
-        },
-        "tts": {
-          "$ref": "#/$defs/TtsArgs_Deserialize"
+        {
+          "const": "mps"
         }
-      },
-      "title": "Stages_Deserialize",
-      "type": "object"
+      ],
+      "title": "Device",
+      "description": " 推理设备"
     },
-    "Stages_Serialize": {
-      "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StagesSchema)\n\n mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。",
+    "EnvAction": {
+      "anyOf": [
+        {
+          "const": "check"
+        },
+        {
+          "const": "ensure"
+        }
+      ],
+      "title": "EnvAction",
+      "description": " env 动作 (也用于 clap `--action` 命令行解析)"
+    },
+    "EnvArgs_Serialize": {
+      "type": "object",
       "properties": {
-        "asr": {
-          "$ref": "#/$defs/AsrArgs_Serialize"
+        "action": {
+          "$ref": "#/$defs/EnvAction",
+          "description": " 动作: check (默认) / ensure"
         },
-        "asr_fix": {
-          "$ref": "#/$defs/AsrFixArgs_Serialize"
-        },
-        "asr_ocr": {
-          "$ref": "#/$defs/AsrOcrArgs_Serialize"
-        },
-        "asr_ocr_fix": {
-          "$ref": "#/$defs/AsrOcrFixArgs_Serialize"
-        },
-        "asr_ocr_pre": {
-          "$ref": "#/$defs/AsrOcrPreArgs_Serialize"
-        },
-        "mix_audio": {
-          "$ref": "#/$defs/MixAudioArgs_Serialize"
-        },
-        "mix_video": {
-          "$ref": "#/$defs/MixVideoArgs_Serialize"
-        },
-        "separate": {
-          "$ref": "#/$defs/SeparateArgs_Serialize"
-        },
-        "sf_ocr": {
-          "$ref": "#/$defs/SfOcrArgs_Serialize"
-        },
-        "sf_ocr_fix": {
-          "$ref": "#/$defs/OcrFixArgs_Serialize"
-        },
-        "split_audio": {
-          "$ref": "#/$defs/SplitAudioArgs_Serialize"
-        },
-        "translate": {
-          "$ref": "#/$defs/TranslateArgs_Serialize"
-        },
-        "tts": {
-          "$ref": "#/$defs/TtsArgs_Serialize"
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": " 要检查/ensure 的环境项; 空数组 → 按 input.jsonc 的 stages 配置推断所需项"
         }
       },
       "required": [
-        "separate",
-        "asr",
-        "asr_fix",
-        "sf_ocr",
-        "sf_ocr_fix",
-        "asr_ocr_pre",
-        "asr_ocr",
-        "asr_ocr_fix",
-        "translate",
-        "split_audio",
-        "tts",
-        "mix_audio",
-        "mix_video"
+        "action",
+        "targets"
       ],
-      "title": "Stages_Serialize",
-      "type": "object"
+      "title": "EnvArgs_Serialize",
+      "description": " `env` 命令参数。\n\n `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 stages 配置推断)。"
     },
-    "Stem": {
+    "EnvArgs_Deserialize": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/EnvAction",
+          "description": " 动作: check (默认) / ensure"
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": " 要检查/ensure 的环境项; 空数组 → 按 input.jsonc 的 stages 配置推断所需项"
+        }
+      },
+      "title": "EnvArgs_Deserialize",
+      "description": " `env` 命令参数。\n\n `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 stages 配置推断)。"
+    },
+    "EnvArgs": {
       "anyOf": [
         {
-          "const": "drums"
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/EnvArgs_Serialize"
+            }
+          },
+          "additionalProperties": false
         },
         {
-          "const": "bass"
-        },
-        {
-          "const": "other"
-        },
-        {
-          "const": "vocals"
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/EnvArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
         }
       ],
-      "description": " 可分离的 stem",
-      "title": "Stem"
+      "title": "EnvArgs",
+      "description": " `env` 命令参数。\n\n `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 stages 配置推断)。"
     },
-    "SubtitleSource": {
+    "WorkflowAction": {
       "anyOf": [
         {
-          "const": "asr"
+          "const": "start"
         },
         {
-          "const": "sf_ocr"
+          "const": "continue"
         },
         {
-          "const": "asr_ocr"
+          "const": "import",
+          "description": " 只导入: 下载/拷贝视频 + 探测 + 写 ctx.json, 不跑 pipeline。\n 批量场景可先批量导入, 之后用 continue 逐个续跑重活。"
+        },
+        {
+          "const": "enqueue_start"
+        },
+        {
+          "const": "enqueue_continue"
+        },
+        {
+          "const": "enqueue_import"
+        },
+        {
+          "const": "list_queue"
+        },
+        {
+          "const": "cancel_queue"
+        },
+        {
+          "const": "status"
+        },
+        {
+          "const": "get_group_list"
+        },
+        {
+          "const": "get_workflow_ctx"
+        },
+        {
+          "const": "generate_meta"
         }
       ],
-      "description": " 字幕源",
-      "title": "SubtitleSource"
+      "title": "WorkflowAction",
+      "description": " 任务操作 (serde 与 clap 参数值统一为 snake_case)"
+    },
+    "Language": {
+      "type": "string",
+      "title": "Language",
+      "description": " 语言标识基础类型: **内部是开放字符串 (事实), 对外提供已知语言视图 (枚举)**。\n\n 源语言是\"事实\" (来自 ASR 识别或用户声明), 值域开放 —— whisper 支持约\n 99 种语言, 超出支持翻译的 23 种 [`TargetLang`] 列表; 若用封闭枚举建模,\n 列表外语言 (it/uk/nl/...) 会被截断丢信息。用 newtype 包字符串:\n - serde 透明 (序列化为 \"it\" 这样的字符串), 任何语言码原样进出\n - [`Language::as_known`] 提供封闭 [`TargetLang`] 视图 (目标语言是\n   \"承诺\", 必须落在支持翻译的语言内, 保持封闭)"
     },
     "TargetLang": {
       "anyOf": [
@@ -2516,95 +1338,131 @@
           "const": "bn"
         }
       ],
-      "description": " 目标语言 (langList)",
-      "title": "TargetLang"
+      "title": "TargetLang",
+      "description": " 目标语言 (langList)"
     },
-    "TaskAction": {
+    "StageName": {
       "anyOf": [
         {
-          "const": "start"
+          "const": "separate"
         },
         {
-          "const": "continue"
+          "const": "separate_after"
         },
         {
-          "const": "import",
-          "description": " 只导入: 下载/拷贝视频 + 探测 + 写 ctx.json, 不跑 pipeline。\n 批量场景可先批量导入, 之后用 continue 逐个续跑重活。"
+          "const": "asr"
         },
         {
-          "const": "enqueue_start"
+          "const": "asr_fix"
         },
         {
-          "const": "enqueue_continue"
+          "const": "sf_ocr_pre"
         },
         {
-          "const": "enqueue_import"
+          "const": "sf_ocr"
         },
         {
-          "const": "list_queue"
+          "const": "sf_ocr_fix"
         },
         {
-          "const": "cancel_queue"
+          "const": "asr_ocr_pre"
         },
         {
-          "const": "status"
+          "const": "asr_ocr"
         },
         {
-          "const": "get_group_list"
+          "const": "asr_ocr_fix"
         },
         {
-          "const": "get_task_ctx"
+          "const": "translate"
         },
         {
-          "const": "generate_meta"
+          "const": "split_audio"
+        },
+        {
+          "const": "tts"
+        },
+        {
+          "const": "mix_audio"
+        },
+        {
+          "const": "mix_video"
         }
       ],
-      "description": " 任务操作 (serde 与 clap 参数值统一为 snake_case)",
-      "title": "TaskAction"
+      "title": "StageName",
+      "description": " pipeline 阶段名 (stagesList)"
     },
-    "TaskArgs": {
+    "Pipeline": {
       "anyOf": [
         {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/TaskArgs_Serialize"
-            }
-          },
-          "required": [
-            "Serialize"
-          ],
-          "type": "object"
+          "const": "dub"
         },
         {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/TaskArgs_Deserialize"
-            }
-          },
-          "required": [
-            "Deserialize"
-          ],
-          "type": "object"
+          "const": "subtitle"
         }
       ],
-      "description": " 任务参数 (镜像 taskArgsSchema)",
-      "title": "TaskArgs"
+      "title": "Pipeline",
+      "description": " 任务模式: dub=配音, subtitle=仅字幕"
     },
-    "TaskArgs_Deserialize": {
-      "description": " 任务参数 (镜像 taskArgsSchema)",
+    "SubtitleSource": {
+      "anyOf": [
+        {
+          "const": "asr"
+        },
+        {
+          "const": "sf_ocr"
+        },
+        {
+          "const": "asr_ocr"
+        }
+      ],
+      "title": "SubtitleSource",
+      "description": " 字幕源"
+    },
+    "WorkflowArgs_Serialize": {
+      "type": "object",
       "properties": {
         "action": {
           "anyOf": [
             {
-              "$ref": "#/$defs/TaskAction"
+              "$ref": "#/$defs/WorkflowAction"
             },
             {
               "type": "null"
             }
           ],
           "description": " 任务操作: start=开始, continue=继续, status=显示状态, get_group_list=列出分组"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl"
+        },
+        "sourceLang": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Language"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "targetLang": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TargetLang"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "continueFrom": {
           "anyOf": [
@@ -2617,36 +1475,39 @@
           ],
           "description": " 继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始"
         },
-        "downloadSubtitles": {
-          "description": " 是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。\n 注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。",
-          "type": "boolean"
+        "targetStage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StageName"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤"
         },
-        "pipeline": {
-          "$ref": "#/$defs/Pipeline",
-          "description": " 任务模式, dub 配音, subtitle 仅字幕"
+        "workflowDir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "queueId": {
           "anyOf": [
             {
-              "maximum": 18446744073709551615,
+              "type": "integer",
               "minimum": 0,
-              "type": "integer"
+              "maximum": 18446744073709551615
             },
             {
               "type": "null"
             }
           ],
           "description": " 队列任务 ID (cancel_queue 指定要取消的队列项)"
-        },
-        "sourceLang": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Language"
-            },
-            {
-              "type": "null"
-            }
-          ]
         },
         "stageName": {
           "anyOf": [
@@ -2659,168 +1520,17 @@
           ],
           "description": " rerunStage 专业参数, 指定要重新运行的步骤"
         },
-        "subtitleSource": {
-          "$ref": "#/$defs/SubtitleSource",
-          "description": " 字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)"
-        },
-        "targetLang": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TargetLang"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "targetStage": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/StageName"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤"
-        },
-        "taskDir": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "url": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl"
-        }
-      },
-      "title": "TaskArgs_Deserialize",
-      "type": "object"
-    },
-    "TaskArgs_Serialize": {
-      "description": " 任务参数 (镜像 taskArgsSchema)",
-      "properties": {
-        "action": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TaskAction"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 任务操作: start=开始, continue=继续, status=显示状态, get_group_list=列出分组"
-        },
-        "continueFrom": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/StageName"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始"
-        },
-        "downloadSubtitles": {
-          "description": " 是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。\n 注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。",
-          "type": "boolean"
-        },
         "pipeline": {
           "$ref": "#/$defs/Pipeline",
           "description": " 任务模式, dub 配音, subtitle 仅字幕"
         },
-        "queueId": {
-          "anyOf": [
-            {
-              "maximum": 18446744073709551615,
-              "minimum": 0,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 队列任务 ID (cancel_queue 指定要取消的队列项)"
-        },
-        "sourceLang": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Language"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "stageName": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/StageName"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " rerunStage 专业参数, 指定要重新运行的步骤"
-        },
         "subtitleSource": {
           "$ref": "#/$defs/SubtitleSource",
           "description": " 字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)"
         },
-        "targetLang": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/TargetLang"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "targetStage": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/StageName"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤"
-        },
-        "taskDir": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "url": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl"
+        "downloadSubtitles": {
+          "type": "boolean",
+          "description": " 是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。\n 注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。"
         }
       },
       "required": [
@@ -2830,79 +1540,188 @@
         "targetLang",
         "continueFrom",
         "targetStage",
-        "taskDir",
+        "workflowDir",
         "queueId",
         "stageName",
         "pipeline",
         "subtitleSource",
         "downloadSubtitles"
       ],
-      "title": "TaskArgs_Serialize",
-      "type": "object"
+      "title": "WorkflowArgs_Serialize",
+      "description": " workflow 参数 (镜像 workflowArgsSchema)"
     },
-    "TranslateArgs": {
+    "ServerAction": {
       "anyOf": [
         {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/TranslateArgs_Serialize"
-            }
-          },
-          "required": [
-            "Serialize"
-          ],
-          "type": "object"
+          "const": "status"
         },
         {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/TranslateArgs_Deserialize"
-            }
-          },
-          "required": [
-            "Deserialize"
-          ],
-          "type": "object"
+          "const": "start"
+        },
+        {
+          "const": "stop"
+        },
+        {
+          "const": "discovery"
         }
       ],
-      "description": " translate 阶段参数 (镜像 TS `packages/core/stages/05_translate/args.ts` TranslateArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 目标语言统一在 `input.task.targetLang` 配置 (任务级概念: 一个任务只有一个翻译\n 阶段, 不需要 stage 级覆盖)。旧的 `stages.translate.targetLang` 已移除,\n deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。",
-      "title": "TranslateArgs"
+      "title": "ServerAction",
+      "description": " 服务器操作 (镜像 packages/core/servers/input.ts 的 action 枚举)\n (serde 与 clap 参数值统一为 lowercase)"
     },
-    "TranslateArgs_Deserialize": {
-      "description": " translate 阶段参数 (镜像 TS `packages/core/stages/05_translate/args.ts` TranslateArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 目标语言统一在 `input.task.targetLang` 配置 (任务级概念: 一个任务只有一个翻译\n 阶段, 不需要 stage 级覆盖)。旧的 `stages.translate.targetLang` 已移除,\n deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。",
+    "ServerType_Serialize": {
+      "anyOf": [
+        {
+          "const": "main",
+          "description": " LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。\n\n alias \"server\": 历史任务 ctx.json 里持久化的 input.servers.name 是旧值,\n 反序列化需兼容 (序列化输出统一 \"main\")。"
+        },
+        {
+          "const": "voxcpm_torch_gradio"
+        }
+      ],
+      "title": "ServerType_Serialize",
+      "description": " Server type identifiers for mDNS discovery.\n\n 序列化为 snake_case (voxcpm_torch_gradio), 对齐 TS 侧\n `packages/config/src/servers.ts` 的 serverTypeList。\n (serde 与 clap 参数值统一为 snake_case)"
+    },
+    "ServersArgs_Serialize": {
+      "type": "object",
       "properties": {
-        "apiBase": {
-          "description": " OpenAI 兼容端点",
-          "type": "string"
+        "action": {
+          "$ref": "#/$defs/ServerAction",
+          "description": " 服务器操作"
         },
-        "enabled": {
-          "description": " 设为 false 跳过翻译, 直接使用原始识别文本",
-          "type": "boolean"
+        "name": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ServerType_Serialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 指定操作的服务器, 不传则操作所有"
         },
-        "model": {
-          "description": " 翻译模型",
-          "type": "string"
+        "foreground": {
+          "type": "boolean",
+          "description": " start 前台模式: 继承终端 stdio (日志实时可见), Ctrl+C 直接终止;\n 默认 false = detach 后台 + 日志落盘 logs/server.log"
         }
       },
-      "title": "TranslateArgs_Deserialize",
-      "type": "object"
+      "required": [
+        "action",
+        "name",
+        "foreground"
+      ],
+      "title": "ServersArgs_Serialize",
+      "description": " servers 命令参数 (镜像 packages/core/servers/input.ts 的 ServersArgsSchema)"
+    },
+    "SeparateRuntime": {
+      "anyOf": [
+        {
+          "const": "burn"
+        },
+        {
+          "const": "burn-tch"
+        }
+      ],
+      "title": "SeparateRuntime",
+      "description": " separate 推理运行时\n\n TS 侧为 `z.enum([\"burn\", \"burn-tch\"])` (kebab-case), 故用 `rename_all = \"kebab-case\"`\n (`BurnTch` → `\"burn-tch\"`)。原先误用 `lowercase` 会得到 `\"burntch\"`, 与 TS 对不上,\n 导致运行时 `\"burn-tch\"` 解析失败回落默认 (see `read_args_parses_camel_case_fields`)。"
+    },
+    "Stem": {
+      "anyOf": [
+        {
+          "const": "drums"
+        },
+        {
+          "const": "bass"
+        },
+        {
+          "const": "other"
+        },
+        {
+          "const": "vocals"
+        }
+      ],
+      "title": "Stem",
+      "description": " 可分离的 stem"
+    },
+    "SeparateArgs_Serialize": {
+      "type": "object",
+      "properties": {
+        "runtime": {
+          "$ref": "#/$defs/SeparateRuntime",
+          "description": " 推理运行时"
+        },
+        "device": {
+          "$ref": "#/$defs/Device",
+          "description": " torch:cuda (NVIDIA/ROCm), mps (Apple Silicon)"
+        },
+        "always": {
+          "type": "boolean",
+          "description": " 效果(默认关闭): subtitle 模式下也始终分离人声, 保留 vocals 以便后续切换到 dub;\n dub 流程下始终需要分离人声以保证 tts-vc 的质量"
+        },
+        "stems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Stem"
+          },
+          "description": " 需分离的 stems; 暂不被消费"
+        }
+      },
+      "required": [
+        "runtime",
+        "device",
+        "always",
+        "stems"
+      ],
+      "title": "SeparateArgs_Serialize",
+      "description": " separate 阶段参数 (镜像 TS `packages/core/stages/separate/args.ts` SeparateArgsSchema)\n\n 枚举/数组默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})`), 这里只需处理\n 「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
+    },
+    "SfOcrArgs_Serialize": {
+      "type": "object",
+      "properties": {
+        "runtime": {
+          "$ref": "#/$defs/OcrRuntime",
+          "description": " OCR 推理运行时: ort-rust (opencv)"
+        },
+        "device": {
+          "$ref": "#/$defs/OcrDevice",
+          "description": " OCR 运行设备: cpu, cuda, directml, coreml, rocm, mps"
+        },
+        "textConfidenceThreshold": {
+          "type": "number",
+          "description": " OCR 识别置信度阈值, 默认 0.45"
+        },
+        "subtitleOnly": {
+          "type": "boolean",
+          "description": " 只识别字幕区域 (Y轴裁剪); 默认 true"
+        },
+        "cleanupFrames": {
+          "type": "boolean",
+          "description": " 步骤完成后是否删除抽出的帧图片; 默认 false (保留)"
+        }
+      },
+      "required": [
+        "runtime",
+        "device",
+        "textConfidenceThreshold",
+        "subtitleOnly",
+        "cleanupFrames"
+      ],
+      "title": "SfOcrArgs_Serialize",
+      "description": " sf_ocr 阶段参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
     },
     "TranslateArgs_Serialize": {
-      "description": " translate 阶段参数 (镜像 TS `packages/core/stages/05_translate/args.ts` TranslateArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 目标语言统一在 `input.task.targetLang` 配置 (任务级概念: 一个任务只有一个翻译\n 阶段, 不需要 stage 级覆盖)。旧的 `stages.translate.targetLang` 已移除,\n deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。",
+      "type": "object",
       "properties": {
         "apiBase": {
-          "description": " OpenAI 兼容端点",
-          "type": "string"
-        },
-        "enabled": {
-          "description": " 设为 false 跳过翻译, 直接使用原始识别文本",
-          "type": "boolean"
+          "type": "string",
+          "description": " OpenAI 兼容端点"
         },
         "model": {
-          "description": " 翻译模型",
-          "type": "string"
+          "type": "string",
+          "description": " 翻译模型"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": " 设为 false 跳过翻译, 直接使用原始识别文本"
         }
       },
       "required": [
@@ -2911,122 +1730,74 @@
         "enabled"
       ],
       "title": "TranslateArgs_Serialize",
-      "type": "object"
+      "description": " translate 阶段参数 (镜像 TS `packages/core/stages/05_translate/args.ts` TranslateArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 目标语言统一在 `input.workflow.targetLang` 配置 (任务级概念: 一个任务只有一个翻译\n 阶段, 不需要 stage 级覆盖)。旧的 `stages.translate.targetLang` 已移除,\n deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。"
     },
-    "TtsArgs": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/TtsArgs_Serialize"
-            }
-          },
-          "required": [
-            "Serialize"
-          ],
-          "type": "object"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/TtsArgs_Deserialize"
-            }
-          },
-          "required": [
-            "Deserialize"
-          ],
-          "type": "object"
-        }
-      ],
-      "description": " tts 阶段参数 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。",
-      "title": "TtsArgs"
-    },
-    "TtsArgs_Deserialize": {
-      "description": " tts 阶段参数 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。",
+    "SplitAudioArgs_Serialize": {
+      "type": "object",
       "properties": {
-        "device": {
-          "$ref": "#/$defs/TtsDevice",
-          "description": " 计算设备; 默认 cuda"
+        "vadAlign": {
+          "type": "boolean",
+          "description": " 是否启用静音检测对齐: 修正 segments 前后静音导致的偏移"
         },
-        "refAudioX2": {
-          "description": " 将短参考音频 (< 2500ms) 拼接一倍再送 TTS, 帮助稳定输出音色; 默认 false",
-          "type": "boolean"
+        "startPadMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "description": " 段落切块前缘 padding (ms), 避免语音被截断"
         },
-        "regenIndices": {
+        "endPadMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "description": " 段落切块后缘 padding (ms), 避免语音被截断"
+        },
+        "vocalsFilePath": {
           "anyOf": [
             {
-              "items": {
-                "maximum": 4294967295,
-                "minimum": 0,
-                "type": "integer"
-              },
-              "type": "array"
+              "type": "string"
             },
             {
               "type": "null"
             }
           ],
-          "description": " continue 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。\n 命中段无视 skipExisting, 强制重合成 (先删旧 wav 再生成)。None/空 = 全量按 skipExisting 走。"
+          "description": " 人声文件路径, 调试使用"
         },
-        "runtime": {
-          "$ref": "#/$defs/TtsRuntime",
-          "description": " 运行时后端; 默认 cloud"
-        },
-        "skipExisting": {
-          "description": " 跳过已存在的段 (按 mtime 比对参考音); 默认 true",
-          "type": "boolean"
-        }
-      },
-      "title": "TtsArgs_Deserialize",
-      "type": "object"
-    },
-    "TtsArgs_Serialize": {
-      "description": " tts 阶段参数 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。",
-      "properties": {
-        "device": {
-          "$ref": "#/$defs/TtsDevice",
-          "description": " 计算设备; 默认 cuda"
-        },
-        "refAudioX2": {
-          "description": " 将短参考音频 (< 2500ms) 拼接一倍再送 TTS, 帮助稳定输出音色; 默认 false",
-          "type": "boolean"
-        },
-        "regenIndices": {
+        "sourceFilePath": {
           "anyOf": [
             {
-              "items": {
-                "maximum": 4294967295,
-                "minimum": 0,
-                "type": "integer"
-              },
-              "type": "array"
+              "type": "string"
             },
             {
               "type": "null"
             }
           ],
-          "description": " continue 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。\n 命中段无视 skipExisting, 强制重合成 (先删旧 wav 再生成)。None/空 = 全量按 skipExisting 走。"
-        },
-        "runtime": {
-          "$ref": "#/$defs/TtsRuntime",
-          "description": " 运行时后端; 默认 cloud"
-        },
-        "skipExisting": {
-          "description": " 跳过已存在的段 (按 mtime 比对参考音); 默认 true",
-          "type": "boolean"
+          "description": " 原始视频音频路径, 调试使用"
         }
       },
       "required": [
-        "runtime",
-        "device",
-        "skipExisting",
-        "regenIndices",
-        "refAudioX2"
+        "vadAlign",
+        "startPadMs",
+        "endPadMs",
+        "vocalsFilePath",
+        "sourceFilePath"
       ],
-      "title": "TtsArgs_Serialize",
-      "type": "object"
+      "title": "SplitAudioArgs_Serialize",
+      "description": " split_audio 阶段参数 (镜像 TS `packages/core/stages/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 ctx.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。"
+    },
+    "TtsRuntime": {
+      "anyOf": [
+        {
+          "const": "ggml"
+        },
+        {
+          "const": "cloud"
+        },
+        {
+          "const": "voxcpmtorchgradio"
+        }
+      ],
+      "title": "TtsRuntime",
+      "description": " TTS 运行时后端 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema.runtime)"
     },
     "TtsDevice": {
       "anyOf": [
@@ -3046,38 +1817,1383 @@
           "const": "mps"
         }
       ],
-      "description": " TTS 计算设备 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema.device)",
-      "title": "TtsDevice"
+      "title": "TtsDevice",
+      "description": " TTS 计算设备 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema.device)"
     },
-    "TtsRuntime": {
+    "TtsArgs_Serialize": {
+      "type": "object",
+      "properties": {
+        "runtime": {
+          "$ref": "#/$defs/TtsRuntime",
+          "description": " 运行时后端; 默认 cloud"
+        },
+        "device": {
+          "$ref": "#/$defs/TtsDevice",
+          "description": " 计算设备; 默认 cuda"
+        },
+        "skipExisting": {
+          "type": "boolean",
+          "description": " 跳过已存在的段 (按 mtime 比对参考音); 默认 true"
+        },
+        "regenIndices": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              }
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " continue 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。\n 命中段无视 skipExisting, 强制重合成 (先删旧 wav 再生成)。None/空 = 全量按 skipExisting 走。"
+        },
+        "refAudioX2": {
+          "type": "boolean",
+          "description": " 将短参考音频 (< 2500ms) 拼接一倍再送 TTS, 帮助稳定输出音色; 默认 false"
+        }
+      },
+      "required": [
+        "runtime",
+        "device",
+        "skipExisting",
+        "regenIndices",
+        "refAudioX2"
+      ],
+      "title": "TtsArgs_Serialize",
+      "description": " tts 阶段参数 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
+    },
+    "MixAudioArgs_Serialize": {
+      "type": "object",
+      "properties": {
+        "maxSpeed": {
+          "type": "number",
+          "description": " TTS 音频最大变速比, 1.0=不变速; 默认 1.35"
+        },
+        "maxAdvanceMs": {
+          "type": "number",
+          "description": " 字幕允许提前显示的最大毫秒数, 利用前段剩余时间; 默认 500"
+        },
+        "maxDelayMs": {
+          "type": "number",
+          "description": " 字幕允许延迟显示的最大毫秒数, 借用后段留白; 默认 500"
+        }
+      },
+      "required": [
+        "maxSpeed",
+        "maxAdvanceMs",
+        "maxDelayMs"
+      ],
+      "title": "MixAudioArgs_Serialize",
+      "description": " mix_audio 阶段参数 (镜像 TS `packages/core/stages/mix_audio/args.ts` MixAudioArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
+    },
+    "MixVideoArgs_Serialize": {
+      "type": "object",
+      "properties": {
+        "fontSize": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 字幕字号, 不填则自动: 竖屏 12(zh)/9(其他) ← 横屏 24(zh)/18(其他)\n\n 镜像 TS `z.number()` (允许小数, 与 ASS `FontSize` 一致)。"
+        },
+        "marginV": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 垂直边距(像素), 不填则自动: 竖屏 70 / 横屏 5\n\n 镜像 TS `z.number().min(0)` (允许小数)。"
+        },
+        "alignment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Alignment"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 对齐位置; 默认 bottom-center"
+        },
+        "outline": {
+          "type": "number",
+          "description": " 描边宽度; 默认 0\n\n 镜像 TS `z.number().min(0).default(0)` (允许小数)。"
+        },
+        "shadow": {
+          "type": "number",
+          "description": " 阴影宽度; 默认 1\n\n 镜像 TS `z.number().min(0).default(1)` (允许小数)。"
+        },
+        "font": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " ASS 字幕字体名 (须系统已安装), 默认 Noto Sans CJK SC"
+        },
+        "srtPath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 调试使用: 外部 srt 路径"
+        },
+        "bgmPath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 调试使用: 外部 bgm 路径"
+        },
+        "bgmGain": {
+          "type": "number",
+          "description": " 背景音乐增益(dB), 0=不变, 负值=衰减; 默认 -6"
+        },
+        "dubGain": {
+          "type": "number",
+          "description": " 配音增益(dB), 补偿合成语音偏小的听感差; 默认 3"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 mix_video)"
+        }
+      },
+      "required": [
+        "fontSize",
+        "marginV",
+        "alignment",
+        "outline",
+        "shadow",
+        "font",
+        "srtPath",
+        "bgmPath",
+        "bgmGain",
+        "dubGain",
+        "enabled"
+      ],
+      "title": "MixVideoArgs_Serialize",
+      "description": " mix_video 阶段参数 (镜像 TS `packages/core/stages/mix_video/args.ts` MixVideoArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
+    },
+    "Stages_Serialize": {
+      "type": "object",
+      "properties": {
+        "separate": {
+          "$ref": "#/$defs/SeparateArgs_Serialize"
+        },
+        "asr": {
+          "$ref": "#/$defs/AsrArgs_Serialize"
+        },
+        "asr_fix": {
+          "$ref": "#/$defs/AsrFixArgs_Serialize"
+        },
+        "sf_ocr": {
+          "$ref": "#/$defs/SfOcrArgs_Serialize"
+        },
+        "sf_ocr_fix": {
+          "$ref": "#/$defs/OcrFixArgs_Serialize"
+        },
+        "asr_ocr_pre": {
+          "$ref": "#/$defs/AsrOcrPreArgs_Serialize"
+        },
+        "asr_ocr": {
+          "$ref": "#/$defs/AsrOcrArgs_Serialize"
+        },
+        "asr_ocr_fix": {
+          "$ref": "#/$defs/AsrOcrFixArgs_Serialize"
+        },
+        "translate": {
+          "$ref": "#/$defs/TranslateArgs_Serialize"
+        },
+        "split_audio": {
+          "$ref": "#/$defs/SplitAudioArgs_Serialize"
+        },
+        "tts": {
+          "$ref": "#/$defs/TtsArgs_Serialize"
+        },
+        "mix_audio": {
+          "$ref": "#/$defs/MixAudioArgs_Serialize"
+        },
+        "mix_video": {
+          "$ref": "#/$defs/MixVideoArgs_Serialize"
+        }
+      },
+      "required": [
+        "separate",
+        "asr",
+        "asr_fix",
+        "sf_ocr",
+        "sf_ocr_fix",
+        "asr_ocr_pre",
+        "asr_ocr",
+        "asr_ocr_fix",
+        "translate",
+        "split_audio",
+        "tts",
+        "mix_audio",
+        "mix_video"
+      ],
+      "title": "Stages_Serialize",
+      "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StagesSchema)\n\n mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。"
+    },
+    "Input_Serialize": {
+      "type": "object",
+      "properties": {
+        "workflow": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkflowArgs_Serialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " workflow 参数, 仅 command=workflow 时必须"
+        },
+        "command": {
+          "$ref": "#/$defs/Command",
+          "description": " 执行命令 (默认 env)"
+        },
+        "servers": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ServersArgs_Serialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 服务端参数 (镜像 servers/args.ts), 仅 command=servers 时使用"
+        },
+        "env": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EnvArgs_Serialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " env 命令参数 (镜像 env/input.ts); targets 为空时按 stages 配置推断所需环境项"
+        },
+        "cookie": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CookieArgs_Serialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " cookie 命令参数 (镜像 cmd/cookie/args.ts), 仅 command=cookie 时使用"
+        },
+        "check": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CheckArgs_Serialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " check 命令参数 (镜像 cmd/check 参数 schema), 仅 command=check 时使用"
+        },
+        "stages": {
+          "$ref": "#/$defs/Stages_Serialize"
+        }
+      },
+      "required": [
+        "workflow",
+        "command",
+        "servers",
+        "env",
+        "cookie",
+        "check",
+        "stages"
+      ],
+      "title": "Input_Serialize",
+      "description": " 顶层输入"
+    },
+    "WorkflowArgs_Deserialize": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkflowAction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 任务操作: start=开始, continue=继续, status=显示状态, get_group_list=列出分组"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl"
+        },
+        "sourceLang": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Language"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "targetLang": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TargetLang"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "continueFrom": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StageName"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始"
+        },
+        "targetStage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StageName"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤"
+        },
+        "workflowDir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "queueId": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 队列任务 ID (cancel_queue 指定要取消的队列项)"
+        },
+        "stageName": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StageName"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " rerunStage 专业参数, 指定要重新运行的步骤"
+        },
+        "pipeline": {
+          "$ref": "#/$defs/Pipeline",
+          "description": " 任务模式, dub 配音, subtitle 仅字幕"
+        },
+        "subtitleSource": {
+          "$ref": "#/$defs/SubtitleSource",
+          "description": " 字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)"
+        },
+        "downloadSubtitles": {
+          "type": "boolean",
+          "description": " 是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。\n 注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。"
+        }
+      },
+      "title": "WorkflowArgs_Deserialize",
+      "description": " workflow 参数 (镜像 workflowArgsSchema)"
+    },
+    "ServerType_Deserialize": {
       "anyOf": [
         {
-          "const": "ggml"
+          "const": "main",
+          "description": " LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。\n\n alias \"server\": 历史任务 ctx.json 里持久化的 input.servers.name 是旧值,\n 反序列化需兼容 (序列化输出统一 \"main\")。"
         },
         {
-          "const": "cloud"
+          "const": "server",
+          "description": " LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。\n\n alias \"server\": 历史任务 ctx.json 里持久化的 input.servers.name 是旧值,\n 反序列化需兼容 (序列化输出统一 \"main\")。"
         },
         {
-          "const": "voxcpmtorchgradio"
+          "const": "voxcpm_torch_gradio"
         }
       ],
-      "description": " TTS 运行时后端 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema.runtime)",
-      "title": "TtsRuntime"
+      "title": "ServerType_Deserialize",
+      "description": " Server type identifiers for mDNS discovery.\n\n 序列化为 snake_case (voxcpm_torch_gradio), 对齐 TS 侧\n `packages/config/src/servers.ts` 的 serverTypeList。\n (serde 与 clap 参数值统一为 snake_case)"
     },
-    "VadModel": {
+    "ServersArgs_Deserialize": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/ServerAction",
+          "description": " 服务器操作"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ServerType_Deserialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 指定操作的服务器, 不传则操作所有"
+        },
+        "foreground": {
+          "type": "boolean",
+          "description": " start 前台模式: 继承终端 stdio (日志实时可见), Ctrl+C 直接终止;\n 默认 false = detach 后台 + 日志落盘 logs/server.log"
+        }
+      },
+      "title": "ServersArgs_Deserialize",
+      "description": " servers 命令参数 (镜像 packages/core/servers/input.ts 的 ServersArgsSchema)"
+    },
+    "SeparateArgs_Deserialize": {
+      "type": "object",
+      "properties": {
+        "runtime": {
+          "$ref": "#/$defs/SeparateRuntime",
+          "description": " 推理运行时"
+        },
+        "device": {
+          "$ref": "#/$defs/Device",
+          "description": " torch:cuda (NVIDIA/ROCm), mps (Apple Silicon)"
+        },
+        "always": {
+          "type": "boolean",
+          "description": " 效果(默认关闭): subtitle 模式下也始终分离人声, 保留 vocals 以便后续切换到 dub;\n dub 流程下始终需要分离人声以保证 tts-vc 的质量"
+        },
+        "stems": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Stem"
+          },
+          "description": " 需分离的 stems; 暂不被消费"
+        }
+      },
+      "title": "SeparateArgs_Deserialize",
+      "description": " separate 阶段参数 (镜像 TS `packages/core/stages/separate/args.ts` SeparateArgsSchema)\n\n 枚举/数组默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})`), 这里只需处理\n 「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
+    },
+    "SfOcrArgs_Deserialize": {
+      "type": "object",
+      "properties": {
+        "runtime": {
+          "$ref": "#/$defs/OcrRuntime",
+          "description": " OCR 推理运行时: ort-rust (opencv)"
+        },
+        "device": {
+          "$ref": "#/$defs/OcrDevice",
+          "description": " OCR 运行设备: cpu, cuda, directml, coreml, rocm, mps"
+        },
+        "textConfidenceThreshold": {
+          "type": "number",
+          "description": " OCR 识别置信度阈值, 默认 0.45"
+        },
+        "subtitleOnly": {
+          "type": "boolean",
+          "description": " 只识别字幕区域 (Y轴裁剪); 默认 true"
+        },
+        "cleanupFrames": {
+          "type": "boolean",
+          "description": " 步骤完成后是否删除抽出的帧图片; 默认 false (保留)"
+        }
+      },
+      "title": "SfOcrArgs_Deserialize",
+      "description": " sf_ocr 阶段参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
+    },
+    "TranslateArgs_Deserialize": {
+      "type": "object",
+      "properties": {
+        "apiBase": {
+          "type": "string",
+          "description": " OpenAI 兼容端点"
+        },
+        "model": {
+          "type": "string",
+          "description": " 翻译模型"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": " 设为 false 跳过翻译, 直接使用原始识别文本"
+        }
+      },
+      "title": "TranslateArgs_Deserialize",
+      "description": " translate 阶段参数 (镜像 TS `packages/core/stages/05_translate/args.ts` TranslateArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 目标语言统一在 `input.workflow.targetLang` 配置 (任务级概念: 一个任务只有一个翻译\n 阶段, 不需要 stage 级覆盖)。旧的 `stages.translate.targetLang` 已移除,\n deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。"
+    },
+    "SplitAudioArgs_Deserialize": {
+      "type": "object",
+      "properties": {
+        "vadAlign": {
+          "type": "boolean",
+          "description": " 是否启用静音检测对齐: 修正 segments 前后静音导致的偏移"
+        },
+        "startPadMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "description": " 段落切块前缘 padding (ms), 避免语音被截断"
+        },
+        "endPadMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295,
+          "description": " 段落切块后缘 padding (ms), 避免语音被截断"
+        },
+        "vocalsFilePath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 人声文件路径, 调试使用"
+        },
+        "sourceFilePath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 原始视频音频路径, 调试使用"
+        }
+      },
+      "title": "SplitAudioArgs_Deserialize",
+      "description": " split_audio 阶段参数 (镜像 TS `packages/core/stages/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 ctx.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。"
+    },
+    "TtsArgs_Deserialize": {
+      "type": "object",
+      "properties": {
+        "runtime": {
+          "$ref": "#/$defs/TtsRuntime",
+          "description": " 运行时后端; 默认 cloud"
+        },
+        "device": {
+          "$ref": "#/$defs/TtsDevice",
+          "description": " 计算设备; 默认 cuda"
+        },
+        "skipExisting": {
+          "type": "boolean",
+          "description": " 跳过已存在的段 (按 mtime 比对参考音); 默认 true"
+        },
+        "regenIndices": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              }
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " continue 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。\n 命中段无视 skipExisting, 强制重合成 (先删旧 wav 再生成)。None/空 = 全量按 skipExisting 走。"
+        },
+        "refAudioX2": {
+          "type": "boolean",
+          "description": " 将短参考音频 (< 2500ms) 拼接一倍再送 TTS, 帮助稳定输出音色; 默认 false"
+        }
+      },
+      "title": "TtsArgs_Deserialize",
+      "description": " tts 阶段参数 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
+    },
+    "MixAudioArgs_Deserialize": {
+      "type": "object",
+      "properties": {
+        "maxSpeed": {
+          "type": "number",
+          "description": " TTS 音频最大变速比, 1.0=不变速; 默认 1.35"
+        },
+        "maxAdvanceMs": {
+          "type": "number",
+          "description": " 字幕允许提前显示的最大毫秒数, 利用前段剩余时间; 默认 500"
+        },
+        "maxDelayMs": {
+          "type": "number",
+          "description": " 字幕允许延迟显示的最大毫秒数, 借用后段留白; 默认 500"
+        }
+      },
+      "title": "MixAudioArgs_Deserialize",
+      "description": " mix_audio 阶段参数 (镜像 TS `packages/core/stages/mix_audio/args.ts` MixAudioArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
+    },
+    "MixVideoArgs_Deserialize": {
+      "type": "object",
+      "properties": {
+        "fontSize": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 字幕字号, 不填则自动: 竖屏 12(zh)/9(其他) ← 横屏 24(zh)/18(其他)\n\n 镜像 TS `z.number()` (允许小数, 与 ASS `FontSize` 一致)。"
+        },
+        "marginV": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 垂直边距(像素), 不填则自动: 竖屏 70 / 横屏 5\n\n 镜像 TS `z.number().min(0)` (允许小数)。"
+        },
+        "alignment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Alignment"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 对齐位置; 默认 bottom-center"
+        },
+        "outline": {
+          "type": "number",
+          "description": " 描边宽度; 默认 0\n\n 镜像 TS `z.number().min(0).default(0)` (允许小数)。"
+        },
+        "shadow": {
+          "type": "number",
+          "description": " 阴影宽度; 默认 1\n\n 镜像 TS `z.number().min(0).default(1)` (允许小数)。"
+        },
+        "font": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " ASS 字幕字体名 (须系统已安装), 默认 Noto Sans CJK SC"
+        },
+        "srtPath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 调试使用: 外部 srt 路径"
+        },
+        "bgmPath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 调试使用: 外部 bgm 路径"
+        },
+        "bgmGain": {
+          "type": "number",
+          "description": " 背景音乐增益(dB), 0=不变, 负值=衰减; 默认 -6"
+        },
+        "dubGain": {
+          "type": "number",
+          "description": " 配音增益(dB), 补偿合成语音偏小的听感差; 默认 3"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 mix_video)"
+        }
+      },
+      "title": "MixVideoArgs_Deserialize",
+      "description": " mix_video 阶段参数 (镜像 TS `packages/core/stages/mix_video/args.ts` MixVideoArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
+    },
+    "Stages_Deserialize": {
+      "type": "object",
+      "properties": {
+        "separate": {
+          "$ref": "#/$defs/SeparateArgs_Deserialize"
+        },
+        "asr": {
+          "$ref": "#/$defs/AsrArgs_Deserialize"
+        },
+        "asr_fix": {
+          "$ref": "#/$defs/AsrFixArgs_Deserialize"
+        },
+        "sf_ocr": {
+          "$ref": "#/$defs/SfOcrArgs_Deserialize"
+        },
+        "sf_ocr_fix": {
+          "$ref": "#/$defs/OcrFixArgs_Deserialize"
+        },
+        "asr_ocr_pre": {
+          "$ref": "#/$defs/AsrOcrPreArgs_Deserialize"
+        },
+        "asr_ocr": {
+          "$ref": "#/$defs/AsrOcrArgs_Deserialize"
+        },
+        "asr_ocr_fix": {
+          "$ref": "#/$defs/AsrOcrFixArgs_Deserialize"
+        },
+        "translate": {
+          "$ref": "#/$defs/TranslateArgs_Deserialize"
+        },
+        "split_audio": {
+          "$ref": "#/$defs/SplitAudioArgs_Deserialize"
+        },
+        "tts": {
+          "$ref": "#/$defs/TtsArgs_Deserialize"
+        },
+        "mix_audio": {
+          "$ref": "#/$defs/MixAudioArgs_Deserialize"
+        },
+        "mix_video": {
+          "$ref": "#/$defs/MixVideoArgs_Deserialize"
+        }
+      },
+      "title": "Stages_Deserialize",
+      "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StagesSchema)\n\n mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。"
+    },
+    "Input_Deserialize": {
+      "type": "object",
+      "properties": {
+        "workflow": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkflowArgs_Deserialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " workflow 参数, 仅 command=workflow 时必须"
+        },
+        "command": {
+          "$ref": "#/$defs/Command",
+          "description": " 执行命令 (默认 env)"
+        },
+        "servers": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ServersArgs_Deserialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 服务端参数 (镜像 servers/args.ts), 仅 command=servers 时使用"
+        },
+        "env": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EnvArgs_Deserialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " env 命令参数 (镜像 env/input.ts); targets 为空时按 stages 配置推断所需环境项"
+        },
+        "cookie": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CookieArgs_Deserialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " cookie 命令参数 (镜像 cmd/cookie/args.ts), 仅 command=cookie 时使用"
+        },
+        "check": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CheckArgs_Deserialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " check 命令参数 (镜像 cmd/check 参数 schema), 仅 command=check 时使用"
+        },
+        "stages": {
+          "$ref": "#/$defs/Stages_Deserialize"
+        }
+      },
+      "title": "Input_Deserialize",
+      "description": " 顶层输入"
+    },
+    "Input": {
       "anyOf": [
         {
-          "const": "silero-v5"
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/Input_Serialize"
+            }
+          },
+          "additionalProperties": false
         },
         {
-          "const": "silero-v6"
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/Input_Deserialize"
+            }
+          },
+          "additionalProperties": false
         }
       ],
-      "description": " whisper.cpp VAD 模型",
-      "title": "VadModel"
+      "title": "Input",
+      "description": " 顶层输入"
+    },
+    "LlmFixArgs_Serialize": {
+      "type": "object",
+      "properties": {
+        "llmModel": {
+          "type": "string",
+          "description": " LLM 模型名"
+        },
+        "llmApiBase": {
+          "type": "string",
+          "description": " LLM API 地址"
+        },
+        "domainHint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\""
+        },
+        "llmFix": {
+          "type": "boolean",
+          "description": " 是否启用 LLM 修正"
+        }
+      },
+      "required": [
+        "llmModel",
+        "llmApiBase",
+        "domainHint",
+        "llmFix"
+      ],
+      "title": "LlmFixArgs_Serialize",
+      "description": " LLM 修正参数。"
+    },
+    "LlmFixArgs_Deserialize": {
+      "type": "object",
+      "properties": {
+        "llmModel": {
+          "type": "string",
+          "description": " LLM 模型名"
+        },
+        "llmApiBase": {
+          "type": "string",
+          "description": " LLM API 地址"
+        },
+        "domainHint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 领域提示, 帮助 LLM 理解上下文，例如\"仙侠题材，角色：叶白、慧天、夜白\""
+        },
+        "llmFix": {
+          "type": "boolean",
+          "description": " 是否启用 LLM 修正"
+        }
+      },
+      "title": "LlmFixArgs_Deserialize",
+      "description": " LLM 修正参数。"
+    },
+    "LlmFixArgs": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/LlmFixArgs_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/LlmFixArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "LlmFixArgs",
+      "description": " LLM 修正参数。"
+    },
+    "MixAudioArgs": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/MixAudioArgs_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/MixAudioArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "MixAudioArgs",
+      "description": " mix_audio 阶段参数 (镜像 TS `packages/core/stages/mix_audio/args.ts` MixAudioArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
+    },
+    "MixVideoArgs": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/MixVideoArgs_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/MixVideoArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "MixVideoArgs",
+      "description": " mix_video 阶段参数 (镜像 TS `packages/core/stages/mix_video/args.ts` MixVideoArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
+    },
+    "OcrFixArgs": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/OcrFixArgs_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/OcrFixArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "OcrFixArgs",
+      "description": " sf_ocr 阶段 OCR 修正参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
+    },
+    "SeparateArgs": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/SeparateArgs_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/SeparateArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "SeparateArgs",
+      "description": " separate 阶段参数 (镜像 TS `packages/core/stages/separate/args.ts` SeparateArgsSchema)\n\n 枚举/数组默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})`), 这里只需处理\n 「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
+    },
+    "ServerType": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/ServerType_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/ServerType_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "ServerType",
+      "description": " Server type identifiers for mDNS discovery.\n\n 序列化为 snake_case (voxcpm_torch_gradio), 对齐 TS 侧\n `packages/config/src/servers.ts` 的 serverTypeList。\n (serde 与 clap 参数值统一为 snake_case)"
+    },
+    "ServersArgs": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/ServersArgs_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/ServersArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "ServersArgs",
+      "description": " servers 命令参数 (镜像 packages/core/servers/input.ts 的 ServersArgsSchema)"
+    },
+    "SfOcrArgs": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/SfOcrArgs_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/SfOcrArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "SfOcrArgs",
+      "description": " sf_ocr 阶段参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::stages::Asr` 同款处理)。"
+    },
+    "SidechainCompress": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/SidechainCompress_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/SidechainCompress_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "SidechainCompress",
+      "description": " 侧链压缩器参数 (镜像 TS `sidechainCompress`)"
+    },
+    "SplitAudioArgs": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/SplitAudioArgs_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/SplitAudioArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "SplitAudioArgs",
+      "description": " split_audio 阶段参数 (镜像 TS `packages/core/stages/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 ctx.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。"
+    },
+    "Stages": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/Stages_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/Stages_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "Stages",
+      "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StagesSchema)\n\n mix_audio / mix_video 直接使用 `crate::stages::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 stage 目录下的 args 定义。"
+    },
+    "TranslateArgs": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/TranslateArgs_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/TranslateArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "TranslateArgs",
+      "description": " translate 阶段参数 (镜像 TS `packages/core/stages/05_translate/args.ts` TranslateArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 目标语言统一在 `input.workflow.targetLang` 配置 (任务级概念: 一个任务只有一个翻译\n 阶段, 不需要 stage 级覆盖)。旧的 `stages.translate.targetLang` 已移除,\n deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。"
+    },
+    "TtsArgs": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/TtsArgs_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/TtsArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "TtsArgs",
+      "description": " tts 阶段参数 (镜像 TS `packages/core/stages/07_tts/args.ts` TtsStageArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
+    },
+    "WorkflowArgs": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/WorkflowArgs_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/WorkflowArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "WorkflowArgs",
+      "description": " workflow 参数 (镜像 workflowArgsSchema)"
     }
   },
-  "$ref": "#/$defs/Input_Deserialize",
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "LocalDub 输入"
+  "$ref": "#/$defs/Input_Deserialize"
 }
