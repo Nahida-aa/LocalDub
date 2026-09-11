@@ -1,7 +1,7 @@
 //! check 命令 (镜像 TS `packages/cli/src/feat/command/check.ts`)。
 //!
 //! 三种检查:
-//! - `video`: 确认 `<taskDir>/media/video_source.mp4` 存在 (输出紧凑 JSON)
+//! - `video`: 确认 `<workflowDir>/media/video_source.mp4` 存在 (输出紧凑 JSON)
 //! - `asr`: 诊断 ASR 结果 (asr_fix/asr_fix.json 优先, 回退 asr/asr.json), 输出 timeline + issues
 //! - `font`: 检测 CJK 字体可用性 (win32 用已知 CRT 列表, 否则 fc-list)
 //!
@@ -18,13 +18,13 @@ use crate::input::Input;
 
 /// `check` 命令参数 (镜像 TS `input.check` schema)。
 ///
-/// TS: `z.object({ taskDir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
+/// TS: `z.object({ workflowDir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CheckArgs {
     /// 任务目录 (video/asr 检查必需)
     #[serde(default)]
-    pub task_dir: Option<String>,
+    pub workflow_dir: Option<String>,
     /// 检查类型 (默认 video)
     #[serde(default)]
     pub r#type: CheckType,
@@ -51,13 +51,13 @@ pub fn cmd_check(input: &Input, args: &CheckArgs) -> anyhow::Result<()> {
     }
 }
 
-/// video 检查: `<taskDir>/media/video_source.mp4` 存在性 + 大小。
+/// video 检查: `<workflowDir>/media/video_source.mp4` 存在性 + 大小。
 fn check_video(args: &CheckArgs) -> anyhow::Result<()> {
-    let task_dir = args
-        .task_dir
+    let workflow_dir = args
+        .workflow_dir
         .as_deref()
-        .ok_or_else(|| fail("check video requires taskDir"))?;
-    let video_path = Path::new(task_dir).join("media").join("video_source.mp4");
+        .ok_or_else(|| fail("check video requires workflowDir"))?;
+    let video_path = Path::new(workflow_dir).join("media").join("video_source.mp4");
     if !video_path.exists() {
         return Err(fail("video_source.mp4 not found"));
     }
@@ -76,12 +76,12 @@ fn check_video(args: &CheckArgs) -> anyhow::Result<()> {
 
 /// asr 检查: 读取 asr_fix/asr_fix.json (回退 asr/asr.json), 输出 timeline + 段间 gap 诊断。
 fn check_asr(args: &CheckArgs) -> anyhow::Result<()> {
-    let task_dir = args
-        .task_dir
+    let workflow_dir = args
+        .workflow_dir
         .as_deref()
-        .ok_or_else(|| fail("check asr requires taskDir"))?;
-    let asr_path = Path::new(task_dir).join("asr_fix").join("asr_fix.json");
-    let asr_raw_path = Path::new(task_dir).join("asr").join("asr.json");
+        .ok_or_else(|| fail("check asr requires workflowDir"))?;
+    let asr_path = Path::new(workflow_dir).join("asr_fix").join("asr_fix.json");
+    let asr_raw_path = Path::new(workflow_dir).join("asr").join("asr.json");
     let asr_file = if asr_path.exists() {
         asr_path
     } else if asr_raw_path.exists() {
@@ -262,14 +262,14 @@ mod tests {
     fn deserialize_check_args_defaults() {
         let empty: CheckArgs = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(empty.r#type, CheckType::Video);
-        assert!(empty.task_dir.is_none());
+        assert!(empty.workflow_dir.is_none());
 
         let full: CheckArgs = serde_json::from_str(
-            r#"{"taskDir":"/tmp/t","type":"asr"}"#,
+            r#"{"workflowDir":"/tmp/t","type":"asr"}"#,
         )
         .unwrap();
         assert_eq!(full.r#type, CheckType::Asr);
-        assert_eq!(full.task_dir.as_deref(), Some("/tmp/t"));
+        assert_eq!(full.workflow_dir.as_deref(), Some("/tmp/t"));
     }
 
     #[test]
@@ -295,7 +295,7 @@ mod tests {
         });
         std::fs::write(dir.join("asr_fix/asr_fix.json"), json.to_string()).unwrap();
         let args = CheckArgs {
-            task_dir: Some(dir.to_string_lossy().into_owned()),
+            workflow_dir: Some(dir.to_string_lossy().into_owned()),
             r#type: CheckType::Asr,
         };
         check_asr(&args).unwrap();
@@ -312,7 +312,7 @@ mod tests {
         ]}});
         std::fs::write(dir.join("asr/asr.json"), json.to_string()).unwrap();
         let args = CheckArgs {
-            task_dir: Some(dir.to_string_lossy().into_owned()),
+            workflow_dir: Some(dir.to_string_lossy().into_owned()),
             r#type: CheckType::Asr,
         };
         check_asr(&args).unwrap();

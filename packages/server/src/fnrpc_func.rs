@@ -18,11 +18,11 @@ use crate::{
         },
         other::{device_info, get_workfolder},
         servers::{find_server, get_server_status, shutdown, start_main, start_voxcpm, stop_voxcpm},
-        tasks::{
-            cancel_queue, continue_task, enqueue_continue, enqueue_import, enqueue_start,
+        workflows::{
+            cancel_queue, continue_workflow, enqueue_continue, enqueue_import, enqueue_start,
             get_group_list,
-            get_task_ctx, list_queue, log::watch_task_log, regen_tts, start_task,
-            tree::watch_task_tree,
+            get_workflow_ctx, list_queue, log::watch_workflow_log, regen_tts, start_workflow,
+            tree::watch_workflow_tree,
         },
     },
 };
@@ -40,10 +40,10 @@ pub fn build_fn_rpc_router() -> fnrpc::router::RpcRouter<Ctx> {
         .route_fn(write_app_file_json)
         .route_fn(read_app_file_bin)
         .route_fn(list_app_directory)
-        .subscribe(watch_task_log)
-        .subscribe(watch_task_tree)
+        .subscribe(watch_workflow_log)
+        .subscribe(watch_workflow_tree)
         .route_fn(get_group_list)
-        .route_fn(get_task_ctx)
+        .route_fn(get_workflow_ctx)
         .route_fn(health_check)
         .route_fn(find_server)
         .route_fn(get_server_status)
@@ -55,15 +55,15 @@ pub fn build_fn_rpc_router() -> fnrpc::router::RpcRouter<Ctx> {
         .route_fn(get_workfolder)
         .route_fn(env_check)
         .route_fn(env_ensure)
-        .route_fn(continue_task)
+        .route_fn(continue_workflow)
         .route_fn(regen_tts)
-        .route_fn(start_task)
+        .route_fn(start_workflow)
         .route_fn(enqueue_start)
         .route_fn(enqueue_continue)
         .route_fn(enqueue_import)
         .route_fn(list_queue)
         .route_fn(cancel_queue)
-        // 导出结果类型 (UI Timeline 渲染 task out.json 用, 无对应 RPC 返回)。
+        // 导出结果类型 (UI Timeline 渲染 workflow out.json 用, 无对应 RPC 返回)。
         .register_type::<AsrResult>()
         .register_type::<TranslateResult>()
         .register_type::<TranslateSegment>()

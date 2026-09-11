@@ -1,11 +1,11 @@
 //! sf_ocr: 关键帧 OCR, 消费 sf_ocr_pre 落盘的关键帧, 经 subtitle-ocr CLI 批量识别。
 //!
 //! 镜像 TS `packages/core/stages/sf_ocr/ocr.ts` (stageSfOcr)。
-//! 只写出 `<taskDir>/sf_ocr/frames.json` (OcrFramesResult 原始逐帧结果);
+//! 只写出 `<workflowDir>/sf_ocr/frames.json` (OcrFramesResult 原始逐帧结果);
 //! 段合并 / 时间调整 / LLM 修正由下游 sf_ocr_fix 负责。
 
 use crate::cmd::env::ensure_bin;
-use crate::context::TaskCtx;
+use crate::context::WorkflowCtx;
 use crate::stages::sf_ocr::args::SfOcrArgs;
 use crate::stages::utils::{
     StagePatch, StageStatus, now_iso, set_stage_anyhow, sf_ocr_dir, sf_ocr_pre_dir,
@@ -13,7 +13,7 @@ use crate::stages::utils::{
 use std::process::Command;
 
 /// 读取 sf_ocr 配置 (缺省用 SfOcrArgs::default)。
-fn read_args(ctx: &TaskCtx) -> SfOcrArgs {
+fn read_args(ctx: &WorkflowCtx) -> SfOcrArgs {
     ctx.input
         .get("stages")
         .and_then(|v| v.get("sf_ocr"))
@@ -22,12 +22,12 @@ fn read_args(ctx: &TaskCtx) -> SfOcrArgs {
 }
 
 /// 入口 (镜像 TS `stageSfOcr`)。
-pub fn stage_sf_ocr(ctx: &TaskCtx) -> anyhow::Result<()> {
-    let task_dir = ctx.task.task_dir.clone();
+pub fn stage_sf_ocr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+    let workflow_dir = ctx.workflow.workflow_dir.clone();
     tracing::info!(target: "sf_ocr", "start");
 
     set_stage_anyhow(
-        &task_dir,
+        &workflow_dir,
         "sf_ocr",
         StagePatch {
             last_message: Some("OCR'ing keyframes...".into()),
@@ -38,7 +38,7 @@ pub fn stage_sf_ocr(ctx: &TaskCtx) -> anyhow::Result<()> {
 
     let cfg = read_args(ctx);
 
-    let frame_dir = sf_ocr_pre_dir(&task_dir).join("frames");
+    let frame_dir = sf_ocr_pre_dir(&workflow_dir).join("frames");
     if !frame_dir.exists() {
         return Err(anyhow::anyhow!(
             "Keyframe dir not found: {} — run sf_ocr_pre first",
@@ -52,7 +52,7 @@ pub fn stage_sf_ocr(ctx: &TaskCtx) -> anyhow::Result<()> {
         )
     })?;
 
-    let out_dir = sf_ocr_dir(&task_dir);
+    let out_dir = sf_ocr_dir(&workflow_dir);
     std::fs::create_dir_all(&out_dir)
         .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", out_dir.display(), e))?;
     let out_file = out_dir.join("frames.json");
@@ -113,7 +113,7 @@ pub fn stage_sf_ocr(ctx: &TaskCtx) -> anyhow::Result<()> {
     }
 
     set_stage_anyhow(
-        &task_dir,
+        &workflow_dir,
         "sf_ocr",
         StagePatch {
             status: Some(StageStatus::Success),
@@ -133,9 +133,9 @@ mod tests {
     use crate::context::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> TaskCtx {
+    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowCtx {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.task.task_dir = dir.to_string();
+        ctx.workflow.workflow_dir = dir.to_string();
         ctx.pipeline = "dub".to_string();
         ctx
     }
@@ -146,7 +146,7 @@ mod tests {
         let ctx = ctx_at(
             dir,
             json!({
-                "task": {"id":"t","task_dir":dir,"url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"stages": {"sf_ocr": {}}}
             }),
@@ -163,7 +163,7 @@ mod tests {
         let ctx = ctx_at(
             dir,
             json!({
-                "task": {"id":"t","task_dir":dir,"url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"stages": {"sf_ocr": {
                     "textConfidenceThreshold": 0.7, "subtitleOnly": false, "cleanupFrames": true
@@ -187,7 +187,7 @@ mod tests {
         let ctx = ctx_at(
             &dir,
             json!({
-                "task": {"id":"t","task_dir":dir,"url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),

@@ -2,7 +2,7 @@
 
 use anyhow::{Context, anyhow};
 
-use crate::context::TaskCtx;
+use crate::context::WorkflowCtx;
 use crate::stages::asr::fix_args::AsrFixArgs;
 use crate::stages::asr::out::AsrResult;
 use crate::stages::utils::{
@@ -11,7 +11,7 @@ use crate::stages::utils::{
 };
 
 /// 读取 asr_fix 配置 (缺省用 AsrFixArgs::default)。
-fn read_fix_args(ctx: &TaskCtx) -> AsrFixArgs {
+fn read_fix_args(ctx: &WorkflowCtx) -> AsrFixArgs {
     ctx.input
         .get("stages")
         .and_then(|v| v.get("asr_fix"))
@@ -20,18 +20,18 @@ fn read_fix_args(ctx: &TaskCtx) -> AsrFixArgs {
 }
 
 /// 入口 (镜像 TS `stageAsrFix`)。
-pub fn stage_asr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
-    let task_dir = ctx.task.task_dir.clone();
+pub fn stage_asr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+    let workflow_dir = ctx.workflow.workflow_dir.clone();
     let args = read_fix_args(ctx);
     if !args.enabled {
         tracing::info!(target: "asr", "disabled (asr_fix.enabled=false), skipping");
         return Ok(());
     }
-    // asr_fix 目录平级于 task_dir (镜像 TS `join(taskDir, "asr_fix")`),
-    // 与权威字幕路径 (utils::subtitle_path 的 taskDir/asr_fix) 保持一致。
-    let asr_fix_dir = std::path::Path::new(&task_dir).join("asr_fix");
+    // asr_fix 目录平级于 workflow_dir (镜像 TS `join(workflowDir, "asr_fix")`),
+    // 与权威字幕路径 (utils::subtitle_path 的 workflowDir/asr_fix) 保持一致。
+    let asr_fix_dir = std::path::Path::new(&workflow_dir).join("asr_fix");
     let asr_file = args.asr_file_path.clone().unwrap_or_else(|| {
-        asr_dir(&task_dir)
+        asr_dir(&workflow_dir)
             .join("asr.json")
             .to_string_lossy()
             .to_string()
@@ -73,7 +73,7 @@ pub fn stage_asr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
             tracing::info!(target: "asr", "domainHint: {h}");
         }
         set_stage_anyhow(
-            &task_dir,
+            &workflow_dir,
             "asr_fix",
             StagePatch {
                 last_message: Some(format!("LLM fixing {} segments...", segments.len())),
@@ -139,7 +139,7 @@ pub fn stage_asr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
     );
 
     set_stage_anyhow(
-        &task_dir,
+        &workflow_dir,
         "asr_fix",
         StagePatch {
             status: Some(StageStatus::Success),

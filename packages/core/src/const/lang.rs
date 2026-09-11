@@ -1,5 +1,5 @@
 //! 支持的语言列表 (镜像 `packages/core/const/lang.ts` 的 langList)。
-//! 作为中立的语言领域常量，供 tasks / stages 共享，避免各模块重复定义。
+//! 作为中立的语言领域常量，供 workflows / stages 共享，避免各模块重复定义。
 
 use serde::{Deserialize, Serialize};
 

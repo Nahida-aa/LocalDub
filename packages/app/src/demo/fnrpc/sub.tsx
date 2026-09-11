@@ -16,20 +16,20 @@ function TickTest() {
 
   createEffect(() => {
     if (!running()) return;
-    const iter = fnrpc.watch_task_log("");
+    const iter = fnrpc.watch_workflow_log("");
     const cancel = consumeEventIterator(iter, {
       onEvent: (v) => {
         setCount(v);
       },
       onError: (e) => {
-        console.error("watch_task_log error", e);
+        console.error("watch_workflow_log error", e);
       },
     });
     onCleanup(() => cancel());
   });
 
   return (
-    <Row label="watch_task_log('')">
+    <Row label="watch_workflow_log('')">
       <span class="text-muted-foreground text-xs">repo_root/.log</span>
       <button
         class={

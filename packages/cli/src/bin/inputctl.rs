@@ -1,7 +1,7 @@
 //! `inputctl` — LocalDub `input.jsonc` / `input.json` 编辑/查询/校验工具。
 //!
 //! 解决 JSONC (带注释 + 尾随逗号) 难以用 `jq` / `python -m json` 安全修改的问题:
-//! - `get <path>`      读取字段 (如 `task.continueFrom`, `stages.tts.runtime`)
+//! - `get <path>`      读取字段 (如 `workflow.continueFrom`, `stages.tts.runtime`)
 //! - `set <path> <val>` 写入字段; 默认**保留 JSONC 注释/格式** (CST span 级替换),
 //!                       加 `--json` 则整体重写为标准 JSON (丢注释)
 //! - `validate`        用 ld_core::Input 反序列化 + .validate() 做宽松校验
@@ -209,15 +209,15 @@ fn get_in_json(doc: &serde_json::Value, path: &[String]) -> anyhow::Result<serde
 fn usage() -> String {
     "\
 用法:
-  inputctl get <path>            读取字段 (如 task.continueFrom / stages.tts.runtime)
+  inputctl get <path>            读取字段 (如 workflow.continueFrom / stages.tts.runtime)
   inputctl set <path> <value>   写入字段 (默认保留 JSONC 注释/格式)
   inputctl set --json <path> <value>  写入并整体重写为标准 JSON (丢注释)
   inputctl validate             用 ld_core::Input 做宽松校验
   inputctl path                打印实际解析到的 input 文件路径
 
 示例:
-  inputctl get task.taskDir
-  inputctl set task.continueFrom mix_video
+  inputctl get workflow.workflowDir
+  inputctl set workflow.continueFrom mix_video
   inputctl set stages.tts.runtime cloud
   inputctl set stages.tts.regenIndices '[1,2,3]'
   inputctl validate

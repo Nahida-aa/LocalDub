@@ -10,18 +10,18 @@ use std::path::PathBuf;
 
 use anyhow::{Context, anyhow};
 
-use crate::context::TaskCtx;
+use crate::context::WorkflowCtx;
 use crate::stages::mix_video::args::{Alignment, MixVideoArgs};
 use crate::stages::utils::srt::{SrtSeg, write_srt};
 use crate::stages::utils::{
-    StagePatch, StageStatus, TaskPatch, bgm_path, default_font, dubbing_path, ensure_dir,
+    StagePatch, StageStatus, WorkflowPatch, bgm_path, default_font, dubbing_path, ensure_dir,
     ffmpeg_timeout, final_video_dir, probe_video_resolution, read_split_audio, read_timings,
-    read_translation_result, resolve_language, set_stage_anyhow, set_task_anyhow,
+    read_translation_result, resolve_language, set_stage_anyhow, set_workflow_anyhow,
     split_audio_path, subtitle_file_path, video_source_path,
 };
 
 /// 读取 mix_video 配置 (缺省用 MixVideoArgs::default)。
-fn read_args(ctx: &TaskCtx) -> MixVideoArgs {
+fn read_args(ctx: &WorkflowCtx) -> MixVideoArgs {
     ctx.input
         .get("stages")
         .and_then(|v| v.get("mix_video"))
@@ -30,15 +30,15 @@ fn read_args(ctx: &TaskCtx) -> MixVideoArgs {
 }
 
 /// 入口 (镜像 TS `stageMixVideo`)。
-pub fn stage_mix_video(ctx: &TaskCtx) -> anyhow::Result<()> {
-    let task_dir = ctx.task.task_dir.clone();
-    let task_id = ctx.task.id.clone();
+pub fn stage_mix_video(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+    let workflow_dir = ctx.workflow.workflow_dir.clone();
+    let video_id = ctx.workflow.id.clone();
     let cfg = read_args(ctx);
 
     if !cfg.enabled {
         tracing::info!(target: "mix_video", "disabled (mix_video.enabled=false), skipping");
         set_stage_anyhow(
-            &task_dir,
+            &workflow_dir,
             "mix_video",
             StagePatch {
                 status: Some(StageStatus::Success),
@@ -52,7 +52,7 @@ pub fn stage_mix_video(ctx: &TaskCtx) -> anyhow::Result<()> {
     }
 
     let video_file_path = video_source_path(ctx)?;
-    let merge_dir = std::path::Path::new(&task_dir).join("mix_video");
+    let merge_dir = std::path::Path::new(&workflow_dir).join("mix_video");
     ensure_dir(&merge_dir)?;
 
     if !std::path::Path::new(&video_file_path).exists() {
@@ -72,7 +72,7 @@ pub fn stage_mix_video(ctx: &TaskCtx) -> anyhow::Result<()> {
 
     let subtitle_source = ctx
         .input
-        .get("task")
+        .get("workflow")
         .and_then(|v| v.get("subtitleSource"))
         .and_then(|v| v.as_str())
         .unwrap_or("asr");
@@ -88,7 +88,7 @@ pub fn stage_mix_video(ctx: &TaskCtx) -> anyhow::Result<()> {
     let final_dir_name = final_video_dir(&pipeline, subtitle_source, no_translate);
     let final_video_dir = merge_dir.join(&final_dir_name);
     ensure_dir(&final_video_dir)?;
-    let final_video = final_video_dir.join(format!("{task_id}.mp4"));
+    let final_video = final_video_dir.join(format!("{video_id}.mp4"));
 
     // 对齐 → ffmpeg ass Alignment 数值
     let alignment = cfg.alignment.unwrap_or(Alignment::BottomCenter);
@@ -127,7 +127,7 @@ pub fn stage_mix_video(ctx: &TaskCtx) -> anyhow::Result<()> {
         )
         .map_err(|e| anyhow!("mix_video (subtitle) ffmpeg 失败: {e}"))?;
     } else {
-        let dubbing_file = dubbing_path(&task_dir);
+        let dubbing_file = dubbing_path(&workflow_dir);
         if !dubbing_file.exists() {
             return Err(anyhow!(
                 "audio_dubbing.wav not found: {}; 请先运行 mix_audio",
@@ -138,7 +138,7 @@ pub fn stage_mix_video(ctx: &TaskCtx) -> anyhow::Result<()> {
             .bgm_path
             .clone()
             .map(PathBuf::from)
-            .unwrap_or_else(|| bgm_path(&task_dir));
+            .unwrap_or_else(|| bgm_path(&workflow_dir));
 
         let sub_path = merge_dir.join(format!("{target_lang}.srt"));
         build_subtitle_srt_dub_branch(ctx, &sub_path, &cfg)?;
@@ -208,17 +208,17 @@ pub fn stage_mix_video(ctx: &TaskCtx) -> anyhow::Result<()> {
 
     tracing::info!(target: "mix_video", "Wrote final video: {}", final_video.display());
 
-    // 写回 ctx.task.final_video_path (镜像 TS mix_video 设置 finalVideoPath)
-    set_task_anyhow(
-        &task_dir,
-        TaskPatch {
+    // 写回 ctx.workflow.final_video_path (镜像 TS mix_video 设置 finalVideoPath)
+    set_workflow_anyhow(
+        &workflow_dir,
+        WorkflowPatch {
             final_video_path: Some(Some(final_video.to_string_lossy().into_owned())),
             ..Default::default()
         },
     )?;
 
     set_stage_anyhow(
-        &task_dir,
+        &workflow_dir,
         "mix_video",
         StagePatch {
             status: Some(StageStatus::Success),
@@ -277,19 +277,19 @@ fn probe_style(video_file: &str, dst_lang: &str, cfg: &MixVideoArgs, alignment_n
 
 /// subtitle 分支: 从 translation / srt / split_audio(vadAlign) 生成字幕 SRT (镜像 TS subtitle 分支)。
 fn build_subtitle_srt_subtitle_branch(
-    ctx: &TaskCtx,
+    ctx: &WorkflowCtx,
     sub_path: &std::path::Path,
     cfg: &MixVideoArgs,
     no_translate: bool,
     vad_align: bool,
 ) -> anyhow::Result<()> {
-    let task_dir = ctx.task.task_dir.clone();
+    let workflow_dir = ctx.workflow.workflow_dir.clone();
     let (_, target_lang) = resolve_language(ctx)?;
 
     let segs: Vec<SrtSeg> = if vad_align {
         // vadAlign: 用 split_audio 的 padded 时序 (split_audio.json) 而非翻译/原始 srt。
         let data = read_split_audio(ctx)
-            .with_context(|| format!("读取 split_audio 结果失败: {}", split_audio_path(&task_dir).display()))?;
+            .with_context(|| format!("读取 split_audio 结果失败: {}", split_audio_path(&workflow_dir).display()))?;
         extract_segs_from_value(&data)?
     } else if no_translate {
         // 用已有 srt 或 subtitle file
@@ -299,7 +299,7 @@ fn build_subtitle_srt_subtitle_branch(
             .unwrap_or_else(|| subtitle_file_path(ctx));
         read_srt_file_to_segs(&srt_path)?
     } else {
-        let tr_file = crate::stages::utils::translation_file_path(&task_dir, &target_lang);
+        let tr_file = crate::stages::utils::translation_file_path(&workflow_dir, &target_lang);
         let data = read_translation_result(ctx)
             .with_context(|| format!("读取翻译结果失败: {}", tr_file.display()))?;
         extract_segs_from_value(&data)?
@@ -344,12 +344,12 @@ fn extract_segs_from_value(data: &serde_json::Value) -> anyhow::Result<Vec<SrtSe
 
 /// dub 分支: 从 mix_audio/timings.json 生成字幕 SRT (镜像 TS dub 分支)。
 fn build_subtitle_srt_dub_branch(
-    ctx: &TaskCtx,
+    ctx: &WorkflowCtx,
     sub_path: &std::path::Path,
     _cfg: &MixVideoArgs,
 ) -> anyhow::Result<()> {
-    let task_dir = ctx.task.task_dir.clone();
-    let data = read_timings(&task_dir).map_err(|e| anyhow!("读取 timings 失败: {e}"))?;
+    let workflow_dir = ctx.workflow.workflow_dir.clone();
+    let data = read_timings(&workflow_dir).map_err(|e| anyhow!("读取 timings 失败: {e}"))?;
     let segs: Vec<SrtSeg> = data
         .segments
         .iter()

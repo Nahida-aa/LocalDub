@@ -352,18 +352,18 @@ export type Capabilities = {
 /**
  *  `check` 命令参数 (镜像 TS `input.check` schema)。
  * 
- *  TS: `z.object({ taskDir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
+ *  TS: `z.object({ workflowDir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
  */
 export type CheckArgs = CheckArgs_Serialize | CheckArgs_Deserialize;
 
 /**
  *  `check` 命令参数 (镜像 TS `input.check` schema)。
  * 
- *  TS: `z.object({ taskDir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
+ *  TS: `z.object({ workflowDir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
  */
 export type CheckArgs_Deserialize = {
 	/**  任务目录 (video/asr 检查必需) */
-	taskDir?: string | null,
+	workflowDir?: string | null,
 	/**  检查类型 (默认 video) */
 	type?: CheckType,
 };
@@ -371,11 +371,11 @@ export type CheckArgs_Deserialize = {
 /**
  *  `check` 命令参数 (镜像 TS `input.check` schema)。
  * 
- *  TS: `z.object({ taskDir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
+ *  TS: `z.object({ workflowDir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
  */
 export type CheckArgs_Serialize = {
 	/**  任务目录 (video/asr 检查必需) */
-	taskDir: string | null,
+	workflowDir: string | null,
 	/**  检查类型 (默认 video) */
 	type: CheckType,
 };
@@ -389,7 +389,7 @@ export type CheckType = "video" | "asr" | "font";
  *  命名对齐 TS `commandList` (types.ts): `deviceInfo`/`listModels` 是 camelCase,
  *  其余为全小写 (增强 `rename_all = "lowercase"` 无法表达, 显式 rename)。
  */
-export type Command = "task" | "env" | "servers" | "cookie" | "check" | "deviceInfo" | "listModels";
+export type Command = "workflow" | "env" | "servers" | "cookie" | "check" | "deviceInfo" | "listModels";
 
 /**  cookie 动作 */
 export type CookieAction = "set";
@@ -552,16 +552,16 @@ export type GroupInfo = GroupInfo_Serialize | GroupInfo_Deserialize;
 
 export type GroupInfo_Deserialize = {
 	group_id: string,
-	task_count: number,
+	workflow_count: number,
 	created_at?: string | null,
-	tasks: TaskBrief_Deserialize[],
+	workflows: WorkflowBrief_Deserialize[],
 };
 
 export type GroupInfo_Serialize = {
 	group_id: string,
-	task_count: number,
+	workflow_count: number,
 	created_at: string | null,
-	tasks: TaskBrief_Serialize[],
+	workflows: WorkflowBrief_Serialize[],
 };
 
 /**  顶层输入 */
@@ -569,8 +569,8 @@ export type Input = Input_Serialize | Input_Deserialize;
 
 /**  顶层输入 */
 export type Input_Deserialize = {
-	/**  任务参数, 仅 command=task 时必须 */
-	task?: TaskArgs_Deserialize | null,
+	/**  workflow 参数, 仅 command=workflow 时必须 */
+	workflow?: WorkflowArgs_Deserialize | null,
 	/**  执行命令 (默认 env) */
 	command?: Command,
 	/**  服务端参数 (镜像 servers/args.ts), 仅 command=servers 时使用 */
@@ -586,8 +586,8 @@ export type Input_Deserialize = {
 
 /**  顶层输入 */
 export type Input_Serialize = {
-	/**  任务参数, 仅 command=task 时必须 */
-	task: TaskArgs_Serialize | null,
+	/**  workflow 参数, 仅 command=workflow 时必须 */
+	workflow: WorkflowArgs_Serialize | null,
 	/**  执行命令 (默认 env) */
 	command: Command,
 	/**  服务端参数 (镜像 servers/args.ts), 仅 command=servers 时使用 */
@@ -1107,7 +1107,7 @@ export type QueueEntry_Deserialize = {
 	input?: Input_Deserialize | null,
 	/**  展示: start/continue/import */
 	action?: string | null,
-	/**  展示: start=url / continue|import=taskDir */
+	/**  展示: start=url / continue|import=workflowDir */
 	target?: string | null,
 };
 
@@ -1125,7 +1125,7 @@ export type QueueEntry_Serialize = {
 	input: Input_Serialize | null,
 	/**  展示: start/continue/import */
 	action: string | null,
-	/**  展示: start=url / continue|import=taskDir */
+	/**  展示: start=url / continue|import=workflowDir */
 	target: string | null,
 };
 
@@ -1589,183 +1589,6 @@ export type SubtitleSource = "asr" | "sf_ocr" | "asr_ocr";
 /**  目标语言 (langList) */
 export type TargetLang = "en" | "zh" | "vi" | "ja" | "ko" | "fr" | "de" | "es" | "pt" | "ru" | "ar" | "hi" | "th" | "id" | "ms" | "tl" | "my" | "km" | "lo" | "mn" | "ne" | "ur" | "bn";
 
-export type Task = Task_Serialize | Task_Deserialize;
-
-/**  任务操作 (serde 与 clap 参数值统一为 snake_case) */
-export type TaskAction = "start" | "continue" | 
-/**
- *  只导入: 下载/拷贝视频 + 探测 + 写 ctx.json, 不跑 pipeline。
- *  批量场景可先批量导入, 之后用 continue 逐个续跑重活。
- */
-"import" | "enqueue_start" | "enqueue_continue" | "enqueue_import" | "list_queue" | "cancel_queue" | "status" | "get_group_list" | "get_task_ctx" | "generate_meta";
-
-/**  任务参数 (镜像 taskArgsSchema) */
-export type TaskArgs = TaskArgs_Serialize | TaskArgs_Deserialize;
-
-/**  任务参数 (镜像 taskArgsSchema) */
-export type TaskArgs_Deserialize = {
-	/**  任务操作: start=开始, continue=继续, status=显示状态, get_group_list=列出分组 */
-	action?: TaskAction | null,
-	/**  本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl */
-	url?: string | null,
-	sourceLang?: Language | null,
-	targetLang?: TargetLang | null,
-	/**  继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始 */
-	continueFrom?: StageName | null,
-	/**  目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤 */
-	targetStage?: StageName | null,
-	taskDir?: string | null,
-	/**  队列任务 ID (cancel_queue 指定要取消的队列项) */
-	queueId?: bigint | null,
-	/**  rerunStage 专业参数, 指定要重新运行的步骤 */
-	stageName?: StageName | null,
-	/**  任务模式, dub 配音, subtitle 仅字幕 */
-	pipeline?: Pipeline,
-	/**  字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合) */
-	subtitleSource?: SubtitleSource,
-	/**
-	 *  是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。
-	 *  注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。
-	 */
-	downloadSubtitles?: boolean,
-};
-
-/**  任务参数 (镜像 taskArgsSchema) */
-export type TaskArgs_Serialize = {
-	/**  任务操作: start=开始, continue=继续, status=显示状态, get_group_list=列出分组 */
-	action: TaskAction | null,
-	/**  本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl */
-	url: string | null,
-	sourceLang: Language | null,
-	targetLang: TargetLang | null,
-	/**  继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始 */
-	continueFrom: StageName | null,
-	/**  目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤 */
-	targetStage: StageName | null,
-	taskDir: string | null,
-	/**  队列任务 ID (cancel_queue 指定要取消的队列项) */
-	queueId: bigint | null,
-	/**  rerunStage 专业参数, 指定要重新运行的步骤 */
-	stageName: StageName | null,
-	/**  任务模式, dub 配音, subtitle 仅字幕 */
-	pipeline: Pipeline,
-	/**  字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合) */
-	subtitleSource: SubtitleSource,
-	/**
-	 *  是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。
-	 *  注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。
-	 */
-	downloadSubtitles: boolean,
-};
-
-export type TaskBrief = TaskBrief_Serialize | TaskBrief_Deserialize;
-
-export type TaskBrief_Deserialize = {
-	id: string,
-	title?: string | null,
-	status: string,
-	current_stage?: string | null,
-	created_at: string,
-	started_at?: string | null,
-	completed_at?: string | null,
-	error_message?: string | null,
-};
-
-export type TaskBrief_Serialize = {
-	id: string,
-	title: string | null,
-	status: string,
-	current_stage: string | null,
-	created_at: string,
-	started_at: string | null,
-	completed_at: string | null,
-	error_message: string | null,
-};
-
-export type TaskCtx = TaskCtx_Serialize | TaskCtx_Deserialize;
-
-export type TaskCtx_Deserialize = {
-	task: Task_Deserialize,
-	stages?: TaskStage_Deserialize[] | null,
-	pipeline: string,
-	last_run_pipeline?: string | null,
-	input: unknown,
-	frame_rate: FrameRate,
-	run_info?: RunInfo_Deserialize | null,
-	video_source_path?: string | null,
-	audio_source_path?: string | null,
-	asr_language?: Language | null,
-	target_language?: string | null,
-};
-
-export type TaskCtx_Serialize = {
-	task: Task_Serialize,
-	stages: TaskStage_Serialize[] | null,
-	pipeline: string,
-	last_run_pipeline: string | null,
-	input: unknown,
-	frame_rate: FrameRate,
-	run_info: RunInfo_Serialize | null,
-	video_source_path: string | null,
-	audio_source_path: string | null,
-	asr_language: Language | null,
-	target_language: string | null,
-};
-
-export type TaskStage = TaskStage_Serialize | TaskStage_Deserialize;
-
-export type TaskStage_Deserialize = {
-	name: string,
-	label: string,
-	status?: StageStatus,
-	progress?: number | null,
-	started_at?: string | null,
-	completed_at?: string | null,
-	last_message?: string | null,
-	error_message?: string | null,
-};
-
-export type TaskStage_Serialize = {
-	name: string,
-	label: string,
-	status: StageStatus,
-	progress: number | null,
-	started_at: string | null,
-	completed_at: string | null,
-	last_message: string | null,
-	error_message: string | null,
-};
-
-export type Task_Deserialize = {
-	id: string,
-	source: VideoSource,
-	url: string,
-	title?: string | null,
-	status: string,
-	current_stage?: string | null,
-	task_dir: string,
-	final_video_path?: string | null,
-	error_message?: string | null,
-	created_at: string,
-	started_at?: string | null,
-	completed_at?: string | null,
-};
-
-export type Task_Serialize = {
-	id: string,
-	source: VideoSource,
-	url: string,
-	title: string | null,
-	status: string,
-	current_stage: string | null,
-	task_dir: string,
-	final_video_path: string | null,
-	error_message: string | null,
-	created_at: string,
-	started_at: string | null,
-	completed_at: string | null,
-};
-
 /**  单段对齐时序 (镜像 TS `Timing` = SplitAudioTiming + 对齐字段)。 */
 export type Timing = Timing_Serialize | Timing_Deserialize;
 
@@ -1832,7 +1655,7 @@ export type TimingsFile_Serialize = {
  *  枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),
  *  这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。
  * 
- *  目标语言统一在 `input.task.targetLang` 配置 (任务级概念: 一个任务只有一个翻译
+ *  目标语言统一在 `input.workflow.targetLang` 配置 (任务级概念: 一个任务只有一个翻译
  *  阶段, 不需要 stage 级覆盖)。旧的 `stages.translate.targetLang` 已移除,
  *  deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。
  */
@@ -1844,7 +1667,7 @@ export type TranslateArgs = TranslateArgs_Serialize | TranslateArgs_Deserialize;
  *  枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),
  *  这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。
  * 
- *  目标语言统一在 `input.task.targetLang` 配置 (任务级概念: 一个任务只有一个翻译
+ *  目标语言统一在 `input.workflow.targetLang` 配置 (任务级概念: 一个任务只有一个翻译
  *  阶段, 不需要 stage 级覆盖)。旧的 `stages.translate.targetLang` 已移除,
  *  deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。
  */
@@ -1863,7 +1686,7 @@ export type TranslateArgs_Deserialize = {
  *  枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),
  *  这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。
  * 
- *  目标语言统一在 `input.task.targetLang` 配置 (任务级概念: 一个任务只有一个翻译
+ *  目标语言统一在 `input.workflow.targetLang` 配置 (任务级概念: 一个任务只有一个翻译
  *  阶段, 不需要 stage 级覆盖)。旧的 `stages.translate.targetLang` 已移除,
  *  deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。
  */
@@ -2060,6 +1883,183 @@ export type VulkanHeaps = {
 	hostVisible: number | null,
 };
 
+export type Workflow = Workflow_Serialize | Workflow_Deserialize;
+
+/**  任务操作 (serde 与 clap 参数值统一为 snake_case) */
+export type WorkflowAction = "start" | "continue" | 
+/**
+ *  只导入: 下载/拷贝视频 + 探测 + 写 ctx.json, 不跑 pipeline。
+ *  批量场景可先批量导入, 之后用 continue 逐个续跑重活。
+ */
+"import" | "enqueue_start" | "enqueue_continue" | "enqueue_import" | "list_queue" | "cancel_queue" | "status" | "get_group_list" | "get_workflow_ctx" | "generate_meta";
+
+/**  workflow 参数 (镜像 workflowArgsSchema) */
+export type WorkflowArgs = WorkflowArgs_Serialize | WorkflowArgs_Deserialize;
+
+/**  workflow 参数 (镜像 workflowArgsSchema) */
+export type WorkflowArgs_Deserialize = {
+	/**  任务操作: start=开始, continue=继续, status=显示状态, get_group_list=列出分组 */
+	action?: WorkflowAction | null,
+	/**  本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl */
+	url?: string | null,
+	sourceLang?: Language | null,
+	targetLang?: TargetLang | null,
+	/**  继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始 */
+	continueFrom?: StageName | null,
+	/**  目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤 */
+	targetStage?: StageName | null,
+	workflowDir?: string | null,
+	/**  队列任务 ID (cancel_queue 指定要取消的队列项) */
+	queueId?: bigint | null,
+	/**  rerunStage 专业参数, 指定要重新运行的步骤 */
+	stageName?: StageName | null,
+	/**  任务模式, dub 配音, subtitle 仅字幕 */
+	pipeline?: Pipeline,
+	/**  字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合) */
+	subtitleSource?: SubtitleSource,
+	/**
+	 *  是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。
+	 *  注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。
+	 */
+	downloadSubtitles?: boolean,
+};
+
+/**  workflow 参数 (镜像 workflowArgsSchema) */
+export type WorkflowArgs_Serialize = {
+	/**  任务操作: start=开始, continue=继续, status=显示状态, get_group_list=列出分组 */
+	action: WorkflowAction | null,
+	/**  本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl */
+	url: string | null,
+	sourceLang: Language | null,
+	targetLang: TargetLang | null,
+	/**  继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始 */
+	continueFrom: StageName | null,
+	/**  目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤 */
+	targetStage: StageName | null,
+	workflowDir: string | null,
+	/**  队列任务 ID (cancel_queue 指定要取消的队列项) */
+	queueId: bigint | null,
+	/**  rerunStage 专业参数, 指定要重新运行的步骤 */
+	stageName: StageName | null,
+	/**  任务模式, dub 配音, subtitle 仅字幕 */
+	pipeline: Pipeline,
+	/**  字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合) */
+	subtitleSource: SubtitleSource,
+	/**
+	 *  是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。
+	 *  注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。
+	 */
+	downloadSubtitles: boolean,
+};
+
+export type WorkflowBrief = WorkflowBrief_Serialize | WorkflowBrief_Deserialize;
+
+export type WorkflowBrief_Deserialize = {
+	id: string,
+	title?: string | null,
+	status: string,
+	current_stage?: string | null,
+	created_at: string,
+	started_at?: string | null,
+	completed_at?: string | null,
+	error_message?: string | null,
+};
+
+export type WorkflowBrief_Serialize = {
+	id: string,
+	title: string | null,
+	status: string,
+	current_stage: string | null,
+	created_at: string,
+	started_at: string | null,
+	completed_at: string | null,
+	error_message: string | null,
+};
+
+export type WorkflowCtx = WorkflowCtx_Serialize | WorkflowCtx_Deserialize;
+
+export type WorkflowCtx_Deserialize = {
+	workflow: Workflow_Deserialize,
+	stages?: WorkflowStage_Deserialize[] | null,
+	pipeline: string,
+	last_run_pipeline?: string | null,
+	input: unknown,
+	frame_rate: FrameRate,
+	run_info?: RunInfo_Deserialize | null,
+	video_source_path?: string | null,
+	audio_source_path?: string | null,
+	asr_language?: Language | null,
+	target_language?: string | null,
+};
+
+export type WorkflowCtx_Serialize = {
+	workflow: Workflow_Serialize,
+	stages: WorkflowStage_Serialize[] | null,
+	pipeline: string,
+	last_run_pipeline: string | null,
+	input: unknown,
+	frame_rate: FrameRate,
+	run_info: RunInfo_Serialize | null,
+	video_source_path: string | null,
+	audio_source_path: string | null,
+	asr_language: Language | null,
+	target_language: string | null,
+};
+
+export type WorkflowStage = WorkflowStage_Serialize | WorkflowStage_Deserialize;
+
+export type WorkflowStage_Deserialize = {
+	name: string,
+	label: string,
+	status?: StageStatus,
+	progress?: number | null,
+	started_at?: string | null,
+	completed_at?: string | null,
+	last_message?: string | null,
+	error_message?: string | null,
+};
+
+export type WorkflowStage_Serialize = {
+	name: string,
+	label: string,
+	status: StageStatus,
+	progress: number | null,
+	started_at: string | null,
+	completed_at: string | null,
+	last_message: string | null,
+	error_message: string | null,
+};
+
+export type Workflow_Deserialize = {
+	id: string,
+	source: VideoSource,
+	url: string,
+	title?: string | null,
+	status: string,
+	current_stage?: string | null,
+	workflow_dir: string,
+	final_video_path?: string | null,
+	error_message?: string | null,
+	created_at: string,
+	started_at?: string | null,
+	completed_at?: string | null,
+};
+
+export type Workflow_Serialize = {
+	id: string,
+	source: VideoSource,
+	url: string,
+	title: string | null,
+	status: string,
+	current_stage: string | null,
+	workflow_dir: string,
+	final_video_path: string | null,
+	error_message: string | null,
+	created_at: string,
+	started_at: string | null,
+	completed_at: string | null,
+};
+
 export type Procedures = {
   read_app_file_text: { kind: "query"; method: "GET"; input: string; output: string; error: RpcErr };
   write_app_file_text: { kind: "mutate"; method: "POST"; input: [string, string]; output: null; error: RpcErr };
@@ -2067,10 +2067,10 @@ export type Procedures = {
   write_app_file_json: { kind: "mutate"; method: "POST"; input: [string, Value]; output: null; error: RpcErr };
   read_app_file_bin: { kind: "query"; method: "GET"; input: string; output: number[]; error: RpcErr };
   list_app_directory: { kind: "query"; method: "GET"; input: string; output: DirEntry[]; error: RpcErr };
-  watch_task_log: { kind: "subscribe"; method: "GET"; input: string; output: string; error: RpcErr };
-  watch_task_tree: { kind: "subscribe"; method: "GET"; input: string; output: PathEvent; error: RpcErr };
+  watch_workflow_log: { kind: "subscribe"; method: "GET"; input: string; output: string; error: RpcErr };
+  watch_workflow_tree: { kind: "subscribe"; method: "GET"; input: string; output: PathEvent; error: RpcErr };
   get_group_list: { kind: "query"; method: "GET"; input: null; output: GroupInfo[]; error: RpcErr };
-  get_task_ctx: { kind: "query"; method: "GET"; input: string; output: TaskCtx; error: RpcErr };
+  get_workflow_ctx: { kind: "query"; method: "GET"; input: string; output: WorkflowCtx; error: RpcErr };
   health_check: { kind: "query"; method: "GET"; input: null; output: string; error: RpcErr };
   find_server: { kind: "query"; method: "GET"; input: ServerType; output: ServerInfo; error: RpcErr };
   get_server_status: { kind: "query"; method: "GET"; input: ServerType; output: ModelServerStatus; error: RpcErr };
@@ -2082,9 +2082,9 @@ export type Procedures = {
   get_workfolder: { kind: "query"; method: "GET"; input: null; output: string; error: RpcErr };
   env_check: { kind: "query"; method: "GET"; input: string[]; output: EnvCheckItem[]; error: RpcErr };
   env_ensure: { kind: "mutate"; method: "POST"; input: string[]; output: EnvCheckItem[]; error: RpcErr };
-  continue_task: { kind: "mutate"; method: "POST"; input: [string, string]; output: null; error: RpcErr };
+  continue_workflow: { kind: "mutate"; method: "POST"; input: [string, string]; output: null; error: RpcErr };
   regen_tts: { kind: "mutate"; method: "POST"; input: [string, number[], boolean]; output: null; error: RpcErr };
-  start_task: { kind: "mutate"; method: "POST"; input: string; output: string; error: RpcErr };
+  start_workflow: { kind: "mutate"; method: "POST"; input: string; output: string; error: RpcErr };
   enqueue_start: { kind: "mutate"; method: "POST"; input: Input; output: bigint; error: RpcErr };
   enqueue_continue: { kind: "mutate"; method: "POST"; input: Input; output: bigint; error: RpcErr };
   enqueue_import: { kind: "mutate"; method: "POST"; input: Input; output: bigint; error: RpcErr };
@@ -2099,10 +2099,10 @@ export const __procedureMeta = {
   write_app_file_json: { kind: "mutate", method: "POST" },
   read_app_file_bin: { kind: "query", method: "GET" },
   list_app_directory: { kind: "query", method: "GET" },
-  watch_task_log: { kind: "subscribe", method: "GET" },
-  watch_task_tree: { kind: "subscribe", method: "GET" },
+  watch_workflow_log: { kind: "subscribe", method: "GET" },
+  watch_workflow_tree: { kind: "subscribe", method: "GET" },
   get_group_list: { kind: "query", method: "GET" },
-  get_task_ctx: { kind: "query", method: "GET" },
+  get_workflow_ctx: { kind: "query", method: "GET" },
   health_check: { kind: "query", method: "GET" },
   find_server: { kind: "query", method: "GET" },
   get_server_status: { kind: "query", method: "GET" },
@@ -2114,9 +2114,9 @@ export const __procedureMeta = {
   get_workfolder: { kind: "query", method: "GET" },
   env_check: { kind: "query", method: "GET" },
   env_ensure: { kind: "mutate", method: "POST" },
-  continue_task: { kind: "mutate", method: "POST" },
+  continue_workflow: { kind: "mutate", method: "POST" },
   regen_tts: { kind: "mutate", method: "POST" },
-  start_task: { kind: "mutate", method: "POST" },
+  start_workflow: { kind: "mutate", method: "POST" },
   enqueue_start: { kind: "mutate", method: "POST" },
   enqueue_continue: { kind: "mutate", method: "POST" },
   enqueue_import: { kind: "mutate", method: "POST" },

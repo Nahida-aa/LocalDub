@@ -62,12 +62,12 @@ function deleteAt(segments: TrackSegment[], index: number): TrackSegment[] {
 }
 
 export function AsrTrack(props: Props) {
-  const { taskDir, pxPerMs, onSeek, color } = props;
+  const { workflowDir, pxPerMs, onSeek, color } = props;
   const track = () => props.track;
   const { segments } = useTrackData({
-    taskDir,
+    workflowDir,
     trackId: track().id,
-    path: () => `${taskDir}/asr/asr.json`,
+    path: () => `${workflowDir}/asr/asr.json`,
     parse: (text) => {
       const data: AsrResult = JSON.parse(text);
       return (data.result?.segments || [])
@@ -81,7 +81,7 @@ export function AsrTrack(props: Props) {
     },
     label: () => "asr.json",
   });
-  const filePath = () => `${taskDir}/asr/asr.json`;
+  const filePath = () => `${workflowDir}/asr/asr.json`;
 
   const mutation = useMutation(() =>
     client.write_app_file_text.mutationOptions({

@@ -43,7 +43,7 @@ pub struct OcrFixArgs {
     /// LLM 修正参数 (flatten, 扁平展开为 llmModel / llmApiBase / domainHint / llmFix)
     #[serde(default, flatten)]
     pub llm_fix: LlmFixArgs,
-    // 源语言已从参数移除: 统一取 `input.task.sourceLang` (> ASR 实测的
+    // 源语言已从参数移除: 统一取 `input.workflow.sourceLang` (> ASR 实测的
     // ctx.asr_language > 默认 zh), 见 ocr_fix 里的解析。
 }
 

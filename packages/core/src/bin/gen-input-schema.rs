@@ -88,7 +88,7 @@ mod tests {
             .filter(|(_, f)| f.optional)
             .map(|(n, _)| n.as_ref())
             .collect::<Vec<_>>();
-        assert!(optional.contains(&"task"), "task 应可选: {optional:?}");
+        assert!(optional.contains(&"workflow"), "workflow 应可选: {optional:?}");
         assert!(
             optional.contains(&"command"),
             "command 应可选: {optional:?}"

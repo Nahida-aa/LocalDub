@@ -17,7 +17,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use crate::context::TaskCtx;
+use crate::context::WorkflowCtx;
 use crate::stages::translate::out::{
     TranslatePartialResult, TranslatePartialSegment, TranslateResult, TranslateResultMeta,
     TranslateSegment,
@@ -32,7 +32,7 @@ use crate::stages::utils::{
 use config_rs::env::openai_api_key;
 
 /// 从 `ctx.input.stages.translate` 解析配置 (镜像 TS `readInputArgs().stages.translate`)。
-fn read_args(ctx: &TaskCtx) -> args::TranslateArgs {
+fn read_args(ctx: &WorkflowCtx) -> args::TranslateArgs {
     ctx.input
         .get("stages")
         .and_then(|v| v.get("translate"))
@@ -246,8 +246,8 @@ fn translate_batch(
 }
 
 /// 入口 (镜像 TS `stageTranslate`)。
-pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
-    let task_dir = ctx.task.task_dir.clone();
+pub fn stage_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+    let workflow_dir = ctx.workflow.workflow_dir.clone();
     tracing::info!(target: "translate", "start");
 
     let args = read_args(ctx);
@@ -293,7 +293,7 @@ pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
         .unwrap_or_else(|| texts.join(" "));
 
     // 视频元信息 (ytdlp_info.json 可选)
-    let ytdlp_path = Path::new(&task_dir)
+    let ytdlp_path = Path::new(&workflow_dir)
         .join("download")
         .join("ytdlp_info.json");
     let has_meta = ytdlp_path.exists();
@@ -408,7 +408,7 @@ pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
 
     const BATCH_SIZE: usize = 50;
     let total_batches = texts.chunks(BATCH_SIZE).count();
-    let partial_path = translation_partial_path(&task_dir, &target_lang);
+    let partial_path = translation_partial_path(&workflow_dir, &target_lang);
 
     // 阶段内续跑: 读已有 partial, 恢复已完成 batch 与已译句
     let (mut completed, partial_segs) = read_partial(&partial_path);
@@ -492,7 +492,7 @@ pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
             &target_lang,
         )?;
         set_stage_anyhow(
-            &task_dir,
+            &workflow_dir,
             "translate",
             StagePatch {
                 last_message: Some(format!(
@@ -533,7 +533,7 @@ pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
         },
     };
 
-    let out_file = translation_file_path(&task_dir, &target_lang);
+    let out_file = translation_file_path(&workflow_dir, &target_lang);
     if let Some(parent) = out_file.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", parent.display(), e))?;
@@ -548,7 +548,7 @@ pub fn stage_translate(ctx: &TaskCtx) -> anyhow::Result<()> {
 
     // 确保 ctx.target_language 在内存之外也落盘 (resolve_language 已写回文件, 这里仅保险)
     set_stage_anyhow(
-        &task_dir,
+        &workflow_dir,
         "translate",
         StagePatch {
             status: Some(StageStatus::Success),
@@ -638,9 +638,9 @@ mod tests {
     use crate::context::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> TaskCtx {
+    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowCtx {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.task.task_dir = dir.to_string();
+        ctx.workflow.workflow_dir = dir.to_string();
         ctx.pipeline = "dub".to_string();
         ctx.asr_language = Some(crate::r#const::lang::Language::from("zh"));
         ctx
@@ -666,7 +666,7 @@ mod tests {
         let ctx = ctx_at(
             "/x",
             json!({
-                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),
@@ -679,13 +679,13 @@ mod tests {
         let ctx2 = ctx_at(
             "/x",
             json!({
-                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),
         );
         let c2 = read_ctx_from_value(json!({
-            "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+            "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                      "status":"running","created_at":"2024-01-01T00:00:00Z"},
             "input": {}, "asr_language": "en"
         }))
@@ -696,14 +696,14 @@ mod tests {
         let _ = ctx2;
     }
 
-    /// 无 ASR (纯 OCR / subtitle 路径) 时源语言回落到 input.task.sourceLang,
+    /// 无 ASR (纯 OCR / subtitle 路径) 时源语言回落到 input.workflow.sourceLang,
     /// 否则日语任务会被当成 zh -> 目标语言错误推断为 en。
     #[test]
-    fn resolve_src_lang_falls_back_to_task_source_lang() {
+    fn resolve_src_lang_falls_back_to_workflow_source_lang() {
         let ctx = read_ctx_from_value(json!({
-            "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+            "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                      "status":"running","created_at":"2024-01-01T00:00:00Z"},
-            "input": {"task": {"sourceLang": "ja"}}
+            "input": {"workflow": {"sourceLang": "ja"}}
         }))
         .unwrap();
         let (src, dst) = resolve_language(&ctx).unwrap();
@@ -722,7 +722,7 @@ mod tests {
         let ctx = ctx_at(
             &dir,
             json!({
-                "task": {"id":"t","task_dir":dir,"url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),

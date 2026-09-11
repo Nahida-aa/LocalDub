@@ -5,7 +5,7 @@ import type { TrackSegment } from "../consts";
 import { setTrackMeta } from "./presence";
 
 export interface TrackDataOptions {
-  taskDir: string;
+  workflowDir: string;
   trackId: string;
   /// 文件相对路径 getter；返回 undefined 时查询保持禁用（例如译文路径依赖 ctx 的 target_language）。
   path: () => string | undefined;
@@ -58,7 +58,7 @@ export function useTrackData(opts: TrackDataOptions) {
   const present = createMemo(() => segments().length > 0);
 
   createEffect(() => {
-    setTrackMeta(opts.taskDir, opts.trackId, {
+    setTrackMeta(opts.workflowDir, opts.trackId, {
       present: present(),
       label: present() ? opts.label?.() : undefined,
     });

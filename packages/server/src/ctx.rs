@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use axum::http::HeaderMap;
 
-use crate::feat::tasks::queue::TaskQueue;
+use crate::feat::workflows::queue::WorkflowQueue;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -11,7 +11,7 @@ pub struct AppState {
     /// 触发主服务器优雅关闭 (`fnrpc shutdown` / 外部调用)。
     pub shutdown: Arc<tokio::sync::Notify>,
     /// 任务队列 (CLI 通过 fnrpc 入队, worker 串行执行)。
-    pub queue: Arc<TaskQueue>,
+    pub queue: Arc<WorkflowQueue>,
 }
 
 impl AppState {
@@ -26,7 +26,7 @@ impl AppState {
         Self {
             repo_root,
             shutdown: Arc::new(tokio::sync::Notify::new()),
-            queue: TaskQueue::new(),
+            queue: WorkflowQueue::new(),
         }
     }
 }

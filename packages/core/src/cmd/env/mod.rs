@@ -52,7 +52,7 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
     use crate::stages::asr::args::{AsrDevice, AsrRuntime as AsrRuntime};
     use crate::stages::separate::args::Device as SepDevice;
     use crate::stages::tts::args::{TtsDevice, TtsRuntime};
-    use crate::tasks::args::SubtitleSource;
+    use crate::workflows::args::SubtitleSource;
 
     let mut set: HashSet<String> = HashSet::new();
     let mut desired: HashMap<String, String> = HashMap::new();
@@ -67,7 +67,7 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
 
     let stages = &input.stages;
     let subtitle_source = input
-        .task
+        .workflow
         .as_ref()
         .map(|t| t.subtitle_source)
         .unwrap_or(SubtitleSource::Asr);

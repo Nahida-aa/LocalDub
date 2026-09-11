@@ -4,7 +4,7 @@ use std::fs;
 use std::path::PathBuf;
 use time::FrameRate;
 pub mod types;
-pub use types::{StageStatus, TaskStage};
+pub use types::{StageStatus, WorkflowStage};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
@@ -17,7 +17,7 @@ pub enum VideoSource {
 }
 
 #[derive(Debug, Clone, Serialize, Type)]
-pub struct TaskBrief {
+pub struct WorkflowBrief {
     pub id: String,
     pub title: Option<String>,
     pub status: String,
@@ -28,22 +28,22 @@ pub struct TaskBrief {
     pub error_message: Option<String>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct Task {
+pub struct Workflow {
     pub id: String,
     pub source: VideoSource,
     pub url: String,
     pub title: Option<String>,
     pub status: String,
     pub current_stage: Option<String>,
-    pub task_dir: String,
+    pub workflow_dir: String,
     pub final_video_path: Option<String>,
     pub error_message: Option<String>,
     pub created_at: String,
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
 }
-impl From<Task> for TaskBrief {
-    fn from(t: Task) -> Self {
+impl From<Workflow> for WorkflowBrief {
+    fn from(t: Workflow) -> Self {
         Self {
             id: t.id,
             title: t.title,
@@ -72,9 +72,9 @@ pub struct RunInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct TaskCtx {
-    pub task: Task,
-    pub stages: Option<Vec<TaskStage>>,
+pub struct WorkflowCtx {
+    pub workflow: Workflow,
+    pub stages: Option<Vec<WorkflowStage>>,
     pub pipeline: String,
     pub last_run_pipeline: Option<String>,
     #[specta(type = specta_typescript::Unknown)]
@@ -87,12 +87,12 @@ pub struct TaskCtx {
     pub target_language: Option<String>,
 }
 
-pub fn ctx_path(task_dir: &str) -> PathBuf {
-    PathBuf::from(task_dir).join("ctx.json")
+pub fn ctx_path(workflow_dir: &str) -> PathBuf {
+    PathBuf::from(workflow_dir).join("ctx.json")
 }
 
-pub fn read_ctx(task_dir: &str) -> Result<TaskCtx, String> {
-    let path = ctx_path(task_dir);
+pub fn read_ctx(workflow_dir: &str) -> Result<WorkflowCtx, String> {
+    let path = ctx_path(workflow_dir);
     let raw = fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
     let json: serde_json::Value = serde_json::from_str(&raw)
@@ -100,13 +100,13 @@ pub fn read_ctx(task_dir: &str) -> Result<TaskCtx, String> {
     read_ctx_from_value(json)
 }
 
-/// 从 ctx.json 的 JSON Value 解析 TaskCtx (不读写文件, 供测试/透传直接构造)
-pub fn read_ctx_from_value(json: serde_json::Value) -> Result<TaskCtx, String> {
-    let task: Task = json
-        .get("task")
-        .ok_or_else(|| "Missing 'task' in ctx".to_string())
+/// 从 ctx.json 的 JSON Value 解析 WorkflowCtx (不读写文件, 供测试/透传直接构造)
+pub fn read_ctx_from_value(json: serde_json::Value) -> Result<WorkflowCtx, String> {
+    let workflow: Workflow = json
+        .get("workflow")
+        .ok_or_else(|| "Missing 'workflow' in ctx".to_string())
         .and_then(|v| {
-            serde_json::from_value(v.clone()).map_err(|e| format!("Failed to parse task: {}", e))
+            serde_json::from_value(v.clone()).map_err(|e| format!("Failed to parse workflow: {}", e))
         })?;
 
     let stages = json.get("stages").and_then(|v| v.as_array()).map(|arr| {
@@ -115,8 +115,8 @@ pub fn read_ctx_from_value(json: serde_json::Value) -> Result<TaskCtx, String> {
             .collect()
     });
 
-    Ok(TaskCtx {
-        task,
+    Ok(WorkflowCtx {
+        workflow,
         stages,
         pipeline: json
             .get("pipeline")
@@ -157,34 +157,34 @@ pub fn read_ctx_from_value(json: serde_json::Value) -> Result<TaskCtx, String> {
     })
 }
 
-/// 把 [`TaskCtx`] 序列化写回 `ctx.json` (镜像 TS `writeCtx`)。
-pub fn write_ctx(task_dir: &str, ctx: &TaskCtx) -> Result<(), String> {
-    let path = ctx_path(task_dir);
+/// 把 [`WorkflowCtx`] 序列化写回 `ctx.json` (镜像 TS `writeCtx`)。
+pub fn write_ctx(workflow_dir: &str, ctx: &WorkflowCtx) -> Result<(), String> {
+    let path = ctx_path(workflow_dir);
     let json = serde_json::to_string_pretty(ctx)
-        .map_err(|e| format!("Failed to serialize ctx for {}: {}", task_dir, e))?;
+        .map_err(|e| format!("Failed to serialize ctx for {}: {}", workflow_dir, e))?;
     fs::write(&path, json).map_err(|e| format!("Failed to write {}: {}", path.display(), e))?;
     Ok(())
 }
 
-pub fn read_task(task_dir: &str) -> Result<Task, String> {
-    let path = ctx_path(task_dir);
+pub fn read_workflow(workflow_dir: &str) -> Result<Workflow, String> {
+    let path = ctx_path(workflow_dir);
     let raw = fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
     let json: serde_json::Value = serde_json::from_str(&raw)
         .map_err(|e| format!("Failed to parse {}: {}", path.display(), e))?;
-    let task_value = json
-        .get("task")
-        .ok_or_else(|| format!("Missing 'task' field in {}", path.display()))?;
-    serde_json::from_value(task_value.clone())
-        .map_err(|e| format!("Failed to deserialize task in {}: {}", path.display(), e))
+    let _workflow_value = json
+        .get("workflow")
+        .ok_or_else(|| format!("Missing 'workflow' field in {}", path.display()))?;
+    serde_json::from_value(_workflow_value.clone())
+        .map_err(|e| format!("Failed to deserialize workflow in {}: {}", path.display(), e))
 }
 
-pub fn read_stages(task_dir: &str) -> Result<Vec<TaskStage>, String> {
-    read_ctx(task_dir).map(|ctx| ctx.stages.unwrap_or_default())
+pub fn read_stages(workflow_dir: &str) -> Result<Vec<WorkflowStage>, String> {
+    read_ctx(workflow_dir).map(|ctx| ctx.stages.unwrap_or_default())
 }
 
-pub fn read_pipeline(task_dir: &str) -> String {
-    read_ctx(task_dir)
+pub fn read_pipeline(workflow_dir: &str) -> String {
+    read_ctx(workflow_dir)
         .map(|ctx| ctx.pipeline)
         .unwrap_or_else(|_| "dub".to_string())
 }

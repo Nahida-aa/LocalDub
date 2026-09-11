@@ -1,10 +1,10 @@
 //! pipeline 阶段序列定义与解析 (镜像 TS `packages/core/stages/utils/stages.ts`)
 //!
 //! TS 侧 `getStages` 通过 `readInputArgs()` 读取 subtitleSource / translate.enabled /
-//! split_audio.vadAlign; Rust 侧没有该全局 singleton, 改为从 [`crate::context::TaskCtx`]
+//! split_audio.vadAlign; Rust 侧没有该全局 singleton, 改为从 [`crate::context::WorkflowCtx`]
 //! 的 `input` (已是 JSON Value) 解析相同字段。
 
-use crate::context::TaskCtx;
+use crate::context::WorkflowCtx;
 
 /// 所有合法 stage 名 (镜像 TS `stagesList`)
 pub const STAGES_LIST: &[&str] = &[
@@ -100,9 +100,9 @@ pub const SUBTITLE_ASR_OCR_STAGES: &[&str] = &[
 ];
 
 /// 从 ctx.input 解析 subtitleSource (缺省 "asr")
-fn subtitle_source(ctx: &TaskCtx) -> String {
+fn subtitle_source(ctx: &WorkflowCtx) -> String {
     ctx.input
-        .get("task")
+        .get("workflow")
         .and_then(|v| v.get("subtitleSource"))
         .and_then(|v| v.as_str())
         .unwrap_or("asr")
@@ -110,7 +110,7 @@ fn subtitle_source(ctx: &TaskCtx) -> String {
 }
 
 /// 从 ctx.input 解析 translate.enabled (缺省 true → 不剔除)
-fn translate_enabled(ctx: &TaskCtx) -> bool {
+fn translate_enabled(ctx: &WorkflowCtx) -> bool {
     ctx.input
         .get("stages")
         .and_then(|v| v.get("translate"))
@@ -120,7 +120,7 @@ fn translate_enabled(ctx: &TaskCtx) -> bool {
 }
 
 /// 从 ctx.input 解析 split_audio.vadAlign (缺省 false)
-fn split_audio_vad_align(ctx: &TaskCtx) -> bool {
+fn split_audio_vad_align(ctx: &WorkflowCtx) -> bool {
     ctx.input
         .get("stages")
         .and_then(|v| v.get("split_audio"))
@@ -131,7 +131,7 @@ fn split_audio_vad_align(ctx: &TaskCtx) -> bool {
 
 /// 根据 pipeline 与 subtitleSource / 开关过滤, 返回本次要执行的 stage 序列
 /// (镜像 TS `getStages`)。
-pub fn get_stages(ctx: &TaskCtx) -> Vec<String> {
+pub fn get_stages(ctx: &WorkflowCtx) -> Vec<String> {
     let is_subtitle = ctx.pipeline == "subtitle";
     let mut stages: Vec<String> = if is_subtitle {
         // subtitle 模式: 按 subtitleSource 切换字幕提取策略, 但始终只到 mix_video
@@ -168,9 +168,9 @@ mod tests {
     use crate::context::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx(pipeline: &str, input: serde_json::Value) -> TaskCtx {
+    fn ctx(pipeline: &str, input: serde_json::Value) -> WorkflowCtx {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.task.task_dir = "/x".into();
+        ctx.workflow.workflow_dir = "/x".into();
         ctx.pipeline = pipeline.into();
         ctx
     }
@@ -180,7 +180,7 @@ mod tests {
         let c = ctx(
             "dub",
             json!({
-                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),
@@ -206,9 +206,9 @@ mod tests {
         let c = ctx(
             "dub",
             json!({
-                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"task": {"subtitleSource": "sf_ocr"}}
+                "input": {"workflow": {"subtitleSource": "sf_ocr"}}
             }),
         );
         assert!(get_stages(&c).contains(&"sf_ocr".to_string()));
@@ -220,9 +220,9 @@ mod tests {
         let c = ctx(
             "dub",
             json!({
-                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"task": {"subtitleSource": "asr_ocr"}}
+                "input": {"workflow": {"subtitleSource": "asr_ocr"}}
             }),
         );
         let s = get_stages(&c);
@@ -235,7 +235,7 @@ mod tests {
         let c = ctx(
             "dub",
             json!({
-                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"stages": {"translate": {"enabled": false}}}
             }),
@@ -248,7 +248,7 @@ mod tests {
         let c = ctx(
             "subtitle",
             json!({
-                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),
@@ -258,7 +258,7 @@ mod tests {
         let c2 = ctx(
             "subtitle",
             json!({
-                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"stages": {"split_audio": {"vadAlign": true}}}
             }),
@@ -272,9 +272,9 @@ mod tests {
         let c = ctx(
             "subtitle",
             json!({
-                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"task": {"subtitleSource": "sf_ocr"}}
+                "input": {"workflow": {"subtitleSource": "sf_ocr"}}
             }),
         );
         let s = get_stages(&c);
@@ -293,9 +293,9 @@ mod tests {
         let c = ctx(
             "subtitle",
             json!({
-                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"task": {"subtitleSource": "asr_ocr"}}
+                "input": {"workflow": {"subtitleSource": "asr_ocr"}}
             }),
         );
         let s = get_stages(&c);
@@ -313,7 +313,7 @@ mod tests {
         let c = ctx(
             "subtitle",
             json!({
-                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),

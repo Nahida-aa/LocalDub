@@ -28,21 +28,21 @@ import { cn } from "@repo/shared/lib/utils";
 import { ScrollArea } from "@repo/ui-solid/base/scroll-area";
 import { client, fnrpc } from "#/integrations/fnrpc/client.ts";
 import { useLiveQuery } from "@tanstack/solid-db";
-import { taskGroupExpandCollection } from "#/feat/task_tree/sync.ts";
+import { workflowGroupExpandCollection } from "#/feat/workflow_tree/sync.ts";
 import { GroupInfo } from "@repo/sdk/index";
 
 const getButtonPx = (depth: number) => ({
   "padding-left": `${(2 + 6 * depth) * 0.25}rem`,
   "padding-right": `${(2 + 6 * depth) * 0.25}rem`,
 });
-const TaskTree = (p: { items: GroupInfo[] }) => {
-  const expandedQ = useLiveQuery((q) => q.from({ t: taskGroupExpandCollection }));
+const VideoTree = (p: { items: GroupInfo[] }) => {
+  const expandedQ = useLiveQuery((q) => q.from({ t: workflowGroupExpandCollection }));
   const isExpanded = (groupId: string) => expandedQ()?.some((i) => i.id === groupId) ?? false;
   const toggle = (groupId: string) => {
     if (isExpanded(groupId)) {
-      taskGroupExpandCollection.delete(groupId);
+      workflowGroupExpandCollection.delete(groupId);
     } else {
-      taskGroupExpandCollection.insert({ id: groupId });
+      workflowGroupExpandCollection.insert({ id: groupId });
     }
   };
 
@@ -69,18 +69,18 @@ const TaskTree = (p: { items: GroupInfo[] }) => {
                 }}
               />
               <SidebarMenuSub class="border-0 m-0 p-0 gap-0">
-                {item.tasks.map((task) => (
+                {item.workflows.map((workflow) => (
                   <SidebarMenuButton
                     class="rounded-none"
                     style={getButtonPx(1)}
                     as={Link}
-                    to={`/group/${item.group_id}/${task.id}`}
+                    to={`/group/${item.group_id}/${workflow.id}`}
                     activeProps={{
                       class: "bg-accent/70!",
                     }}
                   >
                     <SquarePlayIcon />
-                    <span class="h-4 text-sm leading-4">{task.id}</span>
+                    <span class="h-4 text-sm leading-4">{workflow.id}</span>
                   </SidebarMenuButton>
                 ))}
               </SidebarMenuSub>
@@ -123,7 +123,7 @@ export function AppSidebar() {
                 <span>Error: {groupListQ.error?.message}</span>
               </Match>
               <Match when={groupListQ.isSuccess}>
-                <TaskTree items={groupListQ.data ?? []} />
+                <VideoTree items={groupListQ.data ?? []} />
               </Match>
             </Switch>
           </SidebarMenu>

@@ -14,7 +14,7 @@ use std::process::Command;
 use anyhow::{Context, anyhow};
 use config_rs::path::models::whisper_model_path;
 
-use crate::context::{TaskCtx, write_ctx};
+use crate::context::{WorkflowCtx, write_ctx};
 use crate::stages::asr::args::{AsrArgs, VadModel};
 use crate::stages::asr::out::*;
 use crate::stages::utils::{
@@ -23,7 +23,7 @@ use crate::stages::utils::{
 };
 
 /// 读取 asr 配置 (缺省用 AsrArgs::default)。
-fn read_args(ctx: &TaskCtx) -> AsrArgs {
+fn read_args(ctx: &WorkflowCtx) -> AsrArgs {
     ctx.input
         .get("stages")
         .and_then(|v| v.get("asr"))
@@ -32,20 +32,20 @@ fn read_args(ctx: &TaskCtx) -> AsrArgs {
 }
 
 /// 解析 ASR 人声基线路径 (镜像 TS asr.ts:30: vocalAudioPath 覆盖默认 vocals 路径)。
-fn resolve_audio_vocal(cfg: &AsrArgs, task_dir: &str) -> PathBuf {
+fn resolve_audio_vocal(cfg: &AsrArgs, workflow_dir: &str) -> PathBuf {
     cfg.vocal_audio_path
         .clone()
         .map(PathBuf::from)
-        .unwrap_or_else(|| vocals_path(task_dir))
+        .unwrap_or_else(|| vocals_path(workflow_dir))
 }
 
 /// 入口 (镜像 TS `stageAsr`)。
-pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
-    let task_dir = ctx.task.task_dir.clone();
+pub fn stage_asr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+    let workflow_dir = ctx.workflow.workflow_dir.clone();
     tracing::info!(target: "asr", "start");
 
     set_stage_anyhow(
-        &task_dir,
+        &workflow_dir,
         "asr",
         StagePatch {
             last_message: Some("Transcribing...".into()),
@@ -62,7 +62,7 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
     }
 
     // —— 解析输入音频 (镜像 TS stageAsr 的 useSeparated / mixed / gated 逻辑) ——
-    let audio_vocal = resolve_audio_vocal(&cfg, &task_dir);
+    let audio_vocal = resolve_audio_vocal(&cfg, &workflow_dir);
     let video_source = video_source_path(ctx)?;
 
     let mut audio_path: String = if cfg.use_separated {
@@ -77,8 +77,8 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
     }
 
     if cfg.use_separated {
-        let mixed = mixed_vocals_path(&task_dir);
-        let gated = gated_vocals_path(&task_dir);
+        let mixed = mixed_vocals_path(&workflow_dir);
+        let gated = gated_vocals_path(&workflow_dir);
         let mixed_or_gated = if gated.exists() {
             Some(gated)
         } else if mixed.exists() {
@@ -98,7 +98,7 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
     tracing::info!(target: "asr", "runtime={runtime} device=vulkan");
 
     // —— 准备 whisper 输入 WAV (已是 .wav 则直接复用, 否则 ffmpeg 转单声道) ——
-    let audio_dir = asr_dir(&task_dir);
+    let audio_dir = asr_dir(&workflow_dir);
     ensure_dir(&audio_dir)?;
     let tmp_audio: String = if audio_path.to_lowercase().ends_with(".wav") {
         tracing::info!(target: "asr", "Using existing WAV input: {audio_path}");
@@ -135,7 +135,7 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
     // —— 组装 whisper-cli 参数 (镜像 TS asrWhisperCpp) ——
     let language = ctx
         .input
-        .get("task")
+        .get("workflow")
         .and_then(|v| v.get("sourceLang"))
         .and_then(|v| v.as_str())
         .unwrap_or("auto")
@@ -333,7 +333,7 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
     std::fs::write(&asr_file, json).with_context(|| format!("写入 {} 失败", asr_file.display()))?;
 
     // 持久化检测到的语言到 ctx (镜像 TS setCtx asr_language)
-    set_asr_language(&task_dir, &detected_language)?;
+    set_asr_language(&workflow_dir, &detected_language)?;
 
     // —— 幻觉段后处理 (所有路径 shared) ——
     postprocess_hallucination(&asr_file, &audio_path)?;
@@ -344,7 +344,7 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
     );
 
     set_stage_anyhow(
-        &task_dir,
+        &workflow_dir,
         "asr",
         StagePatch {
             status: Some(StageStatus::Success),
@@ -358,11 +358,11 @@ pub fn stage_asr(ctx: &TaskCtx) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// 把检测语言写回 ctx.json (镜像 TS `setCtx(taskDir, { asr_language })`)。
-fn set_asr_language(task_dir: &str, lang: &str) -> anyhow::Result<()> {
-    let mut ctx = crate::context::read_ctx(task_dir).map_err(anyhow::Error::msg)?;
+/// 把检测语言写回 ctx.json (镜像 TS `setCtx(workflowDir, { asr_language })`)。
+fn set_asr_language(workflow_dir: &str, lang: &str) -> anyhow::Result<()> {
+    let mut ctx = crate::context::read_ctx(workflow_dir).map_err(anyhow::Error::msg)?;
     ctx.asr_language = Some(crate::r#const::lang::Language::new(lang));
-    write_ctx(task_dir, &ctx).map_err(anyhow::Error::msg)
+    write_ctx(workflow_dir, &ctx).map_err(anyhow::Error::msg)
 }
 
 /// 把可选 f64 参数以 `--kebab` 形式追加 (数值等于默认值时也追加, 与 TS 行为一致)。
@@ -522,7 +522,7 @@ mod tests {
     use crate::stages::asr::fix_args::AsrFixArgs;
     use serde_json::json;
 
-    fn test_ctx(input: serde_json::Value) -> TaskCtx {
+    fn test_ctx(input: serde_json::Value) -> WorkflowCtx {
         // 每个测试实例独立目录: 同进程测试并行运行, 共享目录会互相覆盖
         // ctx.json (读到半写状态导致偶发断言失败)。
         static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -536,7 +536,7 @@ mod tests {
             .to_string();
         std::fs::create_dir_all(&dir).unwrap();
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.task.task_dir = dir.clone();
+        ctx.workflow.workflow_dir = dir.clone();
         ctx.pipeline = "dub".into();
         write_ctx(&dir, &ctx).unwrap();
         ctx
@@ -565,7 +565,7 @@ mod tests {
     fn stage_asr_skips_when_disabled() {
         // enabled=false 时不触达 whisper 二进制, 直接 Ok
         let ctx = test_ctx(json!({
-            "task": {"id":"t","task_dir":"/nonexistent_task_dir","url":"http://e","source":"remote",
+            "workflow": {"id":"t","workflow_dir":"/nonexistent_workflow_dir","url":"http://e","source":"remote",
                      "status":"running","created_at":"2024-01-01T00:00:00Z",
                      "videoSourcePath":"/nonexistent.mp4"},
             "input": {"stages": {"asr": {"enabled": false}}}
@@ -578,7 +578,7 @@ mod tests {
     fn stage_asr_missing_input_errors() {
         // useSeparated=false 且 video_source 不存在 → 报错 (不静默跳过)
         let ctx = test_ctx(json!({
-            "task": {"id":"t","task_dir":"/nonexistent_task_dir","url":"http://e","source":"remote",
+            "workflow": {"id":"t","workflow_dir":"/nonexistent_workflow_dir","url":"http://e","source":"remote",
                      "status":"running","created_at":"2024-01-01T00:00:00Z"},
             "video_source_path": "/nonexistent_video.mp4",
             "input": {"stages": {"asr": {"enabled": true, "useSeparated": false}}}

@@ -4,4 +4,4 @@ pub mod env;
 pub mod list_models;
 pub mod servers;
 pub mod sound;
-pub mod tasks;
+pub mod workflows;

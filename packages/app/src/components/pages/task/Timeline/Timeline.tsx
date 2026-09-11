@@ -16,14 +16,14 @@ interface Props {
   currentTime: number;
   fps: FrameRate;
   onSeek: (ms: number) => void;
-  taskDir?: string;
+  workflowDir?: string;
 }
 
 let _timelineMount = 0;
 
 export function Timeline(props: Props) {
   const myMount = ++_timelineMount;
-  trace(`[EL-MOUNT] Timeline #${myMount} taskDir=${props.taskDir}`);
+  trace(`[EL-MOUNT] Timeline #${myMount} workflowDir=${props.workflowDir}`);
   const fpsFloat = () => props.fps.numerator / props.fps.denominator;
 
   const ZOOM_MIN = 0.1;
@@ -288,7 +288,7 @@ export function Timeline(props: Props) {
           ref={(el) => (labelsRef = el)}
           tracks={props.tracks}
           trackColor={trackColor}
-          taskDir={props.taskDir ?? ""}
+          workflowDir={props.workflowDir ?? ""}
         />
 
         <div ref={rightRef!} class="flex-1 flex flex-col min-w-0 relative overflow-hidden">
@@ -310,7 +310,7 @@ export function Timeline(props: Props) {
             onSeek={props.onSeek}
             trackColor={trackColor}
             onScroll={handleTrackScroll}
-            taskDir={props.taskDir}
+            workflowDir={props.workflowDir}
           />
 
           {/* Playhead */}

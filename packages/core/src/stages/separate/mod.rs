@@ -9,14 +9,14 @@ pub mod args;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use crate::context::TaskCtx;
+use crate::context::WorkflowCtx;
 use crate::stages::utils::{StagePatch, StageStatus, now_iso, separate_dir, set_stage, set_stage_anyhow};
 
 pub use after::stage_separate_after;
 pub use args::SeparateArgs;
 
 /// 从 `ctx.input.stages.separate` 解析配置 (与 TS default 对齐)
-pub fn read_args(ctx: &TaskCtx) -> SeparateArgs {
+pub fn read_args(ctx: &WorkflowCtx) -> SeparateArgs {
     ctx.input
         .get("stages")
         .and_then(|v| v.get("separate"))
@@ -114,7 +114,7 @@ fn find_libtorch_lib_dir() -> Option<PathBuf> {
 }
 
 fn run_demucs(
-    task_dir: &str,
+    workflow_dir: &str,
     bin_path: &std::path::Path,
     audio_path: &str,
     sep_dir: &std::path::Path,
@@ -193,7 +193,7 @@ fn run_demucs(
                     last_pct = pct;
                     pb.set_position(pct as u64);
                     let _ = set_stage(
-                        task_dir,
+                        workflow_dir,
                         "separate",
                         StagePatch {
                             progress: Some(pct as f64),
@@ -209,7 +209,7 @@ fn run_demucs(
     if let Some(pct) = parse_progress_pct(&line) {
         pb.set_position(pct as u64);
         let _ = set_stage(
-            task_dir,
+            workflow_dir,
             "separate",
             StagePatch {
                 progress: Some(pct as f64),
@@ -242,8 +242,8 @@ fn run_demucs(
 }
 
 /// 入口 (镜像 TS `stageSeparate`)。
-pub fn stage_separate(ctx: &TaskCtx) -> anyhow::Result<()> {
-    let task_dir = ctx.task.task_dir.clone();
+pub fn stage_separate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+    let workflow_dir = ctx.workflow.workflow_dir.clone();
     tracing::info!(target: "separate", "start");
 
     let cfg = read_args(ctx);
@@ -252,7 +252,7 @@ pub fn stage_separate(ctx: &TaskCtx) -> anyhow::Result<()> {
     if ctx.pipeline == "subtitle" && !cfg.always {
         tracing::info!(target: "separate", "Skipped (subtitle pipeline, set separate.always=true to force)");
         set_stage_anyhow(
-            &task_dir,
+            &workflow_dir,
             "separate",
             StagePatch {
                 status: Some(StageStatus::Success),
@@ -266,7 +266,7 @@ pub fn stage_separate(ctx: &TaskCtx) -> anyhow::Result<()> {
     }
 
     set_stage_anyhow(
-        &task_dir,
+        &workflow_dir,
         "separate",
         StagePatch {
             last_message: Some("Separating audio...".into()),
@@ -325,7 +325,7 @@ pub fn stage_separate(ctx: &TaskCtx) -> anyhow::Result<()> {
         ));
     }
 
-    let sep_dir = separate_dir(&task_dir);
+    let sep_dir = separate_dir(&workflow_dir);
     std::fs::create_dir_all(&sep_dir)
         .map_err(|e| anyhow::anyhow!("创建 separate 目录失败: {}", e))?;
 
@@ -337,7 +337,7 @@ pub fn stage_separate(ctx: &TaskCtx) -> anyhow::Result<()> {
     );
 
     let t0 = std::time::Instant::now();
-    run_demucs(&task_dir, &bin_path, &audio_path, &sep_dir)?;
+    run_demucs(&workflow_dir, &bin_path, &audio_path, &sep_dir)?;
     let elapsed = t0.elapsed();
     tracing::info!(target: "separate", "Processed in {:.1}s", elapsed.as_secs_f64());
 
@@ -350,7 +350,7 @@ pub fn stage_separate(ctx: &TaskCtx) -> anyhow::Result<()> {
     }
 
     set_stage_anyhow(
-        &task_dir,
+        &workflow_dir,
         "separate",
         StagePatch {
             status: Some(StageStatus::Success),
@@ -383,10 +383,10 @@ mod tests {
     use crate::context::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_with(input: serde_json::Value, pipeline: &str) -> TaskCtx {
+    fn ctx_with(input: serde_json::Value, pipeline: &str) -> WorkflowCtx {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.task.task_dir = "/tmp/ld_sep_test".into();
-        ctx.task.id = "t".into();
+        ctx.workflow.workflow_dir = "/tmp/ld_sep_test".into();
+        ctx.workflow.id = "t".into();
         ctx.pipeline = pipeline.into();
         ctx.video_source_path = Some("/tmp/ld_sep_test/video_source.mp4".into());
         ctx.audio_source_path = Some("/tmp/ld_sep_test/audio_source.wav".into());
@@ -397,7 +397,7 @@ mod tests {
     fn field_defaults_when_absent() {
         let ctx = ctx_with(
             json!({
-                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"stages": {"separate": {}}}
             }),
@@ -414,7 +414,7 @@ mod tests {
     fn read_args_parses_camel_case_fields() {
         let ctx = ctx_with(
             json!({
-                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"stages": {"separate": {
                     "runtime": "burn-tch",
@@ -454,14 +454,14 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let mut ctx = ctx_with(
             json!({
-                "task": {"id":"t","task_dir":dir,"url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"stages": {"separate": {"always": false}}},
                 "pipeline": "subtitle"
             }),
             "subtitle",
         );
-        ctx.task.task_dir = dir.clone();
+        ctx.workflow.workflow_dir = dir.clone();
         ctx.pipeline = "subtitle".to_string();
         crate::context::write_ctx(&dir, &ctx).unwrap();
         let res = stage_separate(&ctx);

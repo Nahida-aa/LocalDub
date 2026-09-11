@@ -7,7 +7,7 @@
 //! 失败时 warn 并保留原文 (不中断 stage)。
 
 use crate::cmd::env::ensure_bin;
-use crate::context::TaskCtx;
+use crate::context::WorkflowCtx;
 use crate::stages::sf_ocr::fix_args::OcrFixArgs;
 use crate::stages::utils::{
     StagePatch, StageStatus, now_iso, set_stage_anyhow, sf_ocr_dir, sf_ocr_fix_dir,
@@ -16,7 +16,7 @@ use crate::stages::utils::{
 use std::process::Command;
 
 /// 读取 sf_ocr_fix 配置 (缺省用 OcrFixArgs::default)。
-fn read_args(ctx: &TaskCtx) -> OcrFixArgs {
+fn read_args(ctx: &WorkflowCtx) -> OcrFixArgs {
     ctx.input
         .get("stages")
         .and_then(|v| v.get("sf_ocr_fix"))
@@ -25,11 +25,11 @@ fn read_args(ctx: &TaskCtx) -> OcrFixArgs {
 }
 
 /// 入口 (镜像 TS `stageSfOcrFix`)。
-pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
-    let task_dir = ctx.task.task_dir.clone();
+pub fn stage_sf_ocr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+    let workflow_dir = ctx.workflow.workflow_dir.clone();
     tracing::info!(target: "sf_ocr", "start");
 
-    let frames_file = sf_ocr_dir(&task_dir).join("frames.json");
+    let frames_file = sf_ocr_dir(&workflow_dir).join("frames.json");
     if !frames_file.exists() {
         return Err(anyhow::anyhow!(
             "frames.json not found: {}; run sf_ocr first",
@@ -37,7 +37,7 @@ pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
         ));
     }
     let video_file = video_source_path(ctx)?;
-    let out_dir = sf_ocr_fix_dir(&task_dir);
+    let out_dir = sf_ocr_fix_dir(&workflow_dir);
     std::fs::create_dir_all(&out_dir)
         .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", out_dir.display(), e))?;
 
@@ -99,7 +99,7 @@ pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
             .iter()
             .filter_map(|s| s.get("text").and_then(|t| t.as_str()).map(String::from))
             .collect();
-        // 源语言: ASR 实测 (ctx.asr_language) > input.task.sourceLang > 默认 zh。
+        // 源语言: ASR 实测 (ctx.asr_language) > input.workflow.sourceLang > 默认 zh。
         // (stage 级 sf_ocr_fix.sourceLang 已移除, 统一到任务级)
         let legacy = ctx
             .input
@@ -108,14 +108,14 @@ pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
             .and_then(|v| v.get("sourceLang"))
             .is_some();
         if legacy {
-            tracing::warn!(target: "sf_ocr", "stages.sfOcrFix.sourceLang 已移除, 请在 task.sourceLang 配置源语言");
+            tracing::warn!(target: "sf_ocr", "stages.sfOcrFix.sourceLang 已移除, 请在 workflow.sourceLang 配置源语言");
         }
         let src_lang: crate::r#const::lang::Language = ctx
             .asr_language
             .clone()
             .or_else(|| {
                 ctx.input
-                    .get("task")
+                    .get("workflow")
                     .and_then(|v| v.get("sourceLang"))
                     .and_then(|v| v.as_str())
                     .map(crate::r#const::lang::Language::from)
@@ -159,7 +159,7 @@ pub fn stage_sf_ocr_fix(ctx: &TaskCtx) -> anyhow::Result<()> {
     }
 
     set_stage_anyhow(
-        &task_dir,
+        &workflow_dir,
         "sf_ocr_fix",
         StagePatch {
             status: Some(StageStatus::Success),
@@ -183,9 +183,9 @@ mod tests {
     use crate::context::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> TaskCtx {
+    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowCtx {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.task.task_dir = dir.to_string();
+        ctx.workflow.workflow_dir = dir.to_string();
         ctx.pipeline = "dub".to_string();
         ctx.video_source_path = Some("/x/video.mp4".to_string());
         ctx
@@ -196,7 +196,7 @@ mod tests {
         let ctx = ctx_at(
             "/x",
             json!({
-                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"stages": {"sf_ocr_fix": {}}}
             }),
@@ -211,7 +211,7 @@ mod tests {
         let ctx = ctx_at(
             "/x",
             json!({
-                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"stages": {"sf_ocr_fix": {
                     "adjustedConfidenceThreshold": 0.6, "llmFix": true
@@ -234,7 +234,7 @@ mod tests {
         let ctx = ctx_at(
             &dir,
             json!({
-                "task": {"id":"t","task_dir":dir,"url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),

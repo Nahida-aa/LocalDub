@@ -5,5 +5,5 @@ pub mod context;
 pub mod input;
 pub mod servers;
 pub mod stages;
-pub mod tasks;
+pub mod workflows;
 pub mod utils;

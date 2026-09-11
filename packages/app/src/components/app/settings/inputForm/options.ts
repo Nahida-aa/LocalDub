@@ -11,14 +11,14 @@ import type {
   StageName,
   SubtitleSource,
   TargetLang,
-  TaskAction,
+  WorkflowAction,
 } from "@repo/sdk/fnrpc/bindings";
 
 const keysOf = <T extends Record<string, unknown>>(o: T): string[] => Object.keys(o);
 
-const COMMANDS = ["task", "servers", "env", "cookie"];
+const COMMANDS = ["workflow", "servers", "env", "cookie"];
 
-const TASK_ACTIONS = keysOf({
+const WORKFLOW_ACTIONS = keysOf({
   start: "",
   continue: "",
   import: "",
@@ -29,9 +29,9 @@ const TASK_ACTIONS = keysOf({
   cancel_queue: "",
   status: "",
   get_group_list: "",
-  get_task_ctx: "",
+  get_workflow_ctx: "",
   generate_meta: "",
-} satisfies Record<TaskAction, string>);
+} satisfies Record<WorkflowAction, string>);
 
 const STAGES = [
   "",
@@ -143,6 +143,6 @@ export {
   SERVER_NAMES,
   STAGES,
   SUBTITLE_SOURCES,
-  TASK_ACTIONS,
+  WORKFLOW_ACTIONS,
   langLabel,
 };

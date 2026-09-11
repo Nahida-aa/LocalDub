@@ -79,7 +79,7 @@ function RootDocument({ children }: { children: JSX.Element }) {
     //   writeInput: inputApi.writeInput,
     //   readInputSchema: inputApi.readInputSchema,
     // },
-    // taskApi: {
+    // workflowApi: {
     //   getGroupList
     // }
   }}>*/}

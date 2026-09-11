@@ -49,12 +49,13 @@ export function TranslationTrack(props: Props) {
   const color = () => props.color;
   const onSeek = props.onSeek;
 
-  const ctxQ = useQuery(() => client.get_task_ctx.queryOptions(props.taskDir));
+  const ctxQ = useQuery(() => client.get_workflow_ctx.queryOptions(props.workflowDir));
   const lang = () => (ctxQ.isSuccess ? ctxQ.data?.target_language : undefined);
-  const path = () => (lang() ? `${props.taskDir}/translate/translation.${lang()}.json` : undefined);
+  const path = () =>
+    lang() ? `${props.workflowDir}/translate/translation.${lang()}.json` : undefined;
 
   const { segments } = useTrackData({
-    taskDir: props.taskDir,
+    workflowDir: props.workflowDir,
     trackId: track().id,
     path,
     parse: (text) => {

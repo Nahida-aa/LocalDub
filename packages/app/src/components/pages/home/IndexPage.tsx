@@ -7,13 +7,7 @@ import { ScrollArea } from "@repo/ui-solid/base/scroll-area";
 import { Separator } from "@repo/ui-solid/base/separator";
 import { consumeEventIterator } from "@fnrpc/client";
 import { createQuery } from "@tanstack/solid-query";
-import { TaskBrief } from "@repo/sdk/index";
-type GroupInfo = {
-  group_id: string;
-  task_count: number;
-  created_at: string | null;
-  tasks: TaskBrief[];
-};
+import { GroupInfo, WorkflowBrief } from "@repo/sdk/index";
 
 function StatCard(p: { label: string; value: number }) {
   return <CardX title={p.label} Footer={<span class="text-2xl font-semibold">{p.value}</span>} />;
@@ -50,7 +44,7 @@ function timeAgo(iso: string | null | undefined) {
 
 export function IndexPage() {
   import("@fnrpc/client").then(({ consumeEventIterator }) => {
-    const stream = fnrpc.watch_task_log(
+    const stream = fnrpc.watch_workflow_log(
       "workfolder/深宫团宠，猫狗皇子皆是我的心头崽（30集）/第1集",
     );
     consumeEventIterator(stream, {
@@ -60,9 +54,9 @@ export function IndexPage() {
   });
   const groupListQ = createQuery(() => client.get_group_list.queryOptions(null));
   const groups = () => (groupListQ.data ?? []) as GroupInfo[];
-  const allTasks = () => groups().flatMap((g) => g.tasks);
+  const allVideos = () => groups().flatMap((g) => g.workflows);
   const s = () => {
-    const t = allTasks();
+    const t = allVideos();
     return {
       groups: groups().length,
       total: t.length,
@@ -70,8 +64,8 @@ export function IndexPage() {
       failed: t.filter((x) => x.status === "failed").length,
     };
   };
-  const recentTasks = () =>
-    allTasks()
+  const recentVideos = () =>
+    allVideos()
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
       .slice(0, 20);
 
@@ -87,38 +81,40 @@ export function IndexPage() {
       <Show when={groupListQ.isSuccess}>
         <div class="grid grid-cols-4 gap-4">
           <StatCard label="Groups" value={s().groups} />
-          <StatCard label="Tasks" value={s().total} />
+          <StatCard label="Videos" value={s().total} />
           <StatCard label="Running" value={s().running} />
           <StatCard label="Failed" value={s().failed} />
         </div>
         <CardX
-          title="Recent Tasks"
+          title="Recent Videos"
           class="gap-0"
           Footer={
             <div class="w-full">
               <div class="grid grid-cols-[auto_1fr_auto_auto] gap-x-4 gap-y-1 px-4 py-2 text-xs text-muted-foreground ">
                 <span>Status</span>
-                <span>Task</span>
+                <span>Workflow</span>
                 <span>Stage</span>
                 <span>Time</span>
               </div>
               <Separator orientation="horizontal" class="mx-2" />
               <ScrollArea scrollbarSize={10}>
-                <For each={recentTasks()}>
-                  {(task: TaskBrief) => {
-                    const group = groups().find((g) => g.tasks.some((t) => t.id === task.id));
+                <For each={recentVideos()}>
+                  {(workflow: WorkflowBrief) => {
+                    const group = groups().find((g) =>
+                      g.workflows.some((t) => t.id === workflow.id),
+                    );
                     return (
                       <Link
-                        to={`/group/${group?.group_id || "unknown"}/${task.id}` as any}
+                        to={`/group/${group?.group_id || "unknown"}/${workflow.id}` as any}
                         class="grid grid-cols-[auto_1fr_auto_auto] gap-x-4 gap-y-1 px-4 py-2 text-sm hover:bg-accent/30 items-center"
                       >
-                        <StatusBadge status={task.status} />
-                        <span class="truncate">{task.id}</span>
+                        <StatusBadge status={workflow.status} />
+                        <span class="truncate">{workflow.id}</span>
                         <span class="text-xs text-muted-foreground">
-                          {task.current_stage || "—"}
+                          {workflow.current_stage || "—"}
                         </span>
                         <span class="text-xs text-muted-foreground">
-                          {timeAgo(task.completed_at || task.created_at)}
+                          {timeAgo(workflow.completed_at || workflow.created_at)}
                         </span>
                       </Link>
                     );

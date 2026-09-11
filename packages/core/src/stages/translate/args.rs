@@ -7,7 +7,7 @@ use config_rs::env::{openai_base_url, openai_model};
 /// 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),
 /// 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。
 ///
-/// 目标语言统一在 `input.task.targetLang` 配置 (任务级概念: 一个任务只有一个翻译
+/// 目标语言统一在 `input.workflow.targetLang` 配置 (任务级概念: 一个任务只有一个翻译
 /// 阶段, 不需要 stage 级覆盖)。旧的 `stages.translate.targetLang` 已移除,
 /// deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]

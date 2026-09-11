@@ -13,7 +13,7 @@ pub enum StageStatus {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
-pub struct TaskStage {
+pub struct WorkflowStage {
     pub name: String,
     pub label: String,
     #[serde(default)]

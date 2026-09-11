@@ -1,11 +1,11 @@
 //! LocalDub Rust CLI 入口。
 //!
-//! 流程 (镜像 TS `packages/cli/run-task.ts` 的 task 动作):
+//! 流程 (镜像 TS `packages/cli/run-workflow.ts` 的 workflow 动作):
 //! 1. 默认从仓库根目录读取 `input.jsonc` (优先) 或 `input.json`。
 //! 2. 剥离 JSONC 注释 (`//` 行注释 与 `/* */` 块注释)。
 //! 3. 反序列化为 `ld_core::input::Input`。
-//! 4. 调 `ld_core::cmd::tasks::task::cmd_task` 总派发 (镜像 TS `cmdTask`):
-//!    start / continue / status / get_group_list / get_task_ctx。
+//! 4. 调 `ld_core::cmd::workflows::workflow::cmd_workflow` 总派发 (镜像 TS `cmdTask`):
+//!    start / continue / status / get_group_list / get_workflow_ctx。
 //!
 //! 失败打印错误并以退出码 1 退出, 成功以 0 退出。
 
@@ -17,19 +17,19 @@ use config_rs::servers::ServerType;
 use paths::parse_repo_input;
 use ld_core::cmd::check::CheckType;
 use ld_core::cmd::env::args::EnvAction;
-use ld_core::cmd::tasks::task::cmd_task;
+use ld_core::cmd::workflows::workflow::cmd_workflow;
 use ld_core::input::Command as InputCommand;
 use ld_core::input::Input;
 use ld_core::servers::args::ServerAction;
-use ld_core::tasks::args::{StageName, TaskAction};
+use ld_core::workflows::args::{StageName, WorkflowAction};
 
 /// LocalDub CLI。
 ///
-/// 无子命令时读取仓库根 `input.jsonc` 的 `command` 字段派发 (task/env/servers/cookie 等);
-/// `env`/`task` 子命令可用命令行参数直接触发。
+/// 无子命令时读取仓库根 `input.jsonc` 的 `command` 字段派发 (workflow/env/servers/cookie 等);
+/// `env`/`workflow` 子命令可用命令行参数直接触发。
 ///
 /// 设计意图:
-/// - `env`/`task`/`check` 做成 clap 子命令: 参数是标量 (action/url/taskDir/queueId/stage/type),
+/// - `env`/`workflow`/`check` 做成 clap 子命令: 参数是标量 (action/url/workflowDir/queueId/stage/type),
 ///   适合命令行; 显式传的参数覆盖 input.jsonc, 缺失保留 (混合回退), 因此可以完全不改 input.jsonc 操作。
 /// - stages 等嵌套配置仍靠 input.jsonc (不适合命令行)。
 /// - 其余命令 (servers/cookie/deviceInfo/listModels 等) 继续靠 input.jsonc 的 `command` 字段派发;
@@ -58,17 +58,17 @@ enum Command {
         #[arg(long, num_args = 1..)]
         targets: Vec<String>,
     },
-    /// 任务操作 (等价 input.jsonc command=task, 标量参数覆盖 input.jsonc)。
-    Task {
+    /// 任务操作 (等价 input.jsonc command=workflow, 标量参数覆盖 input.jsonc)。
+    Workflow {
         /// 任务动作: start/continue/enqueue_start/enqueue_continue/list_queue/cancel_queue/...
         #[arg(long, value_enum)]
-        action: Option<TaskAction>,
+        action: Option<WorkflowAction>,
         /// 本地文件路径或远程/云端 url (start/enqueue_start 用)。
         #[arg(long)]
         url: Option<String>,
         /// 任务目录 (continue/enqueue_continue/status 用)。
         #[arg(long)]
-        task_dir: Option<String>,
+        workflow_dir: Option<String>,
         /// 队列任务 ID (cancel_queue 用)。
         #[arg(long)]
         queue_id: Option<u64>,
@@ -98,7 +98,7 @@ enum Command {
         r#type: Option<CheckType>,
         /// 任务目录 (video/asr 检查必需)。
         #[arg(long)]
-        task_dir: Option<String>,
+        workflow_dir: Option<String>,
     },
     /// 设备信息 (等价 input.jsonc command=deviceInfo)。
     #[command(name = "deviceInfo")]
@@ -113,12 +113,12 @@ fn main() {
     // 重复 init 会失败, 故仅当尚未初始化时才装 (测试/嵌套调用安全)。
     let _ = ld_core::logging::init();
 
-    // 分发 (镜像 TS run-task.ts 的 switch(cmd)):
+    // 分发 (镜像 TS run-workflow.ts 的 switch(cmd)):
     // 1. 读 input.jsonc 得到基础 Input;
     // 2. 若有 cli 子命令 (如 `cli env --action/--targets`), 用其参数覆盖 Input 对应字段,
     //    统一走下面的 match input.command 派发 (cli 显式参数优先, 缺失保留 input.jsonc);
     //    CLI 命令 (check/deviceInfo/listModels) 均已移植到 Rust, 与 TS 分支一一对应, 且都有
-    //    clap 子命令可直接触发 (check 带 --type/--task-dir, 后两者无参数);
+    //    clap 子命令可直接触发 (check 带 --type/--workflow-dir, 后两者无参数);
     //    input 解析失败直接报错退出。
     let cli = Cli::parse();
 
@@ -146,35 +146,35 @@ fn main() {
             input.env = Some(env);
             input.command = InputCommand::Env;
         }
-        Some(Command::Task {
+        Some(Command::Workflow {
             action,
             url,
-            task_dir,
+            workflow_dir,
             queue_id,
             continue_from,
             target_stage,
         }) => {
-            let mut task = input.task.clone().unwrap_or_default();
+            let mut workflow = input.workflow.clone().unwrap_or_default();
             if let Some(a) = action {
-                task.action = Some(a);
+                workflow.action = Some(a);
             }
             if let Some(u) = url {
-                task.url = Some(u);
+                workflow.url = Some(u);
             }
-            if let Some(d) = task_dir {
-                task.task_dir = Some(d);
+            if let Some(d) = workflow_dir {
+                workflow.workflow_dir = Some(d);
             }
             if let Some(q) = queue_id {
-                task.queue_id = Some(q);
+                workflow.queue_id = Some(q);
             }
             if let Some(cf) = continue_from {
-                task.continue_from = Some(cf);
+                workflow.continue_from = Some(cf);
             }
             if let Some(ts) = target_stage {
-                task.target_stage = Some(ts);
+                workflow.target_stage = Some(ts);
             }
-            input.task = Some(task);
-            input.command = InputCommand::Task;
+            input.workflow = Some(workflow);
+            input.command = InputCommand::Workflow;
         }
         Some(Command::Servers {
             action,
@@ -194,13 +194,13 @@ fn main() {
             input.servers = Some(servers);
             input.command = InputCommand::Servers;
         }
-        Some(Command::Check { r#type, task_dir }) => {
+        Some(Command::Check { r#type, workflow_dir }) => {
             let mut check = input.check.clone().unwrap_or_default();
             if let Some(t) = r#type {
                 check.r#type = t;
             }
-            if let Some(d) = task_dir {
-                check.task_dir = Some(d);
+            if let Some(d) = workflow_dir {
+                check.workflow_dir = Some(d);
             }
             input.check = Some(check);
             input.command = InputCommand::Check;
@@ -221,7 +221,7 @@ fn main() {
     println!("[cli] 读取 input");
 
     let run_result: anyhow::Result<()> = match input.command {
-        InputCommand::Task => cmd_task(&input).context("cmd_task 失败"),
+        InputCommand::Workflow => cmd_workflow(&input).context("cmd_workflow 失败"),
         InputCommand::Env => ld_core::cmd::env::handler::cmd_env(&input).context("cmd_env 失败"),
         InputCommand::Servers => ld_core::cmd::servers::cmd_servers(&input)
             .context("servers 命令失败")
@@ -247,30 +247,30 @@ fn main() {
 
     // 提示音语义: 任务完成 ≠ 命令完成。
     // - 同步任务命令 (start/continue/import, 含缺省 action 走 start):
-    //   命令完成 = 任务完成 -> task_success / task_fail。
+    //   命令完成 = 任务完成 -> workflow_success / task_fail。
     // - 其它命令 (enqueue 提交/servers/查询等): 命令结束但任务未运行或无关
     //   -> command_done; 失败仍是 task_fail。
-    let action = input.task.as_ref().and_then(|t| t.action);
-    let is_sync_task = matches!(
+    let action = input.workflow.as_ref().and_then(|t| t.action);
+    let is_sync_workflow = matches!(
         (input.command, action),
         (
-            InputCommand::Task,
-            None | Some(TaskAction::Start | TaskAction::Continue | TaskAction::Import)
+            InputCommand::Workflow,
+            None | Some(WorkflowAction::Start | WorkflowAction::Continue | WorkflowAction::Import)
         )
     );
 
     match run_result {
         Ok(()) => {
             println!("[cli] 完成");
-            if is_sync_task {
-                ld_core::cmd::sound::play_task_success();
+            if is_sync_workflow {
+                ld_core::cmd::sound::play_workflow_success();
             } else {
                 ld_core::cmd::sound::play_command_done();
             }
         }
         Err(e) => {
             eprintln!("[cli] 错误: {e:#}");
-            ld_core::cmd::sound::play_task_fail();
+            ld_core::cmd::sound::play_workflow_fail();
             exit(1);
         }
     }
@@ -296,7 +296,7 @@ mod tests {
     fn parses_repo_input_jsonc_and_mix_video_decimals() {
         let raw = r#"{
             // 行注释: subtitle_source 走 sf_ocr
-            "task": { "action": "start", "pipeline": "dub", "subtitleSource": "sf_ocr" },
+            "workflow": { "action": "start", "pipeline": "dub", "subtitleSource": "sf_ocr" },
             "stages": {
                 "mix_video": {
                     "fontSize": 21.4,
@@ -319,8 +319,8 @@ mod tests {
 
         // subtitleSource=sf_ocr → sf_ocr 全链路, 不经过 asr
         assert_eq!(
-            input.task.as_ref().unwrap().subtitle_source,
-            ld_core::tasks::args::SubtitleSource::SfOcr
+            input.workflow.as_ref().unwrap().subtitle_source,
+            ld_core::workflows::args::SubtitleSource::SfOcr
         );
 
         let mv = &input.stages.mix_video;

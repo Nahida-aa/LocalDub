@@ -16,7 +16,7 @@ use std::path::Path;
 
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::context::TaskCtx;
+use crate::context::WorkflowCtx;
 use crate::stages::tts::args::{TtsArgs, TtsDevice, TtsRuntime};
 use crate::stages::tts::out::{TtsFile, TtsSegment};
 use crate::stages::utils::{
@@ -51,7 +51,7 @@ fn write_silent_wav(out_path: &str) -> anyhow::Result<()> {
 }
 
 /// 从 `ctx.input.stages.tts` 解析配置 (镜像 TS `ctx.input.stages.tts`)。
-fn read_args(ctx: &TaskCtx) -> TtsArgs {
+fn read_args(ctx: &WorkflowCtx) -> TtsArgs {
     ctx.input
         .get("stages")
         .and_then(|v| v.get("tts"))
@@ -91,14 +91,14 @@ fn pick_voxcpm_bin(device: TtsDevice, _runtime: TtsRuntime) -> anyhow::Result<St
 }
 
 /// 入口 (镜像 TS `stageTts`)。
-pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
-    let task_dir = ctx.task.task_dir.clone();
+pub fn stage_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+    let workflow_dir = ctx.workflow.workflow_dir.clone();
     tracing::info!(target: "tts", "start");
 
     let args = read_args(ctx);
-    let vocals_dir = Path::new(&task_dir).join("split_audio").join("vocals");
-    let tts_wav_dir = Path::new(&task_dir).join("tts").join("wavs");
-    let doubled_dir = Path::new(&task_dir).join("tts").join("ref_doubled");
+    let vocals_dir = Path::new(&workflow_dir).join("split_audio").join("vocals");
+    let tts_wav_dir = Path::new(&workflow_dir).join("tts").join("wavs");
+    let doubled_dir = Path::new(&workflow_dir).join("tts").join("ref_doubled");
     ensure_dir(&tts_wav_dir)?;
     if args.ref_audio_x2 {
         ensure_dir(&doubled_dir)?;
@@ -145,7 +145,7 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
     // - 列表外的段: 保留旧结果 —— 优先复用 tts.json 已有记录, 无旧记录才写合法静音占位。
     let is_start = ctx
         .input
-        .get("task")
+        .get("workflow")
         .and_then(|t| t.get("action"))
         .and_then(|a| a.as_str())
         == Some("start");
@@ -167,7 +167,7 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
 
     // regenIndices 生效时载入已有 tts.json, 供列表外段复用旧结果 (避免重跑时覆盖其它段)。
     let existing_segments: std::collections::HashMap<u32, TtsSegment> = if regen_active {
-        let p = tts_filepath(&task_dir);
+        let p = tts_filepath(&workflow_dir);
         if p.exists() {
             match std::fs::read_to_string(&p) {
                 Ok(raw) => serde_json::from_str::<TtsFile>(&raw)
@@ -411,7 +411,7 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
         }
 
         set_stage_anyhow(
-            &task_dir,
+            &workflow_dir,
             "tts",
             StagePatch {
                 last_message: Some(format!("Generating {}/{}...", i + 1, segments.len())),
@@ -548,7 +548,7 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
     }
     pb.finish();
 
-    let tts_file = tts_filepath(&task_dir);
+    let tts_file = tts_filepath(&workflow_dir);
     ensure_dir(Path::new(&tts_file).parent().unwrap())?;
     let result = TtsFile {
         segments: tts_segments,
@@ -559,7 +559,7 @@ pub fn stage_tts(ctx: &TaskCtx) -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", tts_file.display(), e))?;
 
     set_stage_anyhow(
-        &task_dir,
+        &workflow_dir,
         "tts",
         StagePatch {
             status: Some(StageStatus::Success),
@@ -579,9 +579,9 @@ mod tests {
     use crate::context::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> TaskCtx {
+    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowCtx {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.task.task_dir = dir.to_string();
+        ctx.workflow.workflow_dir = dir.to_string();
         ctx.pipeline = "dub".to_string();
         ctx
     }
@@ -591,7 +591,7 @@ mod tests {
         let ctx = ctx_at(
             "/x",
             json!({
-                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),
@@ -604,7 +604,7 @@ mod tests {
         let ctx2 = ctx_at(
             "/x",
             json!({
-                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"stages": {"tts": {"skipExisting": false, "refAudioX2": true, "regenIndices": [1,2,3]}}}
             }),
@@ -626,7 +626,7 @@ mod tests {
         let ctx = ctx_at(
             &dir,
             json!({
-                "task": {"id":"t","task_dir":dir,"url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),

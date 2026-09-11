@@ -4,7 +4,7 @@
 
 use std::process::Command;
 
-use config_rs::path::models::{command_done_path, task_fail_path, task_success_path};
+use config_rs::path::models::{command_done_path, task_fail_path, workflow_success_path};
 
 /// 用 ffplay 播放提示音: `-nodisp -autoexit`, 失败静默不中断流程。
 ///
@@ -24,12 +24,12 @@ pub fn play_wav(path: &std::path::Path) {
 }
 
 /// 播放任务成功提示音。
-pub fn play_task_success() {
-    play_wav(&task_success_path());
+pub fn play_workflow_success() {
+    play_wav(&workflow_success_path());
 }
 
 /// 播放任务失败提示音。
-pub fn play_task_fail() {
+pub fn play_workflow_fail() {
     play_wav(&task_fail_path());
 }
 
@@ -40,13 +40,13 @@ pub fn play_command_done() {
 
 /// 后台播放提示音 (fire-and-forget): 播放会阻塞到音频结束,
 /// 队列 worker 等 async 上下文用此避免卡住循环。
-pub fn play_task_success_bg() {
-    std::thread::spawn(play_task_success);
+pub fn play_workflow_success_bg() {
+    std::thread::spawn(play_workflow_success);
 }
 
 /// 后台播放任务失败提示音。
-pub fn play_task_fail_bg() {
-    std::thread::spawn(play_task_fail);
+pub fn play_workflow_fail_bg() {
+    std::thread::spawn(play_workflow_fail);
 }
 
 #[cfg(test)]
@@ -61,9 +61,9 @@ mod tests {
 
     #[test]
     fn sound_paths_structure() {
-        let s = task_success_path();
+        let s = workflow_success_path();
         assert!(
-            s.to_string_lossy().ends_with("assets/media/task_success.wav"),
+            s.to_string_lossy().ends_with("assets/media/流程完成.wav"),
             "got {s:?}"
         );
         let f = task_fail_path();

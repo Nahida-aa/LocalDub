@@ -5,8 +5,8 @@ use config_rs::{
     // servers::ServerType
 };
 use ld_core::{
-    // cmd::tasks::get_task::GroupInfo,
-    // context::{self, Context, Task},
+    // cmd::workflows::get_workflow::GroupInfo,
+    // context::{self, Context, Workflow},
     // servers::discovery::ServerInfo,
     utils::file_ops::{ensure_parent_dir, sanitize_relative_path},
 };

@@ -1,10 +1,10 @@
 //! sf_ocr_pre: 关键帧策略前处理, 调 subtitle-finder (通过 env 管理) 找字幕关键帧。
 //!
 //! 镜像 TS `packages/core/stages/sf_ocr/ocr_pre.ts` (stageSfOcrPre)。
-//! 落盘 `<taskDir>/sf_ocr_pre/`: frames/(PNG) / mask/ / timeline.txt / keyframes.json。
+//! 落盘 `<workflowDir>/sf_ocr_pre/`: frames/(PNG) / mask/ / timeline.txt / keyframes.json。
 
 use crate::cmd::env::ensure_bin;
-use crate::context::TaskCtx;
+use crate::context::WorkflowCtx;
 use crate::stages::utils::{
     StagePatch, StageStatus, ensure_dir, now_iso,
     set_stage_anyhow, sf_ocr_pre_dir, video_source_path,
@@ -12,12 +12,12 @@ use crate::stages::utils::{
 use std::process::Command;
 
 /// 入口 (镜像 TS `stageSfOcrPre`)。
-pub fn stage_sf_ocr_pre(ctx: &TaskCtx) -> anyhow::Result<()> {
-    let task_dir = ctx.task.task_dir.clone();
+pub fn stage_sf_ocr_pre(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+    let workflow_dir = ctx.workflow.workflow_dir.clone();
     tracing::info!(target: "sf_ocr", "start");
 
     set_stage_anyhow(
-        &task_dir,
+        &workflow_dir,
         "sf_ocr_pre",
         StagePatch {
             last_message: Some("查找字幕关键帧...".into()),
@@ -37,7 +37,7 @@ pub fn stage_sf_ocr_pre(ctx: &TaskCtx) -> anyhow::Result<()> {
         )
     })?;
 
-    let out_dir = sf_ocr_pre_dir(&task_dir);
+    let out_dir = sf_ocr_pre_dir(&workflow_dir);
     ensure_dir(&out_dir)?;
 
     tracing::info!(target: "sf_ocr", "subtitle-finder {video_path} --out {}", out_dir.display());
@@ -77,7 +77,7 @@ pub fn stage_sf_ocr_pre(ctx: &TaskCtx) -> anyhow::Result<()> {
     );
 
     set_stage_anyhow(
-        &task_dir,
+        &workflow_dir,
         "sf_ocr_pre",
         StagePatch {
             status: Some(StageStatus::Success),
@@ -97,14 +97,14 @@ mod tests {
     use crate::context::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str) -> TaskCtx {
+    fn ctx_at(dir: &str) -> WorkflowCtx {
         let mut ctx = read_ctx_from_value(json!({
-            "task": {"id":"t","task_dir":dir,"url":"http://e","source":"remote",
+            "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
                      "status":"running","created_at":"2024-01-01T00:00:00Z"},
             "input": {}
         }))
         .unwrap();
-        ctx.task.task_dir = dir.to_string();
+        ctx.workflow.workflow_dir = dir.to_string();
         ctx.pipeline = "dub".to_string();
         ctx
     }

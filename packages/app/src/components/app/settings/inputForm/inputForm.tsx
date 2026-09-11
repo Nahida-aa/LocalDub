@@ -26,7 +26,7 @@ import {
   SERVER_NAMES,
   STAGES,
   SUBTITLE_SOURCES,
-  TASK_ACTIONS,
+  WORKFLOW_ACTIONS,
   langLabel,
 } from "./options";
 
@@ -36,7 +36,7 @@ type FormState = {
   command: string;
   action: string;
   url: string;
-  taskDir: string;
+  workflowDir: string;
   continueFrom: string;
   targetStage: string;
   pipeline: string;
@@ -48,10 +48,10 @@ type FormState = {
 };
 
 const emptyForm = (): FormState => ({
-  command: "task",
+  command: "workflow",
   action: "",
   url: "",
-  taskDir: "",
+  workflowDir: "",
   continueFrom: "",
   targetStage: "",
   pipeline: "",
@@ -85,15 +85,15 @@ export function InputFormSettings() {
       try {
         await writeMut.mutateAsync([`${INPUT_PATH}.bak`, raw]);
         set(["command"], value.command);
-        set(["task", "action"], value.action);
-        set(["task", "url"], value.url);
-        set(["task", "taskDir"], value.taskDir);
-        set(["task", "continueFrom"], value.continueFrom);
-        set(["task", "targetStage"], value.targetStage);
-        set(["task", "pipeline"], value.pipeline);
-        set(["task", "subtitleSource"], value.subtitleSource);
-        set(["task", "sourceLang"], value.sourceLang);
-        set(["task", "targetLang"], value.targetLang);
+        set(["workflow", "action"], value.action);
+        set(["workflow", "url"], value.url);
+        set(["workflow", "workflowDir"], value.workflowDir);
+        set(["workflow", "continueFrom"], value.continueFrom);
+        set(["workflow", "targetStage"], value.targetStage);
+        set(["workflow", "pipeline"], value.pipeline);
+        set(["workflow", "subtitleSource"], value.subtitleSource);
+        set(["workflow", "sourceLang"], value.sourceLang);
+        set(["workflow", "targetLang"], value.targetLang);
         set(["servers", "action"], value.serverAction);
         set(["servers", "name"], value.serverName);
         await writeMut.mutateAsync([INPUT_PATH, next]);
@@ -112,13 +112,13 @@ export function InputFormSettings() {
     if (raw == null || filled) return;
     filled = true;
     const p = parse(raw) as Record<string, any>;
-    const t = (p.task ?? {}) as Record<string, any>;
+    const t = (p.workflow ?? {}) as Record<string, any>;
     const s = (p.servers ?? {}) as Record<string, any>;
     form.reset({
-      command: typeof p.command === "string" ? p.command : "task",
+      command: typeof p.command === "string" ? p.command : "workflow",
       action: String(t.action ?? ""),
       url: String(t.url ?? ""),
-      taskDir: String(t.taskDir ?? ""),
+      workflowDir: String(t.workflowDir ?? ""),
       continueFrom: String(t.continueFrom ?? ""),
       targetStage: String(t.targetStage ?? ""),
       pipeline: String(t.pipeline ?? ""),
@@ -157,7 +157,7 @@ export function InputFormSettings() {
               {(field) => (
                 <CardSelect
                   title="command"
-                  description="顶层命令: task / servers / env / cookie"
+                  description="顶层命令: workflow / servers / env / cookie"
                   field={field}
                   options={COMMANDS}
                 />
@@ -166,10 +166,10 @@ export function InputFormSettings() {
             <form.Field name="action">
               {(field) => (
                 <CardSelect
-                  title="task.action"
-                  description="任务动作 (start 导入并跑 / continue 续跑 / import 只导入 / enqueue_* 入队)"
+                  title="workflow.action"
+                  description="workflow 动作 (start 导入并跑 / continue 续跑 / import 只导入 / enqueue_* 入队)"
                   field={field}
-                  options={TASK_ACTIONS}
+                  options={WORKFLOW_ACTIONS}
                 />
               )}
             </form.Field>
@@ -177,18 +177,18 @@ export function InputFormSettings() {
             <form.Field name="url">
               {(field) => (
                 <CardInput
-                  title="task.url"
+                  title="workflow.url"
                   description="视频路径或远程/云端 url (start / enqueue_start 用)"
                   field={field}
                   placeholder="/home/aa/下载/大/1.mp4"
                 />
               )}
             </form.Field>
-            <form.Field name="taskDir">
+            <form.Field name="workflowDir">
               {(field) => (
                 <CardInput
-                  title="task.taskDir"
-                  description="任务目录 (continue / enqueue_continue / status 用)"
+                  title="workflow.workflowDir"
+                  description="workflow 目录 (continue / enqueue_continue / status 用)"
                   field={field}
                   placeholder="workfolder/大/90"
                 />
@@ -198,7 +198,7 @@ export function InputFormSettings() {
             <form.Field name="continueFrom">
               {(field) => (
                 <CardSelect
-                  title="task.continueFrom"
+                  title="workflow.continueFrom"
                   description="从哪个 stage 开始续跑 (空 = 不指定)"
                   field={field}
                   options={STAGES}
@@ -208,7 +208,7 @@ export function InputFormSettings() {
             <form.Field name="targetStage">
               {(field) => (
                 <CardSelect
-                  title="task.targetStage"
+                  title="workflow.targetStage"
                   description="跑到此 stage 后停止 (空 = 跑到最后)"
                   field={field}
                   options={STAGES}
@@ -219,7 +219,7 @@ export function InputFormSettings() {
             <form.Field name="pipeline">
               {(field) => (
                 <CardSelect
-                  title="task.pipeline"
+                  title="workflow.pipeline"
                   description="dub = 配音, subtitle = 字幕"
                   field={field}
                   options={PIPELINES}
@@ -229,7 +229,7 @@ export function InputFormSettings() {
             <form.Field name="subtitleSource">
               {(field) => (
                 <CardSelect
-                  title="task.subtitleSource"
+                  title="workflow.subtitleSource"
                   description="字幕来源: asr = 语音识别(默认), sf_ocr = 关键帧 OCR, asr_ocr = 两者合并"
                   field={field}
                   options={SUBTITLE_SOURCES}
@@ -239,7 +239,7 @@ export function InputFormSettings() {
             <form.Field name="sourceLang">
               {(field) => (
                 <CardSelect
-                  title="task.sourceLang"
+                  title="workflow.sourceLang"
                   description="源语言 (空 = 自动; 列表外如 it/uk 需在 input.jsonc 文本页填)"
                   field={field}
                   options={LANGS}
@@ -250,7 +250,7 @@ export function InputFormSettings() {
             <form.Field name="targetLang">
               {(field) => (
                 <CardSelect
-                  title="task.targetLang"
+                  title="workflow.targetLang"
                   description="目标语言 (空 = 自动)"
                   field={field}
                   options={LANGS}

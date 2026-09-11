@@ -46,9 +46,9 @@ pub fn whisper_model_path() -> PathBuf {
     whisper_model_dir().join("ggml-large-v3-turbo.bin")
 }
 
-/// 任务成功提示音路径 (镜像 TS `task_success_path`)。
-pub fn task_success_path() -> PathBuf {
-    repo_root().join("assets").join("media").join("task_success.wav")
+/// workflow 完成提示音路径 (替代旧的 task_success)。
+pub fn workflow_success_path() -> PathBuf {
+    repo_root().join("assets").join("media").join("流程完成.wav")
 }
 
 /// 命令完成提示音路径 (区别于任务完成: enqueue 提交/servers 管理等

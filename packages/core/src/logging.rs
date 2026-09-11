@@ -1,10 +1,10 @@
 //! 日志基础设施: 任务级文件落盘 Layer + 统一初始化。
 //!
 //! 取代旧的手搓 `emit_log` + thread_local `LOG_CTX` 方案:
-//! - 上下文用 tracing span: pipeline 入口进入 `task` span (携带 `task_dir` 字段),
+//! - 上下文用 tracing span: pipeline 入口进入 `workflow` span (携带 `workflow_dir` 字段),
 //!   stage 入口进入 `stage` span (携带 `stage` 字段)。
-//! - 落盘用 [`TaskFileLayer`]: 订阅事件, 从当前 span 栈提取 `task_dir` 写到
-//!   `<task_dir>/<tid>.log`, 行格式与重构前一致 (`[时间] [stage] 文本`)。
+//! - 落盘用 [`WorkflowFileLayer`]: 订阅事件, 从当前 span 栈提取 `workflow_dir` 写到
+//!   `<workflow_dir>/<tid>.log`, 行格式与重构前一致 (`[时间] [stage] 文本`)。
 //! - 级别由调用处 `tracing::{info,warn,error}!` 决定, 不再依赖消息文本前缀。
 
 use std::fs::OpenOptions;
@@ -17,19 +17,19 @@ use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::Layer;
 
-use crate::stages::utils::{now_iso, task_id};
+use crate::stages::utils::{now_iso, video_id};
 
 /// 存在 span extensions 里的字段值, 供 on_event 读取。
 #[derive(Default, Clone)]
 struct SpanFields {
-    task_dir: Option<String>,
+    workflow_dir: Option<String>,
     stage: Option<String>,
 }
 
 impl Visit for SpanFields {
     fn record_str(&mut self, field: &Field, value: &str) {
         match field.name() {
-            "task_dir" => self.task_dir = Some(value.to_string()),
+            "workflow_dir" => self.workflow_dir = Some(value.to_string()),
             "stage" => self.stage = Some(value.to_string()),
             _ => {}
         }
@@ -37,21 +37,21 @@ impl Visit for SpanFields {
 
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         match field.name() {
-            "task_dir" => self.task_dir = Some(format!("{value:?}")),
+            "workflow_dir" => self.workflow_dir = Some(format!("{value:?}")),
             "stage" => self.stage = Some(format!("{value:?}")),
             _ => {}
         }
     }
 }
 
-/// 自定义 Layer: 把事件追加写到当前 task 的 `<task_dir>/<tid>.log`。
+/// 自定义 Layer: 把事件追加写到当前 workflow 的 `<workflow_dir>/<tid>.log`。
 ///
-/// 不依赖 thread_local: 在 `on_new_span` 时把 `task_dir`/`stage` 字段值存进 span 的
-/// extensions, `on_event` 时从事件所在 span 作用域提取并落盘。无 `task` span 时不写文件。
-struct TaskFileLayer;
+/// 不依赖 thread_local: 在 `on_new_span` 时把 `workflow_dir`/`stage` 字段值存进 span 的
+/// extensions, `on_event` 时从事件所在 span 作用域提取并落盘。无 `workflow` span 时不写文件。
+struct WorkflowFileLayer;
 
-impl TaskFileLayer {
-    /// 从事件所在的 span 作用域提取 `task_dir` / `stage`。
+impl WorkflowFileLayer {
+    /// 从事件所在的 span 作用域提取 `workflow_dir` / `stage`。
     fn extract<'a, S>(ctx: &Context<'a, S>, event: &Event<'_>) -> SpanFields
     where
         S: Subscriber + for<'b> LookupSpan<'b>,
@@ -61,8 +61,8 @@ impl TaskFileLayer {
         if let Some(scope) = ctx.event_scope(event) {
             for span in scope {
                 if let Some(f) = span.extensions().get::<SpanFields>() {
-                    if f.task_dir.is_some() {
-                        out.task_dir = f.task_dir.clone();
+                    if f.workflow_dir.is_some() {
+                        out.workflow_dir = f.workflow_dir.clone();
                     }
                     if f.stage.is_some() {
                         out.stage = f.stage.clone();
@@ -74,7 +74,7 @@ impl TaskFileLayer {
     }
 }
 
-impl<S> Layer<S> for TaskFileLayer
+impl<S> Layer<S> for WorkflowFileLayer
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
@@ -86,7 +86,7 @@ where
     ) {
         let mut f = SpanFields::default();
         attrs.record(&mut f);
-        if f.task_dir.is_none() && f.stage.is_none() {
+        if f.workflow_dir.is_none() && f.stage.is_none() {
             return;
         }
         if let Some(span) = ctx.span(id) {
@@ -96,13 +96,13 @@ where
 
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
         let fields = Self::extract(&ctx, event);
-        let Some(task_dir) = fields.task_dir else {
-            return; // 不在 task 上下文, 不落盘
+        let Some(workflow_dir) = fields.workflow_dir else {
+            return; // 不在 workflow 上下文, 不落盘
         };
-        let Some(tid) = task_id(&task_dir) else {
+        let Some(tid) = video_id(&workflow_dir) else {
             return;
         };
-        let log_path = Path::new(&task_dir).join(format!("{tid}.log"));
+        let log_path = Path::new(&workflow_dir).join(format!("{tid}.log"));
         let stage_prefix = fields
             .stage
             .map(|s| format!("[{s}] "))
@@ -158,7 +158,7 @@ pub fn init() -> anyhow::Result<()> {
                 .with_writer(std::io::stderr)
                 .with_target(true),
         )
-        .with(TaskFileLayer)
+        .with(WorkflowFileLayer)
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),

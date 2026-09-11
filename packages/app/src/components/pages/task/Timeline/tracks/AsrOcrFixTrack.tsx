@@ -10,7 +10,7 @@ import { openModal, closeModal } from "@repo/ui-solid/custom/modal/renderer";
 import type { Track, TrackSegment } from "../consts";
 import { client } from "#/integrations/fnrpc/client.ts";
 import { useMutation } from "@tanstack/solid-query";
-import { useViewingTab } from "../../TaskControlPanel/taskControlPanelStore";
+import { useViewingTab } from "../../WorkflowControlPanel/workflowControlPanelStore";
 import { STAGE_TRACKS } from "./const";
 import { useTrackData } from "./useTrackData";
 import type { BaseTrackProps } from "./shared";
@@ -82,20 +82,20 @@ function deleteAt(segments: TrackSegment[], index: number): TrackSegment[] {
 }
 
 export function AsrOcrFixTrack(props: Props) {
-  const { taskDir, pxPerMs, onSeek, color } = props;
+  const { workflowDir, pxPerMs, onSeek, color } = props;
   const track = () => props.track;
   const isSf = () => track().id === "sf_ocr_fix";
   const viewingTab = useViewingTab();
 
   const primaryPath = () =>
     isSf()
-      ? `${taskDir}/sf_ocr_fix/segment_filter_llm_fix.json`
-      : `${taskDir}/asr_ocr_fix/asr_ocr_fused_llm_fix.json`;
-  const fallbackPath = () => `${taskDir}/sf_ocr_fix/segment_filter.json`;
+      ? `${workflowDir}/sf_ocr_fix/segment_filter_llm_fix.json`
+      : `${workflowDir}/asr_ocr_fix/asr_ocr_fused_llm_fix.json`;
+  const fallbackPath = () => `${workflowDir}/sf_ocr_fix/segment_filter.json`;
 
   // sf_ocr_fix：优先 LLM 修正产物，读取失败则回落到段过滤产物
   const { q, fb, active, segments } = useTrackData({
-    taskDir,
+    workflowDir,
     trackId: track().id,
     path: primaryPath,
     fallbackPath: () => (isSf() ? fallbackPath() : undefined),

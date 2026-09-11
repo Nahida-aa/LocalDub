@@ -1,4 +1,4 @@
-//! listModels 命令 (镜像 TS `packages/cli/run-task.ts` 的 `listModels` 分支)。
+//! listModels 命令 (镜像 TS `packages/cli/run-workflow.ts` 的 `listModels` 分支)。
 //!
 //! 列出 OpenAI 兼容端点的可用模型:
 //! - apiBase 取 `input.stages.translate.apiBase` (其 default 为 `OPENAI_BASE_URL` env, 再回退 ollama)

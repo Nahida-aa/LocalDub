@@ -9,7 +9,7 @@ pub mod out;
 
 use std::path::Path;
 
-use crate::context::TaskCtx;
+use crate::context::WorkflowCtx;
 use crate::stages::mix_audio::out::{Timing, TimingsFile};
 use crate::stages::utils::{
     StagePatch, StageStatus, ensure_dir, ffmpeg, now_iso, probe_duration_ms,
@@ -19,7 +19,7 @@ use crate::stages::utils::{
 pub use args::MixAudioArgs;
 
 /// 从 `ctx.input.stages.mix_audio` 解析配置 (镜像 TS `readInputArgs().stages.mix_audio`)。
-fn read_args(ctx: &TaskCtx) -> MixAudioArgs {
+fn read_args(ctx: &WorkflowCtx) -> MixAudioArgs {
     ctx.input
         .get("stages")
         .and_then(|v| v.get("mix_audio"))
@@ -28,14 +28,14 @@ fn read_args(ctx: &TaskCtx) -> MixAudioArgs {
 }
 
 /// 入口 (镜像 TS `stageMixAudio`)。
-pub fn stage_mix_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
-    let task_dir = ctx.task.task_dir.clone();
+pub fn stage_mix_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+    let workflow_dir = ctx.workflow.workflow_dir.clone();
     tracing::info!(target: "mix_audio", "start");
 
     let args = read_args(ctx);
 
-    let merge_audio_dir = Path::new(&task_dir).join("mix_audio");
-    let tts_dir = Path::new(&task_dir).join("tts").join("wavs");
+    let merge_audio_dir = Path::new(&workflow_dir).join("mix_audio");
+    let tts_dir = Path::new(&workflow_dir).join("tts").join("wavs");
     let stretched_dir = merge_audio_dir.join("stretched");
     let silence_dir = merge_audio_dir.join("silences");
     ensure_dir(&stretched_dir)?;
@@ -53,7 +53,7 @@ pub fn stage_mix_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
     if segments.is_empty() {
         return Err(anyhow::anyhow!(
             "{} 无 segments",
-            split_audio_timings_path(&task_dir).display()
+            split_audio_timings_path(&workflow_dir).display()
         ));
     }
 
@@ -315,7 +315,7 @@ pub fn stage_mix_audio(ctx: &TaskCtx) -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", timings_file.display(), e))?;
 
     set_stage_anyhow(
-        &task_dir,
+        &workflow_dir,
         "mix_audio",
         StagePatch {
             status: Some(StageStatus::Success),
@@ -335,9 +335,9 @@ mod tests {
     use crate::context::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> TaskCtx {
+    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowCtx {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.task.task_dir = dir.to_string();
+        ctx.workflow.workflow_dir = dir.to_string();
         ctx.pipeline = "dub".to_string();
         ctx
     }
@@ -347,7 +347,7 @@ mod tests {
         let ctx = ctx_at(
             "/x",
             json!({
-                "task": {"id":"t","task_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),

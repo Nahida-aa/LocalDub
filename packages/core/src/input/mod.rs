@@ -1,7 +1,7 @@
 //! 顶层输入类型 (不限定 CLI 场景, Tauri RPC / pipeline 均可复用)。
 //!
 //! 镜像 TS 侧 `packages/core/input/types.ts`：
-//! - `task` args → [`tasks::args`](crate::tasks::args)
+//! - `workflow` args → [`workflows::args`](crate::workflows::args)
 //! - 各 pipeline 阶段参数 → [`stages`](stages)
 //!
 //! input 语义由 `specta_serde::PhasesFormat` 驱动：`#[serde(default)]` 的字段在
@@ -13,7 +13,7 @@ use crate::cmd::check::CheckArgs;
 use crate::cmd::cookie::CookieArgs;
 use crate::cmd::env::args::EnvArgs;
 use crate::servers::args::ServersArgs;
-use crate::tasks::args;
+use crate::workflows::args;
 
 pub mod stages;
 
@@ -24,7 +24,7 @@ pub mod stages;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum Command {
-    Task,
+    Workflow,
     Env,
     Servers,
     Cookie,
@@ -44,8 +44,8 @@ impl Default for Command {
 /// 顶层输入
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Input {
-    /// 任务参数, 仅 command=task 时必须
-    pub task: Option<args::TaskArgs>,
+    /// workflow 参数, 仅 command=workflow 时必须
+    pub workflow: Option<args::WorkflowArgs>,
     /// 执行命令 (默认 env)
     #[serde(default)]
     pub command: Command,
@@ -68,7 +68,7 @@ pub struct Input {
 impl Default for Input {
     fn default() -> Self {
         Self {
-            task: None,
+            workflow: None,
             command: Command::default(),
             servers: None,
             env: None,
@@ -80,12 +80,12 @@ impl Default for Input {
 }
 
 impl Input {
-    /// command=task 时 task 必填
+    /// command=workflow 时 workflow 必填
     ///
     /// 目前主要被测试引用；CLI/RPC 解析入口可直接调用。
     pub fn validate(&self) -> Result<(), String> {
-        if self.command == Command::Task && self.task.is_none() {
-            return Err("command=task 时 task 必填".into());
+        if self.command == Command::Workflow && self.workflow.is_none() {
+            return Err("command=workflow 时 workflow 必填".into());
         }
         Ok(())
     }
@@ -98,16 +98,16 @@ mod tests {
     #[test]
     fn deserialize_partial_fills_defaults() {
         let input: Input =
-            serde_json::from_str(r#"{"command":"env","task":{"pipeline":"subtitle"}}"#).unwrap();
+            serde_json::from_str(r#"{"command":"env","workflow":{"pipeline":"subtitle"}}"#).unwrap();
         assert_eq!(input.command, Command::Env);
         assert!(input.stages.asr.mix_mode == crate::stages::asr::args::MixMode::Sidechain);
         assert_eq!(input.stages.asr.reduce_bgm, -12.0);
         assert_eq!(
-            input.task.as_ref().unwrap().pipeline,
+            input.workflow.as_ref().unwrap().pipeline,
             args::Pipeline::Subtitle
         );
         assert_eq!(
-            input.task.as_ref().unwrap().subtitle_source,
+            input.workflow.as_ref().unwrap().subtitle_source,
             args::SubtitleSource::Asr
         );
     }
@@ -115,15 +115,15 @@ mod tests {
     #[test]
     fn camel_case_field_names() {
         let input: Input =
-            serde_json::from_str(r#"{"task":{"sourceLang":"zh","targetStage":"mix_video"}}"#)
+            serde_json::from_str(r#"{"workflow":{"sourceLang":"zh","targetStage":"mix_video"}}"#)
                 .unwrap();
         // sourceLang 是开放字符串 (源语言是"事实", 不受 23 种翻译目标语言限制)
         assert_eq!(
-            input.task.as_ref().unwrap().source_lang,
+            input.workflow.as_ref().unwrap().source_lang,
             Some(crate::r#const::lang::Language::from("zh"))
         );
         assert_eq!(
-            input.task.as_ref().unwrap().target_stage,
+            input.workflow.as_ref().unwrap().target_stage,
             Some(args::StageName::MixVideo)
         );
     }
@@ -143,11 +143,11 @@ mod tests {
     }
 
     #[test]
-    fn validate_task_required_for_task_command() {
-        let ok: Input = serde_json::from_str(r#"{"command":"task","task":{}}"#).unwrap();
+    fn validate_workflow_required_for_workflow_command() {
+        let ok: Input = serde_json::from_str(r#"{"command":"workflow","workflow":{}}"#).unwrap();
         assert!(ok.validate().is_ok());
 
-        let missing: Input = serde_json::from_str(r#"{"command":"task"}"#).unwrap();
+        let missing: Input = serde_json::from_str(r#"{"command":"workflow"}"#).unwrap();
         assert!(missing.validate().is_err());
 
         let env: Input = serde_json::from_str(r#"{"command":"env"}"#).unwrap();

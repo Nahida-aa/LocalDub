@@ -1,10 +1,10 @@
 //! asr_ocr: OCR frames extracted by asr_ocr_pre, consuming subtitle-ocr CLI.
 //!
 //! Mirrors TS `packages/core/stages/04_asr_ocr/ocr.ts` (stageAsrOcr).
-//! Writes `<taskDir>/asr_ocr/frames.json` (OcrFramesResult).
+//! Writes `<workflowDir>/asr_ocr/frames.json` (OcrFramesResult).
 
 use crate::cmd::env::ensure_bin;
-use crate::context::TaskCtx;
+use crate::context::WorkflowCtx;
 use crate::stages::asr_ocr::args::AsrOcrArgs;
 use crate::stages::utils::{
     StagePatch, StageStatus, now_iso, set_stage_anyhow, asr_ocr_pre_dir, asr_ocr_dir,
@@ -14,7 +14,7 @@ use std::fs;
 use std::process::Command;
 
 /// Read asr_ocr config (defaults to AsrOcrArgs::default).
-fn read_args(ctx: &TaskCtx) -> AsrOcrArgs {
+fn read_args(ctx: &WorkflowCtx) -> AsrOcrArgs {
     ctx.input
         .get("stages")
         .and_then(|v| v.get("asr_ocr"))
@@ -23,12 +23,12 @@ fn read_args(ctx: &TaskCtx) -> AsrOcrArgs {
 }
 
 /// Entry point (mirrors TS `stageAsrOcr`).
-pub fn stage_asr_ocr(ctx: &TaskCtx) -> Result<()> {
-    let task_dir = ctx.task.task_dir.clone();
+pub fn stage_asr_ocr(ctx: &WorkflowCtx) -> Result<()> {
+    let workflow_dir = ctx.workflow.workflow_dir.clone();
     tracing::info!(target: "asr_ocr", "stage_asr_ocr: start");
 
     set_stage_anyhow(
-        &task_dir,
+        &workflow_dir,
         "asr_ocr",
         StagePatch {
             last_message: Some("OCR'ing frames...".into()),
@@ -39,7 +39,7 @@ pub fn stage_asr_ocr(ctx: &TaskCtx) -> Result<()> {
 
     let cfg = read_args(ctx);
 
-    let frame_dir = asr_ocr_pre_dir(&task_dir).join("frames");
+    let frame_dir = asr_ocr_pre_dir(&workflow_dir).join("frames");
     if !frame_dir.exists() {
         return Err(anyhow::anyhow!(
             "Frame directory not found: {} — run asr_ocr_pre first",
@@ -53,7 +53,7 @@ pub fn stage_asr_ocr(ctx: &TaskCtx) -> Result<()> {
         )
     })?;
 
-    let out_dir = asr_ocr_dir(&task_dir);
+    let out_dir = asr_ocr_dir(&workflow_dir);
     fs::create_dir_all(&out_dir)
         .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", out_dir.display(), e))?;
     let out_file = out_dir.join("frames.json");
@@ -108,7 +108,7 @@ pub fn stage_asr_ocr(ctx: &TaskCtx) -> Result<()> {
     }
 
     set_stage_anyhow(
-        &task_dir,
+        &workflow_dir,
         "asr_ocr",
         StagePatch {
             status: Some(StageStatus::Success),
@@ -127,9 +127,9 @@ mod tests {
     use crate::context::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> TaskCtx {
+    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowCtx {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.task.task_dir = dir.to_string();
+        ctx.workflow.workflow_dir = dir.to_string();
         ctx.pipeline = "dub".to_string();
         ctx
     }
@@ -143,7 +143,7 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let ctx = ctx_at(&dir, json!({
-            "task": {"id":"t","task_dir":dir,"url":"http://e","source":"remote",
+            "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
                      "status":"running","created_at":"2024-01-01T00:00:00Z"},
             "input": {}
         }));

@@ -8,7 +8,7 @@
 //!   5. Optional LLM fix (stage 8)
 
 use crate::cmd::env::ensure_bin;
-use crate::context::TaskCtx;
+use crate::context::WorkflowCtx;
 use crate::stages::asr::out::AsrResult;
 use crate::stages::asr_ocr::fix_args::AsrOcrFixArgs;
 use crate::stages::utils::{
@@ -100,7 +100,7 @@ struct AsrOcrFusedBody {
 }
 
 /// Read asr_ocr_fix config (defaults to AsrOcrFixArgs::default).
-fn read_args(ctx: &TaskCtx) -> AsrOcrFixArgs {
+fn read_args(ctx: &WorkflowCtx) -> AsrOcrFixArgs {
     ctx.input
         .get("stages")
         .and_then(|v| v.get("asr_ocr_fix"))
@@ -110,7 +110,7 @@ fn read_args(ctx: &TaskCtx) -> AsrOcrFixArgs {
 
 /// Stage 1 (optional): Resample - extract additional frames at isolated high-confidence frames.
 fn maybe_resample(
-    ctx: &TaskCtx,
+    ctx: &WorkflowCtx,
     ocr_frames: &OcrFramesResult,
     out_dir: &Path,
     args: &AsrOcrFixArgs,
@@ -242,12 +242,12 @@ fn final_dedup(segs: Vec<OcrSegment>) -> Vec<OcrSegment> {
 }
 
 /// Entry point (mirrors TS `stageAsrOcrFix`).
-pub fn stage_asr_ocr_fix(ctx: &TaskCtx) -> Result<()> {
-    let task_dir = ctx.task.task_dir.clone();
+pub fn stage_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
+    let workflow_dir = ctx.workflow.workflow_dir.clone();
     info!(target: "asr_ocr", "stage_asr_ocr_fix: start");
 
     set_stage_anyhow(
-        &task_dir,
+        &workflow_dir,
         "asr_ocr_fix",
         StagePatch {
             last_message: Some("Fusing ASR + OCR...".into()),
@@ -257,13 +257,13 @@ pub fn stage_asr_ocr_fix(ctx: &TaskCtx) -> Result<()> {
     )?;
 
     let args = read_args(ctx);
-    let out_dir = asr_ocr_fix_dir(&task_dir);
+    let out_dir = asr_ocr_fix_dir(&workflow_dir);
     fs::create_dir_all(&out_dir)?;
 
     // Read upstream artifacts
-    let asr_file = asr_dir(&task_dir).join("asr.json");
-    let asr_split_file = asr_ocr_pre_dir(&task_dir).join("asr_split.json");
-    let ocr_frames_file = asr_ocr_dir(&task_dir).join("frames.json");
+    let asr_file = asr_dir(&workflow_dir).join("asr.json");
+    let asr_split_file = asr_ocr_pre_dir(&workflow_dir).join("asr_split.json");
+    let ocr_frames_file = asr_ocr_dir(&workflow_dir).join("frames.json");
 
     if !asr_file.exists() {
         return Err(anyhow::anyhow!(
@@ -473,13 +473,13 @@ pub fn stage_asr_ocr_fix(ctx: &TaskCtx) -> Result<()> {
             .iter()
             .map(|s| s.base.text.clone())
             .collect();
-        // Source language: ASR detected > task.sourceLang > default zh
+        // Source language: ASR detected > workflow.sourceLang > default zh
         let src_lang = ctx
             .asr_language
             .clone()
             .or_else(|| {
                 ctx.input
-                    .get("task")
+                    .get("workflow")
                     .and_then(|v| v.get("sourceLang"))
                     .and_then(|v| v.as_str())
                     .map(|s| crate::r#const::lang::Language::from(s))
@@ -524,7 +524,7 @@ pub fn stage_asr_ocr_fix(ctx: &TaskCtx) -> Result<()> {
     );
 
     set_stage_anyhow(
-        &task_dir,
+        &workflow_dir,
         "asr_ocr_fix",
         StagePatch {
             status: Some(StageStatus::Success),
