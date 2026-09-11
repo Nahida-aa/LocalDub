@@ -30,7 +30,10 @@ impl FsRunStore {
     pub fn new(workflow_dir: &str) -> Self {
         let dir = Path::new(workflow_dir).join("workflow-engine");
         let _ = fs::create_dir_all(&dir);
-        Self { dir, lock: Mutex::new(()) }
+        Self {
+            dir,
+            lock: Mutex::new(()),
+        }
     }
 
     fn run_state_path(&self) -> PathBuf {
@@ -100,7 +103,10 @@ impl RunStore for FsRunStore {
         expected_next_index: usize,
         event: &RunEvent,
     ) -> Result<(), StoreError> {
-        let _guard = self.lock.lock().map_err(|e| StoreError::Io(e.to_string()))?;
+        let _guard = self
+            .lock
+            .lock()
+            .map_err(|e| StoreError::Io(e.to_string()))?;
         let (_, actual) = self.read_events()?;
         if actual != expected_next_index {
             return Err(StoreError::Conflict {
@@ -142,11 +148,11 @@ mod tests {
         dir
     }
 
-    fn event(run_id: &str, node: &str) -> RunEvent {
-        RunEvent::NodeFinished {
+    fn event(run_id: &str, step: &str) -> RunEvent {
+        RunEvent::StepFinished {
             ts: 1,
             run_id: run_id.to_string(),
-            node_id: node.to_string(),
+            step_id: step.to_string(),
             result: None,
             attempts: vec![],
         }
@@ -179,7 +185,7 @@ mod tests {
         store.append_event("r1", 1, &event("r1", "b")).unwrap();
         let evs = store.get_events("r1").unwrap();
         assert_eq!(evs.len(), 2);
-        assert_eq!(evs[1].node_id(), Some("b"));
+        assert_eq!(evs[1].step_id(), Some("b"));
     }
 
     #[test]
@@ -190,14 +196,18 @@ mod tests {
         let err = store.append_event("r1", 0, &event("r1", "b")).unwrap_err();
         assert!(matches!(
             err,
-            StoreError::Conflict { expected: 0, actual: 1, .. }
+            StoreError::Conflict {
+                expected: 0,
+                actual: 1,
+                ..
+            }
         ));
 
         // 新实例重开同一目录应看到之前的日志
         let reopened = FsRunStore::new(&dir);
         let evs = reopened.get_events("r1").unwrap();
         assert_eq!(evs.len(), 1);
-        assert_eq!(evs[0].node_id(), Some("a"));
+        assert_eq!(evs[0].step_id(), Some("a"));
 
         let _ = std::fs::remove_dir_all(&dir);
     }

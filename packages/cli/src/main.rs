@@ -29,9 +29,9 @@ use paths::parse_repo_input;
 /// `env`/`workflow` 子命令可用命令行参数直接触发。
 ///
 /// 设计意图:
-/// - `env`/`workflow`/`check` 做成 clap 子命令: 参数是标量 (action/url/workflowDir/queueId/stage/type),
+/// - `env`/`workflow`/`check` 做成 clap 子命令: 参数是标量 (action/url/videoDir/queueId/step/type),
 ///   适合命令行; 显式传的参数覆盖 input.jsonc, 缺失保留 (混合回退), 因此可以完全不改 input.jsonc 操作。
-/// - stages 等嵌套配置仍靠 input.jsonc (不适合命令行)。
+/// - steps 等嵌套配置仍靠 input.jsonc (不适合命令行)。
 /// - 其余命令 (servers/cookie/deviceInfo/listModels 等) 继续靠 input.jsonc 的 `command` 字段派发;
 ///   `deviceInfo`/`listModels` 无参数, 直接用空子命令触发。
 ///
@@ -72,12 +72,12 @@ enum Command {
         /// 队列任务 ID (cancel_queue 用)。
         #[arg(long)]
         queue_id: Option<u64>,
-        /// 从某 stage 续跑 (continue/enqueue_continue 用)。
+        /// 从某 step 续跑 (continue/enqueue_continue 用)。
         #[arg(long, value_enum)]
         continue_from: Option<StepName>,
-        /// 跑到此 stage 后停止 (continue/enqueue_continue 用)。
+        /// 跑到此 step 后停止 (continue/enqueue_continue 用)。
         #[arg(long, value_enum)]
-        target_stage: Option<StepName>,
+        target_step: Option<StepName>,
     },
     /// 服务器管理 (等价 input.jsonc command=servers)。
     Servers {
@@ -152,7 +152,7 @@ fn main() {
             workflow_dir,
             queue_id,
             continue_from,
-            target_stage,
+            target_step,
         }) => {
             let mut workflow = input.workflow.clone().unwrap_or_default();
             if let Some(a) = action {
@@ -170,8 +170,8 @@ fn main() {
             if let Some(cf) = continue_from {
                 workflow.continue_from = Some(cf);
             }
-            if let Some(ts) = target_stage {
-                workflow.target_stage = Some(ts);
+            if let Some(ts) = target_step {
+                workflow.target_step = Some(ts);
             }
             input.workflow = Some(workflow);
             input.command = InputCommand::Workflow;
@@ -203,7 +203,7 @@ fn main() {
                 check.r#type = t;
             }
             if let Some(d) = workflow_dir {
-                check.workflow_dir = Some(d);
+                check.video_dir = Some(d);
             }
             input.check = Some(check);
             input.command = InputCommand::Check;
@@ -300,7 +300,7 @@ mod tests {
         let raw = r#"{
             // 行注释: subtitle_source 走 sf_ocr
             "workflow": { "action": "start", "pipeline": "dub", "subtitleSource": "sf_ocr" },
-            "stages": {
+            "steps": {
                 "mix_video": {
                     "fontSize": 21.4,
                     "marginV": 45.0,
@@ -326,14 +326,14 @@ mod tests {
             ld_core::workflows::args::SubtitleSource::SfOcr
         );
 
-        let mv = &input.stages.mix_video;
+        let mv = &input.steps.mix_video;
         assert_eq!(mv.font_size, Some(21.4), "fontSize 小数应被读取");
         assert_eq!(mv.shadow, 1.1, "shadow 小数应被读取");
         assert_eq!(mv.margin_v, Some(45.0));
         assert_eq!(mv.font.as_deref(), Some("Noto Sans CJK SC Medium"));
         assert_eq!(mv.bgm_gain, -9.0);
 
-        let ma = &input.stages.mix_audio;
+        let ma = &input.steps.mix_audio;
         assert_eq!(ma.max_speed, 1.55);
     }
 }

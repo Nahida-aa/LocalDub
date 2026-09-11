@@ -4,20 +4,20 @@
 //! ctx.json 副作用达成一致, 但"成败真相"从 ctx.json 转移为
 //! `<workflow_dir>/workflow-engine/events.jsonl` (见 [`engine_store::FsRunStore`])。
 //!
-//! 建立方式: 每个活跃 step (过滤掉无 handler 的) 建成一个 node, 依赖前一个已注册 node
-//! (显式链式 DAG), `max_concurrency = 1` 强制串行。node 闭包内部复用
+//! 建立方式: 每个活跃 step (过滤掉无 handler 的) 建成一个 step, 依赖前一个已注册 step
+//! (显式链式 DAG), `max_concurrency = 1` 强制串行。step 闭包内部复用
 //! [`crate::workflows::pipeline::run_step`], 前后照旧写 ctx.json (UI 投影)。
 //!
 //! 与 run_pipeline 的差异点 (引擎天然语义):
-//! - **resume**: 同 run_id 重跑时跳过事件日志中已 `success` 的 node。
-//! - **continue_from**: 把目标 step 起的后缀 node 重置为 pending 再续跑
+//! - **resume**: 同 run_id 重跑时跳过事件日志中已 `success` 的 step。
+//! - **continue_from**: 把目标 step 起的后缀 step 重置为 pending 再续跑
 //!   (镜像 `continue_pipeline` 在 ctx.json 上的重置)。
 //! - **target_step**: 命中即停, 标记成功 (镜像 run_pipeline 的 targetStep)。
-//! - 阶段错误 → 事件日志记 NodeFailed, engine 停, workflow 置 failed。
+//! - 阶段错误 → 事件日志记 StepFailed, engine 停, workflow 置 failed。
 
 use std::sync::Arc;
 
-use workflow_core::{run as engine_run, NodeSpec, RunCtx, RunOptions, RunStatus};
+use workflow_core::{run_workflow, RunOptions, RunStatus, StepSpec, StepContext};
 
 use crate::context::read_ctx;
 use crate::steps::get_steps;
@@ -60,9 +60,9 @@ impl EngineOptions {
     }
 }
 
-/// step 成功后的产物路径清单, 作为 node 返回值写入事件日志
-/// (`NodeFinished.result`, 对齐 TanStack STEP_FINISHED 的 value 语义)。
-/// 返回 `None` 表示无产物 / 无法读取 (不使 node 失败)。
+/// step 成功后的产物路径清单, 作为 step 返回值写入事件日志
+/// (`StepFinished.result`, 对齐 TanStack STEP_FINISHED 的 value 语义)。
+/// 返回 `None` 表示无产物 / 无法读取 (不使 step 失败)。
 fn step_artifacts(workflow_dir: &str, step: &str) -> Option<serde_json::Value> {
     use crate::steps::utils::{
         asr_dir, asr_ocr_dir, asr_ocr_fix_dir, asr_ocr_pre_dir, dubbing_path, final_video_dir,
@@ -186,18 +186,18 @@ pub fn run_workflow_engine(workflow_dir: &str, opts: &EngineOptions) -> anyhow::
         }
         let dir = workflow_dir.to_string();
         let name = step.clone();
-        let node_name = name.clone();
-        let mut spec = NodeSpec::new(
+        let step_name = name.clone();
+        let mut spec = StepSpec::new(
             name.clone(),
-            Arc::new(move |_ctx: RunCtx| {
-                tracing::info!(target: "engine", "Running {node_name}");
+            Arc::new(move |_ctx: StepContext| {
+                tracing::info!(target: "engine", "Running {step_name}");
                 set_step_anyhow(
                     &dir,
-                    &node_name,
+                    &step_name,
                     StepPatch {
                         status: Some(StepStatus::Running),
                         started_at: Some(now_iso()),
-                        last_message: Some(format!("Starting {node_name}...")),
+                        last_message: Some(format!("Starting {step_name}...")),
                         ..Default::default()
                     },
                 )?;
@@ -205,18 +205,18 @@ pub fn run_workflow_engine(workflow_dir: &str, opts: &EngineOptions) -> anyhow::
                     &dir,
                     WorkflowPatch {
                         status: Some("running".to_string()),
-                        current_step: Some(Some(node_name.clone())),
+                        current_step: Some(Some(step_name.clone())),
                         ..Default::default()
                     },
                 )?;
-                match run_step(&node_name, &dir) {
-                    Ok(()) => Ok(step_artifacts(&dir, &node_name)),
+                match run_step(&step_name, &dir) {
+                    Ok(()) => Ok(step_artifacts(&dir, &step_name)),
                     Err(e) => {
                         let msg = e.to_string();
-                        tracing::error!(target: "engine", "Step {node_name} failed: {msg}");
+                        tracing::error!(target: "engine", "Step {step_name} failed: {msg}");
                         set_step_anyhow(
                             &dir,
-                            &node_name,
+                            &step_name,
                             StepPatch {
                                 status: Some(StepStatus::Failed),
                                 error_message: Some(msg.clone()),
@@ -241,7 +241,7 @@ pub fn run_workflow_engine(workflow_dir: &str, opts: &EngineOptions) -> anyhow::
             spec = spec.needs([p.clone()]);
         }
         prev = Some(name);
-        wf = wf.node(spec);
+        wf = wf.step(spec);
     }
 
     let store = FsRunStore::new(workflow_dir);
@@ -255,7 +255,7 @@ pub fn run_workflow_engine(workflow_dir: &str, opts: &EngineOptions) -> anyhow::
         r_opts = r_opts.target_step(ts.clone());
     }
 
-    let outcome = engine_run(&mut wf, &store, &r_opts, None)
+    let outcome = run_workflow(&mut wf, &store, &r_opts, None)
         .map_err(|e| anyhow::anyhow!("workflow engine error: {e}"))?;
 
     match outcome.status {
@@ -370,25 +370,25 @@ mod tests {
 
         run_workflow_engine(&dir, &EngineOptions::default()).unwrap();
 
-        // 事件日志: 每个 node 只跑一次 → 只应有 1 次 NodeFinished
+        // 事件日志: 每个 step 只跑一次 → 只应有 1 次 StepFinished
         let store = FsRunStore::new(&dir);
         let events = store.get_events("t").unwrap();
         let n_finished = |step: &str| {
             events
                 .iter()
-                .filter(|e| matches!(e, workflow_core::RunEvent::NodeFinished { node_id, .. } if node_id == step))
+                .filter(|e| matches!(e, workflow_core::RunEvent::StepFinished { step_id, .. } if step_id == step))
                 .count()
         };
         assert_eq!(n_finished("separate"), 1);
         assert_eq!(n_finished("separate_after"), 1);
 
-        // 再次运行 → 全部命中事件日志 success, 无 node 重跑
+        // 再次运行 → 全部命中事件日志 success, 无 step 重跑
         run_workflow_engine(&dir, &EngineOptions::default()).unwrap();
         let events = store.get_events("t").unwrap();
         assert_eq!(
             events
                 .iter()
-                .filter(|e| matches!(e, workflow_core::RunEvent::NodeFinished { node_id, .. } if node_id == "separate"))
+                .filter(|e| matches!(e, workflow_core::RunEvent::StepFinished { step_id, .. } if step_id == "separate"))
                 .count(),
             1
         );
@@ -424,14 +424,14 @@ mod tests {
             .map(|s| s.status != StepStatus::Success)
             .unwrap_or(true));
 
-        // 事件日志里 separate_after 不应有 NodeFinished
+        // 事件日志里 separate_after 不应有 StepFinished
         let store = FsRunStore::new(&dir);
         let events = store.get_events("t").unwrap();
         assert!(
             events
                 .iter()
-                .filter(|e| matches!(e, workflow_core::RunEvent::NodeFinished { .. }))
-                .all(|e| e.node_id() != Some("separate_after")),
+                .filter(|e| matches!(e, workflow_core::RunEvent::StepFinished { .. }))
+                .all(|e| e.step_id() != Some("separate_after")),
             "separate_after 不应被引擎执行"
         );
 
@@ -450,12 +450,12 @@ mod tests {
         let separate_res = events
             .iter()
             .find_map(|e| match e {
-                workflow_core::RunEvent::NodeFinished {
-                    node_id, result, ..
-                } if node_id == "separate" => result.clone(),
+                workflow_core::RunEvent::StepFinished {
+                    step_id, result, ..
+                } if step_id == "separate" => result.clone(),
                 _ => None,
             })
-            .expect("separate NodeFinished 应有 result");
+            .expect("separate StepFinished 应有 result");
         let artifacts = separate_res.get("artifacts").and_then(|v| v.as_array());
         let a = artifacts.expect("result.artifacts 应为数组");
         assert_eq!(a.len(), 1);
@@ -490,7 +490,7 @@ mod tests {
         let finished = |step: &str| {
             events
                 .iter()
-                .filter(|e| matches!(e, workflow_core::RunEvent::NodeFinished { node_id, .. } if node_id == step))
+                .filter(|e| matches!(e, workflow_core::RunEvent::StepFinished { step_id, .. } if step_id == step))
                 .count()
         };
         assert_eq!(finished("separate"), 1, "separate 不应重跑");
