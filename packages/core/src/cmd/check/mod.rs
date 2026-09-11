@@ -1,7 +1,7 @@
 //! check 命令 (镜像 TS `packages/cli/src/feat/command/check.ts`)。
 //!
 //! 三种检查:
-//! - `video`: 确认 `<workflowDir>/media/video_source.mp4` 存在 (输出紧凑 JSON)
+//! - `video`: 确认 `<videoDir>/media/video_source.mp4` 存在 (输出紧凑 JSON)
 //! - `asr`: 诊断 ASR 结果 (asr_fix/asr_fix.json 优先, 回退 asr/asr.json), 输出 timeline + issues
 //! - `font`: 检测 CJK 字体可用性 (win32 用已知 CRT 列表, 否则 fc-list)
 //!
@@ -12,26 +12,28 @@ use std::path::Path;
 use anyhow::anyhow;
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use crate::input::Input;
 
 /// `check` 命令参数 (镜像 TS `input.check` schema)。
 ///
-/// TS: `z.object({ workflowDir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
+/// TS: `z.object({ videoDir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CheckArgs {
     /// 任务目录 (video/asr 检查必需)
     #[serde(default)]
-    pub workflow_dir: Option<String>,
+    pub video_dir: Option<String>,
     /// 检查类型 (默认 video)
     #[serde(default)]
     pub r#type: CheckType,
 }
 
 /// 检查类型 (也用于 clap `--type` 命令行解析)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type, ValueEnum)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type, ValueEnum,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum CheckType {
     #[default]
@@ -51,17 +53,19 @@ pub fn cmd_check(input: &Input, args: &CheckArgs) -> anyhow::Result<()> {
     }
 }
 
-/// video 检查: `<workflowDir>/media/video_source.mp4` 存在性 + 大小。
+/// video 检查: `<videoDir>/media/video_source.mp4` 存在性 + 大小。
 fn check_video(args: &CheckArgs) -> anyhow::Result<()> {
-    let workflow_dir = args
-        .workflow_dir
+    let video_dir = args
+        .video_dir
         .as_deref()
-        .ok_or_else(|| fail("check video requires workflowDir"))?;
-    let video_path = Path::new(workflow_dir).join("media").join("video_source.mp4");
+        .ok_or_else(|| fail("check video requires videoDir"))?;
+    let video_path = Path::new(video_dir).join("media").join("video_source.mp4");
     if !video_path.exists() {
         return Err(fail("video_source.mp4 not found"));
     }
-    let size = std::fs::metadata(&video_path).map_err(|e| fail(&e.to_string()))?.len();
+    let size = std::fs::metadata(&video_path)
+        .map_err(|e| fail(&e.to_string()))?
+        .len();
     println!(
         "{}",
         json!({
@@ -76,12 +80,12 @@ fn check_video(args: &CheckArgs) -> anyhow::Result<()> {
 
 /// asr 检查: 读取 asr_fix/asr_fix.json (回退 asr/asr.json), 输出 timeline + 段间 gap 诊断。
 fn check_asr(args: &CheckArgs) -> anyhow::Result<()> {
-    let workflow_dir = args
-        .workflow_dir
+    let video_dir = args
+        .video_dir
         .as_deref()
-        .ok_or_else(|| fail("check asr requires workflowDir"))?;
-    let asr_path = Path::new(workflow_dir).join("asr_fix").join("asr_fix.json");
-    let asr_raw_path = Path::new(workflow_dir).join("asr").join("asr.json");
+        .ok_or_else(|| fail("check asr requires videoDir"))?;
+    let asr_path = Path::new(video_dir).join("asr_fix").join("asr_fix.json");
+    let asr_raw_path = Path::new(video_dir).join("asr").join("asr.json");
     let asr_file = if asr_path.exists() {
         asr_path
     } else if asr_raw_path.exists() {
@@ -131,9 +135,7 @@ fn check_asr(args: &CheckArgs) -> anyhow::Result<()> {
             warnings.push("start 紧跟上段结束".into());
         }
         let next_start = segments.get(i + 1).map(|s| round_ms(s.get("start_ms")));
-        if end_ms == audio_duration_ms
-            || (i < total - 1 && next_start == Some(end_ms))
-        {
+        if end_ms == audio_duration_ms || (i < total - 1 && next_start == Some(end_ms)) {
             warnings.push("end 拉到分段边界".into());
         }
         let duration_ms = end_ms - start_ms;
@@ -190,7 +192,7 @@ fn check_asr(args: &CheckArgs) -> anyhow::Result<()> {
 /// font 检查: mix_video.font (默认 Noto Sans CJK SC) 是否可用。
 fn check_font(input: &Input) -> anyhow::Result<()> {
     let configured_font = input
-        .stages
+        .steps
         .mix_video
         .font
         .clone()
@@ -204,9 +206,8 @@ fn check_font(input: &Input) -> anyhow::Result<()> {
     if cfg!(windows) {
         result["available"] = Value::Bool(true);
         result["cjkFonts"] = json!(["Microsoft YaHei", "SimHei", "SimSun"]);
-        result["note"] = Value::String(
-            "Windows 字体检测暂不支持 fc-list，使用已知 CRT 字体列表".into(),
-        );
+        result["note"] =
+            Value::String("Windows 字体检测暂不支持 fc-list，使用已知 CRT 字体列表".into());
     } else {
         let cjk_raw = fc_raw("fc-list", &[":lang=zh".to_string(), "family".to_string()]);
         let mut cjk_fonts: Vec<String> = cjk_raw
@@ -223,13 +224,16 @@ fn check_font(input: &Input) -> anyhow::Result<()> {
         result["available"] = Value::Bool(available);
         result["cjkFonts"] = cjk_fonts.iter().map(|s| Value::String(s.clone())).collect();
         if !available {
-            result["suggestion"] = json!(
-                if cjk_fonts.is_empty() {
-                    format!("字体 \"{configured_font}\" 未安装，可尝试：sudo apt install fonts-noto-cjk")
-                } else {
-                    format!("字体 \"{configured_font}\" 未安装，可用 CJK 字体：{}", cjk_fonts.join("、"))
-                }
-            );
+            result["suggestion"] = json!(if cjk_fonts.is_empty() {
+                format!(
+                    "字体 \"{configured_font}\" 未安装，可尝试：sudo apt install fonts-noto-cjk"
+                )
+            } else {
+                format!(
+                    "字体 \"{configured_font}\" 未安装，可用 CJK 字体：{}",
+                    cjk_fonts.join("、")
+                )
+            });
         }
     }
     println!("{}", serde_json::to_string_pretty(&result)?);
@@ -244,14 +248,20 @@ fn fail(msg: &str) -> anyhow::Error {
 
 /// JS `Math.round`: start_ms/end_ms 可能是小数, 取整到 ms。
 fn round_ms(v: Option<&Value>) -> i64 {
-    v.and_then(|v| v.as_f64()).map(|f| f.round() as i64).unwrap_or(0)
+    v.and_then(|v| v.as_f64())
+        .map(|f| f.round() as i64)
+        .unwrap_or(0)
 }
 
 /// 镜像 TS `fcRaw` (spawnSync timeout:5000): 成功取 stdout.trim(), 否则空串。
 fn fc_raw(cmd: &str, args: &[String]) -> String {
     const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
     let (ok, out, _) = crate::utils::process::run_cmd(cmd, args, None, TIMEOUT, false);
-    if ok { out } else { String::new() }
+    if ok {
+        out
+    } else {
+        String::new()
+    }
 }
 
 #[cfg(test)]
@@ -262,14 +272,12 @@ mod tests {
     fn deserialize_check_args_defaults() {
         let empty: CheckArgs = serde_json::from_str(r#"{}"#).unwrap();
         assert_eq!(empty.r#type, CheckType::Video);
-        assert!(empty.workflow_dir.is_none());
+        assert!(empty.video_dir.is_none());
 
-        let full: CheckArgs = serde_json::from_str(
-            r#"{"workflowDir":"/tmp/t","type":"asr"}"#,
-        )
-        .unwrap();
+        let full: CheckArgs =
+            serde_json::from_str(r#"{"videoDir":"/tmp/t","type":"asr"}"#).unwrap();
         assert_eq!(full.r#type, CheckType::Asr);
-        assert_eq!(full.workflow_dir.as_deref(), Some("/tmp/t"));
+        assert_eq!(full.video_dir.as_deref(), Some("/tmp/t"));
     }
 
     #[test]
@@ -295,7 +303,7 @@ mod tests {
         });
         std::fs::write(dir.join("asr_fix/asr_fix.json"), json.to_string()).unwrap();
         let args = CheckArgs {
-            workflow_dir: Some(dir.to_string_lossy().into_owned()),
+            video_dir: Some(dir.to_string_lossy().into_owned()),
             r#type: CheckType::Asr,
         };
         check_asr(&args).unwrap();
@@ -312,7 +320,7 @@ mod tests {
         ]}});
         std::fs::write(dir.join("asr/asr.json"), json.to_string()).unwrap();
         let args = CheckArgs {
-            workflow_dir: Some(dir.to_string_lossy().into_owned()),
+            video_dir: Some(dir.to_string_lossy().into_owned()),
             r#type: CheckType::Asr,
         };
         check_asr(&args).unwrap();
