@@ -42,7 +42,7 @@ export const StartWorkflowDialog = () => {
   );
 };
 
-/// 读仓库根 input.jsonc 作入队基准 Input, 仅覆盖 url/action, 其余 (stages 等) 保持用户全局配置。
+/// 读仓库根 input.jsonc 作入队基准 Input, 仅覆盖 url/action, 其余 (steps 等) 保持用户全局配置。
 /// 镜像 CLI 参数模式 (`cli workflow --action enqueue_start --url ...`: input.jsonc + 标量覆盖)。
 async function loadBaseInput(): Promise<Input> {
   // 0.4.6 raw fnrpc 已由 transport 解开 `{json, meta}` 信封, 这里拿到的是原始文本。
@@ -53,6 +53,7 @@ async function loadBaseInput(): Promise<Input> {
 const StartWorkflowContent = () => {
   const [url, setUrl] = createSignal("");
   const [enqueue, setEnqueue] = createSignal(false);
+  const [batch, setBatch] = createSignal(false);
   const [busy, setBusy] = createSignal(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -63,7 +64,7 @@ const StartWorkflowContent = () => {
         toastSuccess(`任务已创建: ${relDir}`);
         closeModal();
         qc.invalidateQueries({ queryKey: client.get_group_list.queryKey(null) });
-        // relDir 形如 `workfolder/<group>/<workflow>`, 跳到任务页实时看 stage 徽章
+        // relDir 形如 `workfolder/<group>/<workflow>`, 跳到任务页实时看 step 徽章
         const parts = relDir.replace(/\\/g, "/").split("/").filter(Boolean);
         const [group, workflow] = parts.slice(-2);
         if (group && workflow) {
@@ -76,7 +77,9 @@ const StartWorkflowContent = () => {
 
   const pickFile = async () => {
     try {
-      const opts: OpenDialogOptions = { multiple: false, filters: videoFilters };
+      const opts: OpenDialogOptions = batch()
+        ? { multiple: false, directory: true }
+        : { multiple: false, filters: videoFilters };
       const file = await openDialog(opts);
       if (typeof file === "string") setUrl(file);
     } catch (e) {
@@ -88,18 +91,34 @@ const StartWorkflowContent = () => {
     setBusy(true);
     try {
       const base = await loadBaseInput();
-      const input: Input = {
-        ...base,
-        command: "workflow",
-        workflow: {
-          ...(base.workflow ?? {}),
-          action: "start",
-          url: u,
-        },
-      };
-      // u64 → string → BigInt (仅 meta 含 typeId=0 时), 模板字符串可直接展示
-      const id = await fnrpc.enqueue_start(input);
-      toastSuccess(`已加入队列 (id=${id})，队列 worker 将串行执行`);
+      if (batch()) {
+        const input: Input = {
+          ...base,
+          command: "workflow",
+          workflow: {
+            ...(base.workflow ?? {}),
+            action: "enqueue_dir",
+            url: u,
+          },
+        };
+        const res = await fnrpc.enqueue_dir(input);
+        toastSuccess(
+          `已入队: 扫描 ${res.scanned} 个视频, 入队 ${res.enqueued}, 跳过 ${res.skipped}, 失败 ${res.errors}${res.skipped_videos.length ? ` (跳过: ${res.skipped_videos.slice(0, 3).join(", ")}${res.skipped_videos.length > 3 ? "..." : ""})` : ""}`,
+        );
+      } else {
+        const input: Input = {
+          ...base,
+          command: "workflow",
+          workflow: {
+            ...(base.workflow ?? {}),
+            action: "start",
+            url: u,
+          },
+        };
+        // u64 → string → BigInt (仅 meta 含 typeId=0 时), 模板字符串可直接展示
+        const id = await fnrpc.enqueue_start(input);
+        toastSuccess(`已加入队列 (id=${id})，队列 worker 将串行执行`);
+      }
       closeModal();
       qc.invalidateQueries({ queryKey: client.get_group_list.queryKey(null) });
     } catch (e) {
@@ -112,7 +131,7 @@ const StartWorkflowContent = () => {
   const submit = () => {
     const u = url().trim();
     if (!u) return;
-    if (enqueue()) {
+    if (enqueue() || batch()) {
       submitEnqueue(u);
     } else {
       start_workflow.mutate(u);
@@ -135,7 +154,7 @@ const StartWorkflowContent = () => {
       </Show>
       <TextField>
         <TextFieldInput
-          placeholder="/path/to/video.mp4 或远程链接"
+          placeholder={batch() ? "/path/to/directory 或远程链接" : "/path/to/video.mp4 或远程链接"}
           value={url()}
           onInput={(e) => setUrl(e.currentTarget.value)}
           onKeyDown={(e) => {
@@ -151,6 +170,15 @@ const StartWorkflowContent = () => {
           class="size-4 rounded border-input accent-primary"
         />
         <span>加入队列（串行执行，不立即开始）</span>
+      </label>
+      <label class="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
+        <input
+          type="checkbox"
+          checked={batch()}
+          onChange={(e) => setBatch(e.currentTarget.checked)}
+          class="size-4 rounded border-input accent-primary"
+        />
+        <span>批量入队（选择目录，扫描全部视频逐个入队）</span>
       </label>
       <Button onClick={submit} disabled={pending() || !url().trim()} class="w-full">
         <Show when={pending()} fallback={"开始"}>

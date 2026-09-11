@@ -8,8 +8,11 @@ dev-cli:
 dev-cli-ts:
     cd packages/cli && bun run tauri dev
 
-dev-cli-task-start *url:
-    cargo run -p cli -- task --action start --url "$url"
+dev-cli-workflow-start *url:
+    cargo run -p cli -- workflow --action start {{if url != "" { "--url " + url } else { "" }}}
+
+dev-cli-workflow-enqueue-dir *url:
+    cargo run -p cli -- workflow --action enqueue_dir {{if url != "" { "--url " + url } else { "" }}}
 
 dev-cli-discovery-server:
     cargo run -p cli -- servers --action discovery --name main
