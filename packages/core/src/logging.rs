@@ -2,9 +2,9 @@
 //!
 //! 取代旧的手搓 `emit_log` + thread_local `LOG_CTX` 方案:
 //! - 上下文用 tracing span: pipeline 入口进入 `workflow` span (携带 `workflow_dir` 字段),
-//!   stage 入口进入 `stage` span (携带 `stage` 字段)。
+//!   step 入口进入 `step` span (携带 `step` 字段)。
 //! - 落盘用 [`WorkflowFileLayer`]: 订阅事件, 从当前 span 栈提取 `workflow_dir` 写到
-//!   `<workflow_dir>/<tid>.log`, 行格式与重构前一致 (`[时间] [stage] 文本`)。
+//!   `<workflow_dir>/<tid>.log`, 行格式与重构前一致 (`[时间] [step] 文本`)。
 //! - 级别由调用处 `tracing::{info,warn,error}!` 决定, 不再依赖消息文本前缀。
 
 use std::fs::OpenOptions;
@@ -17,20 +17,20 @@ use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::Layer;
 
-use crate::stages::utils::{now_iso, video_id};
+use crate::steps::utils::{now_iso, video_id};
 
 /// 存在 span extensions 里的字段值, 供 on_event 读取。
 #[derive(Default, Clone)]
 struct SpanFields {
     workflow_dir: Option<String>,
-    stage: Option<String>,
+    step: Option<String>,
 }
 
 impl Visit for SpanFields {
     fn record_str(&mut self, field: &Field, value: &str) {
         match field.name() {
             "workflow_dir" => self.workflow_dir = Some(value.to_string()),
-            "stage" => self.stage = Some(value.to_string()),
+            "step" => self.step = Some(value.to_string()),
             _ => {}
         }
     }
@@ -38,7 +38,7 @@ impl Visit for SpanFields {
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         match field.name() {
             "workflow_dir" => self.workflow_dir = Some(format!("{value:?}")),
-            "stage" => self.stage = Some(format!("{value:?}")),
+            "step" => self.step = Some(format!("{value:?}")),
             _ => {}
         }
     }
@@ -46,12 +46,12 @@ impl Visit for SpanFields {
 
 /// 自定义 Layer: 把事件追加写到当前 workflow 的 `<workflow_dir>/<tid>.log`。
 ///
-/// 不依赖 thread_local: 在 `on_new_span` 时把 `workflow_dir`/`stage` 字段值存进 span 的
+/// 不依赖 thread_local: 在 `on_new_span` 时把 `workflow_dir`/`step` 字段值存进 span 的
 /// extensions, `on_event` 时从事件所在 span 作用域提取并落盘。无 `workflow` span 时不写文件。
 struct WorkflowFileLayer;
 
 impl WorkflowFileLayer {
-    /// 从事件所在的 span 作用域提取 `workflow_dir` / `stage`。
+    /// 从事件所在的 span 作用域提取 `workflow_dir` / `step`。
     fn extract<'a, S>(ctx: &Context<'a, S>, event: &Event<'_>) -> SpanFields
     where
         S: Subscriber + for<'b> LookupSpan<'b>,
@@ -64,8 +64,8 @@ impl WorkflowFileLayer {
                     if f.workflow_dir.is_some() {
                         out.workflow_dir = f.workflow_dir.clone();
                     }
-                    if f.stage.is_some() {
-                        out.stage = f.stage.clone();
+                    if f.step.is_some() {
+                        out.step = f.step.clone();
                     }
                 }
             }
@@ -86,7 +86,7 @@ where
     ) {
         let mut f = SpanFields::default();
         attrs.record(&mut f);
-        if f.workflow_dir.is_none() && f.stage.is_none() {
+        if f.workflow_dir.is_none() && f.step.is_none() {
             return;
         }
         if let Some(span) = ctx.span(id) {
@@ -103,10 +103,7 @@ where
             return;
         };
         let log_path = Path::new(&workflow_dir).join(format!("{tid}.log"));
-        let stage_prefix = fields
-            .stage
-            .map(|s| format!("[{s}] "))
-            .unwrap_or_default();
+        let step_prefix = fields.step.map(|s| format!("[{s}] ")).unwrap_or_default();
 
         // 取事件的 message 字段作为文本主体。
         let mut msg = String::new();
@@ -115,12 +112,8 @@ where
             return;
         }
 
-        let entry = format!("[{}] {stage_prefix}{msg}\n", now_iso());
-        if let Ok(mut f) = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&log_path)
-        {
+        let entry = format!("[{}] {step_prefix}{msg}\n", now_iso());
+        if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&log_path) {
             let _ = f.write_all(entry.as_bytes());
         }
     }

@@ -1,6 +1,6 @@
 //! generate_meta 命令: 用 LLM 从 `mix_video/zh.srt` 生成 `mix_video/meta.md` (视频章节摘要)。
 //!
-//! 独立 workflow action, 必要参数 `workflowDir`。数据源:
+//! 独立 workflow action, 必要参数 `videoDir`。数据源:
 //! - 字幕: `{workflow_dir}/mix_video/zh.srt` (SRT, 含时间戳)
 //! - 视频元数据: `{workflow_dir}/ytdlp_info.json` (yt-dlp --dump-json, 有 title/uploader/upload_date/webpage_url)
 //!
@@ -10,9 +10,9 @@ use std::path::Path;
 
 use anyhow::Context;
 
-use crate::stages::mix_video::read_srt_file_to_segs;
-use crate::stages::utils::srt::SrtSeg;
-use crate::stages::utils::ensure_dir;
+use crate::steps::mix_video::read_srt_file_to_segs;
+use crate::steps::utils::ensure_dir;
+use crate::steps::utils::srt::SrtSeg;
 
 /// 系统提示: 让 LLM 根据带时间戳的字幕输出结构化章节摘要 (JSON)。
 ///
@@ -78,7 +78,10 @@ pub fn generate_meta(workflow_dir: &str) -> anyhow::Result<()> {
         max_tokens: Some(4096),
         temperature: Some(0.3),
     };
-    println!("[generate_meta] 调用 LLM 生成 meta.md ({} 段字幕)...", segs.len());
+    println!(
+        "[generate_meta] 调用 LLM 生成 meta.md ({} 段字幕)...",
+        segs.len()
+    );
     let raw = llm::chat_completions(&prompt, &opts)?;
 
     let result: MetaResult = serde_json::from_str(&raw)
@@ -90,8 +93,7 @@ pub fn generate_meta(workflow_dir: &str) -> anyhow::Result<()> {
     if let Some(parent) = Path::new(&meta_path).parent() {
         ensure_dir(parent).with_context(|| format!("创建目录失败: {parent:?}"))?;
     }
-    std::fs::write(&meta_path, &md)
-        .with_context(|| format!("写入 meta.md 失败: {meta_path}"))?;
+    std::fs::write(&meta_path, &md).with_context(|| format!("写入 meta.md 失败: {meta_path}"))?;
     println!("已生成 {}", meta_path);
     Ok(())
 }
@@ -103,7 +105,11 @@ fn assemble_meta_md(result: &MetaResult, info: Option<&YtDlpInfo>) -> String {
     let mut md = String::new();
     // title: Rust 组装固定格式
     md.push_str("## title\n\n");
-    md.push_str(&format!("{} - {}\n\n", result.title_translation.trim(), uploader));
+    md.push_str(&format!(
+        "{} - {}\n\n",
+        result.title_translation.trim(),
+        uploader
+    ));
 
     // description: 元数据 (Rust) + 章节摘要 (LLM)
     md.push_str("## description\n\n");

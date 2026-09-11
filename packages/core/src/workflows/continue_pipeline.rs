@@ -1,8 +1,8 @@
 //! continue 派发器 (镜像 TS `packages/core/workflows/continue.ts` 的 `continuePipeline`)。
 //!
 //! 与 [`crate::workflows::pipeline::run_pipeline`] 的区别: 不是从序列头跑全部, 而是:
-//! - `workflow.continueFrom` 存在 → 从该 stage 起把后续全部重置为 `pending` 再续跑;
-//! - 否则 → 跳过已 `success` 的前缀 stage, 从第一个未完成 stage 续跑;
+//! - `workflow.continueFrom` 存在 → 从该 step 起把后续全部重置为 `pending` 再续跑;
+//! - 否则 → 跳过已 `success` 的前缀 step, 从第一个未完成 step 续跑;
 //! - `workflow.targetStep` 命中即停 (truncate 序列)。
 //!
 //! ctx 由调用者传入 (而非内部从磁盘 `read_ctx`), 以保证续跑使用的是调用者选定的
@@ -10,8 +10,8 @@
 //! 不调用 `import_video` (TS `continuePipeline` 也不调), caller 应已保证 workflow 目录存在。
 
 use crate::context::WorkflowCtx;
-use crate::stages::utils::{now_iso, set_stage_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
-use crate::workflows::pipeline::{has_handler, run_stage};
+use crate::steps::utils::{now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
+use crate::workflows::pipeline::{has_handler, run_step};
 
 /// 续跑 pipeline (镜像 TS `continuePipeline`)。
 ///
@@ -25,7 +25,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
 
     let pipeline = ctx.pipeline.clone();
     let video_id = ctx.workflow.id.clone();
-    let stages = crate::stages::get_stages(&ctx);
+    let steps = crate::steps::get_steps(&ctx);
 
     // continueFrom / targetStep 从 ctx.input.workflow 读取 (镜像 TS ctx.input?.workflow)
     let continue_from = ctx
@@ -34,7 +34,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         .and_then(|v| v.get("continueFrom"))
         .and_then(|v| v.as_str())
         .map(String::from);
-    let target_stage = ctx
+    let target_step = ctx
         .input
         .get("workflow")
         .and_then(|v| v.get("targetStep"))
@@ -42,8 +42,8 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         .map(String::from);
 
     // targetStep 不在序列中则告警忽略 (镜像 TS)
-    if let Some(ts) = &target_stage {
-        if !stages.iter().any(|s| s == ts) {
+    if let Some(ts) = &target_step {
+        if !steps.iter().any(|s| s == ts) {
             tracing::info!(target: "pipeline",
                 "[WARN] targetStep \"{ts}\" 不在 {pipeline} pipeline 中, 忽略"
             );
@@ -53,17 +53,17 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     let mut start_idx = 0usize;
 
     if let Some(cf) = &continue_from {
-        start_idx = stages
+        start_idx = steps
             .iter()
             .position(|s| s == cf)
-            .ok_or_else(|| anyhow::anyhow!("Unknown stage \"{cf}\""))?;
+            .ok_or_else(|| anyhow::anyhow!("Unknown step \"{cf}\""))?;
         // 从 continueFrom 起把后续全部重置为 pending (镜像 TS for i=startIdx.. reset)。
         // 注: StepPatch 仅支持"设置"不支持"清空"可选字段, 故只改 status; 实际运行时
-        // run_stage 会重新写入 started_at / completed_at, 残留的旧时间戳无害。
-        for i in start_idx..stages.len() {
-            set_stage_anyhow(
+        // run_step 会重新写入 started_at / completed_at, 残留的旧时间戳无害。
+        for i in start_idx..steps.len() {
+            set_step_anyhow(
                 workflow_dir,
-                &stages[i],
+                &steps[i],
                 StepPatch {
                     status: Some(StepStatus::Pending),
                     ..Default::default()
@@ -71,19 +71,19 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             )?;
         }
         tracing::info!(target: "pipeline",
-            "Resetting from \"{cf}\" ({} stage(s)), resuming...",
-            stages.len() - start_idx
+            "Resetting from \"{cf}\" ({} step(s)), resuming...",
+            steps.len() - start_idx
         );
     } else {
-        // 无 continueFrom → 跳过已完成前缀, 从第一个未完成 stage 续跑
+        // 无 continueFrom → 跳过已完成前缀, 从第一个未完成 step 续跑
         let existing: std::collections::HashMap<String, StepStatus> = ctx
-            .stages
+            .steps
             .clone()
             .unwrap_or_default()
             .into_iter()
             .map(|s| (s.name, s.status))
             .collect();
-        for (i, s) in stages.iter().enumerate() {
+        for (i, s) in steps.iter().enumerate() {
             if existing.get(s) != Some(&StepStatus::Success) {
                 start_idx = i;
                 break;
@@ -93,61 +93,61 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             tracing::info!(target: "pipeline", "continue from beginning");
         } else {
             tracing::info!(target: "pipeline",
-                "Skipping {start_idx} completed stage(s), resuming from \"{}\"",
-                stages[start_idx]
+                "Skipping {start_idx} completed step(s), resuming from \"{}\"",
+                steps[start_idx]
             );
         }
     }
 
     set_workflow_anyhow(
         workflow_dir,
-        crate::stages::utils::WorkflowPatch {
+        crate::steps::utils::WorkflowPatch {
             status: Some("running".to_string()),
             started_at: Some(now_iso()),
-            current_stage: Some(Some(stages[start_idx].clone())),
+            current_step: Some(Some(steps[start_idx].clone())),
             ..Default::default()
         },
     )?;
 
     tracing::info!(target: "pipeline",
         "Running runSteps: {:?}",
-        &stages[start_idx..]
+        &steps[start_idx..]
     );
 
-    for i in start_idx..stages.len() {
-        let stage = &stages[i];
+    for i in start_idx..steps.len() {
+        let step = &steps[i];
 
-        if !has_handler(stage) {
+        if !has_handler(step) {
             tracing::info!(target: "pipeline",
-                "[WARN] No handler for stage {stage}, skipping"
+                "[WARN] No handler for step {step}, skipping"
             );
             continue;
         }
 
-        set_stage_anyhow(
+        set_step_anyhow(
             workflow_dir,
-            stage,
+            step,
             StepPatch {
                 status: Some(StepStatus::Running),
                 started_at: Some(now_iso()),
-                last_message: Some(format!("Starting {stage}...")),
+                last_message: Some(format!("Starting {step}...")),
                 ..Default::default()
             },
         )?;
         set_workflow_anyhow(
             workflow_dir,
-            crate::stages::utils::WorkflowPatch {
+            crate::steps::utils::WorkflowPatch {
                 status: Some("running".to_string()),
-                current_stage: Some(Some(stage.clone())),
+                current_step: Some(Some(step.clone())),
                 ..Default::default()
             },
         )?;
-        tracing::info!(target: "pipeline", "Running {stage}");
+        tracing::info!(target: "pipeline", "Running {step}");
 
-        match run_stage(stage, workflow_dir) {
+        match run_step(step, workflow_dir) {
             Ok(()) => {
-                if let Some(ts) = &target_stage {
-                    if stage == ts {
+                if let Some(ts) = &target_step {
+                    if step == ts {
                         tracing::info!(target: "pipeline", "达到目标步骤 \"{ts}\", 停止");
                         break;
                     }
@@ -155,10 +155,10 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             }
             Err(e) => {
                 let msg = e.to_string();
-                tracing::error!(target: "pipeline", "Step {stage} failed: {msg}");
-                set_stage_anyhow(
+                tracing::error!(target: "pipeline", "Step {step} failed: {msg}");
+                set_step_anyhow(
                     workflow_dir,
-                    stage,
+                    step,
                     StepPatch {
                         status: Some(StepStatus::Failed),
                         error_message: Some(msg.clone()),
@@ -168,7 +168,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
                 )?;
                 set_workflow_anyhow(
                     workflow_dir,
-                    crate::stages::utils::WorkflowPatch {
+                    crate::steps::utils::WorkflowPatch {
                         status: Some("failed".to_string()),
                         error_message: Some(msg),
                         ..Default::default()
@@ -181,10 +181,10 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
 
     set_workflow_anyhow(
         workflow_dir,
-        crate::stages::utils::WorkflowPatch {
+        crate::steps::utils::WorkflowPatch {
             status: Some("success".to_string()),
             completed_at: Some(now_iso()),
-            current_stage: Some(None),
+            current_step: Some(None),
             ..Default::default()
         },
     )?;

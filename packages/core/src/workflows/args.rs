@@ -39,7 +39,7 @@ pub enum WorkflowAction {
     GenerateMeta,
 }
 
-/// pipeline 阶段名 (stagesList)
+/// pipeline 阶段名 (stepsList)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type, ValueEnum)]
 #[serde(rename_all = "snake_case")]
 #[value(rename_all = "snake_case")]
@@ -95,12 +95,12 @@ pub struct WorkflowArgs {
     /// 继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始
     pub continue_from: Option<StepName>,
     /// 目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤
-    pub target_stage: Option<StepName>,
+    pub target_step: Option<StepName>,
     pub workflow_dir: Option<String>,
     /// 队列任务 ID (cancel_queue 指定要取消的队列项)
     pub queue_id: Option<u64>,
     /// rerunStep 专业参数, 指定要重新运行的步骤
-    pub stage_name: Option<StepName>,
+    pub step_name: Option<StepName>,
     /// 任务模式, dub 配音, subtitle 仅字幕
     #[serde(default)]
     pub pipeline: Pipeline,

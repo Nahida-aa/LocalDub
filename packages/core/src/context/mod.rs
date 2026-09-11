@@ -21,7 +21,7 @@ pub struct WorkflowBrief {
     pub id: String,
     pub title: Option<String>,
     pub status: String,
-    pub current_stage: Option<String>,
+    pub current_step: Option<String>,
     pub created_at: String,
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
@@ -34,7 +34,7 @@ pub struct Workflow {
     pub url: String,
     pub title: Option<String>,
     pub status: String,
-    pub current_stage: Option<String>,
+    pub current_step: Option<String>,
     pub workflow_dir: String,
     pub final_video_path: Option<String>,
     pub error_message: Option<String>,
@@ -48,7 +48,7 @@ impl From<Workflow> for WorkflowBrief {
             id: t.id,
             title: t.title,
             status: t.status,
-            current_stage: t.current_stage,
+            current_step: t.current_step,
             created_at: t.created_at,
             started_at: t.started_at,
             completed_at: t.completed_at,
@@ -74,7 +74,7 @@ pub struct RunInfo {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct WorkflowCtx {
     pub workflow: Workflow,
-    pub stages: Option<Vec<WorkflowStep>>,
+    pub steps: Option<Vec<WorkflowStep>>,
     pub pipeline: String,
     pub last_run_pipeline: Option<String>,
     #[specta(type = specta_typescript::Unknown)]
@@ -110,7 +110,7 @@ pub fn read_ctx_from_value(json: serde_json::Value) -> Result<WorkflowCtx, Strin
                 .map_err(|e| format!("Failed to parse workflow: {}", e))
         })?;
 
-    let stages = json.get("stages").and_then(|v| v.as_array()).map(|arr| {
+    let steps = json.get("steps").and_then(|v| v.as_array()).map(|arr| {
         arr.iter()
             .filter_map(|item| serde_json::from_value(item.clone()).ok())
             .collect()
@@ -118,7 +118,7 @@ pub fn read_ctx_from_value(json: serde_json::Value) -> Result<WorkflowCtx, Strin
 
     Ok(WorkflowCtx {
         workflow,
-        stages,
+        steps,
         pipeline: json
             .get("pipeline")
             .and_then(|v| v.as_str())
@@ -185,8 +185,8 @@ pub fn read_workflow(workflow_dir: &str) -> Result<Workflow, String> {
     })
 }
 
-pub fn read_stages(workflow_dir: &str) -> Result<Vec<WorkflowStep>, String> {
-    read_ctx(workflow_dir).map(|ctx| ctx.stages.unwrap_or_default())
+pub fn read_steps(workflow_dir: &str) -> Result<Vec<WorkflowStep>, String> {
+    read_ctx(workflow_dir).map(|ctx| ctx.steps.unwrap_or_default())
 }
 
 pub fn read_pipeline(workflow_dir: &str) -> String {

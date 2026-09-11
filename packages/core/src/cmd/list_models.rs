@@ -1,7 +1,7 @@
 //! listModels 命令 (镜像 TS `packages/cli/run-workflow.ts` 的 `listModels` 分支)。
 //!
 //! 列出 OpenAI 兼容端点的可用模型:
-//! - apiBase 取 `input.stages.translate.apiBase` (其 default 为 `OPENAI_BASE_URL` env, 再回退 ollama)
+//! - apiBase 取 `input.steps.translate.apiBase` (其 default 为 `OPENAI_BASE_URL` env, 再回退 ollama)
 //! - 需要 `OPENAI_API_KEY` (对齐 TS: 缺失即报错退出)
 //! - GET `{apiBase}/models` 逐个打印 `data[].id`
 
@@ -13,13 +13,12 @@ use crate::input::Input;
 
 /// 命令入口 (镜像 TS `listModels` 分支): 列出模型 id, 失败返回 Err (CLI 打印退出码 1)。
 pub fn cmd_list_models(input: &Input) -> anyhow::Result<()> {
-    let api_key = openai_api_key()
-        .ok_or_else(|| anyhow!("OPENAI_API_KEY not configured"))?;
+    let api_key = openai_api_key().ok_or_else(|| anyhow!("OPENAI_API_KEY not configured"))?;
 
     // apiBase 三级回退 (镜像 TS `apiBase || env.OPENAI_BASE_URL || 默认`):
-    // - 显式配置 (input.stages.translate.apiBase) 优先;
+    // - 显式配置 (input.steps.translate.apiBase) 优先;
     // - 空串 (缺省) → openai_base_url() = env.OPENAI_BASE_URL 或本地 ollama 默认。
-    let cfg_base = input.stages.translate.api_base.clone();
+    let cfg_base = input.steps.translate.api_base.clone();
     let api_base = if cfg_base.is_empty() {
         openai_base_url()
     } else {
@@ -59,10 +58,10 @@ mod tests {
 
     #[test]
     fn api_base_defaults_to_openai_base_url_or_ollama() {
-        // 输入缺 stages.translate 时 (serde 反序列化 `{}`), apiBase 走 openai_base_url()
-        // (env 或 ollama 默认), 与 TS `stages.translate.apiBase || env.OPENAI_BASE_URL` 对齐。
+        // 输入缺 steps.translate 时 (serde 反序列化 `{}`), apiBase 走 openai_base_url()
+        // (env 或 ollama 默认), 与 TS `steps.translate.apiBase || env.OPENAI_BASE_URL` 对齐。
         let input: Input = serde_json::from_str(r#"{"command":"listModels"}"#).unwrap();
-        let base = &input.stages.translate.api_base;
+        let base = &input.steps.translate.api_base;
         let resolved = if base.is_empty() {
             openai_base_url()
         } else {
@@ -75,10 +74,10 @@ mod tests {
     fn api_base_respects_explicit_value() {
         // 显式配置时优先 (镜像 TS `apiBase || env` 首项)。
         let input: Input = serde_json::from_str(
-            r#"{"command":"listModels","stages":{"translate":{"apiBase":"http://example.com/v1"}}}"#,
+            r#"{"command":"listModels","steps":{"translate":{"apiBase":"http://example.com/v1"}}}"#,
         )
         .unwrap();
-        let cfg_base = &input.stages.translate.api_base;
+        let cfg_base = &input.steps.translate.api_base;
         let resolved = if cfg_base.is_empty() {
             openai_base_url()
         } else {

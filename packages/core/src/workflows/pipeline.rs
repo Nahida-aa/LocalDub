@@ -1,27 +1,27 @@
 //! pipeline 串行派发器 (镜像 TS `packages/core/workflows/start.ts` 的 `runPipeline`)。
 //!
-//! 流程: 读 ctx → `get_stages` 得到阶段序列 → 逐个调用 `run_stage` (handler 读 ctx.json
-//! 跑完写回) → 每阶段前后用 `set_stage` / `set_workflow` 标状态, 失败即中断。
+//! 流程: 读 ctx → `get_steps` 得到阶段序列 → 逐个调用 `run_step` (handler 读 ctx.json
+//! 跑完写回) → 每阶段前后用 `set_step` / `set_workflow` 标状态, 失败即中断。
 //!
-//! 本文件原位于 `stages/pipeline.rs`, 后迁移到 `workflows/` (与 start / continue 派发器同层),
-//! 因为 `run_pipeline` 属于任务级编排而非某个具体 stage 的实现。
+//! 本文件原位于 `steps/pipeline.rs`, 后迁移到 `workflows/` (与 start / continue 派发器同层),
+//! 因为 `run_pipeline` 属于任务级编排而非某个具体 step 的实现。
 //!
-//! 目前 `run_stage` 已注册 separate / separate_after / sf_ocr* / translate / split_audio /
+//! 目前 `run_step` 已注册 separate / separate_after / sf_ocr* / translate / split_audio /
 //! asr / asr_fix / tts / mix_audio / mix_video; 后续阶段 (asr_ocr*) 移植后在此登记即可。
 
 use crate::context::read_ctx;
-use crate::stages::asr::fix::stage_asr_fix;
-use crate::stages::asr::stage_asr;
-use crate::stages::asr_ocr::{fix::stage_asr_ocr_fix, ocr::stage_asr_ocr, pre::stage_asr_ocr_pre};
-use crate::stages::get_stages;
-use crate::stages::mix_audio::stage_mix_audio;
-use crate::stages::mix_video::stage_mix_video;
-use crate::stages::separate::{stage_separate, stage_separate_after};
-use crate::stages::sf_ocr::{stage_sf_ocr, stage_sf_ocr_fix, stage_sf_ocr_pre};
-use crate::stages::split_audio::stage_split_audio;
-use crate::stages::translate::stage_translate;
-use crate::stages::tts::stage_tts;
-use crate::stages::utils::{now_iso, set_stage_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
+use crate::steps::asr::fix::step_asr_fix;
+use crate::steps::asr::step_asr;
+use crate::steps::asr_ocr::{fix::step_asr_ocr_fix, ocr::step_asr_ocr, pre::step_asr_ocr_pre};
+use crate::steps::get_steps;
+use crate::steps::mix_audio::step_mix_audio;
+use crate::steps::mix_video::step_mix_video;
+use crate::steps::separate::{step_separate, step_separate_after};
+use crate::steps::sf_ocr::{step_sf_ocr, step_sf_ocr_fix, step_sf_ocr_pre};
+use crate::steps::split_audio::step_split_audio;
+use crate::steps::translate::step_translate;
+use crate::steps::tts::step_tts;
+use crate::steps::utils::{now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
 
 /// 运行完整 pipeline (镜像 TS `runPipeline`)。
 pub fn run_pipeline(workflow_dir: &str) -> anyhow::Result<()> {
@@ -32,11 +32,11 @@ pub fn run_pipeline(workflow_dir: &str) -> anyhow::Result<()> {
     let ctx = read_ctx(workflow_dir).map_err(anyhow::Error::msg)?;
     let pipeline = ctx.pipeline.clone();
     let video_id = ctx.workflow.id.clone();
-    let stages = get_stages(&ctx);
+    let steps = get_steps(&ctx);
 
     // targetStep 不在序列中则告警忽略 (镜像 TS)
     if let Some(ts) = ctx.input.get("targetStep").and_then(|v| v.as_str()) {
-        if !stages.iter().any(|s| s == ts) {
+        if !steps.iter().any(|s| s == ts) {
             tracing::info!(target: "pipeline",
                 "[WARN] targetStep \"{ts}\" 不在 {pipeline} pipeline 中, 忽略"
             );
@@ -45,47 +45,47 @@ pub fn run_pipeline(workflow_dir: &str) -> anyhow::Result<()> {
 
     set_workflow_anyhow(
         workflow_dir,
-        crate::stages::utils::WorkflowPatch {
+        crate::steps::utils::WorkflowPatch {
             status: Some("running".to_string()),
             started_at: Some(now_iso()),
             ..Default::default()
         },
     )?;
 
-    for stage in &stages {
+    for step in &steps {
         // 先检查 handler 是否存在 (镜像 TS: 无 handler 则 warn + skip, 不标记 running)
-        if !has_handler(stage) {
+        if !has_handler(step) {
             tracing::info!(target: "pipeline",
-                "[WARN] No handler for stage {stage}, skipping"
+                "[WARN] No handler for step {step}, skipping"
             );
             continue;
         }
 
-        set_stage_anyhow(
+        set_step_anyhow(
             workflow_dir,
-            stage,
+            step,
             StepPatch {
                 status: Some(StepStatus::Running),
                 started_at: Some(now_iso()),
-                last_message: Some(format!("Starting {stage}...")),
+                last_message: Some(format!("Starting {step}...")),
                 ..Default::default()
             },
         )?;
         set_workflow_anyhow(
             workflow_dir,
-            crate::stages::utils::WorkflowPatch {
+            crate::steps::utils::WorkflowPatch {
                 status: Some("running".to_string()),
-                current_stage: Some(Some(stage.clone())),
+                current_step: Some(Some(step.clone())),
                 ..Default::default()
             },
         )?;
-        tracing::info!(target: "pipeline", "Running {stage}");
+        tracing::info!(target: "pipeline", "Running {step}");
 
-        match run_stage(stage, workflow_dir) {
+        match run_step(step, workflow_dir) {
             Ok(()) => {
                 // 达到 targetStep 即停止 (镜像 TS)
                 if let Some(ts) = ctx.input.get("targetStep").and_then(|v| v.as_str()) {
-                    if stage == ts {
+                    if step == ts {
                         tracing::info!(target: "pipeline", "达到目标步骤 \"{ts}\", 停止");
                         break;
                     }
@@ -93,10 +93,10 @@ pub fn run_pipeline(workflow_dir: &str) -> anyhow::Result<()> {
             }
             Err(e) => {
                 let msg = e.to_string();
-                tracing::error!(target: "pipeline", "Step {stage} failed: {msg}");
-                set_stage_anyhow(
+                tracing::error!(target: "pipeline", "Step {step} failed: {msg}");
+                set_step_anyhow(
                     workflow_dir,
-                    stage,
+                    step,
                     StepPatch {
                         status: Some(StepStatus::Failed),
                         error_message: Some(msg.clone()),
@@ -106,7 +106,7 @@ pub fn run_pipeline(workflow_dir: &str) -> anyhow::Result<()> {
                 )?;
                 set_workflow_anyhow(
                     workflow_dir,
-                    crate::stages::utils::WorkflowPatch {
+                    crate::steps::utils::WorkflowPatch {
                         status: Some("failed".to_string()),
                         error_message: Some(msg),
                         ..Default::default()
@@ -119,10 +119,10 @@ pub fn run_pipeline(workflow_dir: &str) -> anyhow::Result<()> {
 
     set_workflow_anyhow(
         workflow_dir,
-        crate::stages::utils::WorkflowPatch {
+        crate::steps::utils::WorkflowPatch {
             status: Some("success".to_string()),
             completed_at: Some(now_iso()),
-            current_stage: Some(None),
+            current_step: Some(None),
             ..Default::default()
         },
     )?;
@@ -130,10 +130,10 @@ pub fn run_pipeline(workflow_dir: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// 是否存在已注册的 handler (镜像 TS `STAGE_HANDLERS[stage]` 是否存在)。
-pub fn has_handler(stage: &str) -> bool {
+/// 是否存在已注册的 handler (镜像 TS `STEP_HANDLERS[step]` 是否存在)。
+pub fn has_handler(step: &str) -> bool {
     matches!(
-        stage,
+        step,
         "separate"
             | "separate_after"
             | "sf_ocr_pre"
@@ -152,32 +152,32 @@ pub fn has_handler(stage: &str) -> bool {
     )
 }
 
-/// 按 stage 名分派到具体 handler (镜像 TS `STAGE_HANDLERS`)。
+/// 按 step 名分派到具体 handler (镜像 TS `STEP_HANDLERS`)。
 ///
 /// 每个 handler 自行 `read_ctx` 获取最新 ctx (与 TS `readCtx(sp)` 一致)。
-/// 调用方已通过 [`has_handler`] 过滤, 此处仅处理已知 stage。
-pub fn run_stage(stage: &str, workflow_dir: &str) -> anyhow::Result<()> {
-    // 进入 stage span: 携带 stage 名供 WorkflowFileLayer 作为 [stage] 前缀。
-    let _stage_guard = tracing::info_span!("stage", stage = stage).entered();
+/// 调用方已通过 [`has_handler`] 过滤, 此处仅处理已知 step。
+pub fn run_step(step: &str, workflow_dir: &str) -> anyhow::Result<()> {
+    // 进入 step span: 携带 step 名供 WorkflowFileLayer 作为 [step] 前缀。
+    let _step_guard = tracing::info_span!("step", step = step).entered();
     let ctx = read_ctx(workflow_dir).map_err(anyhow::Error::msg)?;
-    match stage {
-        "separate" => stage_separate(&ctx),
-        "separate_after" => stage_separate_after(&ctx),
-        "sf_ocr_pre" => stage_sf_ocr_pre(&ctx),
-        "sf_ocr" => stage_sf_ocr(&ctx),
-        "sf_ocr_fix" => stage_sf_ocr_fix(&ctx),
-        "translate" => stage_translate(&ctx),
-        "split_audio" => stage_split_audio(&ctx),
-        "asr" => stage_asr(&ctx),
-        "asr_fix" => stage_asr_fix(&ctx),
-        "asr_ocr_pre" => stage_asr_ocr_pre(&ctx),
-        "asr_ocr" => stage_asr_ocr(&ctx),
-        "asr_ocr_fix" => stage_asr_ocr_fix(&ctx),
-        "tts" => stage_tts(&ctx),
-        "mix_video" => stage_mix_video(&ctx),
-        "mix_audio" => stage_mix_audio(&ctx),
+    match step {
+        "separate" => step_separate(&ctx),
+        "separate_after" => step_separate_after(&ctx),
+        "sf_ocr_pre" => step_sf_ocr_pre(&ctx),
+        "sf_ocr" => step_sf_ocr(&ctx),
+        "sf_ocr_fix" => step_sf_ocr_fix(&ctx),
+        "translate" => step_translate(&ctx),
+        "split_audio" => step_split_audio(&ctx),
+        "asr" => step_asr(&ctx),
+        "asr_fix" => step_asr_fix(&ctx),
+        "asr_ocr_pre" => step_asr_ocr_pre(&ctx),
+        "asr_ocr" => step_asr_ocr(&ctx),
+        "asr_ocr_fix" => step_asr_ocr_fix(&ctx),
+        "tts" => step_tts(&ctx),
+        "mix_video" => step_mix_video(&ctx),
+        "mix_audio" => step_mix_audio(&ctx),
         // 后续阶段在此登记, 例如:
-        // "asr" => stage_asr(&ctx),
+        // "asr" => step_asr(&ctx),
         _ => Ok(()),
     }
 }
@@ -215,7 +215,7 @@ mod tests {
             json!({
                 "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"stages": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
+                "input": {"steps": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
                 "pipeline": "subtitle"
             }),
             "subtitle",
@@ -226,19 +226,19 @@ mod tests {
 
         let reread = crate::context::read_ctx(&dir).unwrap();
         assert_eq!(reread.workflow.status, "success");
-        let st = reread.stages.unwrap();
+        let st = reread.steps.unwrap();
         // subtitle 默认序列里 separate / separate_after 已注册 handler, 其余跳过
         let by_name: std::collections::HashMap<&str, &crate::context::WorkflowStep> =
             st.iter().map(|s| (s.name.as_str(), s)).collect();
         assert_eq!(by_name["separate"].status, StepStatus::Success);
         assert_eq!(by_name["separate_after"].status, StepStatus::Success);
-        assert_eq!(reread.workflow.current_stage, None);
+        assert_eq!(reread.workflow.current_step, None);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
-    fn run_pipeline_target_stage_stops_early() {
+    fn run_pipeline_target_step_stops_early() {
         let dir = std::env::temp_dir()
             .join(format!("ld_pipe_target_{}", std::process::id()))
             .to_string_lossy()
@@ -249,7 +249,7 @@ mod tests {
             json!({
                 "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"targetStep": "separate", "stages": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
+                "input": {"targetStep": "separate", "steps": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
                 "pipeline": "subtitle"
             }),
             "subtitle",
@@ -257,7 +257,7 @@ mod tests {
         let res = run_pipeline(&dir);
         assert!(res.is_ok(), "run_pipeline 不应失败: {:?}", res.err());
         let reread = crate::context::read_ctx(&dir).unwrap();
-        // 仅一个 stage (subtitle 默认 omit split_audio), targetStep=separate 命中即停
+        // 仅一个 step (subtitle 默认 omit split_audio), targetStep=separate 命中即停
         assert_eq!(reread.workflow.status, "success");
         let _ = std::fs::remove_dir_all(&dir);
     }

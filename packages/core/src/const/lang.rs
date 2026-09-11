@@ -1,5 +1,5 @@
 //! 支持的语言列表 (镜像 `packages/core/const/lang.ts` 的 langList)。
-//! 作为中立的语言领域常量，供 workflows / stages 共享，避免各模块重复定义。
+//! 作为中立的语言领域常量，供 workflows / steps 共享，避免各模块重复定义。
 
 use serde::{Deserialize, Serialize};
 
@@ -175,5 +175,3 @@ impl std::fmt::Display for TargetLang {
 
 /// 兜底语言 (源语言未知 / 目标语言 auto 推断失败时用 zh)
 pub const DEFAULT_LANG: TargetLang = TargetLang::Zh;
-
-

@@ -11,12 +11,12 @@
 use std::process::Command;
 use std::time::Duration;
 
-use anyhow::Context;
 use crate::input::Input;
 use crate::servers::args::ServerAction;
 use crate::servers::discovery::find_server_via_mdns_all;
 use crate::servers::status::ModelServerStatus;
-use crate::stages::utils::find_release_bin;
+use crate::steps::utils::find_release_bin;
+use anyhow::Context;
 use config_rs::servers::ServerType;
 
 /// 执行 `cli servers` 命令 (镜像 TS `cmdServers`)。返回打印用的结果字符串。
@@ -70,7 +70,9 @@ fn status(name: Option<ServerType>) -> anyhow::Result<String> {
     };
     let mut results: Vec<ModelServerStatus> = vec![];
     for t in types {
-        results.push(futures_block_on(crate::servers::status::probe_server_status(t)));
+        results.push(futures_block_on(
+            crate::servers::status::probe_server_status(t),
+        ));
     }
     Ok(serde_json::to_string_pretty(&results)?)
 }
@@ -128,8 +130,7 @@ pub fn start_main_server(foreground: bool) -> anyhow::Result<String> {
     // detached: 独立进程组 + stdio 重定向到日志文件
     let log_path = config_rs::root::repo_root().join("logs").join("server.log");
     if let Some(dir) = log_path.parent() {
-        std::fs::create_dir_all(dir)
-            .with_context(|| format!("创建日志目录 {:?} 失败", dir))?;
+        std::fs::create_dir_all(dir).with_context(|| format!("创建日志目录 {:?} 失败", dir))?;
     }
     let log_file = std::fs::OpenOptions::new()
         .create(true)
@@ -217,7 +218,11 @@ fn server_healthy_at(host: &str, port: u16) -> bool {
         .build()
         .ok();
     match client {
-        Some(c) => c.get(&url).send().map(|r| r.status().is_success()).unwrap_or(false),
+        Some(c) => c
+            .get(&url)
+            .send()
+            .map(|r| r.status().is_success())
+            .unwrap_or(false),
         None => false,
     }
 }

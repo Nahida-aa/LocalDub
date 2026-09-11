@@ -14,8 +14,8 @@ use std::path::PathBuf;
 
 use crate::cmd::env::input::{env_names, zh_desc};
 use crate::cmd::env::items::{
-    all_checks, ensure_fns, ocr_post_bin_path, subtitle_finder_bin_path, subtitle_ocr_bin_path,
-    demucs_burn_tch_bin_path, demucs_burn_wgpu_bin_path,
+    all_checks, demucs_burn_tch_bin_path, demucs_burn_wgpu_bin_path, ensure_fns, ocr_post_bin_path,
+    subtitle_finder_bin_path, subtitle_ocr_bin_path,
 };
 use crate::input::Input;
 
@@ -44,14 +44,14 @@ pub fn env_list() -> Vec<&'static str> {
     env_names()
 }
 
-/// 按 `input.jsonc` 的 stages 配置推断本次任务所需的环境项 (targets 为空时使用)。
+/// 按 `input.jsonc` 的 steps 配置推断本次任务所需的环境项 (targets 为空时使用)。
 ///
-/// 设计: 从「核心工具链 + 配置」基础集出发, 按各 stage 的 runtime/device 追加依赖。
+/// 设计: 从「核心工具链 + 配置」基础集出发, 按各 step 的 runtime/device 追加依赖。
 /// 这是启发式推断 (非精确依赖图), 目标是给出「跟当前配置相关」的检查项, 避免每次扫全量。
 pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
-    use crate::stages::asr::args::{AsrDevice, AsrRuntime as AsrRuntime};
-    use crate::stages::separate::args::Device as SepDevice;
-    use crate::stages::tts::args::{TtsDevice, TtsRuntime};
+    use crate::steps::asr::args::{AsrDevice, AsrRuntime};
+    use crate::steps::separate::args::Device as SepDevice;
+    use crate::steps::tts::args::{TtsDevice, TtsRuntime};
     use crate::workflows::args::SubtitleSource;
 
     let mut set: HashSet<String> = HashSet::new();
@@ -65,7 +65,7 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
         add(k, &mut set);
     }
 
-    let stages = &input.stages;
+    let steps = &input.steps;
     let subtitle_source = input
         .workflow
         .as_ref()
@@ -79,39 +79,39 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
         add("ocr_post_bin", &mut set);
     }
     // asr_ocr 阶段 (Rust 移植) 依赖 vision-lab Release 二进制 subtitle_ocr_bin
-    // (见 stages/asr_ocr/{ocr.rs, fix.rs} 的 ensure_bin("subtitle_ocr_bin"))。
+    // (见 steps/asr_ocr/{ocr.rs, fix.rs} 的 ensure_bin("subtitle_ocr_bin"))。
     // 旧 TS 的本地 ort-cpp 构建 (ocr_cpp_bin) 已退役移除。
     if subtitle_source != SubtitleSource::Asr {
         add("subtitle_ocr_bin", &mut set);
     }
 
     // --- asr ---
-    match stages.asr.runtime {
+    match steps.asr.runtime {
         AsrRuntime::Ggml => add("whisper_ggml", &mut set),
         // faster-whisper / pytorch 仍依赖 whisper 模型 (pth 形态, 这里用 ggml 占位检查)
         AsrRuntime::FasterWhisper | AsrRuntime::Pytorch => add("whisper_ggml", &mut set),
     }
-    if stages.asr.vad {
+    if steps.asr.vad {
         add("whisper_vad", &mut set);
     }
-    if stages.asr.device == AsrDevice::Vulkan {
+    if steps.asr.device == AsrDevice::Vulkan {
         add("whisper_bin", &mut set);
         add("vulkan", &mut set);
     }
-    if stages.asr.device == AsrDevice::Cuda {
+    if steps.asr.device == AsrDevice::Cuda {
         add("cuda", &mut set);
     }
-    if stages.asr.device == AsrDevice::Mps {
+    if steps.asr.device == AsrDevice::Mps {
         add("cuda", &mut set); // mps 复用 apple 驱动检查 (无独立项)
     }
 
     // --- separate / demucs ---
     // asr.useSeparated 或 separate.always 表示需要人声分离
-    if stages.asr.use_separated || stages.separate.always {
+    if steps.asr.use_separated || steps.separate.always {
         add("demucs_pth", &mut set);
         // demucs-burn 已迁至 vox-lab: 仅 tch/wgpu 有 release 资产;
         // 其余后端 (cpu/cuda/vulkan) 无发布资产, demucs_burn_bin 检查会报「暂无资产」。
-        let suffix = demucs_backend_suffix(stages.separate.runtime, stages.separate.device);
+        let suffix = demucs_backend_suffix(steps.separate.runtime, steps.separate.device);
         match suffix {
             "tch" => add("demucs_burn_tch_bin", &mut set),
             "wgpu" => add("demucs_burn_wgpu_bin", &mut set),
@@ -120,7 +120,7 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
                 desired.insert("demucs_burn_bin".to_string(), other.to_string());
             }
         }
-        match stages.separate.device {
+        match steps.separate.device {
             SepDevice::Vulkan => add("vulkan", &mut set),
             SepDevice::Cuda => add("cuda", &mut set),
             SepDevice::Webgpu => add("vulkan", &mut set), // webgpu 走 vulkan 驱动
@@ -129,12 +129,12 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
     }
 
     // --- translate: 启用则依赖 openai 兼容 API ---
-    if stages.translate.enabled {
+    if steps.translate.enabled {
         add("openai", &mut set);
     }
 
     // --- tts ---
-    match stages.tts.runtime {
+    match steps.tts.runtime {
         TtsRuntime::Cloud => add("openai", &mut set), // 云端 TTS 走 OpenAI 兼容 API
         TtsRuntime::Ggml => {
             add("voxcpm2_onnx", &mut set);
@@ -143,7 +143,7 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
             add("voxcpm2_pth", &mut set);
         }
     }
-    match stages.tts.device {
+    match steps.tts.device {
         TtsDevice::Webgpu => add("vulkan", &mut set),
         TtsDevice::Cuda => add("cuda", &mut set),
         TtsDevice::Rocm => add("rocm", &mut set),
@@ -161,10 +161,10 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
 
 /// separate 后端后缀: bin = demucs-burn-{suffix}。runtime 优先 (burn-tch→tch), 否则按 device 映射。
 fn demucs_backend_suffix(
-    runtime: crate::stages::separate::args::SeparateRuntime,
-    device: crate::stages::separate::args::Device,
+    runtime: crate::steps::separate::args::SeparateRuntime,
+    device: crate::steps::separate::args::Device,
 ) -> &'static str {
-    use crate::stages::separate::args::{Device as SepDevice, SeparateRuntime as SepRuntime};
+    use crate::steps::separate::args::{Device as SepDevice, SeparateRuntime as SepRuntime};
     match runtime {
         SepRuntime::BurnTch => "tch",
         SepRuntime::Burn => match device {
@@ -199,7 +199,9 @@ fn resolve_targets(targets: &[String]) -> Vec<String> {
 pub fn ensure_bin(key: &str) -> anyhow::Result<PathBuf> {
     // 先 check
     let checks = all_checks();
-    let check_fn = checks.get(key).ok_or_else(|| anyhow::anyhow!("未知环境项: {}", key))?;
+    let check_fn = checks
+        .get(key)
+        .ok_or_else(|| anyhow::anyhow!("未知环境项: {}", key))?;
     let check_result = check_fn();
     if check_result.status == CheckStatus::Pass {
         // 通过 items 中的 path 解析函数获取路径
@@ -207,13 +209,19 @@ pub fn ensure_bin(key: &str) -> anyhow::Result<PathBuf> {
     }
     // 不通过则 ensure
     let fns = ensure_fns();
-    let ensure_fn = fns.get(key).ok_or_else(|| anyhow::anyhow!("环境项 {} 无 ensure 实现", key))?;
+    let ensure_fn = fns
+        .get(key)
+        .ok_or_else(|| anyhow::anyhow!("环境项 {} 无 ensure 实现", key))?;
     let ensure_result = ensure_fn();
     if ensure_result.status != CheckStatus::Pass {
         return Err(anyhow::anyhow!(
             "ensure {} 失败: {}",
             key,
-            ensure_result.data.get("msg").and_then(|v| v.as_str()).unwrap_or("未知错误")
+            ensure_result
+                .data
+                .get("msg")
+                .and_then(|v| v.as_str())
+                .unwrap_or("未知错误")
         ));
     }
     Ok(bin_path_from_key(key))

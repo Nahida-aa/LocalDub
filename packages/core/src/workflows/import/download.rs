@@ -25,16 +25,16 @@ pub struct Downloaded {
     pub audio_path: String,
 }
 
-/// 构建 pipeline 对应的 stage 列表 (镜像 TS `getSteps`)。
+/// 构建 pipeline 对应的 step 列表 (镜像 TS `getSteps`)。
 ///
 /// 与 TS 不同: 不读磁盘 input.json, 直接从传入的 pipeline / subtitle_source 计算,
-/// 使 import 自包含。translate / split_audio 的开关依赖 stage 配置, 这里保持默认
+/// 使 import 自包含。translate / split_audio 的开关依赖 step 配置, 这里保持默认
 /// 全量 (与 TS 无 config 时的 fallback 一致)。
-pub fn get_stages(
+pub fn get_steps(
     pipeline: Pipeline,
     subtitle_source: crate::workflows::args::SubtitleSource,
 ) -> Vec<String> {
-    let mut stages: Vec<&str> = match subtitle_source {
+    let mut steps: Vec<&str> = match subtitle_source {
         crate::workflows::args::SubtitleSource::SfOcr => vec![
             "separate",
             "separate_after",
@@ -86,8 +86,8 @@ pub fn get_stages(
             }
         }
     };
-    stages.retain(|s| *s != "translate" || true); // 默认保留 translate
-    stages.into_iter().map(|s| s.to_string()).collect()
+    steps.retain(|s| *s != "translate" || true); // 默认保留 translate
+    steps.into_iter().map(|s| s.to_string()).collect()
 }
 
 /// 顶层导入入口 (镜像 TS `importVideo`)。
@@ -107,7 +107,7 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowCtx> {
     info!("[import] group={group_id} workflow={video_id} source={source:?}");
     let workflow_dir = workfolder().join(&group_id).join(&video_id);
     std::fs::create_dir_all(&workflow_dir)
-        .with_context(|| format!("创建 workflowDir 失败: {workflow_dir:?}"))?;
+        .with_context(|| format!("创建 videoDir 失败: {workflow_dir:?}"))?;
 
     let downloaded = download_video(
         &url,
@@ -131,8 +131,8 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowCtx> {
         .ok()
         .and_then(|v| v.as_str().map(|s| s.to_string()))
         .unwrap_or_else(|| "dub".to_string());
-    let stage_names = get_stages(pipeline, subtitle_source);
-    let stages: Vec<WorkflowStep> = stage_names
+    let step_names = get_steps(pipeline, subtitle_source);
+    let steps: Vec<WorkflowStep> = step_names
         .iter()
         .map(|name| WorkflowStep {
             name: name.clone(),
@@ -153,7 +153,7 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowCtx> {
             url: url.clone(),
             title: auto.title.clone(),
             status: "queued".to_string(),
-            current_stage: None,
+            current_step: None,
             workflow_dir: workflow_dir.to_string_lossy().into(),
             final_video_path: None,
             error_message: None,
@@ -161,7 +161,7 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowCtx> {
             started_at: None,
             completed_at: None,
         },
-        stages: Some(stages),
+        steps: Some(steps),
         pipeline: pipeline_str.clone(),
         last_run_pipeline: Some(pipeline_str),
         // import 阶段 input 直接透传原始 Input (序列化为 Value)
