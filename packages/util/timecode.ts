@@ -1,6 +1,7 @@
-import type { FrameRate } from "./ffmpeg.ts";
-
-export type { FrameRate };
+export interface FrameRate {
+  numerator: number; // 分子
+  denominator: number; // 分母
+}
 
 /**
  * 将 HH:MM:SS:FF 格式的时间码字符串解析为毫秒。
@@ -13,7 +14,7 @@ export type { FrameRate };
  * @returns 毫秒值，解析失败返回 null
  */
 export function timecodeToMs(tc: string, fps: FrameRate): number | null {
-  const parts = tc.split(':');
+  const parts = tc.split(":");
   if (parts.length !== 4) return null;
   const [h, m, s, f] = parts.map(Number);
   if ([h, m, s, f].some(Number.isNaN)) return null;
@@ -45,7 +46,7 @@ export function msToTimecode(ms: number, fps: FrameRate): string {
   const frame = Math.floor((remainingMs / 1000) * fpsFloat);
   const frameUpperBound = Math.ceil(fpsFloat);
   const frameClamped = Math.min(frame, frameUpperBound - 1);
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}:${String(frameClamped).padStart(2, '0')}`;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}:${String(frameClamped).padStart(2, "0")}`;
 }
 
 /**

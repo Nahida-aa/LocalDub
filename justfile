@@ -14,6 +14,9 @@ dev-cli-task-start *url:
 dev-cli-discovery-server:
     cargo run -p cli -- servers --action discovery --name main
 
+dev-cli-server-status:
+    cargo run -p cli -- servers --action status --name main
+
 dev-cli-server:
     cargo run -p cli -- servers --action start --name main --foreground
 

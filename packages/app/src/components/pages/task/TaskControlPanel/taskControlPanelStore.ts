@@ -1,4 +1,4 @@
-import { StageName } from "@repo/core/tasks/args";
+import { StageName } from "@repo/sdk/index";
 import { createStore, useSelector } from "@tanstack/solid-store";
 
 export type StageTab = StageName | "root";

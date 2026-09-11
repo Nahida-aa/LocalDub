@@ -1,9 +1,9 @@
 import { type Component, Show } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { CheckCircle2, CircleCheck, CircleDashed, CircleX, LoaderCircle } from "lucide-solid";
-import type { StageStatus } from "@repo/core/context/types";
 import { TooltipX } from "@repo/ui-solid/custom/tooltip";
 import { cn } from "@repo/shared/lib/utils";
+import { StageStatus } from "@repo/sdk/index";
 
 type StatusConfig = {
   label: string;

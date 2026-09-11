@@ -13,7 +13,6 @@ import {
   useViewingTab,
 } from "./taskControlPanelStore";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@repo/ui-solid/base/tabs";
-import { stages_to_map } from "@repo/core/stages/utils/filtering";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -22,8 +21,20 @@ import {
 } from "@repo/ui-solid/base/context-menu";
 import { StageStatusBadge } from "./StageStatusBadge";
 import { useMutation, useQueryClient } from "@tanstack/solid-query";
-import { TaskCtx } from "@repo/sdk/index";
-import { StageName } from "@repo/core/tasks/args";
+import { StageName, TaskCtx, TaskStage } from "@repo/sdk/index";
+
+export const stages_to_map = (
+  stages: (TaskStage | undefined)[],
+): Record<StageName, TaskStage | undefined> => {
+  return stages.reduce(
+    (acc, stage) => {
+      if (stage === undefined) return acc;
+      acc[stage.name as StageName] = stage;
+      return acc;
+    },
+    {} as Record<StageName, TaskStage | undefined>,
+  );
+};
 
 export const TaskControlPanel = (p: {
   ctx: TaskCtx;

@@ -1,3 +1,7 @@
+## workflow
+
+- /home/aa/repos/lib_ls/learn_ls/workflow
+
 ## OpenCut
 
 - /home/aa/repos/learn_ls/OpenCutClassic
@@ -8,7 +12,7 @@
 - /home/aa/repos/learn_ls/opencode
 - /home/aa/repos/learn_ls/zed
 
-## query
+## http
 
 - /home/aa/repos/env_ls/fnrpc
 

@@ -1,9 +1,9 @@
 import { cn } from "@repo/shared/lib/utils";
 import { createEffect, createSignal } from "solid-js";
-import type { FrameRate } from "@repo/core/utils/timecode";
-import { msToTimecode, timecodeToMs } from "@repo/core/utils/timecode";
+import type { FrameRate } from "@repo/util/timecode";
+import { msToTimecode, timecodeToMs } from "@repo/util/timecode";
 
-export type EditableTimecodeFormat = 'timecode' | 'ms' | 'full';
+export type EditableTimecodeFormat = "timecode" | "ms" | "full";
 
 interface EditableTimecodeProps {
   time: number;
@@ -17,26 +17,35 @@ interface EditableTimecodeProps {
 
 const displayValue = (time: number, fps: FrameRate, format: EditableTimecodeFormat): string => {
   switch (format) {
-    case 'timecode': return msToTimecode(time, fps);
-    case 'ms': return String(Math.round(time % 1000)).padStart(3, '0');
-    case 'full': return String(Math.round(time));
+    case "timecode":
+      return msToTimecode(time, fps);
+    case "ms":
+      return String(Math.round(time % 1000)).padStart(3, "0");
+    case "full":
+      return String(Math.round(time));
   }
 };
 
-const parseValue = (input: string, currentTime: number, duration: number, fps: FrameRate, format: EditableTimecodeFormat): number | null => {
+const parseValue = (
+  input: string,
+  currentTime: number,
+  duration: number,
+  fps: FrameRate,
+  format: EditableTimecodeFormat,
+): number | null => {
   switch (format) {
-    case 'timecode': {
+    case "timecode": {
       const parsed = timecodeToMs(input, fps);
       if (parsed == null) return null;
       return Math.max(0, Math.min(parsed, duration));
     }
-    case 'ms': {
+    case "ms": {
       const v = parseInt(input, 10);
       if (isNaN(v) || v < 0 || v > 999) return null;
       const base = Math.floor(Math.max(0, currentTime) / 1000) * 1000;
       return Math.max(0, Math.min(base + v, duration));
     }
-    case 'full': {
+    case "full": {
       const v = parseInt(input, 10);
       if (isNaN(v) || v < 0) return null;
       return Math.max(0, Math.min(v, duration));
@@ -45,7 +54,7 @@ const parseValue = (input: string, currentTime: number, duration: number, fps: F
 };
 
 export function EditableTimecode(props: EditableTimecodeProps) {
-  const format = () => props.format ?? 'timecode';
+  const format = () => props.format ?? "timecode";
   const [isEditing, setIsEditing] = createSignal(false);
   const [inputValue, setInputValue] = createSignal("");
   const [hasError, setHasError] = createSignal(false);
@@ -96,7 +105,10 @@ export function EditableTimecode(props: EditableTimecodeProps) {
           ref={inputRef!}
           type="text"
           value={inputValue()}
-          onChange={(e) => { setInputValue(e.currentTarget.value); setHasError(false); }}
+          onChange={(e) => {
+            setInputValue(e.currentTarget.value);
+            setHasError(false);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();

@@ -6,7 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@repo/ui-solid/base/select";
-import { msToTimecodeFull } from "@repo/core/utils/timecode";
+import { msToTimecodeFull } from "../../../../../../util/timecode";
 import { EditableTimecode } from "#/components/ui/editable-timecode";
 import {
   useCurrentTime,

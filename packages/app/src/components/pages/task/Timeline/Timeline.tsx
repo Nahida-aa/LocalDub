@@ -7,7 +7,7 @@ import { TimelineTracks } from "./TimelineTracks";
 import { BASE_PX_PER_MS, rulerConfig, trackColor } from "./consts";
 export type { Track, TrackSegment } from "./consts";
 import type { Track } from "./consts";
-import type { FrameRate } from "@repo/core/utils/timecode";
+import type { FrameRate } from "@repo/util/timecode";
 import { trace } from "#/lib/debugLog.ts";
 
 interface Props {

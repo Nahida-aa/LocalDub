@@ -1,1 +1,0 @@
-export const startLog = (name: string | null | undefined, id: string) => console.log(`[${name}] Starting for ${id}`)

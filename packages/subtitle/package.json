@@ -1,9 +1,0 @@
-{
-  "name": "@repo/subtitle",
-  "private": true,
-  "type": "module",
-  "exports": {
-    "./*": "./*.ts",
-    "./*.ts": "./*.ts"
-  }
-}

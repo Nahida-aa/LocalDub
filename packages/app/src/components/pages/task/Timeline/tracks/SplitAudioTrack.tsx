@@ -12,9 +12,9 @@ import { AudioPlayer } from "#/components/ui/audio-player";
 import { mediaUrl } from "#/lib/utils/path.ts";
 import type { Track, TrackSegment } from "../consts";
 import { client } from "#/integrations/fnrpc/client.ts";
-import type { SplitAudioSegment, SplitAudioTiming } from "@repo/core/stages/06_split_audio/out";
 import { useTrackData } from "./useTrackData";
 import type { BaseTrackProps } from "./shared";
+import { SplitAudioSegment, SplitAudioTiming } from "@repo/sdk/index";
 
 type Props = BaseTrackProps;
 

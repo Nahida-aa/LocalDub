@@ -12,10 +12,9 @@ import { client } from "#/integrations/fnrpc/client.ts";
 import { useMutation } from "@tanstack/solid-query";
 import { useViewingTab } from "../../TaskControlPanel/taskControlPanelStore";
 import { STAGE_TRACKS } from "./const";
-import { AsrOcrFile, OcrSegment } from "@repo/subtitle-ocr/types";
-import { OcrSegmentFilterResult } from "@repo/subtitle-ocr/ocr_fix/segment_filter";
 import { useTrackData } from "./useTrackData";
 import type { BaseTrackProps } from "./shared";
+import { OcrSegment, OcrSegmentFilterResult } from "@repo/sdk/index";
 
 type Props = BaseTrackProps;
 
@@ -111,7 +110,7 @@ export function AsrOcrFixTrack(props: Props) {
           raw: item,
         }));
       }
-      const data = JSON.parse(text) as AsrOcrFile;
+      const data = JSON.parse(text) as OcrSegmentFilterResult;
       return data.result.segments.map((item, i: number) => ({
         index: i,
         text: item.text,

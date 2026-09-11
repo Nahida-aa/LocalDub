@@ -42,7 +42,7 @@ export const SettingsContent = () => {
     { value: "config", label: "input.jsonc", icon: Code as typeof Settings },
     {
       value: "input-form",
-      label: "全局输入参数",
+      label: "全局参数",
       icon: SlidersHorizontal as typeof Settings,
     },
   ];

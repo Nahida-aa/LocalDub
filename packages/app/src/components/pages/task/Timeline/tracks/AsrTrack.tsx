@@ -10,8 +10,8 @@ import type { Track, TrackSegment } from "../consts";
 import { useMutation } from "@tanstack/solid-query";
 import { client } from "#/integrations/fnrpc/client.ts";
 import { useTrackData } from "./useTrackData";
-import { AsrResult } from "@repo/subtitle-asr/types";
 import type { BaseTrackProps } from "./shared";
+import { AsrResult } from "@repo/sdk/index";
 
 type Props = BaseTrackProps;
 

@@ -13,7 +13,7 @@ import { mediaUrl } from "#/lib/utils/path.ts";
 import type { Track, TrackSegment } from "../consts";
 import { useTrackData } from "./useTrackData";
 import type { BaseTrackProps } from "./shared";
-import { TtsFile, TtsSegment } from "@repo/core/stages/07_tts/out";
+import { TtsFile, TtsSegment } from "@repo/sdk/index";
 
 type Props = BaseTrackProps;
 

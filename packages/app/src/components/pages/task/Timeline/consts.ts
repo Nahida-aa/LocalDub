@@ -1,4 +1,4 @@
-import type { FrameRate } from "@repo/core/utils/timecode";
+import type { FrameRate } from "@repo/util/timecode";
 
 export interface TrackSegment {
   index: number;
@@ -68,7 +68,7 @@ function alignTickToLabel(labelMs: number, tickMs: number, fps: number): number 
   }
 
   const labelSec = labelMs / 1000;
-  const candidates = SECOND_MULTIPLIERS.filter(sm => sm < labelSec && labelSec % sm === 0);
+  const candidates = SECOND_MULTIPLIERS.filter((sm) => sm < labelSec && labelSec % sm === 0);
   if (candidates.length > 0) {
     const tickSec = tickMs / 1000;
     const best = candidates.reduce((a, b) =>
@@ -85,8 +85,20 @@ export function rulerConfig(pxPerMs: number, fps: FrameRate): RulerConfig {
   const pxPerSec = pxPerMs * 1000;
   const pxPerFrame = pxPerSec / fpsFloat;
 
-  const labelMs = computeIntervalMs(pxPerFrame, pxPerSec, fpsFloat, MIN_LABEL_SPACING_PX, LABEL_FRAME_INTERVALS);
-  const rawTickMs = computeIntervalMs(pxPerFrame, pxPerSec, fpsFloat, MIN_TICK_SPACING_PX, TICK_FRAME_INTERVALS);
+  const labelMs = computeIntervalMs(
+    pxPerFrame,
+    pxPerSec,
+    fpsFloat,
+    MIN_LABEL_SPACING_PX,
+    LABEL_FRAME_INTERVALS,
+  );
+  const rawTickMs = computeIntervalMs(
+    pxPerFrame,
+    pxPerSec,
+    fpsFloat,
+    MIN_TICK_SPACING_PX,
+    TICK_FRAME_INTERVALS,
+  );
   const tickMs = alignTickToLabel(labelMs, rawTickMs, fpsFloat);
 
   return { labelIntervalMs: labelMs, tickIntervalMs: tickMs };

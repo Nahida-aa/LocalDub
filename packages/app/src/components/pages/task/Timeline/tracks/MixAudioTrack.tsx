@@ -12,9 +12,9 @@ import { mediaUrl } from "#/lib/utils/path.ts";
 import type { Track, TrackSegment } from "../consts";
 import { TrackEditModal } from "./comp/TrackEditModal";
 import { client } from "#/integrations/fnrpc/client.ts";
-import type { Timing, TimingsFile } from "@repo/core/stages/mix_audio/types";
 import { useTrackData } from "./useTrackData";
 import type { BaseTrackProps } from "./shared";
+import { Timing, TimingsFile } from "@repo/sdk/index";
 
 type Props = BaseTrackProps;
 
@@ -39,7 +39,7 @@ function serializeSegments(segments: TrackSegment[]): string {
       delay_ms: raw.delay_ms ?? 0,
       actual_start: s.startMs,
       actual_end: s.endMs,
-    };
+    } as Timing;
   });
   return JSON.stringify({ segments: segs }, null, 2);
 }

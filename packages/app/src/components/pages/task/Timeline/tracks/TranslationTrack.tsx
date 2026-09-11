@@ -10,10 +10,10 @@ import { openModal } from "@repo/ui-solid/custom/modal/renderer";
 import type { Track, TrackSegment } from "../consts";
 import { client } from "#/integrations/fnrpc/client.ts";
 import { useMutation, useQuery } from "@tanstack/solid-query";
-import type { TranslateResult, TranslateSegment } from "@repo/core/stages/05_translate/out";
 import { deleteAt, insertAt, type BaseTrackProps } from "./shared";
 import { TrackEditModal } from "./comp/TrackEditModal";
 import { useTrackData } from "./useTrackData";
+import { TranslateResult, TranslateSegment } from "@repo/sdk/index";
 
 type Props = BaseTrackProps;
 
