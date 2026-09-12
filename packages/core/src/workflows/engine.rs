@@ -4,20 +4,23 @@
 //! ctx.json 副作用达成一致, 但"成败真相"从 ctx.json 转移为
 //! `<workflow_dir>/workflow-engine/events.jsonl` (见 [`engine_store::FsRunStore`])。
 //!
-//! 建立方式: 每个活跃 step (过滤掉无 handler 的) 建成一个 step, 依赖前一个已注册 step
-//! (显式链式 DAG), `max_concurrency = 1` 强制串行。step 闭包内部复用
-//! [`crate::workflows::pipeline::run_step`], 前后照旧写 ctx.json (UI 投影)。
+//! 建立方式: 内核是 async handler-replay (代码即 DAG)——handler 闭包按 `get_steps`
+//! 顺序逐个 `ctx.step(...).await`, 重放时已 success 的 step 短路到缓存结果、
+//! 已失败的直接 rethrow。串行即 `for` 循环, 后续要并行再上 `tokio::try_join!`。
+//! step 闭包内部复用 [`crate::workflows::pipeline::run_step`], 前后照旧写 ctx.json
+//! (UI 投影)。
 //!
 //! 与 run_pipeline 的差异点 (引擎天然语义):
 //! - **resume**: 同 run_id 重跑时跳过事件日志中已 `success` 的 step。
-//! - **continue_from**: 把目标 step 起的后缀 step 重置为 pending 再续跑
-//!   (镜像 `continue_pipeline` 在 ctx.json 上的重置)。
+//! - **continue_from**: 事件日志在 store 层截断到目标 step 的最新终态 checkpoint,
+//!   前缀短路、后缀重跑 (镜像 `continue_pipeline` 在 ctx.json 上的重置)。
 //! - **target_step**: 命中即停, 标记成功 (镜像 run_pipeline 的 targetStep)。
-//! - 阶段错误 → 事件日志记 StepFailed, engine 停, workflow 置 failed。
+//! - 阶段错误 → 事件日志记 StepFailed, engine 停, workflow 置 failed (失败即终局,
+//!   重试靠 continue_from / 新 run)。
 
 use std::sync::Arc;
 
-use workflow_core::{run_workflow, RunOptions, RunStatus, StepSpec, StepContext};
+use workflow_core::{run_workflow_sync, RunOptions, RunStatus, StepCtx, Workflow, WorkflowCtx};
 
 use crate::context::read_ctx;
 use crate::steps::get_steps;
@@ -123,6 +126,8 @@ fn step_artifacts(workflow_dir: &str, step: &str) -> Option<serde_json::Value> {
 }
 
 /// 用引擎跑 (或续跑) 一条 pipeline, 结束后 workflow.status ∈ {success, failed}。
+///
+/// 入口是同步的 (`run_workflow_sync` 内部自建 tokio runtime 驱动 handler)。
 pub fn run_workflow_engine(workflow_dir: &str, opts: &EngineOptions) -> anyhow::Result<()> {
     let _guard = tracing::info_span!("workflow", workflow_dir = workflow_dir).entered();
     let ctx = read_ctx(workflow_dir).map_err(anyhow::Error::msg)?;
@@ -137,32 +142,12 @@ pub fn run_workflow_engine(workflow_dir: &str, opts: &EngineOptions) -> anyhow::
         .clone()
         .or_else(|| EngineOptions::from_ctx_input(&ctx.input).continue_from);
 
-    // target_step 不在序列中则告警忽略 (镜像 run_pipeline）
+    // target_step 不在序列中则告警忽略 (镜像 run_pipeline)
     if let Some(ts) = &target_step {
         if !steps.iter().any(|s| s == ts) {
             tracing::info!(target: "engine",
                 "[WARN] target_step \"{ts}\" 不在 {} pipeline 中, 忽略", ctx.pipeline);
         }
-    }
-
-    // continue_from → 先把后缀阶段在 ctx.json 重置为 pending (镜像 continue_pipeline)
-    if let Some(cf) = &continue_from {
-        let idx = steps
-            .iter()
-            .position(|s| s == cf)
-            .ok_or_else(|| anyhow::anyhow!("Unknown step \"{cf}\""))?;
-        for s in &steps[idx..] {
-            set_step_anyhow(
-                workflow_dir,
-                s,
-                StepPatch {
-                    status: Some(StepStatus::Pending),
-                    ..Default::default()
-                },
-            )?;
-        }
-        tracing::info!(target: "engine",
-            "Resetting from \"{cf}\" ({} step(s))", steps.len() - idx);
     }
 
     set_workflow_anyhow(
@@ -174,80 +159,88 @@ pub fn run_workflow_engine(workflow_dir: &str, opts: &EngineOptions) -> anyhow::
         },
     )?;
 
-    // 构建显式链式 DAG: 每个已注册阶段依赖前一个已注册阶段。
+    // continue_from 由 store 层截断事件日志承载: 重放时前缀短路、后缀重跑,
+    // 不需要像 run_pipeline 那样提前把 ctx.json 后缀标 pending。
+
+    // handler-replay authoring 面: 串行 = 按 get_steps 顺序逐个 ctx.step.await。
     let run_id =
         video_id(workflow_dir).ok_or_else(|| anyhow::anyhow!("无法从 workflow_dir 取 run_id"))?;
-    let mut wf = workflow_core::Workflow::new(ctx.pipeline.clone());
-    let mut prev: Option<String> = None;
-    for step in &steps {
-        if !has_handler(step) {
-            tracing::info!(target: "engine", "[WARN] No handler for step {step}, skipping");
-            continue;
-        }
+    let wf = Workflow::new(ctx.pipeline.clone()).handler({
         let dir = workflow_dir.to_string();
-        let name = step.clone();
-        let step_name = name.clone();
-        let mut spec = StepSpec::new(
-            name.clone(),
-            Arc::new(move |_ctx: StepContext| {
-                tracing::info!(target: "engine", "Running {step_name}");
-                set_step_anyhow(
-                    &dir,
-                    &step_name,
-                    StepPatch {
-                        status: Some(StepStatus::Running),
-                        started_at: Some(now_iso()),
-                        last_message: Some(format!("Starting {step_name}...")),
-                        ..Default::default()
-                    },
-                )?;
-                set_workflow_anyhow(
-                    &dir,
-                    WorkflowPatch {
-                        status: Some("running".to_string()),
-                        current_step: Some(Some(step_name.clone())),
-                        ..Default::default()
-                    },
-                )?;
-                match run_step(&step_name, &dir) {
-                    Ok(()) => Ok(step_artifacts(&dir, &step_name)),
-                    Err(e) => {
-                        let msg = e.to_string();
-                        tracing::error!(target: "engine", "Step {step_name} failed: {msg}");
-                        set_step_anyhow(
-                            &dir,
-                            &step_name,
-                            StepPatch {
-                                status: Some(StepStatus::Failed),
-                                error_message: Some(msg.clone()),
-                                completed_at: Some(now_iso()),
-                                ..Default::default()
-                            },
-                        )?;
-                        set_workflow_anyhow(
-                            &dir,
-                            WorkflowPatch {
-                                status: Some("failed".to_string()),
-                                error_message: Some(msg.clone()),
-                                ..Default::default()
-                            },
-                        )?;
-                        Err(anyhow::anyhow!(msg))
+        let steps = steps;
+        move |wctx: WorkflowCtx| {
+            let dir = dir.clone();
+            let steps = steps.clone();
+            async move {
+                for step in &steps {
+                    if !has_handler(step) {
+                        tracing::info!(target: "engine", "[WARN] No handler for step {step}, skipping");
+                        continue;
                     }
+                    let step_id = step.clone();
+                    let step_id_c = step_id.clone();
+                    let dir = dir.clone();
+                    wctx.step(&step_id, move |_sc: StepCtx| {
+                        let dir = dir.clone();
+                        let step_name = step_id_c.clone();
+                        async move {
+                            tracing::info!(target: "engine", "Running {step_name}");
+                            set_step_anyhow(
+                                &dir,
+                                &step_name,
+                                StepPatch {
+                                    status: Some(StepStatus::Running),
+                                    started_at: Some(now_iso()),
+                                    last_message: Some(format!("Starting {step_name}...")),
+                                    ..Default::default()
+                                },
+                            )?;
+                            set_workflow_anyhow(
+                                &dir,
+                                WorkflowPatch {
+                                    status: Some("running".to_string()),
+                                    current_step: Some(Some(step_name.clone())),
+                                    ..Default::default()
+                                },
+                            )?;
+                            match run_step(&step_name, &dir) {
+                                Ok(()) => Ok(step_artifacts(&dir, &step_name)
+                                    .unwrap_or(serde_json::Value::Null)),
+                                Err(e) => {
+                                    let msg = e.to_string();
+                                    tracing::error!(target: "engine", "Step {step_name} failed: {msg}");
+                                    set_step_anyhow(
+                                        &dir,
+                                        &step_name,
+                                        StepPatch {
+                                            status: Some(StepStatus::Failed),
+                                            error_message: Some(msg.clone()),
+                                            completed_at: Some(now_iso()),
+                                            ..Default::default()
+                                        },
+                                    )?;
+                                    set_workflow_anyhow(
+                                        &dir,
+                                        WorkflowPatch {
+                                            status: Some("failed".to_string()),
+                                            error_message: Some(msg.clone()),
+                                            ..Default::default()
+                                        },
+                                    )?;
+                                    Err(anyhow::anyhow!(msg))
+                                }
+                            }
+                        }
+                    })
+                    .await?;
                 }
-            }),
-        );
-        if let Some(p) = &prev {
-            spec = spec.needs([p.clone()]);
+                Ok(serde_json::Value::Null)
+            }
         }
-        prev = Some(name);
-        wf = wf.step(spec);
-    }
+    });
 
     let store = FsRunStore::new(workflow_dir);
-    let mut r_opts = RunOptions::new(ctx.input.clone())
-        .run_id(run_id.clone())
-        .max_concurrency(1);
+    let mut r_opts = RunOptions::new(ctx.input.clone()).run_id(run_id.clone());
     if let Some(cf) = &continue_from {
         r_opts = r_opts.continue_from(cf.clone());
     }
@@ -255,7 +248,7 @@ pub fn run_workflow_engine(workflow_dir: &str, opts: &EngineOptions) -> anyhow::
         r_opts = r_opts.target_step(ts.clone());
     }
 
-    let outcome = run_workflow(&mut wf, &store, &r_opts, None)
+    let outcome = run_workflow_sync(&wf, Arc::new(store), &r_opts, None)
         .map_err(|e| anyhow::anyhow!("workflow engine error: {e}"))?;
 
     match outcome.status {
@@ -475,7 +468,26 @@ mod tests {
         setup_subtitle(&dir);
 
         run_workflow_engine(&dir, &EngineOptions::default()).unwrap();
-        // 重跑后半段: separate_after 要重新执行, separate 不重跑
+
+        let store = FsRunStore::new(&dir);
+        let get_sf_ts = |events: &[workflow_core::RunEvent], step: &str| -> i64 {
+            events
+                .iter()
+                .find_map(|e| match e {
+                    workflow_core::RunEvent::StepFinished {
+                        step_id, ts, ..
+                    } if step_id == step => Some(*ts),
+                    _ => None,
+                })
+                .expect("应有 StepFinished")
+        };
+        let events_1 = store.get_events("t").unwrap();
+        let (sep_first, sa_first) = (
+            get_sf_ts(&events_1, "separate"),
+            get_sf_ts(&events_1, "separate_after"),
+        );
+
+        // 续跑后半段: separate_after 要重新执行, separate 不重跑
         run_workflow_engine(
             &dir,
             &EngineOptions {
@@ -486,15 +498,27 @@ mod tests {
         .unwrap();
 
         let store = FsRunStore::new(&dir);
-        let events = store.get_events("t").unwrap();
-        let finished = |step: &str| {
-            events
+        let events_2 = store.get_events("t").unwrap();
+        // 截断语义: 后缀终态 checkpoint 删掉重记 → separate_after 的 ts 是新的;
+        // 前缀 separate 未被触碰 → ts 保持 run1 的
+        assert_eq!(
+            get_sf_ts(&events_2, "separate"),
+            sep_first,
+            "separate 不应重跑"
+        );
+        assert_ne!(
+            get_sf_ts(&events_2, "separate_after"),
+            sa_first,
+            "separate_after 应续跑并重记终态"
+        );
+        // 每个 suffix step 只留一条终态 (旧的已被截断)
+        assert_eq!(
+            events_2
                 .iter()
-                .filter(|e| matches!(e, workflow_core::RunEvent::StepFinished { step_id, .. } if step_id == step))
-                .count()
-        };
-        assert_eq!(finished("separate"), 1, "separate 不应重跑");
-        assert_eq!(finished("separate_after"), 2, "separate_after 应续跑");
+                .filter(|e| matches!(e, workflow_core::RunEvent::StepFinished { step_id, .. } if step_id == "separate_after"))
+                .count(),
+            1
+        );
 
         let ctx = read_ctx(&dir).unwrap();
         assert_eq!(ctx.workflow.status, "success");

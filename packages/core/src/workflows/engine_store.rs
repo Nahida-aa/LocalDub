@@ -133,6 +133,33 @@ impl RunStore for FsRunStore {
     fn get_events(&self, _run_id: &str) -> Result<Vec<RunEvent>, StoreError> {
         self.read_events().map(|(v, _)| v)
     }
+
+    fn truncate_runs(&self, _run_id: &str, step_id: &str) -> Result<(), StoreError> {
+        let _guard = self
+            .lock
+            .lock()
+            .map_err(|e| StoreError::Io(e.to_string()))?;
+        let (events, _) = self.read_events()?;
+        // 对齐 InMemoryStore: 裁到 step_id 最新终态 checkpoint (含), 之前的保留。
+        let Some(cut) = events
+            .iter()
+            .rposition(|ev| match ev {
+                RunEvent::StepFinished { step_id: id, .. }
+                | RunEvent::StepFailed { step_id: id, .. } => id == step_id,
+                _ => false,
+            })
+        else {
+            return Ok(());
+        };
+        let mut out = String::new();
+        for ev in &events[..cut] {
+            out.push_str(&serde_json::to_string(ev).map_err(|e| {
+                StoreError::Io(format!("event 序列化失败: {e}"))
+            })?);
+            out.push('\n');
+        }
+        Self::atomic_write(&self.events_path(), &out)
+    }
 }
 
 #[cfg(test)]
@@ -208,6 +235,28 @@ mod tests {
         let evs = reopened.get_events("r1").unwrap();
         assert_eq!(evs.len(), 1);
         assert_eq!(evs[0].step_id(), Some("a"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn truncate_runs_keeps_prefix_through_terminal() {
+        let dir = temp_dir("trunc");
+        let store = FsRunStore::new(&dir);
+        store.append_event("r1", 0, &event("r1", "a")).unwrap();
+        store.append_event("r1", 1, &event("r1", "b")).unwrap();
+        store.append_event("r1", 2, &event("r1", "c")).unwrap();
+
+        // 裁到 b → 日志应只剩 a
+        store.truncate_runs("r1", "b").unwrap();
+        let evs = store.get_events("r1").unwrap();
+        assert_eq!(evs.len(), 1);
+        assert_eq!(evs[0].step_id(), Some("a"));
+
+        // 找不到终态 checkpoint → 日志保持原样
+        store.truncate_runs("r1", "zzz").unwrap();
+        let evs = store.get_events("r1").unwrap();
+        assert_eq!(evs.len(), 1);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
