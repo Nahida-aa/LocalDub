@@ -105,9 +105,9 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowCtx> {
     let yt_dlp_ext_args = auto.yt_dlp_ext_args;
 
     info!("[import] group={group_id} workflow={video_id} source={source:?}");
-    let workflow_dir = workfolder().join(&group_id).join(&video_id);
-    std::fs::create_dir_all(&workflow_dir)
-        .with_context(|| format!("创建 videoDir 失败: {workflow_dir:?}"))?;
+    let video_dir = workfolder().join(&group_id).join(&video_id);
+    std::fs::create_dir_all(&video_dir)
+        .with_context(|| format!("创建 videoDir 失败: {video_dir:?}"))?;
 
     let downloaded = download_video(
         &url,
@@ -154,7 +154,7 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowCtx> {
             title: auto.title.clone(),
             status: "queued".to_string(),
             current_step: None,
-            workflow_dir: workflow_dir.to_string_lossy().into(),
+            video_dir: video_dir.to_string_lossy().into(),
             final_video_path: None,
             error_message: None,
             created_at: Utc::now().to_rfc3339(),
@@ -174,7 +174,7 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowCtx> {
         target_language: args.target_lang.map(|l| l.as_str().to_string()),
     };
 
-    write_ctx(&workflow_dir.to_string_lossy(), &ctx).map_err(anyhow::Error::msg)?;
+    write_ctx(&video_dir.to_string_lossy(), &ctx).map_err(anyhow::Error::msg)?;
     Ok(ctx)
 }
 
@@ -187,10 +187,10 @@ pub fn download_video(
     yt_dlp_ext_args: &[String],
     download_subtitles: bool,
 ) -> anyhow::Result<Downloaded> {
-    let workflow_dir = workfolder().join(group_id).join(video_id);
-    let mut downloaded_video_path = workflow_dir.join(format!("{video_id}.mp4"));
-    let video_path = workflow_dir.join("video_source.mp4");
-    let audio_path = workflow_dir.join("audio_source.wav");
+    let video_dir = workfolder().join(group_id).join(video_id);
+    let mut downloaded_video_path = video_dir.join(format!("{video_id}.mp4"));
+    let video_path = video_dir.join("video_source.mp4");
+    let audio_path = video_dir.join("audio_source.wav");
 
     match source {
         VideoSource::Local | VideoSource::Remote => {
@@ -198,7 +198,7 @@ pub fn download_video(
                 copy_file_to_path(url, downloaded_video_path.to_str().unwrap())
                     .context("复制本地视频失败")?;
             } else {
-                let raw = download_remote_video(url, workflow_dir.to_str().unwrap())
+                let raw = download_remote_video(url, video_dir.to_str().unwrap())
                     .context("远程下载失败")?;
                 // 远程下载产物可能已是 mp4, 仍统一转码
                 if raw != downloaded_video_path.to_string_lossy() {
@@ -221,7 +221,7 @@ pub fn download_video(
                 "--merge-output-format".into(),
                 "mp4".into(),
                 "-o".into(),
-                workflow_dir
+                video_dir
                     .join(format!("{video_id}.%(ext)s"))
                     .to_string_lossy()
                     .into(),
@@ -234,7 +234,7 @@ pub fn download_video(
 
             // 定位实际产物: yt-dlp 输出 `{video_id}.%(ext)s`, 产物即 `{video_id}.<ext>` (mp4/webm 等)。
             // 不重命名, 直接用实际文件 (ext 由 yt-dlp 决定, 程序可判断)。
-            downloaded_video_path = find_workflow_video(&workflow_dir, video_id)
+            downloaded_video_path = find_workflow_video(&video_dir, video_id)
                 .ok_or_else(|| anyhow::anyhow!("yt-dlp 未产出 {video_id}.<ext>"))?;
 
             // 转码成标准 mp4 (video_source.mp4), 与本地分支命名一致
@@ -249,7 +249,7 @@ pub fn download_video(
             // 可选: 下载平台自带字幕 (官方/自动) 落盘到 download/ 供后续分析/消费。
             // best-effort: YouTube 现需 PO token, 无服务时失败仅告警, 不阻断主流程。
             if download_subtitles {
-                if let Err(e) = download_youtube_subtitles(url, &workflow_dir, yt_dlp_ext_args) {
+                if let Err(e) = download_youtube_subtitles(url, &video_dir, yt_dlp_ext_args) {
                     warn!("[import] 字幕下载失败 (已忽略): {e}");
                 }
             }
@@ -270,27 +270,27 @@ fn workfolder() -> PathBuf {
     config_rs::path::paths::workfolder()
 }
 
-/// 在 workflow_dir 里找 `{video_id}.<ext>` 的实际下载产物 (yt-dlp 输出 `{video_id}.%(ext)s`)。
-fn find_workflow_video(workflow_dir: &std::path::Path, video_id: &str) -> Option<PathBuf> {
+/// 在 video_dir 里找 `{video_id}.<ext>` 的实际下载产物 (yt-dlp 输出 `{video_id}.%(ext)s`)。
+fn find_workflow_video(video_dir: &std::path::Path, video_id: &str) -> Option<PathBuf> {
     let prefix = format!("{video_id}.");
-    std::fs::read_dir(workflow_dir).ok()?.find_map(|e| {
+    std::fs::read_dir(video_dir).ok()?.find_map(|e| {
         let p = e.ok()?.path();
         let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
         (name.starts_with(&prefix) && p.is_file()).then_some(p)
     })
 }
 
-/// 下载平台自带字幕 (YouTube/Bilibili 的官方 + 自动字幕) 落盘到 `workflow_dir/download/`。
+/// 下载平台自带字幕 (YouTube/Bilibili 的官方 + 自动字幕) 落盘到 `video_dir/download/`。
 ///
 /// best-effort: YouTube 现要求 PO token, 无 bgutil 服务时 yt-dlp 会报
 /// "missing subtitles because a PO token was not provided", 调用方应捕获并告警。
 /// 下载产物形如 `download/{video_id}.{lang}.vtt` / `.srt` (由 yt-dlp 决定)。
 fn download_youtube_subtitles(
     url: &str,
-    workflow_dir: &std::path::Path,
+    video_dir: &std::path::Path,
     yt_dlp_ext_args: &[String],
 ) -> anyhow::Result<()> {
-    let out_dir = workflow_dir.join("download");
+    let out_dir = video_dir.join("download");
     std::fs::create_dir_all(&out_dir)
         .with_context(|| format!("创建 {} 失败", out_dir.display()))?;
 
@@ -319,9 +319,9 @@ fn download_youtube_subtitles(
 }
 
 /// 从 ctx.json 读回 (方便下游阶段复用, 镜像 TS `readCtx`)。
-pub fn read_ctx(workflow_dir: &str) -> anyhow::Result<WorkflowCtx> {
-    let raw = std::fs::read_to_string(crate::context::ctx_path(workflow_dir))
-        .with_context(|| format!("读 ctx.json 失败: {workflow_dir}"))?;
+pub fn read_ctx(video_dir: &str) -> anyhow::Result<WorkflowCtx> {
+    let raw = std::fs::read_to_string(crate::context::ctx_path(video_dir))
+        .with_context(|| format!("读 ctx.json 失败: {video_dir}"))?;
     let v: serde_json::Value = serde_json::from_str(&raw)?;
     read_ctx_from_value(v).map_err(anyhow::Error::msg)
 }
@@ -362,7 +362,7 @@ mod tests {
         assert!(std::path::Path::new(ctx.video_source_path.as_ref().unwrap()).exists());
         assert!(std::path::Path::new(ctx.audio_source_path.as_ref().unwrap()).exists());
         // 清理: 删除生成的 workflow 目录
-        let _ = std::fs::remove_dir_all(ctx.workflow.workflow_dir);
+        let _ = std::fs::remove_dir_all(ctx.workflow.video_dir);
         println!(
             "import 成功: group={} workflow={}",
             ctx.workflow.id, ctx.workflow.id

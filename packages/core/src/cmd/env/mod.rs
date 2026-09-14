@@ -14,7 +14,7 @@ use std::path::PathBuf;
 
 use crate::cmd::env::input::{env_names, zh_desc};
 use crate::cmd::env::items::{
-    all_checks, demucs_burn_tch_bin_path, demucs_burn_wgpu_bin_path, ensure_fns, ocr_post_bin_path,
+    all_checks, demucs_burn_tch_bin_path, demucs_burn_wgpu_bin_path, ensure_fns, subtitle_ocr_post_bin_path,
     subtitle_finder_bin_path, subtitle_ocr_bin_path,
 };
 use crate::input::Input;
@@ -65,6 +65,20 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
         add(k, &mut set);
     }
 
+    // --- import: 平台视频链接 (YouTube/Bilibili) 需要 yt-dlp ---
+    // (本地文件 / 普通远程直链不依赖 yt-dlp; 由工具链在下载期 spawn)
+    if let Some(url) = input
+        .workflow
+        .as_ref()
+        .and_then(|w| w.url.as_deref())
+    {
+        if crate::workflows::import::util::is_youtube_url(url)
+            || crate::workflows::import::util::is_bilibili_url(url)
+        {
+            add("yt_dlp", &mut set);
+        }
+    }
+
     let steps = &input.steps;
     let subtitle_source = input
         .workflow
@@ -76,7 +90,7 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
     if subtitle_source == SubtitleSource::SfOcr {
         add("subtitle_finder_bin", &mut set);
         add("subtitle_ocr_bin", &mut set);
-        add("ocr_post_bin", &mut set);
+        add("subtitle_ocr_post_bin", &mut set);
     }
     // asr_ocr 阶段 (Rust 移植) 依赖 vision-lab Release 二进制 subtitle_ocr_bin
     // (见 steps/asr_ocr/{ocr.rs, fix.rs} 的 ensure_bin("subtitle_ocr_bin"))。
@@ -232,7 +246,7 @@ fn bin_path_from_key(key: &str) -> PathBuf {
     match key {
         "subtitle_finder_bin" => subtitle_finder_bin_path(),
         "subtitle_ocr_bin" => subtitle_ocr_bin_path(),
-        "ocr_post_bin" => ocr_post_bin_path(),
+        "subtitle_ocr_post_bin" => subtitle_ocr_post_bin_path(),
         "demucs_burn_tch_bin" => demucs_burn_tch_bin_path(),
         "demucs_burn_wgpu_bin" => demucs_burn_wgpu_bin_path(),
         "whisper_bin" => crate::cmd::env::items::whisper_vulkan_bin_path(),
@@ -358,6 +372,11 @@ pub fn format_result(r: &CheckResult) -> String {
     if let Some(f) = r.data.get("fresh_bins").and_then(|v| v.as_str()) {
         if !f.is_empty() {
             extras.push(format!("    fresh: {f}"));
+        }
+    }
+    if let Some(t) = r.data.get("latest_tag").and_then(|v| v.as_str()) {
+        if !t.is_empty() {
+            extras.push(format!("    upstream: {t} (有新版可更新)"));
         }
     }
 

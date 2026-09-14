@@ -4,11 +4,11 @@ use std::path::{Path, PathBuf};
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
 #[fnrpc::rpc_subscribe]
-pub fn watch_workflow_log(workflow_dir: String) -> impl Stream<Item = String> {
-    let p = if Path::new(&workflow_dir).is_relative() {
-        repo_root().join(&workflow_dir)
+pub fn watch_workflow_log(video_dir: String) -> impl Stream<Item = String> {
+    let p = if Path::new(&video_dir).is_relative() {
+        repo_root().join(&video_dir)
     } else {
-        Path::new(&workflow_dir).to_path_buf()
+        Path::new(&video_dir).to_path_buf()
     };
     let video_id = p
         .file_name()

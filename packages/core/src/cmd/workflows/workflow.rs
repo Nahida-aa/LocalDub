@@ -61,23 +61,23 @@ pub fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
             println!("{json}");
         }
         Some(WorkflowAction::GetWorkflowCtx) => {
-            let workflow_dir = workflow
-                .workflow_dir
+            let video_dir = workflow
+                .video_dir
                 .clone()
                 .ok_or_else(|| anyhow::anyhow!("get_workflow_ctx 需要 input.workflow.videoDir"))?;
-            let ctx = read_ctx(&workflow_dir)
-                .map_err(|e| anyhow::anyhow!("读取 {}/ctx.json 失败: {e}", workflow_dir))?;
+            let ctx = read_ctx(&video_dir)
+                .map_err(|e| anyhow::anyhow!("读取 {}/ctx.json 失败: {e}", video_dir))?;
             let json = serde_json::to_string_pretty(&ctx)
                 .map_err(|e| anyhow::anyhow!("序列化 ctx 失败: {e}"))?;
             println!("{json}");
         }
         Some(WorkflowAction::Status) => {
-            let workflow_dir = workflow
-                .workflow_dir
+            let video_dir = workflow
+                .video_dir
                 .clone()
                 .ok_or_else(|| anyhow::anyhow!("status 需要 input.workflow.videoDir"))?;
-            let ctx = read_ctx(&workflow_dir)
-                .map_err(|e| anyhow::anyhow!("读取 {}/ctx.json 失败: {e}", workflow_dir))?;
+            let ctx = read_ctx(&video_dir)
+                .map_err(|e| anyhow::anyhow!("读取 {}/ctx.json 失败: {e}", video_dir))?;
             println!("workflow.status = {}", ctx.workflow.status);
             if let Some(steps) = &ctx.steps {
                 for s in steps {
@@ -88,11 +88,11 @@ pub fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
             }
         }
         Some(WorkflowAction::GenerateMeta) => {
-            let workflow_dir = workflow
-                .workflow_dir
+            let video_dir = workflow
+                .video_dir
                 .clone()
                 .ok_or_else(|| anyhow::anyhow!("generate_meta 需要 input.workflow.videoDir"))?;
-            crate::cmd::workflows::meta::generate_meta(&workflow_dir)
+            crate::cmd::workflows::meta::generate_meta(&video_dir)
                 .context("generate_meta 失败")?;
         }
         None => {

@@ -150,11 +150,11 @@ fn split_asr_by_words(segs: &[AsrSegment]) -> Vec<SubtitleSegment> {
 
 /// Entry point (mirrors TS `stepAsrOcrPre`).
 pub fn step_asr_ocr_pre(ctx: &WorkflowCtx) -> Result<()> {
-    let workflow_dir = ctx.workflow.workflow_dir.clone();
+    let video_dir = ctx.workflow.video_dir.clone();
     info!(target: "asr_ocr", "step_asr_ocr_pre: start");
 
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "asr_ocr_pre",
         StepPatch {
             last_message: Some("Splitting ASR segments by punctuation...".into()),
@@ -168,7 +168,7 @@ pub fn step_asr_ocr_pre(ctx: &WorkflowCtx) -> Result<()> {
         return Err(anyhow::anyhow!("Video not found: {}", video_path));
     }
 
-    let asr_file = asr_dir(&workflow_dir).join("asr.json");
+    let asr_file = asr_dir(&video_dir).join("asr.json");
     if !asr_file.exists() {
         return Err(anyhow::anyhow!(
             "asr.json not found: {}",
@@ -192,7 +192,7 @@ pub fn step_asr_ocr_pre(ctx: &WorkflowCtx) -> Result<()> {
     info!(target: "asr_ocr", "{} Split ASR segments by punctuation", asr_segs_raw.len());
     let asr_segs = split_asr_by_words(&asr_segs_raw);
 
-    let pre_dir = asr_ocr_pre_dir(&workflow_dir);
+    let pre_dir = asr_ocr_pre_dir(&video_dir);
     fs::create_dir_all(&pre_dir)
         .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", pre_dir.display(), e))?;
 
@@ -223,7 +223,7 @@ pub fn step_asr_ocr_pre(ctx: &WorkflowCtx) -> Result<()> {
 
     // Step 2: Generate frame timestamps (end2fps strategy)
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "asr_ocr_pre",
         StepPatch {
             last_message: Some(format!(
@@ -302,7 +302,7 @@ pub fn step_asr_ocr_pre(ctx: &WorkflowCtx) -> Result<()> {
     info!(target: "asr_ocr", "{} frames extracted to {}", extract_count, frame_dir.display());
 
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "asr_ocr_pre",
         StepPatch {
             status: Some(StepStatus::Success),

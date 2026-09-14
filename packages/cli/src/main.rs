@@ -68,7 +68,7 @@ enum Command {
         url: Option<String>,
         /// 任务目录 (continue/enqueue_continue/status 用)。
         #[arg(long)]
-        workflow_dir: Option<String>,
+        video_dir: Option<String>,
         /// 队列任务 ID (cancel_queue 用)。
         #[arg(long)]
         queue_id: Option<u64>,
@@ -98,7 +98,7 @@ enum Command {
         r#type: Option<CheckType>,
         /// 任务目录 (video/asr 检查必需)。
         #[arg(long)]
-        workflow_dir: Option<String>,
+        video_dir: Option<String>,
     },
     /// 设备信息 (等价 input.jsonc command=deviceInfo)。
     #[command(name = "deviceInfo")]
@@ -149,7 +149,7 @@ fn main() {
         Some(Command::Workflow {
             action,
             url,
-            workflow_dir,
+            video_dir,
             queue_id,
             continue_from,
             target_step,
@@ -161,8 +161,8 @@ fn main() {
             if let Some(u) = url {
                 workflow.url = Some(u);
             }
-            if let Some(d) = workflow_dir {
-                workflow.workflow_dir = Some(d);
+            if let Some(d) = video_dir {
+                workflow.video_dir = Some(d);
             }
             if let Some(q) = queue_id {
                 workflow.queue_id = Some(q);
@@ -196,13 +196,13 @@ fn main() {
         }
         Some(Command::Check {
             r#type,
-            workflow_dir,
+            video_dir,
         }) => {
             let mut check = input.check.clone().unwrap_or_default();
             if let Some(t) = r#type {
                 check.r#type = t;
             }
-            if let Some(d) = workflow_dir {
+            if let Some(d) = video_dir {
                 check.video_dir = Some(d);
             }
             input.check = Some(check);

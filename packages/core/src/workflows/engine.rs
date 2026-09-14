@@ -2,7 +2,7 @@
 //!
 //! 目标: 与 [`crate::workflows::pipeline::run_pipeline`] 对同样的 step 序列、同样的
 //! ctx.json 副作用达成一致, 但"成败真相"从 ctx.json 转移为
-//! `<workflow_dir>/workflow-engine/events.jsonl` (见 [`engine_store::FsRunStore`])。
+//! `<video_dir>/workflow-engine/events.jsonl` (见 [`engine_store::FsRunStore`])。
 //!
 //! 建立方式: 内核是 async handler-replay (代码即 DAG)——handler 闭包按 `get_steps`
 //! 顺序逐个 `ctx.step(...).await`, 重放时已 success 的 step 短路到缓存结果、
@@ -66,14 +66,14 @@ impl EngineOptions {
 /// step 成功后的产物路径清单, 作为 step 返回值写入事件日志
 /// (`StepFinished.result`, 对齐 TanStack STEP_FINISHED 的 value 语义)。
 /// 返回 `None` 表示无产物 / 无法读取 (不使 step 失败)。
-fn step_artifacts(workflow_dir: &str, step: &str) -> Option<serde_json::Value> {
+fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
     use crate::steps::utils::{
         asr_dir, asr_ocr_dir, asr_ocr_fix_dir, asr_ocr_pre_dir, dubbing_path, final_video_dir,
         gated_vocals_path, mix_audio_timings_path, mixed_vocals_path, resolve_language,
         separate_dir, sf_ocr_dir, sf_ocr_fix_dir, sf_ocr_pre_dir, split_audio_path,
         split_audio_timings_path, subtitle_file_path, tts_filepath, video_id,
     };
-    let wf = workflow_dir;
+    let wf = video_dir;
     let p = |pb: std::path::PathBuf| pb.to_string_lossy().into_owned();
     let artifacts: Vec<String> = match step {
         // leaf: 精确产物文件
@@ -128,9 +128,9 @@ fn step_artifacts(workflow_dir: &str, step: &str) -> Option<serde_json::Value> {
 /// 用引擎跑 (或续跑) 一条 pipeline, 结束后 workflow.status ∈ {success, failed}。
 ///
 /// 入口是同步的 (`run_workflow_sync` 内部自建 tokio runtime 驱动 handler)。
-pub fn run_workflow_engine(workflow_dir: &str, opts: &EngineOptions) -> anyhow::Result<()> {
-    let _guard = tracing::info_span!("workflow", workflow_dir = workflow_dir).entered();
-    let ctx = read_ctx(workflow_dir).map_err(anyhow::Error::msg)?;
+pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Result<()> {
+    let _guard = tracing::info_span!("workflow", video_dir = video_dir).entered();
+    let ctx = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
     let steps = get_steps(&ctx);
 
     let target_step = opts
@@ -151,7 +151,7 @@ pub fn run_workflow_engine(workflow_dir: &str, opts: &EngineOptions) -> anyhow::
     }
 
     set_workflow_anyhow(
-        workflow_dir,
+        video_dir,
         WorkflowPatch {
             status: Some("running".to_string()),
             started_at: Some(now_iso()),
@@ -164,9 +164,9 @@ pub fn run_workflow_engine(workflow_dir: &str, opts: &EngineOptions) -> anyhow::
 
     // handler-replay authoring 面: 串行 = 按 get_steps 顺序逐个 ctx.step.await。
     let run_id =
-        video_id(workflow_dir).ok_or_else(|| anyhow::anyhow!("无法从 workflow_dir 取 run_id"))?;
+        video_id(video_dir).ok_or_else(|| anyhow::anyhow!("无法从 video_dir 取 run_id"))?;
     let wf = Workflow::new(ctx.pipeline.clone()).handler({
-        let dir = workflow_dir.to_string();
+        let dir = video_dir.to_string();
         let steps = steps;
         move |wctx: WorkflowCtx| {
             let dir = dir.clone();
@@ -239,7 +239,7 @@ pub fn run_workflow_engine(workflow_dir: &str, opts: &EngineOptions) -> anyhow::
         }
     });
 
-    let store = FsRunStore::new(workflow_dir);
+    let store = FsRunStore::new(video_dir);
     let mut r_opts = RunOptions::new(ctx.input.clone()).run_id(run_id.clone());
     if let Some(cf) = &continue_from {
         r_opts = r_opts.continue_from(cf.clone());
@@ -251,7 +251,7 @@ pub fn run_workflow_engine(workflow_dir: &str, opts: &EngineOptions) -> anyhow::
     let outcome = run_workflow_sync(&wf, Arc::new(store), &r_opts, None)
         .map_err(|e| anyhow::anyhow!("workflow engine error: {e}"))?;
 
-    apply_outcome(workflow_dir, &run_id, outcome)
+    apply_outcome(video_dir, &run_id, outcome)
 }
 
 /// 把引擎终态映射到 workflow 状态 + 返回值。
@@ -259,14 +259,14 @@ pub fn run_workflow_engine(workflow_dir: &str, opts: &EngineOptions) -> anyhow::
 /// 单独抽出来是为了能直接测 `Paused` 那一支——pipeline 的 step handler 是固定的
 /// 一组真实工序，没法顺手塞一个「会挂起」的进去。
 fn apply_outcome(
-    workflow_dir: &str,
+    video_dir: &str,
     run_id: &str,
     outcome: workflow_core::RunOutcome,
 ) -> anyhow::Result<()> {
     match outcome.status {
         RunStatus::Finished => {
             set_workflow_anyhow(
-                workflow_dir,
+                video_dir,
                 WorkflowPatch {
                     status: Some("success".to_string()),
                     completed_at: Some(now_iso()),
@@ -284,7 +284,7 @@ fn apply_outcome(
                 .map(|e| e.message)
                 .unwrap_or_else(|| "unknown engine error".to_string());
             set_workflow_anyhow(
-                workflow_dir,
+                video_dir,
                 WorkflowPatch {
                     status: Some("failed".to_string()),
                     error_message: Some(msg.clone()),
@@ -306,9 +306,9 @@ fn apply_outcome(
         // 两种情况都不该被静默当成成功或失败——如实报错，把问题暴露给调用方。
         // 见 aa-workflow `docs/runtime-design.md` D3。
         RunStatus::Paused => {
-            let w = store_wait_desc(workflow_dir);
+            let w = store_wait_desc(video_dir);
             set_workflow_anyhow(
-                workflow_dir,
+                video_dir,
                 WorkflowPatch {
                     status: Some("paused".to_string()),
                     current_step: Some(None),
@@ -323,7 +323,7 @@ fn apply_outcome(
         }
         RunStatus::Aborted => {
             set_workflow_anyhow(
-                workflow_dir,
+                video_dir,
                 WorkflowPatch {
                     status: Some("failed".to_string()),
                     error_message: Some("workflow aborted".to_string()),
@@ -342,8 +342,8 @@ fn apply_outcome(
 }
 
 /// 挂起时把「在等什么」读出来，附进错误信息——`RunState` 信封里有投影。
-fn store_wait_desc(workflow_dir: &str) -> String {
-    let path = std::path::Path::new(workflow_dir)
+fn store_wait_desc(video_dir: &str) -> String {
+    let path = std::path::Path::new(video_dir)
         .join("workflow-engine")
         .join("run.json");
     let Ok(raw) = std::fs::read_to_string(&path) else {
@@ -391,13 +391,13 @@ mod tests {
             }
         });
         let mut ctx = read_ctx_from_value(json!({
-            "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
+            "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
             "input": input,
             "pipeline": "subtitle"
         }))
         .unwrap();
-        ctx.workflow.workflow_dir = dir.to_string();
+        ctx.workflow.video_dir = dir.to_string();
         ctx.workflow.id = "t".to_string();
         ctx.pipeline = "subtitle".to_string();
         write_ctx(dir, &ctx).unwrap();

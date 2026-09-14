@@ -26,9 +26,9 @@ pub fn now_iso() -> String {
     Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string()
 }
 
-/// 取 workflow_dir 的最后一段作为 workflow id (镜像 TS `getLastSegment` / `getTaskId`)。
-pub fn video_id(workflow_dir: &str) -> Option<String> {
-    Path::new(workflow_dir)
+/// 取 video_dir 的最后一段作为 workflow id (镜像 TS `getLastSegment` / `getTaskId`)。
+pub fn video_id(video_dir: &str) -> Option<String> {
+    Path::new(video_dir)
         .file_name()
         .and_then(|s| s.to_str())
         .map(|s| s.to_string())
@@ -83,8 +83,8 @@ impl StepPatch {
 }
 
 /// 对 `ctx.json` 中指定 step 做 upsert 合并 (镜像 TS `setStep`)。
-pub fn set_step(workflow_dir: &str, name: &str, patch: StepPatch) -> Result<(), String> {
-    let mut ctx = read_ctx(workflow_dir)?;
+pub fn set_step(video_dir: &str, name: &str, patch: StepPatch) -> Result<(), String> {
+    let mut ctx = read_ctx(video_dir)?;
     let steps = ctx.steps.get_or_insert_with(Vec::new);
     let idx = steps.iter().position(|s| s.name == name);
     let base = match idx {
@@ -100,7 +100,7 @@ pub fn set_step(workflow_dir: &str, name: &str, patch: StepPatch) -> Result<(), 
         Some(i) => steps[i] = updated,
         None => steps.push(updated),
     }
-    write_ctx(workflow_dir, &ctx)
+    write_ctx(video_dir, &ctx)
 }
 
 /// 部分更新 [`crate::context::Workflow`] 的字段 (镜像 TS `setTask`)。
@@ -143,20 +143,20 @@ impl WorkflowPatch {
 }
 
 /// 对 `ctx.json` 中 workflow 做 upsert 合并 (镜像 TS `setTask`)。
-pub fn set_workflow(workflow_dir: &str, patch: WorkflowPatch) -> Result<(), String> {
-    let mut ctx = read_ctx(workflow_dir)?;
+pub fn set_workflow(video_dir: &str, patch: WorkflowPatch) -> Result<(), String> {
+    let mut ctx = read_ctx(video_dir)?;
     ctx.workflow = patch.apply(ctx.workflow);
-    write_ctx(workflow_dir, &ctx)
+    write_ctx(video_dir, &ctx)
 }
 
 /// `set_step` 返回 `Result<(), String>`, 此 wrapper 转 `anyhow::Result` 以便 `?`。
-pub fn set_step_anyhow(workflow_dir: &str, name: &str, patch: StepPatch) -> anyhow::Result<()> {
-    set_step(workflow_dir, name, patch).map_err(anyhow::Error::msg)
+pub fn set_step_anyhow(video_dir: &str, name: &str, patch: StepPatch) -> anyhow::Result<()> {
+    set_step(video_dir, name, patch).map_err(anyhow::Error::msg)
 }
 
 /// `set_workflow` 返回 `Result<(), String>`, 此 wrapper 转 `anyhow::Result` 以便 `?`。
-pub fn set_workflow_anyhow(workflow_dir: &str, patch: WorkflowPatch) -> anyhow::Result<()> {
-    set_workflow(workflow_dir, patch).map_err(anyhow::Error::msg)
+pub fn set_workflow_anyhow(video_dir: &str, patch: WorkflowPatch) -> anyhow::Result<()> {
+    set_workflow(video_dir, patch).map_err(anyhow::Error::msg)
 }
 
 // ---------------------------------------------------------------------------
@@ -219,7 +219,7 @@ pub fn probe_sample_rate(path: &str) -> u32 {
 pub fn read_split_audio_timings(
     ctx: &crate::context::WorkflowCtx,
 ) -> anyhow::Result<serde_json::Value> {
-    let file = split_audio_timings_path(&ctx.workflow.workflow_dir);
+    let file = split_audio_timings_path(&ctx.workflow.video_dir);
     let raw = std::fs::read_to_string(&file)
         .map_err(|e| anyhow::anyhow!("读取 {} 失败: {}", file.display(), e))?;
     serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("解析 {} 失败: {}", file.display(), e))
@@ -227,15 +227,15 @@ pub fn read_split_audio_timings(
 
 /// 读取 split_audio 结果文件 `split_audio/split_audio.json` (镜像 TS `read_split_audio`)。
 pub fn read_split_audio(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<serde_json::Value> {
-    let file = split_audio_path(&ctx.workflow.workflow_dir);
+    let file = split_audio_path(&ctx.workflow.video_dir);
     let raw = std::fs::read_to_string(&file)
         .map_err(|e| anyhow::anyhow!("读取 {} 失败: {}", file.display(), e))?;
     serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("解析 {} 失败: {}", file.display(), e))
 }
 
 /// tts 结果文件路径 `tts/tts.json` (镜像 TS `tts_filepath`)。
-pub fn tts_filepath(workflow_dir: &str) -> PathBuf {
-    Path::new(workflow_dir).join("tts").join("tts.json")
+pub fn tts_filepath(video_dir: &str) -> PathBuf {
+    Path::new(video_dir).join("tts").join("tts.json")
 }
 
 /// 执行 ffmpeg (自动前置 `-y` 覆盖输出), 非零退出即报错 (含 stderr)。
@@ -363,24 +363,24 @@ pub fn default_font(dst_lang: &str) -> String {
 }
 
 /// 最终视频音频混流后的中间音频路径 (dub 分支) helper。
-pub fn dubbing_path(workflow_dir: &str) -> PathBuf {
-    Path::new(workflow_dir)
+pub fn dubbing_path(video_dir: &str) -> PathBuf {
+    Path::new(video_dir)
         .join("mix_audio")
         .join("audio_dubbing.wav")
 }
 
 /// `mix_audio/timings.json` 路径 (镜像 TS `timings_filepath`)。
-pub fn mix_audio_timings_path(workflow_dir: &str) -> PathBuf {
-    Path::new(workflow_dir)
+pub fn mix_audio_timings_path(video_dir: &str) -> PathBuf {
+    Path::new(video_dir)
         .join("mix_audio")
         .join("timings.json")
 }
 
 /// 读取 `mix_audio/timings.json` (镜像 TS `read_timings`)。
 pub fn read_timings(
-    workflow_dir: &str,
+    video_dir: &str,
 ) -> anyhow::Result<crate::steps::mix_audio::out::TimingsFile> {
-    let p = mix_audio_timings_path(workflow_dir);
+    let p = mix_audio_timings_path(video_dir);
     let raw = std::fs::read_to_string(&p)
         .map_err(|e| anyhow::anyhow!("读取 {} 失败: {e}", p.display()))?;
     serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("解析 {} 失败: {e}", p.display()))
@@ -390,57 +390,57 @@ pub fn read_timings(
 // 输出目录 / 路径 helper (镜像 TS utils.ts 的 *_dir / *_path)
 // ---------------------------------------------------------------------------
 
-pub fn separate_dir(workflow_dir: &str) -> PathBuf {
-    Path::new(workflow_dir).join("separate")
+pub fn separate_dir(video_dir: &str) -> PathBuf {
+    Path::new(video_dir).join("separate")
 }
-pub fn asr_dir(workflow_dir: &str) -> PathBuf {
-    Path::new(workflow_dir).join("asr")
+pub fn asr_dir(video_dir: &str) -> PathBuf {
+    Path::new(video_dir).join("asr")
 }
-pub fn separate_after_dir(workflow_dir: &str) -> PathBuf {
-    Path::new(workflow_dir).join("separate_after")
+pub fn separate_after_dir(video_dir: &str) -> PathBuf {
+    Path::new(video_dir).join("separate_after")
 }
 
 /// separate 阶段人声 stem (target_3_vocals.wav)
-pub fn vocals_path(workflow_dir: &str) -> PathBuf {
-    separate_dir(workflow_dir).join("target_3_vocals.wav")
+pub fn vocals_path(video_dir: &str) -> PathBuf {
+    separate_dir(video_dir).join("target_3_vocals.wav")
 }
 /// separate_after 阶段背景音乐 stem
-pub fn bgm_path(workflow_dir: &str) -> PathBuf {
-    separate_after_dir(workflow_dir).join("target_bgm.wav")
+pub fn bgm_path(video_dir: &str) -> PathBuf {
+    separate_after_dir(video_dir).join("target_bgm.wav")
 }
 /// separate_after 阶段混音后的人声
-pub fn mixed_vocals_path(workflow_dir: &str) -> PathBuf {
-    separate_after_dir(workflow_dir).join("target_3_vocals_mixed.wav")
+pub fn mixed_vocals_path(video_dir: &str) -> PathBuf {
+    separate_after_dir(video_dir).join("target_3_vocals_mixed.wav")
 }
 /// separate_after 阶段 gate 后的人声
-pub fn gated_vocals_path(workflow_dir: &str) -> PathBuf {
-    separate_after_dir(workflow_dir).join("target_3_vocals_gated.wav")
+pub fn gated_vocals_path(video_dir: &str) -> PathBuf {
+    separate_after_dir(video_dir).join("target_3_vocals_gated.wav")
 }
 
 /// sf_ocr_pre 关键帧目录
-pub fn sf_ocr_pre_dir(workflow_dir: &str) -> PathBuf {
-    Path::new(workflow_dir).join("sf_ocr_pre")
+pub fn sf_ocr_pre_dir(video_dir: &str) -> PathBuf {
+    Path::new(video_dir).join("sf_ocr_pre")
 }
 /// sf_ocr OCR 结果目录
-pub fn sf_ocr_dir(workflow_dir: &str) -> PathBuf {
-    Path::new(workflow_dir).join("sf_ocr")
+pub fn sf_ocr_dir(video_dir: &str) -> PathBuf {
+    Path::new(video_dir).join("sf_ocr")
 }
 /// sf_ocr_fix 修正结果目录
-pub fn sf_ocr_fix_dir(workflow_dir: &str) -> PathBuf {
-    Path::new(workflow_dir).join("sf_ocr_fix")
+pub fn sf_ocr_fix_dir(video_dir: &str) -> PathBuf {
+    Path::new(video_dir).join("sf_ocr_fix")
 }
 
 /// asr_ocr_pre 分割 ASR + 抽帧目录
-pub fn asr_ocr_pre_dir(workflow_dir: &str) -> PathBuf {
-    Path::new(workflow_dir).join("asr_ocr_pre")
+pub fn asr_ocr_pre_dir(video_dir: &str) -> PathBuf {
+    Path::new(video_dir).join("asr_ocr_pre")
 }
 /// asr_ocr OCR 结果目录
-pub fn asr_ocr_dir(workflow_dir: &str) -> PathBuf {
-    Path::new(workflow_dir).join("asr_ocr")
+pub fn asr_ocr_dir(video_dir: &str) -> PathBuf {
+    Path::new(video_dir).join("asr_ocr")
 }
 /// asr_ocr_fix 融合修正结果目录
-pub fn asr_ocr_fix_dir(workflow_dir: &str) -> PathBuf {
-    Path::new(workflow_dir).join("asr_ocr_fix")
+pub fn asr_ocr_fix_dir(video_dir: &str) -> PathBuf {
+    Path::new(video_dir).join("asr_ocr_fix")
 }
 
 /// 取 video_source_path (缺则报错, 与 TS `video_source_path` 一致)。
@@ -448,7 +448,7 @@ pub fn video_source_path(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<St
     ctx.video_source_path.clone().ok_or_else(|| {
         anyhow::anyhow!(
             "video_source_path 未设置 (session {})",
-            ctx.workflow.workflow_dir
+            ctx.workflow.video_dir
         )
     })
 }
@@ -535,7 +535,7 @@ pub fn subtitle_file_path(ctx: &crate::context::WorkflowCtx) -> String {
         } else {
             "segment_filter.json"
         };
-        return sf_ocr_fix_dir(&ctx.workflow.workflow_dir)
+        return sf_ocr_fix_dir(&ctx.workflow.video_dir)
             .join(filename)
             .to_string_lossy()
             .into_owned();
@@ -553,13 +553,13 @@ pub fn subtitle_file_path(ctx: &crate::context::WorkflowCtx) -> String {
         } else {
             "asr_ocr_fused.json"
         };
-        return Path::new(&ctx.workflow.workflow_dir)
+        return Path::new(&ctx.workflow.video_dir)
             .join("asr_ocr_fix")
             .join(filename)
             .to_string_lossy()
             .into_owned();
     }
-    Path::new(&ctx.workflow.workflow_dir)
+    Path::new(&ctx.workflow.video_dir)
         .join("asr_fix")
         .join("asr_fix.json")
         .to_string_lossy()
@@ -567,29 +567,29 @@ pub fn subtitle_file_path(ctx: &crate::context::WorkflowCtx) -> String {
 }
 
 /// 翻译文件路径 `translate/translation.{lang}.json`。
-pub fn translation_file_path(workflow_dir: &str, lang: &str) -> PathBuf {
-    Path::new(workflow_dir)
+pub fn translation_file_path(video_dir: &str, lang: &str) -> PathBuf {
+    Path::new(video_dir)
         .join("translate")
         .join(format!("translation.{lang}.json"))
 }
 
 /// 翻译增量进度文件路径 `translate/translation.{lang}.partial.json`。
-pub fn translation_partial_path(workflow_dir: &str, lang: &str) -> PathBuf {
-    Path::new(workflow_dir)
+pub fn translation_partial_path(video_dir: &str, lang: &str) -> PathBuf {
+    Path::new(video_dir)
         .join("translate")
         .join(format!("translation.{lang}.partial.json"))
 }
 
 /// split_audio 结果路径 `split_audio/split_audio.json` (padding 后时序)。
-pub fn split_audio_path(workflow_dir: &str) -> PathBuf {
-    Path::new(workflow_dir)
+pub fn split_audio_path(video_dir: &str) -> PathBuf {
+    Path::new(video_dir)
         .join("split_audio")
         .join("split_audio.json")
 }
 
 /// split_audio 意图时序路径 `split_audio/timings.json`。
-pub fn split_audio_timings_path(workflow_dir: &str) -> PathBuf {
-    Path::new(workflow_dir)
+pub fn split_audio_timings_path(video_dir: &str) -> PathBuf {
+    Path::new(video_dir)
         .join("split_audio")
         .join("timings.json")
 }
@@ -602,7 +602,7 @@ pub fn read_translation_result(
         .target_language
         .clone()
         .ok_or_else(|| anyhow::anyhow!("ctx.target_language 未设置, 无法读取翻译结果"))?;
-    let file = translation_file_path(&ctx.workflow.workflow_dir, &lang);
+    let file = translation_file_path(&ctx.workflow.video_dir, &lang);
     let raw = std::fs::read_to_string(&file)
         .map_err(|e| anyhow::anyhow!("读取翻译文件 {} 失败: {}", file.display(), e))?;
     serde_json::from_str(&raw)
@@ -652,7 +652,7 @@ pub fn resolve_language(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<(St
     if resolved != existing_dst {
         // 写回 ctx.target_language, 供后续翻译文件命名 / split_audio 读取 (best-effort:
         // ctx.json 不存在时仅告警, 不影响当前 step 返回解析结果)
-        if let Err(e) = write_target_language(&ctx.workflow.workflow_dir, &resolved) {
+        if let Err(e) = write_target_language(&ctx.workflow.video_dir, &resolved) {
             tracing::warn!(target: "pipeline", "写回 target_language 失败: {e}");
         }
     }
@@ -660,10 +660,10 @@ pub fn resolve_language(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<(St
 }
 
 /// 单独写回 ctx.json 的 target_language 字段 (resolve_language 内部用)。
-fn write_target_language(workflow_dir: &str, lang: &str) -> Result<(), String> {
-    let mut ctx = read_ctx(workflow_dir)?;
+fn write_target_language(video_dir: &str, lang: &str) -> Result<(), String> {
+    let mut ctx = read_ctx(video_dir)?;
     ctx.target_language = Some(lang.to_string());
-    write_ctx(workflow_dir, &ctx)
+    write_ctx(video_dir, &ctx)
 }
 
 /// 序列化辅助: 把任意可序列化值转成 pretty JSON 字符串 (测试 / 透传用)。
@@ -683,9 +683,9 @@ mod tests {
     use crate::context::{read_ctx_from_value, WorkflowCtx};
     use serde_json::json;
 
-    fn ctx_at(workflow_dir: &str, input: serde_json::Value) -> WorkflowCtx {
+    fn ctx_at(video_dir: &str, input: serde_json::Value) -> WorkflowCtx {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.workflow_dir = workflow_dir.to_string();
+        ctx.workflow.video_dir = video_dir.to_string();
         ctx
     }
 
@@ -707,7 +707,7 @@ mod tests {
         let ctx = ctx_at(
             &dir,
             json!({
-                "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}, "pipeline": "dub"
             }),
@@ -775,7 +775,7 @@ mod tests {
         let ctx = ctx_at(
             &dir,
             json!({
-                "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}, "pipeline": "dub"
             }),

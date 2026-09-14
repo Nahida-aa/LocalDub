@@ -170,7 +170,7 @@ mod tests {
 
     fn ctx(pipeline: &str, input: serde_json::Value) -> WorkflowCtx {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.workflow_dir = "/x".into();
+        ctx.workflow.video_dir = "/x".into();
         ctx.pipeline = pipeline.into();
         ctx
     }
@@ -180,7 +180,7 @@ mod tests {
         let c = ctx(
             "dub",
             json!({
-                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),
@@ -206,7 +206,7 @@ mod tests {
         let c = ctx(
             "dub",
             json!({
-                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"workflow": {"subtitleSource": "sf_ocr"}}
             }),
@@ -220,7 +220,7 @@ mod tests {
         let c = ctx(
             "dub",
             json!({
-                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"workflow": {"subtitleSource": "asr_ocr"}}
             }),
@@ -235,7 +235,7 @@ mod tests {
         let c = ctx(
             "dub",
             json!({
-                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"steps": {"translate": {"enabled": false}}}
             }),
@@ -248,7 +248,7 @@ mod tests {
         let c = ctx(
             "subtitle",
             json!({
-                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),
@@ -258,7 +258,7 @@ mod tests {
         let c2 = ctx(
             "subtitle",
             json!({
-                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"steps": {"split_audio": {"vadAlign": true}}}
             }),
@@ -272,7 +272,7 @@ mod tests {
         let c = ctx(
             "subtitle",
             json!({
-                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"workflow": {"subtitleSource": "sf_ocr"}}
             }),
@@ -293,7 +293,7 @@ mod tests {
         let c = ctx(
             "subtitle",
             json!({
-                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"workflow": {"subtitleSource": "asr_ocr"}}
             }),
@@ -313,7 +313,7 @@ mod tests {
         let c = ctx(
             "subtitle",
             json!({
-                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),

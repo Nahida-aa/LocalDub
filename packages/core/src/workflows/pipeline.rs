@@ -24,12 +24,12 @@ use crate::steps::tts::step_tts;
 use crate::steps::utils::{now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
 
 /// 运行完整 pipeline (镜像 TS `runPipeline`)。
-pub fn run_pipeline(workflow_dir: &str) -> anyhow::Result<()> {
-    // 进入 workflow span: 携带 workflow_dir 供 WorkflowFileLayer 落盘到 <workflow_dir>/<tid>.log。
-    let _workflow_guard = tracing::info_span!("workflow", workflow_dir = workflow_dir).entered();
+pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
+    // 进入 workflow span: 携带 video_dir 供 WorkflowFileLayer 落盘到 <video_dir>/<tid>.log。
+    let _workflow_guard = tracing::info_span!("workflow", video_dir = video_dir).entered();
     tracing::info!(target: "pipeline", "run_pipeline: start");
 
-    let ctx = read_ctx(workflow_dir).map_err(anyhow::Error::msg)?;
+    let ctx = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
     let pipeline = ctx.pipeline.clone();
     let video_id = ctx.workflow.id.clone();
     let steps = get_steps(&ctx);
@@ -44,7 +44,7 @@ pub fn run_pipeline(workflow_dir: &str) -> anyhow::Result<()> {
     }
 
     set_workflow_anyhow(
-        workflow_dir,
+        video_dir,
         crate::steps::utils::WorkflowPatch {
             status: Some("running".to_string()),
             started_at: Some(now_iso()),
@@ -62,7 +62,7 @@ pub fn run_pipeline(workflow_dir: &str) -> anyhow::Result<()> {
         }
 
         set_step_anyhow(
-            workflow_dir,
+            video_dir,
             step,
             StepPatch {
                 status: Some(StepStatus::Running),
@@ -72,7 +72,7 @@ pub fn run_pipeline(workflow_dir: &str) -> anyhow::Result<()> {
             },
         )?;
         set_workflow_anyhow(
-            workflow_dir,
+            video_dir,
             crate::steps::utils::WorkflowPatch {
                 status: Some("running".to_string()),
                 current_step: Some(Some(step.clone())),
@@ -81,7 +81,7 @@ pub fn run_pipeline(workflow_dir: &str) -> anyhow::Result<()> {
         )?;
         tracing::info!(target: "pipeline", "Running {step}");
 
-        match run_step(step, workflow_dir) {
+        match run_step(step, video_dir) {
             Ok(()) => {
                 // 达到 targetStep 即停止 (镜像 TS)
                 if let Some(ts) = ctx.input.get("targetStep").and_then(|v| v.as_str()) {
@@ -95,7 +95,7 @@ pub fn run_pipeline(workflow_dir: &str) -> anyhow::Result<()> {
                 let msg = e.to_string();
                 tracing::error!(target: "pipeline", "Step {step} failed: {msg}");
                 set_step_anyhow(
-                    workflow_dir,
+                    video_dir,
                     step,
                     StepPatch {
                         status: Some(StepStatus::Failed),
@@ -105,7 +105,7 @@ pub fn run_pipeline(workflow_dir: &str) -> anyhow::Result<()> {
                     },
                 )?;
                 set_workflow_anyhow(
-                    workflow_dir,
+                    video_dir,
                     crate::steps::utils::WorkflowPatch {
                         status: Some("failed".to_string()),
                         error_message: Some(msg),
@@ -118,7 +118,7 @@ pub fn run_pipeline(workflow_dir: &str) -> anyhow::Result<()> {
     }
 
     set_workflow_anyhow(
-        workflow_dir,
+        video_dir,
         crate::steps::utils::WorkflowPatch {
             status: Some("success".to_string()),
             completed_at: Some(now_iso()),
@@ -156,10 +156,10 @@ pub fn has_handler(step: &str) -> bool {
 ///
 /// 每个 handler 自行 `read_ctx` 获取最新 ctx (与 TS `readCtx(sp)` 一致)。
 /// 调用方已通过 [`has_handler`] 过滤, 此处仅处理已知 step。
-pub fn run_step(step: &str, workflow_dir: &str) -> anyhow::Result<()> {
+pub fn run_step(step: &str, video_dir: &str) -> anyhow::Result<()> {
     // 进入 step span: 携带 step 名供 WorkflowFileLayer 作为 [step] 前缀。
     let _step_guard = tracing::info_span!("step", step = step).entered();
-    let ctx = read_ctx(workflow_dir).map_err(anyhow::Error::msg)?;
+    let ctx = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
     match step {
         "separate" => step_separate(&ctx),
         "separate_after" => step_separate_after(&ctx),
@@ -196,7 +196,7 @@ mod tests {
     ) -> crate::context::WorkflowCtx {
         std::fs::create_dir_all(dir).unwrap();
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.workflow_dir = dir.to_string();
+        ctx.workflow.video_dir = dir.to_string();
         ctx.workflow.id = "t".to_string();
         ctx.pipeline = pipeline.to_string();
         crate::context::write_ctx(dir, &ctx).unwrap();
@@ -213,7 +213,7 @@ mod tests {
         setup_ctx(
             &dir,
             json!({
-                "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"steps": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
                 "pipeline": "subtitle"
@@ -247,7 +247,7 @@ mod tests {
         setup_ctx(
             &dir,
             json!({
-                "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"targetStep": "separate", "steps": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
                 "pipeline": "subtitle"

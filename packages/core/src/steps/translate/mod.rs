@@ -274,7 +274,7 @@ fn translate_batch(
 
 /// 入口 (镜像 TS `stepTranslate`)。
 pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
-    let workflow_dir = ctx.workflow.workflow_dir.clone();
+    let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "translate", "start");
 
     let args = read_args(ctx);
@@ -320,7 +320,7 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         .unwrap_or_else(|| texts.join(" "));
 
     // 视频元信息 (ytdlp_info.json 可选)
-    let ytdlp_path = Path::new(&workflow_dir)
+    let ytdlp_path = Path::new(&video_dir)
         .join("download")
         .join("ytdlp_info.json");
     let has_meta = ytdlp_path.exists();
@@ -435,7 +435,7 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
 
     const BATCH_SIZE: usize = 50;
     let total_batches = texts.chunks(BATCH_SIZE).count();
-    let partial_path = translation_partial_path(&workflow_dir, &target_lang);
+    let partial_path = translation_partial_path(&video_dir, &target_lang);
 
     // 阶段内续跑: 读已有 partial, 恢复已完成 batch 与已译句
     let (mut completed, partial_segs) = read_partial(&partial_path);
@@ -519,7 +519,7 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             &target_lang,
         )?;
         set_step_anyhow(
-            &workflow_dir,
+            &video_dir,
             "translate",
             StepPatch {
                 last_message: Some(format!(
@@ -556,7 +556,7 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         },
     };
 
-    let out_file = translation_file_path(&workflow_dir, &target_lang);
+    let out_file = translation_file_path(&video_dir, &target_lang);
     if let Some(parent) = out_file.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", parent.display(), e))?;
@@ -571,7 +571,7 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
 
     // 确保 ctx.target_language 在内存之外也落盘 (resolve_language 已写回文件, 这里仅保险)
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "translate",
         StepPatch {
             status: Some(StepStatus::Success),
@@ -665,7 +665,7 @@ mod tests {
 
     fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowCtx {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.workflow_dir = dir.to_string();
+        ctx.workflow.video_dir = dir.to_string();
         ctx.pipeline = "dub".to_string();
         ctx.asr_language = Some(crate::r#const::lang::Language::from("zh"));
         ctx
@@ -691,7 +691,7 @@ mod tests {
         let ctx = ctx_at(
             "/x",
             json!({
-                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),
@@ -704,13 +704,13 @@ mod tests {
         let ctx2 = ctx_at(
             "/x",
             json!({
-                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),
         );
         let c2 = read_ctx_from_value(json!({
-            "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
+            "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                      "status":"running","created_at":"2024-01-01T00:00:00Z"},
             "input": {}, "asr_language": "en"
         }))
@@ -726,7 +726,7 @@ mod tests {
     #[test]
     fn resolve_src_lang_falls_back_to_workflow_source_lang() {
         let ctx = read_ctx_from_value(json!({
-            "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
+            "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                      "status":"running","created_at":"2024-01-01T00:00:00Z"},
             "input": {"workflow": {"sourceLang": "ja"}}
         }))
@@ -747,7 +747,7 @@ mod tests {
         let ctx = ctx_at(
             &dir,
             json!({
-                "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),

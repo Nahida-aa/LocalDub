@@ -186,10 +186,10 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
         },
     ),
     (
-        "ocr_post_bin",
+        "subtitle_ocr_post_bin",
         EnvEntry {
-            zh: "字幕后处理统合管线二进制 (data/bin/ocr-post, 从 vision-lab GitHub Release 下载)",
-            en: "ocr-post binary (data/bin/ocr-post, downloaded from vision-lab GitHub Release)",
+            zh: "字幕后处理统合管线二进制 (data/bin/subtitle-ocr-post, 从 vision-lab GitHub Release 下载)",
+            en: "subtitle-ocr-post binary (data/bin/subtitle-ocr-post, downloaded from vision-lab GitHub Release)",
             required: false,
             category: "optional",
         },
@@ -199,6 +199,15 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
         EnvEntry {
             zh: "cmake 构建工具, 编译 C++",
             en: "cmake build tool, needed for compiling C++",
+            required: false,
+            category: "optional",
+        },
+    ),
+    (
+        "yt_dlp",
+        EnvEntry {
+            zh: "yt-dlp 视频下载工具 (YouTube/Bilibili 链接下载; YTDLP_BIN 覆盖路径)",
+            en: "yt-dlp video downloader (YouTube/Bilibili download; override with YTDLP_BIN)",
             required: false,
             category: "optional",
         },

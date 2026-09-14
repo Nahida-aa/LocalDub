@@ -1,5 +1,5 @@
-//! sf_ocr_fix: 消费 sf_ocr 的 frames.json, 调 ocr-post 统合管线 (adjust-box → filter-box →
-//! merge → adjust-segment → filter-segment), 再叠加可选 LLM 修正, 写出最终字幕段。
+//! sf_ocr_fix: 消费 sf_ocr 的 frames.json, 调 subtitle-ocr-post 统合管线 (adjust-box →
+//! filter-box → merge → adjust-segment → filter-segment), 再叠加可选 LLM 修正, 写出最终字幕段。
 //!
 //! 镜像 TS `packages/core/steps/sf_ocr/ocr_fix.ts` (stepSfOcrFix)。
 //!
@@ -10,7 +10,8 @@ use crate::cmd::env::ensure_bin;
 use crate::context::WorkflowCtx;
 use crate::steps::sf_ocr::fix_args::OcrFixArgs;
 use crate::steps::utils::{
-    now_iso, set_step_anyhow, sf_ocr_dir, sf_ocr_fix_dir, video_source_path, StepPatch, StepStatus,
+    now_iso, probe_video_resolution, set_step_anyhow, sf_ocr_dir, sf_ocr_fix_dir, video_source_path,
+    StepPatch, StepStatus,
 };
 use std::process::Command;
 
@@ -25,34 +26,36 @@ fn read_args(ctx: &WorkflowCtx) -> OcrFixArgs {
 
 /// 入口 (镜像 TS `stepSfOcrFix`)。
 pub fn step_sf_ocr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
-    let workflow_dir = ctx.workflow.workflow_dir.clone();
+    let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "sf_ocr", "start");
 
-    let frames_file = sf_ocr_dir(&workflow_dir).join("frames.json");
+    let frames_file = sf_ocr_dir(&video_dir).join("frames.json");
     if !frames_file.exists() {
         return Err(anyhow::anyhow!(
             "frames.json not found: {}; run sf_ocr first",
             frames_file.display()
         ));
     }
-    let video_file = video_source_path(ctx)?;
-    let out_dir = sf_ocr_fix_dir(&workflow_dir);
+    // 新 subtitle-ocr-post 不再接收 --video, 画面高度优先读 frames.json 的 meta.video_height
+    // (v0.1.1 subtitle-ocr 识别侧写入), 缺失时用 --video-height 兜底 (ffprobe 取原始分辨率高)。
+    let fallback_height = video_source_path(ctx)
+        .map(|v| probe_video_resolution(&v).1)
+        .unwrap_or(0);
+    let out_dir = sf_ocr_fix_dir(&video_dir);
     std::fs::create_dir_all(&out_dir)
         .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", out_dir.display(), e))?;
 
     let args = read_args(ctx);
 
-    let bin = ensure_bin("ocr_post_bin").map_err(|e| {
+    let bin = ensure_bin("subtitle_ocr_post_bin").map_err(|e| {
         anyhow::anyhow!(
-            "{e}\n若下载失败, 请手动执行: cargo run -p cli -- env --action ensure --targets ocr_post_bin"
+            "{e}\n若下载失败, 请手动执行: cargo run -p cli -- env --action ensure --targets subtitle_ocr_post_bin"
         )
     })?;
 
-    let post_args = [
+    let mut post_args = vec![
         "--frames".to_string(),
         frames_file.to_string_lossy().into_owned(),
-        "--video".to_string(),
-        video_file.clone(),
         "--out".to_string(),
         out_dir.to_string_lossy().into_owned(),
         "--threshold".to_string(),
@@ -60,14 +63,18 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         "--stop-at".to_string(),
         "filter-segment".to_string(),
     ];
-    tracing::info!(target: "sf_ocr", "ocr-post {}", post_args.join(" "));
+    if fallback_height > 0 {
+        post_args.push("--video-height".to_string());
+        post_args.push(fallback_height.to_string());
+    }
+    tracing::info!(target: "sf_ocr", "subtitle-ocr-post {}", post_args.join(" "));
     let status = Command::new(&bin)
         .args(&post_args)
         .status()
-        .map_err(|e| anyhow::anyhow!("spawn ocr-post 失败: {e}"))?;
+        .map_err(|e| anyhow::anyhow!("spawn subtitle-ocr-post 失败: {e}"))?;
     if !status.success() {
         return Err(anyhow::anyhow!(
-            "ocr-post failed with exit code {:?}",
+            "subtitle-ocr-post failed with exit code {:?}",
             status.code()
         ));
     }
@@ -86,7 +93,7 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         .cloned()
         .unwrap_or_default();
     tracing::info!(target: "sf_ocr",
-        "ocr-post → {} segments (filtered)",
+        "subtitle-ocr-post → {} segments (filtered)",
         segments.len()
     );
 
@@ -158,7 +165,7 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     }
 
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "sf_ocr_fix",
         StepPatch {
             status: Some(StepStatus::Success),
@@ -184,7 +191,7 @@ mod tests {
 
     fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowCtx {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.workflow_dir = dir.to_string();
+        ctx.workflow.video_dir = dir.to_string();
         ctx.pipeline = "dub".to_string();
         ctx.video_source_path = Some("/x/video.mp4".to_string());
         ctx
@@ -195,7 +202,7 @@ mod tests {
         let ctx = ctx_at(
             "/x",
             json!({
-                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"steps": {"sf_ocr_fix": {}}}
             }),
@@ -210,7 +217,7 @@ mod tests {
         let ctx = ctx_at(
             "/x",
             json!({
-                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"steps": {"sf_ocr_fix": {
                     "adjustedConfidenceThreshold": 0.6, "llmFix": true
@@ -233,7 +240,7 @@ mod tests {
         let ctx = ctx_at(
             &dir,
             json!({
-                "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),

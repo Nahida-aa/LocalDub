@@ -285,11 +285,11 @@ pub fn auto_group_id_and_video_id(url: &str) -> anyhow::Result<AutoInfo> {
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
 
-                let workflow_dir = workfolder().join(&ret.group_id).join(&ret.video_id);
-                if let Err(e) = std::fs::create_dir_all(&workflow_dir) {
+                let video_dir = workfolder().join(&ret.group_id).join(&ret.video_id);
+                if let Err(e) = std::fs::create_dir_all(&video_dir) {
                     warn!("[autoGroupIdAndVideoId] 创建 videoDir 失败: {e}");
                 } else if let Err(e) = std::fs::write(
-                    workflow_dir.join("ytdlp_info.json"),
+                    video_dir.join("ytdlp_info.json"),
                     serde_json::to_string_pretty(&info).unwrap_or_default(),
                 ) {
                     warn!("[autoGroupIdAndVideoId] 写 ytdlp_info.json 失败: {e}");
@@ -310,7 +310,7 @@ pub fn copy_file_to_path(src: &str, target: &str) -> anyhow::Result<()> {
 ///
 /// 注: 不含 TLS; https 远程 URL 请用 yt-dlp 或本地文件。与 TS `downloadRemoteVideo`
 /// (fetch) 对齐, 覆盖 pipeline 常见的 http 直链场景。
-pub fn download_remote_video(url: &str, workflow_dir: &str) -> anyhow::Result<String> {
+pub fn download_remote_video(url: &str, video_dir: &str) -> anyhow::Result<String> {
     let u = parse_url(url).ok_or_else(|| anyhow!("非法 URL: {url}"))?;
     if u.host.is_empty() || (!url.starts_with("http://")) {
         return Err(anyhow!(
@@ -324,7 +324,7 @@ pub fn download_remote_video(url: &str, workflow_dir: &str) -> anyhow::Result<St
         .and_then(|s| s.to_str())
         .filter(|s| !s.is_empty())
         .unwrap_or("video.mp4");
-    let raw_path = Path::new(workflow_dir).join(filename);
+    let raw_path = Path::new(video_dir).join(filename);
 
     use std::io::{Read, Write};
     use std::net::TcpStream;

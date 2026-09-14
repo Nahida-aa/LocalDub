@@ -35,7 +35,7 @@ pub struct Workflow {
     pub title: Option<String>,
     pub status: String,
     pub current_step: Option<String>,
-    pub workflow_dir: String,
+    pub video_dir: String,
     pub final_video_path: Option<String>,
     pub error_message: Option<String>,
     pub created_at: String,
@@ -87,12 +87,12 @@ pub struct WorkflowCtx {
     pub target_language: Option<String>,
 }
 
-pub fn ctx_path(workflow_dir: &str) -> PathBuf {
-    PathBuf::from(workflow_dir).join("ctx.json")
+pub fn ctx_path(video_dir: &str) -> PathBuf {
+    PathBuf::from(video_dir).join("ctx.json")
 }
 
-pub fn read_ctx(workflow_dir: &str) -> Result<WorkflowCtx, String> {
-    let path = ctx_path(workflow_dir);
+pub fn read_ctx(video_dir: &str) -> Result<WorkflowCtx, String> {
+    let path = ctx_path(video_dir);
     let raw = fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
     let json: serde_json::Value = serde_json::from_str(&raw)
@@ -159,16 +159,16 @@ pub fn read_ctx_from_value(json: serde_json::Value) -> Result<WorkflowCtx, Strin
 }
 
 /// 把 [`WorkflowCtx`] 序列化写回 `ctx.json` (镜像 TS `writeCtx`)。
-pub fn write_ctx(workflow_dir: &str, ctx: &WorkflowCtx) -> Result<(), String> {
-    let path = ctx_path(workflow_dir);
+pub fn write_ctx(video_dir: &str, ctx: &WorkflowCtx) -> Result<(), String> {
+    let path = ctx_path(video_dir);
     let json = serde_json::to_string_pretty(ctx)
-        .map_err(|e| format!("Failed to serialize ctx for {}: {}", workflow_dir, e))?;
+        .map_err(|e| format!("Failed to serialize ctx for {}: {}", video_dir, e))?;
     fs::write(&path, json).map_err(|e| format!("Failed to write {}: {}", path.display(), e))?;
     Ok(())
 }
 
-pub fn read_workflow(workflow_dir: &str) -> Result<Workflow, String> {
-    let path = ctx_path(workflow_dir);
+pub fn read_workflow(video_dir: &str) -> Result<Workflow, String> {
+    let path = ctx_path(video_dir);
     let raw = fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
     let json: serde_json::Value = serde_json::from_str(&raw)
@@ -185,12 +185,12 @@ pub fn read_workflow(workflow_dir: &str) -> Result<Workflow, String> {
     })
 }
 
-pub fn read_steps(workflow_dir: &str) -> Result<Vec<WorkflowStep>, String> {
-    read_ctx(workflow_dir).map(|ctx| ctx.steps.unwrap_or_default())
+pub fn read_steps(video_dir: &str) -> Result<Vec<WorkflowStep>, String> {
+    read_ctx(video_dir).map(|ctx| ctx.steps.unwrap_or_default())
 }
 
-pub fn read_pipeline(workflow_dir: &str) -> String {
-    read_ctx(workflow_dir)
+pub fn read_pipeline(video_dir: &str) -> String {
+    read_ctx(video_dir)
         .map(|ctx| ctx.pipeline)
         .unwrap_or_else(|_| "dub".to_string())
 }

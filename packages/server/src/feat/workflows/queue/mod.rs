@@ -408,7 +408,7 @@ fn entry_target(input: &Input) -> &str {
     workflow
         .url
         .as_deref()
-        .or(workflow.workflow_dir.as_deref())
+        .or(workflow.video_dir.as_deref())
         .unwrap_or("-")
 }
 

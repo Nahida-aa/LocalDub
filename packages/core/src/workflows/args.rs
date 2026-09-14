@@ -96,7 +96,7 @@ pub struct WorkflowArgs {
     pub continue_from: Option<StepName>,
     /// 目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤
     pub target_step: Option<StepName>,
-    pub workflow_dir: Option<String>,
+    pub video_dir: Option<String>,
     /// 队列任务 ID (cancel_queue 指定要取消的队列项)
     pub queue_id: Option<u64>,
     /// rerunStep 专业参数, 指定要重新运行的步骤

@@ -16,31 +16,31 @@ use anyhow::Context;
 
 /// 续跑已有任务 (镜像 TS `cmdContinueTask`): 合并 input → 跑 continue_pipeline。
 pub fn continue_workflow(input: &Input) -> anyhow::Result<()> {
-    let workflow_dir = input
+    let video_dir = input
         .workflow
         .as_ref()
-        .and_then(|t| t.workflow_dir.clone())
+        .and_then(|t| t.video_dir.clone())
         .ok_or_else(|| {
             anyhow::anyhow!("continue 模式需要 input.workflow.videoDir 指定已有任务目录")
         })?;
 
-    if !std::path::Path::new(&workflow_dir)
+    if !std::path::Path::new(&video_dir)
         .join("ctx.json")
         .exists()
     {
         return Err(anyhow::anyhow!(
             "continue 模式找不到 {}/ctx.json, 确认 videoDir 正确",
-            workflow_dir
+            video_dir
         ));
     }
 
     // setCtx: 把当前 input 合并进 ctx.json 的 input 字段 (镜像 TS setCtx(videoDir, { input }))
-    let mut ctx = read_ctx(&workflow_dir)
-        .map_err(|e| anyhow::anyhow!("读取 {}/ctx.json 失败: {e}", workflow_dir))?;
+    let mut ctx = read_ctx(&video_dir)
+        .map_err(|e| anyhow::anyhow!("读取 {}/ctx.json 失败: {e}", video_dir))?;
     ctx.input =
         serde_json::to_value(input).map_err(|e| anyhow::anyhow!("序列化 input 失败: {e}"))?;
-    write_ctx(&workflow_dir, &ctx)
-        .map_err(|e| anyhow::anyhow!("写回 {}/ctx.json 失败: {e}", workflow_dir))?;
+    write_ctx(&video_dir, &ctx)
+        .map_err(|e| anyhow::anyhow!("写回 {}/ctx.json 失败: {e}", video_dir))?;
 
     let continue_from = input
         .workflow
@@ -50,9 +50,9 @@ pub fn continue_workflow(input: &Input) -> anyhow::Result<()> {
         .as_ref()
         .map(|cf| format!(" from \"{cf:?}\""))
         .unwrap_or_default();
-    println!("[cli] 续跑模式, workflow_dir = {}{}", workflow_dir, label);
+    println!("[cli] 续跑模式, video_dir = {}{}", video_dir, label);
 
     continue_pipeline(&ctx).context("continue_pipeline 失败")?;
-    println!("[cli] 完成: {}", workflow_dir);
+    println!("[cli] 完成: {}", video_dir);
     Ok(())
 }

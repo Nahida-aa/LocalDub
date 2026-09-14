@@ -20,17 +20,17 @@ fn read_fix_args(ctx: &WorkflowCtx) -> AsrFixArgs {
 
 /// 入口 (镜像 TS `stepAsrFix`)。
 pub fn step_asr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
-    let workflow_dir = ctx.workflow.workflow_dir.clone();
+    let video_dir = ctx.workflow.video_dir.clone();
     let args = read_fix_args(ctx);
     if !args.enabled {
         tracing::info!(target: "asr", "disabled (asr_fix.enabled=false), skipping");
         return Ok(());
     }
-    // asr_fix 目录平级于 workflow_dir (镜像 TS `join(videoDir, "asr_fix")`),
+    // asr_fix 目录平级于 video_dir (镜像 TS `join(videoDir, "asr_fix")`),
     // 与权威字幕路径 (utils::subtitle_path 的 videoDir/asr_fix) 保持一致。
-    let asr_fix_dir = std::path::Path::new(&workflow_dir).join("asr_fix");
+    let asr_fix_dir = std::path::Path::new(&video_dir).join("asr_fix");
     let asr_file = args.asr_file_path.clone().unwrap_or_else(|| {
-        asr_dir(&workflow_dir)
+        asr_dir(&video_dir)
             .join("asr.json")
             .to_string_lossy()
             .to_string()
@@ -72,7 +72,7 @@ pub fn step_asr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             tracing::info!(target: "asr", "domainHint: {h}");
         }
         set_step_anyhow(
-            &workflow_dir,
+            &video_dir,
             "asr_fix",
             StepPatch {
                 last_message: Some(format!("LLM fixing {} segments...", segments.len())),
@@ -138,7 +138,7 @@ pub fn step_asr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     );
 
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "asr_fix",
         StepPatch {
             status: Some(StepStatus::Success),

@@ -11,8 +11,8 @@ use std::path::Path;
 
 use crate::input::Input;
 use crate::workflows::args::WorkflowAction;
-use crate::workflows::import::util::auto_group_id_and_video_id;
 use crate::workflows::import::util::mime_type::VIDEO_EXTENSIONS;
+use crate::workflows::import::util::auto_group_id_and_video_id;
 
 use super::get_workflow::EnqueueDirResult;
 
@@ -63,12 +63,7 @@ pub fn scan_dir_videos(dir: &Path, wf_root: &Path, base_input: &Input) -> DirSca
 
         match auto_group_id_and_video_id(&abs) {
             Ok(info) => {
-                if wf_root
-                    .join(&info.group_id)
-                    .join(&info.video_id)
-                    .join("ctx.json")
-                    .exists()
-                {
+                if wf_root.join(&info.group_id).join(&info.video_id).join("ctx.json").exists() {
                     skipped += 1;
                     skipped_videos.push(info.video_id);
                     continue;
@@ -77,7 +72,7 @@ pub fn scan_dir_videos(dir: &Path, wf_root: &Path, base_input: &Input) -> DirSca
                 if let Some(ref mut w) = video_input.workflow {
                     w.url = Some(abs);
                     w.action = Some(WorkflowAction::Start);
-                    w.workflow_dir = None;
+                    w.video_dir = None;
                 }
                 inputs.push(video_input);
             }
@@ -103,8 +98,8 @@ mod tests {
     use super::*;
 
     fn tmp_dir(name: &str) -> std::path::PathBuf {
-        let d =
-            std::env::temp_dir().join(format!("enqueue_dir_test_{name}_{:?}", std::process::id()));
+        let d = std::env::temp_dir()
+            .join(format!("enqueue_dir_test_{name}_{:?}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
         d

@@ -123,7 +123,7 @@ pub(super) fn entry_action_target(input: &Input) -> (Option<String>, Option<Stri
     let target = workflow
         .url
         .as_deref()
-        .or(workflow.workflow_dir.as_deref())
+        .or(workflow.video_dir.as_deref())
         .map(|s| s.to_string());
     (action, target)
 }

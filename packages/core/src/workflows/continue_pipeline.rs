@@ -15,12 +15,12 @@ use crate::workflows::pipeline::{has_handler, run_step};
 
 /// 续跑 pipeline (镜像 TS `continuePipeline`)。
 ///
-/// `ctx` 必须由调用者先 `read_ctx(workflow_dir)` (或自行构造) 后传入; 内部不再读磁盘,
+/// `ctx` 必须由调用者先 `read_ctx(video_dir)` (或自行构造) 后传入; 内部不再读磁盘,
 /// 避免续跑基于陈旧 ctx。
 pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
-    let workflow_dir = ctx.workflow.workflow_dir.as_str();
-    // 进入 workflow span: 携带 workflow_dir 供 WorkflowFileLayer 落盘。
-    let _workflow_guard = tracing::info_span!("workflow", workflow_dir = workflow_dir).entered();
+    let video_dir = ctx.workflow.video_dir.as_str();
+    // 进入 workflow span: 携带 video_dir 供 WorkflowFileLayer 落盘。
+    let _workflow_guard = tracing::info_span!("workflow", video_dir = video_dir).entered();
     tracing::info!(target: "pipeline", "continue_pipeline: start");
 
     let pipeline = ctx.pipeline.clone();
@@ -62,7 +62,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         // run_step 会重新写入 started_at / completed_at, 残留的旧时间戳无害。
         for i in start_idx..steps.len() {
             set_step_anyhow(
-                workflow_dir,
+                video_dir,
                 &steps[i],
                 StepPatch {
                     status: Some(StepStatus::Pending),
@@ -100,7 +100,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     }
 
     set_workflow_anyhow(
-        workflow_dir,
+        video_dir,
         crate::steps::utils::WorkflowPatch {
             status: Some("running".to_string()),
             started_at: Some(now_iso()),
@@ -125,7 +125,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         }
 
         set_step_anyhow(
-            workflow_dir,
+            video_dir,
             step,
             StepPatch {
                 status: Some(StepStatus::Running),
@@ -135,7 +135,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             },
         )?;
         set_workflow_anyhow(
-            workflow_dir,
+            video_dir,
             crate::steps::utils::WorkflowPatch {
                 status: Some("running".to_string()),
                 current_step: Some(Some(step.clone())),
@@ -144,7 +144,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         )?;
         tracing::info!(target: "pipeline", "Running {step}");
 
-        match run_step(step, workflow_dir) {
+        match run_step(step, video_dir) {
             Ok(()) => {
                 if let Some(ts) = &target_step {
                     if step == ts {
@@ -157,7 +157,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
                 let msg = e.to_string();
                 tracing::error!(target: "pipeline", "Step {step} failed: {msg}");
                 set_step_anyhow(
-                    workflow_dir,
+                    video_dir,
                     step,
                     StepPatch {
                         status: Some(StepStatus::Failed),
@@ -167,7 +167,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
                     },
                 )?;
                 set_workflow_anyhow(
-                    workflow_dir,
+                    video_dir,
                     crate::steps::utils::WorkflowPatch {
                         status: Some("failed".to_string()),
                         error_message: Some(msg),
@@ -180,7 +180,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     }
 
     set_workflow_anyhow(
-        workflow_dir,
+        video_dir,
         crate::steps::utils::WorkflowPatch {
             status: Some("success".to_string()),
             completed_at: Some(now_iso()),

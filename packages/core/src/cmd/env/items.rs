@@ -703,7 +703,7 @@ fn spawn_detached(bin: &str, args: &[&str]) {
 }
 
 // ---------------------------------------------------------------------------
-// vision-lab release 二进制 (subtitle-finder / subtitle-ocr / ocr-post):
+// vision-lab release 二进制 (subtitle-finder / subtitle-ocr / subtitle-ocr-post):
 // 从 vision-lab GitHub Release 下载, 校验 sha256 后写版本戳 (版本戳管理防重下)。
 //
 // 资产命名规范: Linux `<bin>-<target-triple>` (单文件), Windows `<bin>-<target-triple>.zip`
@@ -757,26 +757,26 @@ const SUBTITLE_OCR: ReleaseBinSpec = ReleaseBinSpec {
     key: "subtitle_ocr_bin",
     bin: "subtitle-ocr",
     repo: "Nahida-aa/vision-lab",
-    tag: "subtitle-ocr-v0.1.0",
+    tag: "subtitle-ocr-v0.1.1",
     zip: false,
     linux_asset: "subtitle-ocr-x86_64-unknown-linux-gnu",
-    linux_sha256: "5e4dc400e52fd9b9759d9a4e8a5714aa0622078cd8a52a7035178d8bd91ba6ca",
+    linux_sha256: "ef0825c5b5f5c4cc3177cd27f49fe4d435e8ffe26d82cf168b042978b9cfba83",
     windows_asset: Some("subtitle-ocr-x86_64-pc-windows-msvc.zip"),
-    windows_sha256: Some("bd2880bc2d7e63383fbd580b69619631343298d71fa037bf97fc976a8733e079"),
+    windows_sha256: Some("7dfec92f6089b6213c0be9e69ee9c589a5730c5acb6dc6b33da96dffbf0389e7"),
     stamp: ".subtitle_ocr.version.json",
 };
 
-const OCR_POST: ReleaseBinSpec = ReleaseBinSpec {
-    key: "ocr_post_bin",
-    bin: "ocr-post",
+const SUBTITLE_OCR_POST: ReleaseBinSpec = ReleaseBinSpec {
+    key: "subtitle_ocr_post_bin",
+    bin: "subtitle-ocr-post",
     repo: "Nahida-aa/vision-lab",
-    tag: "subtitle-ocr-v0.1.0",
+    tag: "subtitle-ocr-post-v0.1.2",
     zip: false,
-    linux_asset: "ocr-post-x86_64-unknown-linux-gnu",
-    linux_sha256: "107187c94051c8fda46f2fc18d6c6e8835593caa4fa8703a9fc3b41d1473a101",
-    windows_asset: Some("ocr-post-x86_64-pc-windows-msvc.zip"),
-    windows_sha256: Some("a2aaeda6cd4cc8861a6c5747216bf95361250bb32c86a8f19a8187eb888c0e2d"),
-    stamp: ".ocr_post.version.json",
+    linux_asset: "subtitle-ocr-post-x86_64-unknown-linux-gnu",
+    linux_sha256: "c9449cecc0bfb718c6f5cdfe52ffc3ab468a370698647e7ea65257520a5f86e1",
+    windows_asset: Some("subtitle-ocr-post-x86_64-pc-windows-msvc.zip"),
+    windows_sha256: Some("c8c3d3be0c283dfcc3388b4355790bd0ce43a3c82732fdbc1b5f763554f7d414"),
+    stamp: ".subtitle_ocr_post.version.json",
 };
 
 const DEMUCS_BURN_TCH: ReleaseBinSpec = ReleaseBinSpec {
@@ -914,6 +914,45 @@ fn release_bin_url(spec: &ReleaseBinSpec, asset: &str) -> String {
     )
 }
 
+/// 查上游最新 tag (用于「有新版可更新」提示)。
+///
+/// 列 `spec.repo` 的 releases, 取**第一个** tag 以 `{spec.bin}-` 开头的——
+/// vision-lab 一个 repo 里放多个二进制的 release, 前缀用来区分。
+/// 任何失败 (网络 / 限流 / 无匹配) 一律返回 `None`: 这是提示性信息,
+/// 不该让 env 检查本身失败。
+///
+/// 结果由 `check_release_bin` 塞进 `CheckResult.data["latest_tag"]`,
+/// 由 `cmd::env::mod::format_result` 渲染成 `upstream: <tag> (有新版可更新)`。
+fn fetch_latest_tag(spec: &ReleaseBinSpec) -> Option<String> {
+    let url = format!("https://api.github.com/repos/{}/releases", spec.repo);
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(6))
+        .build()
+        .ok()?;
+    let mut req = client
+        .get(&url)
+        .header("User-Agent", "localdub-env-check")
+        .header("Accept", "application/vnd.github+json");
+    if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+        let token = token.trim();
+        if !token.is_empty() {
+            req = req.header("Authorization", format!("Bearer {token}"));
+        }
+    }
+    let resp = req.send().ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let releases: serde_json::Value = resp.json().ok()?;
+    let mut tags = releases
+        .as_array()?
+        .iter()
+        .filter_map(|r| r.get("tag_name")?.as_str());
+    let prefix = format!("{}-", spec.bin);
+    tags.find(|t| t.starts_with(&prefix))
+        .map(|t| t.to_string())
+}
+
 /// 读取版本戳
 fn read_version_stamp(path: &Path) -> Option<serde_json::Value> {
     if path.exists() {
@@ -1041,10 +1080,16 @@ fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
         };
     }
 
+    // 已就绪：顺带问一下上游最新 tag，让 UI 能提示「有新版可更新」。
+    // 查不到就是 None，不写这个字段（渲染侧会跳过）——提示性信息不该让 check 失败。
+    let mut data = json!({ "path": path.display().to_string(), "msg": "已就绪" });
+    if let Some(latest) = fetch_latest_tag(spec) {
+        data["latest_tag"] = json!(latest);
+    }
     CheckResult {
         key: spec.key.to_string(),
         status: CheckStatus::Pass,
-        data: json!({ "path": path.display().to_string(), "msg": "已就绪" }),
+        data,
         required: false,
     }
 }
@@ -1221,8 +1266,8 @@ pub fn check_subtitle_finder_bin() -> CheckResult {
 pub fn check_subtitle_ocr_bin() -> CheckResult {
     check_release_bin(&SUBTITLE_OCR)
 }
-pub fn check_ocr_post_bin() -> CheckResult {
-    check_release_bin(&OCR_POST)
+pub fn check_subtitle_ocr_post_bin() -> CheckResult {
+    check_release_bin(&SUBTITLE_OCR_POST)
 }
 fn ensure_subtitle_finder_bin() -> CheckResult {
     ensure_release_bin(&SUBTITLE_FINDER)
@@ -1230,8 +1275,8 @@ fn ensure_subtitle_finder_bin() -> CheckResult {
 fn ensure_subtitle_ocr_bin() -> CheckResult {
     ensure_release_bin(&SUBTITLE_OCR)
 }
-fn ensure_ocr_post_bin() -> CheckResult {
-    ensure_release_bin(&OCR_POST)
+fn ensure_subtitle_ocr_post_bin() -> CheckResult {
+    ensure_release_bin(&SUBTITLE_OCR_POST)
 }
 
 /// 当前平台的目标二进制路径 (供 `bin_path_from_key` 复用, 与下载路径保持一致)。
@@ -1241,8 +1286,8 @@ pub fn subtitle_finder_bin_path() -> PathBuf {
 pub fn subtitle_ocr_bin_path() -> PathBuf {
     release_bin_path(&SUBTITLE_OCR)
 }
-pub fn ocr_post_bin_path() -> PathBuf {
-    release_bin_path(&OCR_POST)
+pub fn subtitle_ocr_post_bin_path() -> PathBuf {
+    release_bin_path(&SUBTITLE_OCR_POST)
 }
 
 pub fn check_demucs_burn_tch_bin() -> CheckResult {
@@ -1337,7 +1382,7 @@ pub fn all_checks() -> HashMap<&'static str, fn() -> CheckResult> {
     m.insert("demucs_burn_bin", || check_demucs_burn_bin(None));
     m.insert("subtitle_finder_bin", check_subtitle_finder_bin);
     m.insert("subtitle_ocr_bin", check_subtitle_ocr_bin);
-    m.insert("ocr_post_bin", check_ocr_post_bin);
+    m.insert("subtitle_ocr_post_bin", check_subtitle_ocr_post_bin);
     m.insert("demucs_burn_tch_bin", check_demucs_burn_tch_bin);
     m.insert("demucs_burn_wgpu_bin", check_demucs_burn_wgpu_bin);
     m.insert("cmake", check_cmake);
@@ -1354,7 +1399,7 @@ pub fn ensure_fns() -> HashMap<&'static str, fn() -> CheckResult> {
     m.insert("openai", ensure_openai);
     m.insert("subtitle_finder_bin", ensure_subtitle_finder_bin);
     m.insert("subtitle_ocr_bin", ensure_subtitle_ocr_bin);
-    m.insert("ocr_post_bin", ensure_ocr_post_bin);
+    m.insert("subtitle_ocr_post_bin", ensure_subtitle_ocr_post_bin);
     m.insert("demucs_burn_tch_bin", ensure_demucs_burn_tch_bin);
     m.insert("demucs_burn_wgpu_bin", ensure_demucs_burn_wgpu_bin);
     m.insert("whisper_bin", ensure_whisper_bin);
@@ -1498,3 +1543,4 @@ mod tests {
         );
     }
 }
+

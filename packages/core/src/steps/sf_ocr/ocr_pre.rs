@@ -12,11 +12,11 @@ use std::process::Command;
 
 /// 入口 (镜像 TS `stepSfOcrPre`)。
 pub fn step_sf_ocr_pre(ctx: &WorkflowCtx) -> anyhow::Result<()> {
-    let workflow_dir = ctx.workflow.workflow_dir.clone();
+    let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "sf_ocr", "start");
 
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "sf_ocr_pre",
         StepPatch {
             last_message: Some("查找字幕关键帧...".into()),
@@ -36,7 +36,7 @@ pub fn step_sf_ocr_pre(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         )
     })?;
 
-    let out_dir = sf_ocr_pre_dir(&workflow_dir);
+    let out_dir = sf_ocr_pre_dir(&video_dir);
     ensure_dir(&out_dir)?;
 
     tracing::info!(target: "sf_ocr", "subtitle-finder {video_path} --out {}", out_dir.display());
@@ -76,7 +76,7 @@ pub fn step_sf_ocr_pre(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     );
 
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "sf_ocr_pre",
         StepPatch {
             status: Some(StepStatus::Success),
@@ -98,12 +98,12 @@ mod tests {
 
     fn ctx_at(dir: &str) -> WorkflowCtx {
         let mut ctx = read_ctx_from_value(json!({
-            "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
+            "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                      "status":"running","created_at":"2024-01-01T00:00:00Z"},
             "input": {}
         }))
         .unwrap();
-        ctx.workflow.workflow_dir = dir.to_string();
+        ctx.workflow.video_dir = dir.to_string();
         ctx.pipeline = "dub".to_string();
         ctx
     }

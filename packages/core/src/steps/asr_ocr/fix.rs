@@ -243,11 +243,11 @@ fn final_dedup(segs: Vec<OcrSegment>) -> Vec<OcrSegment> {
 
 /// Entry point (mirrors TS `stepAsrOcrFix`).
 pub fn step_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
-    let workflow_dir = ctx.workflow.workflow_dir.clone();
+    let video_dir = ctx.workflow.video_dir.clone();
     info!(target: "asr_ocr", "step_asr_ocr_fix: start");
 
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "asr_ocr_fix",
         StepPatch {
             last_message: Some("Fusing ASR + OCR...".into()),
@@ -257,13 +257,13 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
     )?;
 
     let args = read_args(ctx);
-    let out_dir = asr_ocr_fix_dir(&workflow_dir);
+    let out_dir = asr_ocr_fix_dir(&video_dir);
     fs::create_dir_all(&out_dir)?;
 
     // Read upstream artifacts
-    let asr_file = asr_dir(&workflow_dir).join("asr.json");
-    let asr_split_file = asr_ocr_pre_dir(&workflow_dir).join("asr_split.json");
-    let ocr_frames_file = asr_ocr_dir(&workflow_dir).join("frames.json");
+    let asr_file = asr_dir(&video_dir).join("asr.json");
+    let asr_split_file = asr_ocr_pre_dir(&video_dir).join("asr_split.json");
+    let ocr_frames_file = asr_ocr_dir(&video_dir).join("frames.json");
 
     if !asr_file.exists() {
         return Err(anyhow::anyhow!(
@@ -527,7 +527,7 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
     );
 
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "asr_ocr_fix",
         StepPatch {
             status: Some(StepStatus::Success),

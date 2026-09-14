@@ -32,20 +32,20 @@ fn read_args(ctx: &WorkflowCtx) -> AsrArgs {
 }
 
 /// 解析 ASR 人声基线路径 (镜像 TS asr.ts:30: vocalAudioPath 覆盖默认 vocals 路径)。
-fn resolve_audio_vocal(cfg: &AsrArgs, workflow_dir: &str) -> PathBuf {
+fn resolve_audio_vocal(cfg: &AsrArgs, video_dir: &str) -> PathBuf {
     cfg.vocal_audio_path
         .clone()
         .map(PathBuf::from)
-        .unwrap_or_else(|| vocals_path(workflow_dir))
+        .unwrap_or_else(|| vocals_path(video_dir))
 }
 
 /// 入口 (镜像 TS `stepAsr`)。
 pub fn step_asr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
-    let workflow_dir = ctx.workflow.workflow_dir.clone();
+    let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "asr", "start");
 
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "asr",
         StepPatch {
             last_message: Some("Transcribing...".into()),
@@ -62,7 +62,7 @@ pub fn step_asr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     }
 
     // —— 解析输入音频 (镜像 TS stepAsr 的 useSeparated / mixed / gated 逻辑) ——
-    let audio_vocal = resolve_audio_vocal(&cfg, &workflow_dir);
+    let audio_vocal = resolve_audio_vocal(&cfg, &video_dir);
     let video_source = video_source_path(ctx)?;
 
     let mut audio_path: String = if cfg.use_separated {
@@ -77,8 +77,8 @@ pub fn step_asr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     }
 
     if cfg.use_separated {
-        let mixed = mixed_vocals_path(&workflow_dir);
-        let gated = gated_vocals_path(&workflow_dir);
+        let mixed = mixed_vocals_path(&video_dir);
+        let gated = gated_vocals_path(&video_dir);
         let mixed_or_gated = if gated.exists() {
             Some(gated)
         } else if mixed.exists() {
@@ -98,7 +98,7 @@ pub fn step_asr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     tracing::info!(target: "asr", "runtime={runtime} device=vulkan");
 
     // —— 准备 whisper 输入 WAV (已是 .wav 则直接复用, 否则 ffmpeg 转单声道) ——
-    let audio_dir = asr_dir(&workflow_dir);
+    let audio_dir = asr_dir(&video_dir);
     ensure_dir(&audio_dir)?;
     let tmp_audio: String = if audio_path.to_lowercase().ends_with(".wav") {
         tracing::info!(target: "asr", "Using existing WAV input: {audio_path}");
@@ -338,7 +338,7 @@ pub fn step_asr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     std::fs::write(&asr_file, json).with_context(|| format!("写入 {} 失败", asr_file.display()))?;
 
     // 持久化检测到的语言到 ctx (镜像 TS setCtx asr_language)
-    set_asr_language(&workflow_dir, &detected_language)?;
+    set_asr_language(&video_dir, &detected_language)?;
 
     // —— 幻觉段后处理 (所有路径 shared) ——
     postprocess_hallucination(&asr_file, &audio_path)?;
@@ -349,7 +349,7 @@ pub fn step_asr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     );
 
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "asr",
         StepPatch {
             status: Some(StepStatus::Success),
@@ -364,10 +364,10 @@ pub fn step_asr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
 }
 
 /// 把检测语言写回 ctx.json (镜像 TS `setCtx(videoDir, { asr_language })`)。
-fn set_asr_language(workflow_dir: &str, lang: &str) -> anyhow::Result<()> {
-    let mut ctx = crate::context::read_ctx(workflow_dir).map_err(anyhow::Error::msg)?;
+fn set_asr_language(video_dir: &str, lang: &str) -> anyhow::Result<()> {
+    let mut ctx = crate::context::read_ctx(video_dir).map_err(anyhow::Error::msg)?;
     ctx.asr_language = Some(crate::r#const::lang::Language::new(lang));
-    write_ctx(workflow_dir, &ctx).map_err(anyhow::Error::msg)
+    write_ctx(video_dir, &ctx).map_err(anyhow::Error::msg)
 }
 
 /// 把可选 f64 参数以 `--kebab` 形式追加 (数值等于默认值时也追加, 与 TS 行为一致)。
@@ -541,7 +541,7 @@ mod tests {
             .to_string();
         std::fs::create_dir_all(&dir).unwrap();
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.workflow_dir = dir.clone();
+        ctx.workflow.video_dir = dir.clone();
         ctx.pipeline = "dub".into();
         write_ctx(&dir, &ctx).unwrap();
         ctx
@@ -570,7 +570,7 @@ mod tests {
     fn step_asr_skips_when_disabled() {
         // enabled=false 时不触达 whisper 二进制, 直接 Ok
         let ctx = test_ctx(json!({
-            "workflow": {"id":"t","workflow_dir":"/nonexistent_workflow_dir","url":"http://e","source":"remote",
+            "workflow": {"id":"t","video_dir":"/nonexistent_video_dir","url":"http://e","source":"remote",
                      "status":"running","created_at":"2024-01-01T00:00:00Z",
                      "videoSourcePath":"/nonexistent.mp4"},
             "input": {"steps": {"asr": {"enabled": false}}}
@@ -583,7 +583,7 @@ mod tests {
     fn step_asr_missing_input_errors() {
         // useSeparated=false 且 video_source 不存在 → 报错 (不静默跳过)
         let ctx = test_ctx(json!({
-            "workflow": {"id":"t","workflow_dir":"/nonexistent_workflow_dir","url":"http://e","source":"remote",
+            "workflow": {"id":"t","video_dir":"/nonexistent_video_dir","url":"http://e","source":"remote",
                      "status":"running","created_at":"2024-01-01T00:00:00Z"},
             "video_source_path": "/nonexistent_video.mp4",
             "input": {"steps": {"asr": {"enabled": true, "useSeparated": false}}}

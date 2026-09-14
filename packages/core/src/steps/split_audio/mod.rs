@@ -54,7 +54,7 @@ impl SegmentBounds for SplitAudioTiming {
 
 /// 入口 (镜像 TS `stepSplitAudio`)。
 pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
-    let workflow_dir = ctx.workflow.workflow_dir.clone();
+    let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "split_audio", "start");
 
     let args = read_args(ctx);
@@ -87,7 +87,7 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         .unwrap_or_else(|| fallback_source);
 
     let vocals_file_path = args.vocals_file_path.clone().unwrap_or_else(|| {
-        let p = vocals_path(&workflow_dir);
+        let p = vocals_path(&video_dir);
         p.to_string_lossy().into_owned()
     });
     let has_vocals = Path::new(&vocals_file_path).exists();
@@ -186,7 +186,7 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
 
     let total_ms = probe_duration_ms(&source_audio);
 
-    let split_audio_dir = Path::new(&workflow_dir).join("split_audio");
+    let split_audio_dir = Path::new(&video_dir).join("split_audio");
     let vocals_segment_dir = split_audio_dir.join("vocals");
     ensure_dir(&vocals_segment_dir)?;
     ensure_dir(&split_audio_dir)?;
@@ -195,7 +195,7 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     if has_vocals {
         // 若翻译文件比已切出的块更新 (重跑翻译), 清空旧块重新切
         let translation_file =
-            crate::steps::utils::translation_file_path(&workflow_dir, &target_lang);
+            crate::steps::utils::translation_file_path(&video_dir, &target_lang);
         let has_seg = fs::read_dir(&vocals_segment_dir)
             .ok()
             .map(|d| {
@@ -257,7 +257,7 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         segments: split_segments.clone(),
         meta: meta.clone(),
     };
-    let split_path = split_audio_path(&workflow_dir);
+    let split_path = split_audio_path(&video_dir);
     let json = serde_json::to_string_pretty(&split_result)
         .map_err(|e| anyhow::anyhow!("序列化 split_audio 结果失败: {e}"))?;
     fs::write(&split_path, json)
@@ -289,14 +289,14 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     let timing_result = SplitAudioTimingResult {
         segments: timings.clone(),
     };
-    let timings_path = split_audio_timings_path(&workflow_dir);
+    let timings_path = split_audio_timings_path(&video_dir);
     let json = serde_json::to_string_pretty(&timing_result)
         .map_err(|e| anyhow::anyhow!("序列化 timings 失败: {e}"))?;
     fs::write(&timings_path, json)
         .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", timings_path.display(), e))?;
 
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "split_audio",
         StepPatch {
             status: Some(StepStatus::Success),
@@ -323,7 +323,7 @@ mod tests {
     #[test]
     fn field_defaults_when_absent() {
         let ctx = ctx_with_input(json!({
-            "workflow": {"id": "t", "workflow_dir": "/x", "url": "http://e", "source": "remote",
+            "workflow": {"id": "t", "video_dir": "/x", "url": "http://e", "source": "remote",
                      "status": "running", "created_at": "2024-01-01T00:00:00Z"},
             "input": {"steps": {"split_audio": {}}}
         }));
@@ -338,7 +338,7 @@ mod tests {
     #[test]
     fn read_config_parses_camel_case_fields() {
         let ctx = ctx_with_input(json!({
-            "workflow": {"id": "t", "workflow_dir": "/x", "url": "http://e", "source": "remote",
+            "workflow": {"id": "t", "video_dir": "/x", "url": "http://e", "source": "remote",
                      "status": "running", "created_at": "2024-01-01T00:00:00Z"},
             "input": {"steps": {"split_audio": {
                 "vadAlign": true,

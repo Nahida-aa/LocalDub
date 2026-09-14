@@ -1,10 +1,10 @@
 //! 日志基础设施: 任务级文件落盘 Layer + 统一初始化。
 //!
 //! 取代旧的手搓 `emit_log` + thread_local `LOG_CTX` 方案:
-//! - 上下文用 tracing span: pipeline 入口进入 `workflow` span (携带 `workflow_dir` 字段),
+//! - 上下文用 tracing span: pipeline 入口进入 `workflow` span (携带 `video_dir` 字段),
 //!   step 入口进入 `step` span (携带 `step` 字段)。
-//! - 落盘用 [`WorkflowFileLayer`]: 订阅事件, 从当前 span 栈提取 `workflow_dir` 写到
-//!   `<workflow_dir>/<tid>.log`, 行格式与重构前一致 (`[时间] [step] 文本`)。
+//! - 落盘用 [`WorkflowFileLayer`]: 订阅事件, 从当前 span 栈提取 `video_dir` 写到
+//!   `<video_dir>/<tid>.log`, 行格式与重构前一致 (`[时间] [step] 文本`)。
 //! - 级别由调用处 `tracing::{info,warn,error}!` 决定, 不再依赖消息文本前缀。
 
 use std::fs::OpenOptions;
@@ -22,14 +22,14 @@ use crate::steps::utils::{now_iso, video_id};
 /// 存在 span extensions 里的字段值, 供 on_event 读取。
 #[derive(Default, Clone)]
 struct SpanFields {
-    workflow_dir: Option<String>,
+    video_dir: Option<String>,
     step: Option<String>,
 }
 
 impl Visit for SpanFields {
     fn record_str(&mut self, field: &Field, value: &str) {
         match field.name() {
-            "workflow_dir" => self.workflow_dir = Some(value.to_string()),
+            "video_dir" => self.video_dir = Some(value.to_string()),
             "step" => self.step = Some(value.to_string()),
             _ => {}
         }
@@ -37,21 +37,21 @@ impl Visit for SpanFields {
 
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         match field.name() {
-            "workflow_dir" => self.workflow_dir = Some(format!("{value:?}")),
+            "video_dir" => self.video_dir = Some(format!("{value:?}")),
             "step" => self.step = Some(format!("{value:?}")),
             _ => {}
         }
     }
 }
 
-/// 自定义 Layer: 把事件追加写到当前 workflow 的 `<workflow_dir>/<tid>.log`。
+/// 自定义 Layer: 把事件追加写到当前 workflow 的 `<video_dir>/<tid>.log`。
 ///
-/// 不依赖 thread_local: 在 `on_new_span` 时把 `workflow_dir`/`step` 字段值存进 span 的
+/// 不依赖 thread_local: 在 `on_new_span` 时把 `video_dir`/`step` 字段值存进 span 的
 /// extensions, `on_event` 时从事件所在 span 作用域提取并落盘。无 `workflow` span 时不写文件。
 struct WorkflowFileLayer;
 
 impl WorkflowFileLayer {
-    /// 从事件所在的 span 作用域提取 `workflow_dir` / `step`。
+    /// 从事件所在的 span 作用域提取 `video_dir` / `step`。
     fn extract<'a, S>(ctx: &Context<'a, S>, event: &Event<'_>) -> SpanFields
     where
         S: Subscriber + for<'b> LookupSpan<'b>,
@@ -61,8 +61,8 @@ impl WorkflowFileLayer {
         if let Some(scope) = ctx.event_scope(event) {
             for span in scope {
                 if let Some(f) = span.extensions().get::<SpanFields>() {
-                    if f.workflow_dir.is_some() {
-                        out.workflow_dir = f.workflow_dir.clone();
+                    if f.video_dir.is_some() {
+                        out.video_dir = f.video_dir.clone();
                     }
                     if f.step.is_some() {
                         out.step = f.step.clone();
@@ -86,7 +86,7 @@ where
     ) {
         let mut f = SpanFields::default();
         attrs.record(&mut f);
-        if f.workflow_dir.is_none() && f.step.is_none() {
+        if f.video_dir.is_none() && f.step.is_none() {
             return;
         }
         if let Some(span) = ctx.span(id) {
@@ -96,13 +96,13 @@ where
 
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
         let fields = Self::extract(&ctx, event);
-        let Some(workflow_dir) = fields.workflow_dir else {
+        let Some(video_dir) = fields.video_dir else {
             return; // 不在 workflow 上下文, 不落盘
         };
-        let Some(tid) = video_id(&workflow_dir) else {
+        let Some(tid) = video_id(&video_dir) else {
             return;
         };
-        let log_path = Path::new(&workflow_dir).join(format!("{tid}.log"));
+        let log_path = Path::new(&video_dir).join(format!("{tid}.log"));
         let step_prefix = fields.step.map(|s| format!("[{s}] ")).unwrap_or_default();
 
         // 取事件的 message 字段作为文本主体。

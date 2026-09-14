@@ -31,14 +31,14 @@ fn read_args(ctx: &WorkflowCtx) -> MixVideoArgs {
 
 /// 入口 (镜像 TS `stepMixVideo`)。
 pub fn step_mix_video(ctx: &WorkflowCtx) -> anyhow::Result<()> {
-    let workflow_dir = ctx.workflow.workflow_dir.clone();
+    let video_dir = ctx.workflow.video_dir.clone();
     let video_id = ctx.workflow.id.clone();
     let cfg = read_args(ctx);
 
     if !cfg.enabled {
         tracing::info!(target: "mix_video", "disabled (mix_video.enabled=false), skipping");
         set_step_anyhow(
-            &workflow_dir,
+            &video_dir,
             "mix_video",
             StepPatch {
                 status: Some(StepStatus::Success),
@@ -52,7 +52,7 @@ pub fn step_mix_video(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     }
 
     let video_file_path = video_source_path(ctx)?;
-    let merge_dir = std::path::Path::new(&workflow_dir).join("mix_video");
+    let merge_dir = std::path::Path::new(&video_dir).join("mix_video");
     ensure_dir(&merge_dir)?;
 
     if !std::path::Path::new(&video_file_path).exists() {
@@ -127,7 +127,7 @@ pub fn step_mix_video(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         )
         .map_err(|e| anyhow!("mix_video (subtitle) ffmpeg 失败: {e}"))?;
     } else {
-        let dubbing_file = dubbing_path(&workflow_dir);
+        let dubbing_file = dubbing_path(&video_dir);
         if !dubbing_file.exists() {
             return Err(anyhow!(
                 "audio_dubbing.wav not found: {}; 请先运行 mix_audio",
@@ -138,7 +138,7 @@ pub fn step_mix_video(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             .bgm_path
             .clone()
             .map(PathBuf::from)
-            .unwrap_or_else(|| bgm_path(&workflow_dir));
+            .unwrap_or_else(|| bgm_path(&video_dir));
 
         let sub_path = merge_dir.join(format!("{target_lang}.srt"));
         build_subtitle_srt_dub_branch(ctx, &sub_path, &cfg)?;
@@ -210,7 +210,7 @@ pub fn step_mix_video(ctx: &WorkflowCtx) -> anyhow::Result<()> {
 
     // 写回 ctx.workflow.final_video_path (镜像 TS mix_video 设置 finalVideoPath)
     set_workflow_anyhow(
-        &workflow_dir,
+        &video_dir,
         WorkflowPatch {
             final_video_path: Some(Some(final_video.to_string_lossy().into_owned())),
             ..Default::default()
@@ -218,7 +218,7 @@ pub fn step_mix_video(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     )?;
 
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "mix_video",
         StepPatch {
             status: Some(StepStatus::Success),
@@ -287,7 +287,7 @@ fn build_subtitle_srt_subtitle_branch(
     no_translate: bool,
     vad_align: bool,
 ) -> anyhow::Result<()> {
-    let workflow_dir = ctx.workflow.workflow_dir.clone();
+    let video_dir = ctx.workflow.video_dir.clone();
     let (_, target_lang) = resolve_language(ctx)?;
 
     let segs: Vec<SrtSeg> = if vad_align {
@@ -295,7 +295,7 @@ fn build_subtitle_srt_subtitle_branch(
         let data = read_split_audio(ctx).with_context(|| {
             format!(
                 "读取 split_audio 结果失败: {}",
-                split_audio_path(&workflow_dir).display()
+                split_audio_path(&video_dir).display()
             )
         })?;
         extract_segs_from_value(&data)?
@@ -307,7 +307,7 @@ fn build_subtitle_srt_subtitle_branch(
             .unwrap_or_else(|| subtitle_file_path(ctx));
         read_srt_file_to_segs(&srt_path)?
     } else {
-        let tr_file = crate::steps::utils::translation_file_path(&workflow_dir, &target_lang);
+        let tr_file = crate::steps::utils::translation_file_path(&video_dir, &target_lang);
         let data = read_translation_result(ctx)
             .with_context(|| format!("读取翻译结果失败: {}", tr_file.display()))?;
         extract_segs_from_value(&data)?
@@ -356,8 +356,8 @@ fn build_subtitle_srt_dub_branch(
     sub_path: &std::path::Path,
     _cfg: &MixVideoArgs,
 ) -> anyhow::Result<()> {
-    let workflow_dir = ctx.workflow.workflow_dir.clone();
-    let data = read_timings(&workflow_dir).map_err(|e| anyhow!("读取 timings 失败: {e}"))?;
+    let video_dir = ctx.workflow.video_dir.clone();
+    let data = read_timings(&video_dir).map_err(|e| anyhow!("读取 timings 失败: {e}"))?;
     let segs: Vec<SrtSeg> = data
         .segments
         .iter()

@@ -24,11 +24,11 @@ fn read_args(ctx: &WorkflowCtx) -> AsrOcrArgs {
 
 /// Entry point (mirrors TS `stepAsrOcr`).
 pub fn step_asr_ocr(ctx: &WorkflowCtx) -> Result<()> {
-    let workflow_dir = ctx.workflow.workflow_dir.clone();
+    let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "asr_ocr", "step_asr_ocr: start");
 
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "asr_ocr",
         StepPatch {
             last_message: Some("OCR'ing frames...".into()),
@@ -39,7 +39,7 @@ pub fn step_asr_ocr(ctx: &WorkflowCtx) -> Result<()> {
 
     let cfg = read_args(ctx);
 
-    let frame_dir = asr_ocr_pre_dir(&workflow_dir).join("frames");
+    let frame_dir = asr_ocr_pre_dir(&video_dir).join("frames");
     if !frame_dir.exists() {
         return Err(anyhow::anyhow!(
             "Frame directory not found: {} — run asr_ocr_pre first",
@@ -53,7 +53,7 @@ pub fn step_asr_ocr(ctx: &WorkflowCtx) -> Result<()> {
         )
     })?;
 
-    let out_dir = asr_ocr_dir(&workflow_dir);
+    let out_dir = asr_ocr_dir(&video_dir);
     fs::create_dir_all(&out_dir)
         .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", out_dir.display(), e))?;
     let out_file = out_dir.join("frames.json");
@@ -108,7 +108,7 @@ pub fn step_asr_ocr(ctx: &WorkflowCtx) -> Result<()> {
     }
 
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "asr_ocr",
         StepPatch {
             status: Some(StepStatus::Success),
@@ -129,7 +129,7 @@ mod tests {
 
     fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowCtx {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.workflow_dir = dir.to_string();
+        ctx.workflow.video_dir = dir.to_string();
         ctx.pipeline = "dub".to_string();
         ctx
     }
@@ -145,7 +145,7 @@ mod tests {
         let ctx = ctx_at(
             &dir,
             json!({
-                "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),

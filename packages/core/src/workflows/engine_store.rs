@@ -1,5 +1,5 @@
 //! workflow-core 的文件系统 [`RunStore`] 实现: 引擎持久化落盘到
-//! `<workflow_dir>/workflow-engine/`。
+//! `<video_dir>/workflow-engine/`。
 //!
 //! - `run.json` — 运行元数据信封 ([`workflow_core::RunState`])
 //! - `events.jsonl` — append-only 事件日志 (每行一个 JSON [`workflow_core::WorkflowEvent`],
@@ -18,7 +18,7 @@ fn map_io(e: std::io::Error) -> StoreError {
     StoreError::Io(e.to_string())
 }
 
-/// `<workflow_dir>/workflow-engine/` 上的 run + events 持久化。
+/// `<video_dir>/workflow-engine/` 上的 run + events 持久化。
 #[derive(Debug)]
 pub struct FsRunStore {
     dir: PathBuf,
@@ -27,8 +27,8 @@ pub struct FsRunStore {
 }
 
 impl FsRunStore {
-    pub fn new(workflow_dir: &str) -> Self {
-        let dir = Path::new(workflow_dir).join("workflow-engine");
+    pub fn new(video_dir: &str) -> Self {
+        let dir = Path::new(video_dir).join("workflow-engine");
         let _ = fs::create_dir_all(&dir);
         Self {
             dir,

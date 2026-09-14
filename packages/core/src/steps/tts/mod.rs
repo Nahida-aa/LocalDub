@@ -92,13 +92,13 @@ fn pick_voxcpm_bin(device: TtsDevice, _runtime: TtsRuntime) -> anyhow::Result<St
 
 /// 入口 (镜像 TS `stepTts`)。
 pub fn step_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
-    let workflow_dir = ctx.workflow.workflow_dir.clone();
+    let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "tts", "start");
 
     let args = read_args(ctx);
-    let vocals_dir = Path::new(&workflow_dir).join("split_audio").join("vocals");
-    let tts_wav_dir = Path::new(&workflow_dir).join("tts").join("wavs");
-    let doubled_dir = Path::new(&workflow_dir).join("tts").join("ref_doubled");
+    let vocals_dir = Path::new(&video_dir).join("split_audio").join("vocals");
+    let tts_wav_dir = Path::new(&video_dir).join("tts").join("wavs");
+    let doubled_dir = Path::new(&video_dir).join("tts").join("ref_doubled");
     ensure_dir(&tts_wav_dir)?;
     if args.ref_audio_x2 {
         ensure_dir(&doubled_dir)?;
@@ -169,7 +169,7 @@ pub fn step_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
 
     // regenIndices 生效时载入已有 tts.json, 供列表外段复用旧结果 (避免重跑时覆盖其它段)。
     let existing_segments: std::collections::HashMap<u32, TtsSegment> = if regen_active {
-        let p = tts_filepath(&workflow_dir);
+        let p = tts_filepath(&video_dir);
         if p.exists() {
             match std::fs::read_to_string(&p) {
                 Ok(raw) => serde_json::from_str::<TtsFile>(&raw)
@@ -413,7 +413,7 @@ pub fn step_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         }
 
         set_step_anyhow(
-            &workflow_dir,
+            &video_dir,
             "tts",
             StepPatch {
                 last_message: Some(format!("Generating {}/{}...", i + 1, segments.len())),
@@ -548,7 +548,7 @@ pub fn step_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     }
     pb.finish();
 
-    let tts_file = tts_filepath(&workflow_dir);
+    let tts_file = tts_filepath(&video_dir);
     ensure_dir(Path::new(&tts_file).parent().unwrap())?;
     let result = TtsFile {
         segments: tts_segments,
@@ -570,7 +570,7 @@ pub fn step_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     }
 
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "tts",
         StepPatch {
             status: Some(StepStatus::Success),
@@ -592,7 +592,7 @@ mod tests {
 
     fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowCtx {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.workflow_dir = dir.to_string();
+        ctx.workflow.video_dir = dir.to_string();
         ctx.pipeline = "dub".to_string();
         ctx
     }
@@ -602,7 +602,7 @@ mod tests {
         let ctx = ctx_at(
             "/x",
             json!({
-                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),
@@ -615,7 +615,7 @@ mod tests {
         let ctx2 = ctx_at(
             "/x",
             json!({
-                "workflow": {"id":"t","workflow_dir":"/x","url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"steps": {"tts": {"skipExisting": false, "refAudioX2": true, "regenIndices": [1,2,3]}}}
             }),
@@ -637,7 +637,7 @@ mod tests {
         let ctx = ctx_at(
             &dir,
             json!({
-                "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {}
             }),

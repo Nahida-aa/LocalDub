@@ -5,34 +5,34 @@ use std::pin::Pin;
 
 /// Subscribe to real-time changes in a workflow (episode-level) directory tree.
 ///
-/// Watches the directory at `workflow_dir` (relative to `repo_root()`, or an absolute
+/// Watches the directory at `video_dir` (relative to `repo_root()`, or an absolute
 /// path) with a **recursive** OS watcher, so it covers the whole subtree — including
 /// subdirectories created *after* the watch starts (e.g. a pipeline's `mix_video/`
 /// appearing mid-run and the `.srt`/video files inside it). Emits [`fs::PathEvent`]
-/// for every leaf that changes anywhere under `workflow_dir` (e.g. `.log` updates,
+/// for every leaf that changes anywhere under `video_dir` (e.g. `.log` updates,
 /// generated `.srt`/video). The event carries the path and the kind of change, but
 /// **never the file contents**; the consumer decides when to read.
 ///
 /// Paths in events are **relative to `repo_root()`** (e.g. `workfolder/<group>/<workflow>/asr/asr.json`),
 /// not absolute OS paths. The frontend issues queries with the same relative paths
 /// (it has no knowledge of the OS `repo_root()`), so this keeps both sides using one
-/// path vocabulary and lets the consumer `startsWith(workflow_dir)` / match exact query
+/// path vocabulary and lets the consumer `startsWith(video_dir)` / match exact query
 /// paths without guessing where `repo_root()` sits on disk.
 /// Core stream-building logic, free of the `#[fnrpc::rpc_subscribe]` macro so it
-/// can be unit-tested directly. Resolves `workflow_dir` (relative to `repo_root()`, or
+/// can be unit-tested directly. Resolves `video_dir` (relative to `repo_root()`, or
 /// an absolute path) and returns a watch stream, or an empty stream on failure.
-fn build_tree_stream(workflow_dir: String) -> Pin<Box<dyn Stream<Item = fs::PathEvent> + Send>> {
-    let p = if Path::new(&workflow_dir).is_relative() {
-        repo_root().join(&workflow_dir)
+fn build_tree_stream(video_dir: String) -> Pin<Box<dyn Stream<Item = fs::PathEvent> + Send>> {
+    let p = if Path::new(&video_dir).is_relative() {
+        repo_root().join(&video_dir)
     } else {
-        Path::new(&workflow_dir).to_path_buf()
+        Path::new(&video_dir).to_path_buf()
     };
 
     // The prefix to strip from each event path so the consumer sees paths relative
-    // to `repo_root()`. For a relative `workflow_dir` this is `repo_root()`; for an
-    // absolute `workflow_dir` it is the workflow dir's own parent (so the emitted path is
+    // to `repo_root()`. For a relative `video_dir` this is `repo_root()`; for an
+    // absolute `video_dir` it is the workflow dir's own parent (so the emitted path is
     // still relative to a stable root rather than an absolute OS path).
-    let strip_root: PathBuf = if Path::new(&workflow_dir).is_relative() {
+    let strip_root: PathBuf = if Path::new(&video_dir).is_relative() {
         repo_root()
     } else {
         p.parent()
@@ -53,15 +53,15 @@ fn build_tree_stream(workflow_dir: String) -> Pin<Box<dyn Stream<Item = fs::Path
             Box::pin(mapped)
         }
         Err(e) => {
-            tracing::error!("failed to watch workflow tree {workflow_dir}: {e}");
+            tracing::error!("failed to watch workflow tree {video_dir}: {e}");
             Box::pin(stream::empty())
         }
     }
 }
 
 #[fnrpc::rpc_subscribe]
-pub fn watch_workflow_tree(workflow_dir: String) -> impl Stream<Item = fs::PathEvent> {
-    build_tree_stream(workflow_dir)
+pub fn watch_workflow_tree(video_dir: String) -> impl Stream<Item = fs::PathEvent> {
+    build_tree_stream(video_dir)
 }
 
 #[cfg(test)]

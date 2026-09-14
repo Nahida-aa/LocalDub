@@ -1,8 +1,8 @@
 //! generate_meta 命令: 用 LLM 从 `mix_video/zh.srt` 生成 `mix_video/meta.md` (视频章节摘要)。
 //!
 //! 独立 workflow action, 必要参数 `videoDir`。数据源:
-//! - 字幕: `{workflow_dir}/mix_video/zh.srt` (SRT, 含时间戳)
-//! - 视频元数据: `{workflow_dir}/ytdlp_info.json` (yt-dlp --dump-json, 有 title/uploader/upload_date/webpage_url)
+//! - 字幕: `{video_dir}/mix_video/zh.srt` (SRT, 含时间戳)
+//! - 视频元数据: `{video_dir}/ytdlp_info.json` (yt-dlp --dump-json, 有 title/uploader/upload_date/webpage_url)
 //!
 //! LLM 输出直接写 markdown 到 `mix_video/meta.md` (参照现有 meta.md 格式)。
 
@@ -55,19 +55,19 @@ struct YtDlpInfo {
     webpage_url: Option<String>,
 }
 
-/// 生成 `{workflow_dir}/mix_video/meta.md`。
+/// 生成 `{video_dir}/mix_video/meta.md`。
 ///
 /// LLM 输出结构化 (title_translation + chapters), Rust 组装固定格式:
 /// `## title` (中文翻译 - 作者) + `## description` (元数据 + 章节摘要)。
-pub fn generate_meta(workflow_dir: &str) -> anyhow::Result<()> {
-    let srt_path = format!("{workflow_dir}/mix_video/zh.srt");
+pub fn generate_meta(video_dir: &str) -> anyhow::Result<()> {
+    let srt_path = format!("{video_dir}/mix_video/zh.srt");
     let segs = read_srt_file_to_segs(&srt_path)
         .with_context(|| format!("读取字幕失败 (generate_meta 需要 {srt_path})"))?;
     if segs.is_empty() {
         return Err(anyhow::anyhow!("{srt_path} 无字幕段"));
     }
 
-    let info = read_ytdlp_info(workflow_dir);
+    let info = read_ytdlp_info(video_dir);
     let prompt = build_meta_prompt(&segs, info.as_ref().map(|i| i.title.as_str()));
 
     let opts = llm::ChatOptions {
@@ -89,7 +89,7 @@ pub fn generate_meta(workflow_dir: &str) -> anyhow::Result<()> {
 
     let md = assemble_meta_md(&result, info.as_ref());
 
-    let meta_path = format!("{workflow_dir}/mix_video/meta.md");
+    let meta_path = format!("{video_dir}/mix_video/meta.md");
     if let Some(parent) = Path::new(&meta_path).parent() {
         ensure_dir(parent).with_context(|| format!("创建目录失败: {parent:?}"))?;
     }
@@ -148,9 +148,9 @@ fn truncate(s: &str, max: usize) -> String {
     }
 }
 
-/// 读 `{workflow_dir}/ytdlp_info.json`, 提取元数据。文件缺失/解析失败返回 None (本地视频无)。
-fn read_ytdlp_info(workflow_dir: &str) -> Option<YtDlpInfo> {
-    let path = format!("{workflow_dir}/ytdlp_info.json");
+/// 读 `{video_dir}/ytdlp_info.json`, 提取元数据。文件缺失/解析失败返回 None (本地视频无)。
+fn read_ytdlp_info(video_dir: &str) -> Option<YtDlpInfo> {
+    let path = format!("{video_dir}/ytdlp_info.json");
     let raw = std::fs::read_to_string(&path).ok()?;
     let v: serde_json::Value = serde_json::from_str(&raw).ok()?;
     let get = |k: &str| v.get(k).and_then(|x| x.as_str()).map(|s| s.to_string());

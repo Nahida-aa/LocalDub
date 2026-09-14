@@ -11,16 +11,16 @@ use anyhow::Context;
 
 /// 启动新任务: 导入视频 → 跑完整 pipeline (镜像 TS `cmdStartTask`)。
 ///
-/// 返回新任务的绝对 workflow_dir (供 RPC/CLI 层用于跳转/提示)。
+/// 返回新任务的绝对 video_dir (供 RPC/CLI 层用于跳转/提示)。
 pub fn start_workflow(input: &Input) -> anyhow::Result<String> {
     let ctx =
         crate::workflows::import::download::import_video(input).context("import_video 失败")?;
     println!(
-        "[cli] 导入完成, workflow_dir = {}",
-        ctx.workflow.workflow_dir
+        "[cli] 导入完成, video_dir = {}",
+        ctx.workflow.video_dir
     );
-    crate::workflows::pipeline::run_pipeline(&ctx.workflow.workflow_dir)
+    crate::workflows::pipeline::run_pipeline(&ctx.workflow.video_dir)
         .context("run_pipeline 失败")?;
-    println!("[cli] 完成: {}", ctx.workflow.workflow_dir);
-    Ok(ctx.workflow.workflow_dir)
+    println!("[cli] 完成: {}", ctx.workflow.video_dir);
+    Ok(ctx.workflow.video_dir)
 }

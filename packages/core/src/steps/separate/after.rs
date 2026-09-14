@@ -20,11 +20,11 @@ fn read_asr_cfg(ctx: &WorkflowCtx) -> AsrArgs {
 
 /// 入口 (镜像 TS `stepSeparateAfter`)。
 pub fn step_separate_after(ctx: &WorkflowCtx) -> anyhow::Result<()> {
-    let workflow_dir = ctx.workflow.workflow_dir.clone();
+    let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "separate", "start");
 
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "separate_after",
         StepPatch {
             last_message: Some("Mixing BGM & sidechain...".into()),
@@ -33,8 +33,8 @@ pub fn step_separate_after(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         },
     )?;
 
-    let sep_dir = separate_dir(&workflow_dir);
-    let out_dir = separate_after_dir(&workflow_dir);
+    let sep_dir = separate_dir(&video_dir);
+    let out_dir = separate_after_dir(&video_dir);
     std::fs::create_dir_all(&out_dir)
         .map_err(|e| anyhow::anyhow!("创建 separate_after 目录失败: {e}"))?;
 
@@ -162,7 +162,7 @@ pub fn step_separate_after(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     }
 
     set_step_anyhow(
-        &workflow_dir,
+        &video_dir,
         "separate_after",
         StepPatch {
             status: Some(StepStatus::Success),
@@ -205,7 +205,7 @@ mod tests {
 
     fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowCtx {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.workflow_dir = dir.to_string();
+        ctx.workflow.video_dir = dir.to_string();
         ctx.workflow.id = "t".to_string();
         ctx.pipeline = "dub".to_string();
         ctx
@@ -232,7 +232,7 @@ mod tests {
         let ctx = ctx_at(
             &dir,
             json!({
-                "workflow": {"id":"t","workflow_dir":dir,"url":"http://e","source":"remote",
+                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"steps": {"asr": {"useSeparated": true, "mixMode": "sidechain",
                                             "reduceBgm": -12, "useGate": true}}}
