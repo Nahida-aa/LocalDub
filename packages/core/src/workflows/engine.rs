@@ -27,7 +27,7 @@ use crate::steps::get_steps;
 use crate::steps::utils::{
     now_iso, set_step_anyhow, set_workflow_anyhow, video_id, StepPatch, StepStatus, WorkflowPatch,
 };
-use crate::workflows::pipeline::{has_handler, run_step};
+use crate::workflows::pipeline::run_step;
 
 use super::engine_store::FsRunStore;
 
@@ -144,7 +144,7 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
 
     // target_step 不在序列中则告警忽略 (镜像 run_pipeline)
     if let Some(ts) = &target_step {
-        if !steps.iter().any(|s| s == ts) {
+        if !steps.iter().any(|s| s.as_str() == ts) {
             tracing::info!(target: "engine",
                 "[WARN] target_step \"{ts}\" 不在 {} pipeline 中, 忽略", ctx.pipeline);
         }
@@ -173,21 +173,20 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
             let steps = steps.clone();
             async move {
                 for step in &steps {
-                    if !has_handler(step) {
-                        tracing::info!(target: "engine", "[WARN] No handler for step {step}, skipping");
-                        continue;
-                    }
-                    let step_id = step.clone();
-                    let step_id_c = step_id.clone();
+                    // `steps` 已是 `StepName`（`get_steps` 解析过），每个变体都有
+                    // `run_step` 分支——不再需要 has_handler 过滤。
+                    let step_id = step.as_str().to_string();
+                    let step_name = *step;
                     let dir = dir.clone();
                     wctx.step(&step_id, move |_sc: StepCtx| {
                         let dir = dir.clone();
-                        let step_name = step_id_c.clone();
+                        let step = step_name;
+                        let step_name = step.as_str();
                         async move {
                             tracing::info!(target: "engine", "Running {step_name}");
                             set_step_anyhow(
                                 &dir,
-                                &step_name,
+                                step_name,
                                 StepPatch {
                                     status: Some(StepStatus::Running),
                                     started_at: Some(now_iso()),
@@ -199,19 +198,19 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
                                 &dir,
                                 WorkflowPatch {
                                     status: Some("running".to_string()),
-                                    current_step: Some(Some(step_name.clone())),
+                                    current_step: Some(Some(step_name.to_string())),
                                     ..Default::default()
                                 },
                             )?;
-                            match run_step(&step_name, &dir) {
-                                Ok(()) => Ok(step_artifacts(&dir, &step_name)
+                            match run_step(step, &dir) {
+                                Ok(()) => Ok(step_artifacts(&dir, step_name)
                                     .unwrap_or(serde_json::Value::Null)),
                                 Err(e) => {
                                     let msg = e.to_string();
                                     tracing::error!(target: "engine", "Step {step_name} failed: {msg}");
                                     set_step_anyhow(
                                         &dir,
-                                        &step_name,
+                                        step_name,
                                         StepPatch {
                                             status: Some(StepStatus::Failed),
                                             error_message: Some(msg.clone()),

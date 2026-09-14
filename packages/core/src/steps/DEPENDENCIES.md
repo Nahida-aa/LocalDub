@@ -7,6 +7,21 @@
 >
 > 有了这两列，「谁依赖谁」是可以推导的：**A 依赖 B ⟺ A 读的某个路径落在 B 的产出里**。
 
+## step 名单的唯一真源
+
+`StepName`（`workflows/args.rs:46`）**是编译期真源**，另外两处都从它派生：
+
+| 位置 | 角色 |
+| --- | --- |
+| `args.rs` `enum StepName` | **唯一真源**（15 个变体，serde/clap/specta 共用） |
+| `args.rs` `as_str()` / `ALL_STEPS` | 从枚举派生（`match` 穷尽） |
+| `pipeline.rs` `run_step` | 从枚举派生（`match` 穷尽，**无 `_` 兜底**） |
+| `steps.rs` `*_STEPS` 常量 | 字符串（便于与 TS 逐字对照），由 `get_steps` **解析成枚举** |
+| `steps.rs` `STEPS_LIST` | 字符串（对外校验用），有测试钉住它与 `ALL_STEPS` 一致 |
+
+**意义**：给枚举加一个变体却忘了登记 handler，**编译会失败**——不会再出现
+「改了一处、另一处静默跳过」。三处曾有各自独立的名单，靠人工保持一致。
+
 ## 为什么需要这份文档
 
 依赖藏在代码细节里（路径 helper 多层间接、配置可覆盖、条件分支），
@@ -262,8 +277,10 @@ separate ──► separate_after ┤                                       │
 1. **我改的是「写」还是「读」？** 改「写」要检查所有读它的地方（用上面的表反查）。
 2. **`subtitleSource` 相关吗？** 涉及 `subtitle_file_path` 就得同时考虑三种取值。
 3. **我加的读是「缺失即失败」还是「有则用」？** 前者会改变失败面。
-4. **有没有破坏性副作用？**（如 `sf_ocr` 的 `cleanup_frames` 删帧）
+4. **有没有破坏性副作用？**（如 `sf_ocr` 的 `cleanup_frames` 可删帧）
 5. **`ctx.json` 的并发假设还成立吗？**（见下）
+6. **改 step 名单时改 `StepName` 枚举**——漏登记会在编译期报错，别去改
+   `STEPS_LIST` / `*_STEPS` 那几处字符串（它们有测试钉住）。
 
 ## 已知限制
 

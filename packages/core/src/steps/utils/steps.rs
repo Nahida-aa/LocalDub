@@ -5,6 +5,7 @@
 //! 的 `input` (已是 JSON Value) 解析相同字段。
 
 use crate::context::WorkflowCtx;
+use crate::workflows::args::StepName;
 
 /// 所有合法 step 名 (镜像 TS `stepsList`)
 pub const STEPS_LIST: &[&str] = &[
@@ -131,9 +132,13 @@ fn split_audio_vad_align(ctx: &WorkflowCtx) -> bool {
 
 /// 根据 pipeline 与 subtitleSource / 开关过滤, 返回本次要执行的 step 序列
 /// (镜像 TS `getSteps`)。
-pub fn get_steps(ctx: &WorkflowCtx) -> Vec<String> {
+///
+/// 返回**已解析的 [`StepName`]**：序列常量仍是字符串（便于和 TS 逐字对照），
+/// 但在这里立刻解析——**写错名字会 panic**，而不是流到后面被静默跳过。
+/// 有 `get_steps_is_exhaustive` 测试兜底，所以 panic 只在开发期触发。
+pub fn get_steps(ctx: &WorkflowCtx) -> Vec<StepName> {
     let is_subtitle = ctx.pipeline == "subtitle";
-    let mut steps: Vec<String> = if is_subtitle {
+    let mut steps: Vec<&'static str> = if is_subtitle {
         // subtitle 模式: 按 subtitleSource 切换字幕提取策略, 但始终只到 mix_video
         // (不配音 → 无 tts / mix_audio)。subtitleSource 语义是"字幕怎么提取",
         // 不是"是否配音"; dub 序列常量含 tts/mix_audio, 不能复用。
@@ -142,7 +147,7 @@ pub fn get_steps(ctx: &WorkflowCtx) -> Vec<String> {
             "asr_ocr" => SUBTITLE_ASR_OCR_STEPS,
             _ => SUBTITLE_STEPS,
         };
-        base.iter().map(|s| s.to_string()).collect()
+        base.to_vec()
     } else {
         // dub 模式下按 subtitleSource 选基础序列
         let base = match subtitle_source(ctx).as_str() {
@@ -150,22 +155,32 @@ pub fn get_steps(ctx: &WorkflowCtx) -> Vec<String> {
             "asr_ocr" => DUB_ASR_OCR_STEPS,
             _ => DUB_STEPS,
         };
-        base.iter().map(|s| s.to_string()).collect()
+        base.to_vec()
     };
 
     if !translate_enabled(ctx) {
-        steps.retain(|s| s != "translate");
+        steps.retain(|s| *s != "translate");
     }
     if is_subtitle && !split_audio_vad_align(ctx) {
-        steps.retain(|s| s != "split_audio");
+        steps.retain(|s| *s != "split_audio");
     }
+
+    // 解析成枚举——pipeline 常量与 `StepName` 必须一致，不一致说明有一处改名漏了。
     steps
+        .into_iter()
+        .map(|s| {
+            StepName::parse(s).unwrap_or_else(|| {
+                panic!("pipeline 序列里的 step \"{s}\" 不是合法的 StepName（改名时漏了某处？）")
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::context::read_ctx_from_value;
+    use crate::workflows::args::ALL_STEPS;
     use serde_json::json;
 
     fn ctx(pipeline: &str, input: serde_json::Value) -> WorkflowCtx {
@@ -173,6 +188,50 @@ mod tests {
         ctx.workflow.video_dir = "/x".into();
         ctx.pipeline = pipeline.into();
         ctx
+    }
+
+    /// 断言用：把 `Vec<StepName>` 转成名字列表，测试里仍可逐字写字符串。
+    fn names(steps: &[StepName]) -> Vec<&'static str> {
+        steps.iter().map(|s| s.as_str()).collect()
+    }
+
+    /// 断言用：序列里有没有这个 step。
+    fn has(steps: &[StepName], name: &str) -> bool {
+        steps.iter().any(|s| s.as_str() == name)
+    }
+
+    /// **一致性护栏**：pipeline 常量里的每一步都必须是合法的 `StepName`。
+    ///
+    /// `get_steps` 内部解析失败会 panic，这里把所有常量都跑一遍，
+    /// 改名漏一处时**这个测试会失败**（而不是等某条 pipeline 真的跑起来才炸）。
+    #[test]
+    fn all_pipeline_constants_are_valid_step_names() {
+        for (label, seq) in [
+            ("STEPS_LIST", STEPS_LIST),
+            ("DUB_STEPS", DUB_STEPS),
+            ("DUB_SF_OCR_STEPS", DUB_SF_OCR_STEPS),
+            ("DUB_ASR_OCR_STEPS", DUB_ASR_OCR_STEPS),
+            ("SUBTITLE_STEPS", SUBTITLE_STEPS),
+            ("SUBTITLE_SF_OCR_STEPS", SUBTITLE_SF_OCR_STEPS),
+            ("SUBTITLE_ASR_OCR_STEPS", SUBTITLE_ASR_OCR_STEPS),
+        ] {
+            for s in seq {
+                assert!(
+                    StepName::parse(s).is_some(),
+                    "{label} 里的 \"{s}\" 不是合法的 StepName（改名时漏了某处？）"
+                );
+            }
+        }
+    }
+
+    /// `STEPS_LIST` 与 `ALL_STEPS` 必须覆盖同一批 step（两个名单不许漂移）。
+    #[test]
+    fn steps_list_matches_all_steps() {
+        let mut from_list: Vec<&str> = STEPS_LIST.to_vec();
+        let mut from_enum = names(ALL_STEPS);
+        from_list.sort_unstable();
+        from_enum.sort_unstable();
+        assert_eq!(from_list, from_enum, "STEPS_LIST 与 ALL_STEPS 不一致");
     }
 
     #[test]
@@ -186,7 +245,7 @@ mod tests {
             }),
         );
         assert_eq!(
-            get_steps(&c),
+            names(&get_steps(&c)),
             vec![
                 "separate",
                 "separate_after",
@@ -211,8 +270,8 @@ mod tests {
                 "input": {"workflow": {"subtitleSource": "sf_ocr"}}
             }),
         );
-        assert!(get_steps(&c).contains(&"sf_ocr".to_string()));
-        assert!(!get_steps(&c).contains(&"asr".to_string()));
+        assert!(has(&get_steps(&c), "sf_ocr"));
+        assert!(!has(&get_steps(&c), "asr"));
     }
 
     #[test]
@@ -226,8 +285,8 @@ mod tests {
             }),
         );
         let s = get_steps(&c);
-        assert!(s.contains(&"asr_ocr".to_string()));
-        assert!(s.contains(&"asr_ocr_fix".to_string()));
+        assert!(has(&s, "asr_ocr"));
+        assert!(has(&s, "asr_ocr_fix"));
     }
 
     #[test]
@@ -240,7 +299,7 @@ mod tests {
                 "input": {"steps": {"translate": {"enabled": false}}}
             }),
         );
-        assert!(!get_steps(&c).contains(&"translate".to_string()));
+        assert!(!has(&get_steps(&c), "translate"));
     }
 
     #[test]
@@ -253,7 +312,7 @@ mod tests {
                 "input": {}
             }),
         );
-        assert!(!get_steps(&c).contains(&"split_audio".to_string()));
+        assert!(!has(&get_steps(&c), "split_audio"));
 
         let c2 = ctx(
             "subtitle",
@@ -263,7 +322,7 @@ mod tests {
                 "input": {"steps": {"split_audio": {"vadAlign": true}}}
             }),
         );
-        assert!(get_steps(&c2).contains(&"split_audio".to_string()));
+        assert!(has(&get_steps(&c2), "split_audio"));
     }
 
     #[test]
@@ -278,13 +337,13 @@ mod tests {
             }),
         );
         let s = get_steps(&c);
-        assert!(s.contains(&"sf_ocr_pre".to_string()));
-        assert!(s.contains(&"sf_ocr".to_string()));
-        assert!(s.contains(&"sf_ocr_fix".to_string()));
-        assert!(!s.contains(&"asr".to_string()));
-        assert!(!s.contains(&"tts".to_string()));
-        assert!(!s.contains(&"mix_audio".to_string()));
-        assert!(s.contains(&"mix_video".to_string()));
+        assert!(has(&s, "sf_ocr_pre"));
+        assert!(has(&s, "sf_ocr"));
+        assert!(has(&s, "sf_ocr_fix"));
+        assert!(!has(&s, "asr"));
+        assert!(!has(&s, "tts"));
+        assert!(!has(&s, "mix_audio"));
+        assert!(has(&s, "mix_video"));
     }
 
     #[test]
@@ -299,12 +358,12 @@ mod tests {
             }),
         );
         let s = get_steps(&c);
-        assert!(s.contains(&"asr".to_string()));
-        assert!(s.contains(&"asr_ocr".to_string()));
-        assert!(s.contains(&"asr_ocr_fix".to_string()));
-        assert!(!s.contains(&"tts".to_string()));
-        assert!(!s.contains(&"mix_audio".to_string()));
-        assert!(!s.contains(&"sf_ocr".to_string()));
+        assert!(has(&s, "asr"));
+        assert!(has(&s, "asr_ocr"));
+        assert!(has(&s, "asr_ocr_fix"));
+        assert!(!has(&s, "tts"));
+        assert!(!has(&s, "mix_audio"));
+        assert!(!has(&s, "sf_ocr"));
     }
 
     #[test]
@@ -319,9 +378,9 @@ mod tests {
             }),
         );
         let s = get_steps(&c);
-        assert!(s.contains(&"asr".to_string()));
-        assert!(s.contains(&"mix_video".to_string()));
-        assert!(!s.contains(&"tts".to_string()));
-        assert!(!s.contains(&"mix_audio".to_string()));
+        assert!(has(&s, "asr"));
+        assert!(has(&s, "mix_video"));
+        assert!(!has(&s, "tts"));
+        assert!(!has(&s, "mix_audio"));
     }
 }

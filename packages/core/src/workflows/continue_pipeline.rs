@@ -11,7 +11,7 @@
 
 use crate::context::WorkflowCtx;
 use crate::steps::utils::{now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
-use crate::workflows::pipeline::{has_handler, run_step};
+use crate::workflows::pipeline::run_step;
 
 /// 续跑 pipeline (镜像 TS `continuePipeline`)。
 ///
@@ -43,7 +43,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
 
     // targetStep 不在序列中则告警忽略 (镜像 TS)
     if let Some(ts) = &target_step {
-        if !steps.iter().any(|s| s == ts) {
+        if !steps.iter().any(|s| s.as_str() == ts) {
             tracing::info!(target: "pipeline",
                 "[WARN] targetStep \"{ts}\" 不在 {pipeline} pipeline 中, 忽略"
             );
@@ -55,7 +55,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     if let Some(cf) = &continue_from {
         start_idx = steps
             .iter()
-            .position(|s| s == cf)
+            .position(|s| s.as_str() == cf)
             .ok_or_else(|| anyhow::anyhow!("Unknown step \"{cf}\""))?;
         // 从 continueFrom 起把后续全部重置为 pending (镜像 TS for i=startIdx.. reset)。
         // 注: StepPatch 仅支持"设置"不支持"清空"可选字段, 故只改 status; 实际运行时
@@ -63,7 +63,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         for i in start_idx..steps.len() {
             set_step_anyhow(
                 video_dir,
-                &steps[i],
+                steps[i].as_str(),
                 StepPatch {
                     status: Some(StepStatus::Pending),
                     ..Default::default()
@@ -84,7 +84,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             .map(|s| (s.name, s.status))
             .collect();
         for (i, s) in steps.iter().enumerate() {
-            if existing.get(s) != Some(&StepStatus::Success) {
+            if existing.get(s.as_str()) != Some(&StepStatus::Success) {
                 start_idx = i;
                 break;
             }
@@ -104,7 +104,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         crate::steps::utils::WorkflowPatch {
             status: Some("running".to_string()),
             started_at: Some(now_iso()),
-            current_step: Some(Some(steps[start_idx].clone())),
+            current_step: Some(Some(steps[start_idx].as_str().to_string())),
             ..Default::default()
         },
     )?;
@@ -115,22 +115,16 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     );
 
     for i in start_idx..steps.len() {
-        let step = &steps[i];
-
-        if !has_handler(step) {
-            tracing::info!(target: "pipeline",
-                "[WARN] No handler for step {step}, skipping"
-            );
-            continue;
-        }
+        let step = steps[i];
+        let step_str = step.as_str();
 
         set_step_anyhow(
             video_dir,
-            step,
+            step_str,
             StepPatch {
                 status: Some(StepStatus::Running),
                 started_at: Some(now_iso()),
-                last_message: Some(format!("Starting {step}...")),
+                last_message: Some(format!("Starting {step_str}...")),
                 ..Default::default()
             },
         )?;
@@ -138,16 +132,16 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             video_dir,
             crate::steps::utils::WorkflowPatch {
                 status: Some("running".to_string()),
-                current_step: Some(Some(step.clone())),
+                current_step: Some(Some(step_str.to_string())),
                 ..Default::default()
             },
         )?;
-        tracing::info!(target: "pipeline", "Running {step}");
+        tracing::info!(target: "pipeline", "Running {step_str}");
 
         match run_step(step, video_dir) {
             Ok(()) => {
                 if let Some(ts) = &target_step {
-                    if step == ts {
+                    if step_str == ts {
                         tracing::info!(target: "pipeline", "达到目标步骤 \"{ts}\", 停止");
                         break;
                     }
@@ -155,10 +149,10 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             }
             Err(e) => {
                 let msg = e.to_string();
-                tracing::error!(target: "pipeline", "Step {step} failed: {msg}");
+                tracing::error!(target: "pipeline", "Step {step_str} failed: {msg}");
                 set_step_anyhow(
                     video_dir,
-                    step,
+                    step_str,
                     StepPatch {
                         status: Some(StepStatus::Failed),
                         error_message: Some(msg.clone()),

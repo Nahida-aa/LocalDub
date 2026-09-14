@@ -22,6 +22,7 @@ use crate::steps::split_audio::step_split_audio;
 use crate::steps::translate::step_translate;
 use crate::steps::tts::step_tts;
 use crate::steps::utils::{now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
+use crate::workflows::args::StepName;
 
 /// 运行完整 pipeline (镜像 TS `runPipeline`)。
 pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
@@ -36,7 +37,7 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
 
     // targetStep 不在序列中则告警忽略 (镜像 TS)
     if let Some(ts) = ctx.input.get("targetStep").and_then(|v| v.as_str()) {
-        if !steps.iter().any(|s| s == ts) {
+        if !steps.iter().any(|s| s.as_str() == ts) {
             tracing::info!(target: "pipeline",
                 "[WARN] targetStep \"{ts}\" 不在 {pipeline} pipeline 中, 忽略"
             );
@@ -53,21 +54,16 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
     )?;
 
     for step in &steps {
-        // 先检查 handler 是否存在 (镜像 TS: 无 handler 则 warn + skip, 不标记 running)
-        if !has_handler(step) {
-            tracing::info!(target: "pipeline",
-                "[WARN] No handler for step {step}, skipping"
-            );
-            continue;
-        }
+        // 每个 step 名都对应一个 run_step 分支（枚举穷尽），无需再查 handler 表。
+        let step_str = step.as_str();
 
         set_step_anyhow(
             video_dir,
-            step,
+            step_str,
             StepPatch {
                 status: Some(StepStatus::Running),
                 started_at: Some(now_iso()),
-                last_message: Some(format!("Starting {step}...")),
+                last_message: Some(format!("Starting {step_str}...")),
                 ..Default::default()
             },
         )?;
@@ -75,17 +71,17 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
             video_dir,
             crate::steps::utils::WorkflowPatch {
                 status: Some("running".to_string()),
-                current_step: Some(Some(step.clone())),
+                current_step: Some(Some(step_str.to_string())),
                 ..Default::default()
             },
         )?;
-        tracing::info!(target: "pipeline", "Running {step}");
+        tracing::info!(target: "pipeline", "Running {step_str}");
 
-        match run_step(step, video_dir) {
+        match run_step(*step, video_dir) {
             Ok(()) => {
                 // 达到 targetStep 即停止 (镜像 TS)
                 if let Some(ts) = ctx.input.get("targetStep").and_then(|v| v.as_str()) {
-                    if step == ts {
+                    if step_str == ts {
                         tracing::info!(target: "pipeline", "达到目标步骤 \"{ts}\", 停止");
                         break;
                     }
@@ -93,10 +89,10 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
             }
             Err(e) => {
                 let msg = e.to_string();
-                tracing::error!(target: "pipeline", "Step {step} failed: {msg}");
+                tracing::error!(target: "pipeline", "Step {step_str} failed: {msg}");
                 set_step_anyhow(
                     video_dir,
-                    step,
+                    step_str,
                     StepPatch {
                         status: Some(StepStatus::Failed),
                         error_message: Some(msg.clone()),
@@ -130,55 +126,32 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// 是否存在已注册的 handler (镜像 TS `STEP_HANDLERS[step]` 是否存在)。
-pub fn has_handler(step: &str) -> bool {
-    matches!(
-        step,
-        "separate"
-            | "separate_after"
-            | "sf_ocr_pre"
-            | "sf_ocr"
-            | "sf_ocr_fix"
-            | "translate"
-            | "split_audio"
-            | "asr"
-            | "asr_fix"
-            | "asr_ocr_pre"
-            | "asr_ocr"
-            | "asr_ocr_fix"
-            | "tts"
-            | "mix_audio"
-            | "mix_video"
-    )
-}
-
 /// 按 step 名分派到具体 handler (镜像 TS `STEP_HANDLERS`)。
 ///
 /// 每个 handler 自行 `read_ctx` 获取最新 ctx (与 TS `readCtx(sp)` 一致)。
-/// 调用方已通过 [`has_handler`] 过滤, 此处仅处理已知 step。
-pub fn run_step(step: &str, video_dir: &str) -> anyhow::Result<()> {
+///
+/// **入参是 [`StepName`] 而非 `&str`**：`match` 因此是穷尽的——将来给枚举加
+/// 变体却不在这里登记 handler，会**编译失败**，而不是静默跳过。
+pub fn run_step(step: StepName, video_dir: &str) -> anyhow::Result<()> {
     // 进入 step span: 携带 step 名供 WorkflowFileLayer 作为 [step] 前缀。
-    let _step_guard = tracing::info_span!("step", step = step).entered();
+    let _step_guard = tracing::info_span!("step", step = step.as_str()).entered();
     let ctx = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
     match step {
-        "separate" => step_separate(&ctx),
-        "separate_after" => step_separate_after(&ctx),
-        "sf_ocr_pre" => step_sf_ocr_pre(&ctx),
-        "sf_ocr" => step_sf_ocr(&ctx),
-        "sf_ocr_fix" => step_sf_ocr_fix(&ctx),
-        "translate" => step_translate(&ctx),
-        "split_audio" => step_split_audio(&ctx),
-        "asr" => step_asr(&ctx),
-        "asr_fix" => step_asr_fix(&ctx),
-        "asr_ocr_pre" => step_asr_ocr_pre(&ctx),
-        "asr_ocr" => step_asr_ocr(&ctx),
-        "asr_ocr_fix" => step_asr_ocr_fix(&ctx),
-        "tts" => step_tts(&ctx),
-        "mix_video" => step_mix_video(&ctx),
-        "mix_audio" => step_mix_audio(&ctx),
-        // 后续阶段在此登记, 例如:
-        // "asr" => step_asr(&ctx),
-        _ => Ok(()),
+        StepName::Separate => step_separate(&ctx),
+        StepName::SeparateAfter => step_separate_after(&ctx),
+        StepName::SfOcrPre => step_sf_ocr_pre(&ctx),
+        StepName::SfOcr => step_sf_ocr(&ctx),
+        StepName::SfOcrFix => step_sf_ocr_fix(&ctx),
+        StepName::Translate => step_translate(&ctx),
+        StepName::SplitAudio => step_split_audio(&ctx),
+        StepName::Asr => step_asr(&ctx),
+        StepName::AsrFix => step_asr_fix(&ctx),
+        StepName::AsrOcrPre => step_asr_ocr_pre(&ctx),
+        StepName::AsrOcr => step_asr_ocr(&ctx),
+        StepName::AsrOcrFix => step_asr_ocr_fix(&ctx),
+        StepName::Tts => step_tts(&ctx),
+        StepName::MixAudio => step_mix_audio(&ctx),
+        StepName::MixVideo => step_mix_video(&ctx),
     }
 }
 
