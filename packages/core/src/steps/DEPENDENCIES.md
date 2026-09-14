@@ -180,11 +180,20 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 ### `translate`
 
+**恒执行**（`get_steps` 不再按 enabled 剔除）。`translate.enabled=false` 时走
+**直通**：不调 LLM，`dst` 填原文，照常写 `translation.{lang}.json`——下游步骤
+从此只认这一种字幕来源（split_audio / mix_video 的「无译文用原文」分支成为
+历史，可后续清理）。
+
 | | 路径 |
 | --- | --- |
-| **读** ⚠️ | 规范化字幕 `srt.json`（按 `subtitleSource` 选目录，见「规范化字幕」节；类型化契约 `TranslateInput::from_ctx`，未知来源 / 缺文件**报错**） |
+| **读** ⚠️ | 规范化字幕 `srt.json`（按 `subtitleSource` 选目录，见「规范化字幕」节；类型化契约 `TranslateInput::from_ctx`，未知来源**报错**） |
 | **读** | `data/bin/yt-dlp` 产物（可选元信息） |
-| **写** | `translate/translation.{lang}.json`、中间态 `translation.{lang}.partial.json` |
+| **写** | `translate/translation.{lang}.json`、中间态 `translation.{lang}.partial.json`（仅 LLM 路径） |
+
+> 存在性语义按 enabled 分：**enabled** 时 srt.json 缺失/空 → 报错（要求翻译
+> 却没有内容 = 上游问题）；**disabled** 时缺失 → 空 segments 直通（上游被
+> 禁用，本来就没有字幕——与旧行为「translate 被移除」的成功语义一致）。
 
 ### `split_audio`
 

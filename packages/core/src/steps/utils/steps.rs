@@ -110,16 +110,6 @@ fn subtitle_source(ctx: &WorkflowCtx) -> String {
         .to_string()
 }
 
-/// 从 ctx.input 解析 translate.enabled (缺省 true → 不剔除)
-fn translate_enabled(ctx: &WorkflowCtx) -> bool {
-    ctx.input
-        .get("steps")
-        .and_then(|v| v.get("translate"))
-        .and_then(|v| v.get("enabled"))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true)
-}
-
 /// 从 ctx.input 解析 split_audio.vadAlign (缺省 false)
 fn split_audio_vad_align(ctx: &WorkflowCtx) -> bool {
     ctx.input
@@ -158,9 +148,9 @@ pub fn get_steps(ctx: &WorkflowCtx) -> Vec<StepName> {
         base.to_vec()
     };
 
-    if !translate_enabled(ctx) {
-        steps.retain(|s| *s != "translate");
-    }
+    // translate **恒在序列**（不再按 enabled 剔除）：`enabled=false` 时它以
+    // **直通模式**执行（原文作为译文写 translation.json），下游步骤从此只认
+    // 一种字幕来源。`translate_enabled` 仍由 step 内部读取决定走 LLM 还是直通。
     if is_subtitle && !split_audio_vad_align(ctx) {
         steps.retain(|s| *s != "split_audio");
     }
@@ -360,8 +350,10 @@ mod tests {
         assert!(has(&s, "asr_ocr_fix"));
     }
 
+    /// translate **恒在序列**：`enabled=false` 不再剔除——step 内部走直通
+    /// （原文作为译文），下游从此只认 translation.json 一种字幕来源。
     #[test]
-    fn translate_disabled_removes_step() {
+    fn translate_disabled_keeps_step_for_passthrough() {
         let c = ctx(
             "dub",
             json!({
@@ -370,7 +362,7 @@ mod tests {
                 "input": {"steps": {"translate": {"enabled": false}}}
             }),
         );
-        assert!(!has(&get_steps(&c), "translate"));
+        assert!(has(&get_steps(&c), "translate"));
     }
 
     #[test]

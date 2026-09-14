@@ -226,7 +226,8 @@ impl SubtitleSrt {
 }
 
 impl TranslateInput {
-    /// 从 ctx 解析输入。`subtitleSource` 未知、或 srt.json 缺失 → 报错。
+    /// 从 ctx 解析输入。`subtitleSource` 未知 → 报错；
+    /// srt.json 是否必须存在由 `translate.enabled` 决定（见 `step_translate`）。
     pub fn from_ctx(ctx: &WorkflowCtx) -> anyhow::Result<Self> {
         let video_dir = ctx.workflow.video_dir.clone();
         let source = ctx
@@ -247,13 +248,6 @@ impl TranslateInput {
                 ))
             }
         };
-        if !subtitle.path().exists() {
-            return Err(anyhow::anyhow!(
-                "规范化字幕 {} 不存在；请先运行 {}（或从该步骤 continue 以重新生成）",
-                subtitle.path().display(),
-                subtitle.producer()
-            ));
-        }
 
         let meta_path = std::path::Path::new(&video_dir)
             .join("download")
@@ -275,9 +269,23 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     let src_lang_name = lang_name(&src_lang);
     let dst_lang_name = lang_name(&target_lang);
 
-    let srt_segs: Vec<subtitle::SubtitleSegment> =
-        crate::steps::utils::read_srt_json(input.subtitle.path())?;
-    if srt_segs.is_empty() {
+    // srt.json 的存在性语义按 `translate.enabled` 分：
+    // - enabled：缺失/空 → Err（要求翻译却没有可翻译的内容 = 配置或上游问题）
+    // - disabled：缺失 → 空 segments 直通（上游被禁用, 本来就没有字幕）；
+    //   直通把原文写进 translation.json，下游步骤从此只认这一种字幕来源。
+    let srt_exists = input.subtitle.path().exists();
+    let srt_segs: Vec<subtitle::SubtitleSegment> = if srt_exists {
+        crate::steps::utils::read_srt_json(input.subtitle.path())?
+    } else if args.enabled {
+        return Err(anyhow::anyhow!(
+            "规范化字幕 {} 不存在；请先运行 {}（或从该步骤 continue 以重新生成）",
+            input.subtitle.path().display(),
+            input.subtitle.producer()
+        ));
+    } else {
+        Vec::new()
+    };
+    if args.enabled && srt_segs.is_empty() {
         return Err(anyhow::anyhow!(
             "{} 无 segments",
             input.subtitle.path().display()
@@ -286,129 +294,140 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     let srt_segments: Vec<Value> =
         serde_json::from_value(serde_json::to_value(&srt_segs)?)?;
     let texts: Vec<String> = srt_segs.iter().map(|s| s.text.trim().to_string()).collect();
-    let full_text = texts.join(" ");
 
-    // 视频元信息 (ytdlp_info.json 可选)
-    let meta = load_video_meta(input.meta.as_deref());
-    let has_meta = input.meta.is_some();
-    // preprocess (仅在有元信息时): 让 LLM 先读一遍全文, 产出摘要/热词/纠错,
-    // 注入后续批量翻译的系统提示。失败不阻断——退化成"无预处理"直接翻。
-    let pre = if has_meta {
-        run_preprocess(&args, &src_lang_name, &dst_lang_name, &meta, &full_text)
+    let dsts: Vec<Option<String>> = if !args.enabled {
+        // ── 直通：原文即译文 ──
+        // 不调 LLM、不写 partial。translation.json 的 dst 填原文，
+        // 下游 (split_audio/tts/mix_video) 与翻译开启时走完全相同的路。
+        tracing::info!(target: "translate",
+            "translate.enabled=false → 直通: {} 段原文作为译文", texts.len());
+        texts.iter().cloned().map(Some).collect()
     } else {
-        PreprocessResult::default()
-    };
-    let summary = pre.summary;
-    let hotwords_str = pre.hotwords;
-    let corrections_str = pre.corrections;
+        let full_text = texts.join(" ");
 
-    let system = build_translate_system(
-        &dst_lang_name,
-        &src_lang_name,
-        &meta,
-        &summary,
-        &hotwords_str,
-        &corrections_str,
-    );
+        // preprocess (仅在有元信息时): 让 LLM 先读一遍全文, 产出摘要/热词/纠错,
+        // 注入后续批量翻译的系统提示。失败不阻断——退化成"无预处理"直接翻。
+        let meta = load_video_meta(input.meta.as_deref());
+        let has_meta = input.meta.is_some();
+        let pre = if has_meta {
+            run_preprocess(&args, &src_lang_name, &dst_lang_name, &meta, &full_text)
+        } else {
+            PreprocessResult::default()
+        };
+        let summary = pre.summary;
+        let hotwords_str = pre.hotwords;
+        let corrections_str = pre.corrections;
 
-    let total_batches = texts.chunks(partial::BATCH_SIZE).count();
-    let partial_path = translation_partial_path(&video_dir, &target_lang);
-
-    // 阶段内续跑: 读已有 partial, 恢复已完成 batch 与已译句
-    let (mut completed, partial_segs) = partial::read_partial(&partial_path);
-    if !completed.is_empty() {
-        tracing::info!(
-            target: "translate",
-            "resume: {} 个 batch 已完成, 跳过 (共 {} batch)",
-            completed.len(),
-            total_batches
+        let system = build_translate_system(
+            &dst_lang_name,
+            &src_lang_name,
+            &meta,
+            &summary,
+            &hotwords_str,
+            &corrections_str,
         );
-    }
 
-    // 把 partial 中已完成 batch 的已译句回填到 dsts (缺失句 dst=None 仍待翻)
-    let mut dsts: Vec<Option<String>> = vec![None; texts.len()];
-    {
-        let mut by_batch: std::collections::HashMap<usize, Vec<&out::TranslatePartialSegment>> =
-            std::collections::HashMap::new();
-        for ps in partial_segs.iter() {
-            by_batch.entry(ps.batch_index).or_default().push(ps);
+        let total_batches = texts.chunks(partial::BATCH_SIZE).count();
+        let partial_path = translation_partial_path(&video_dir, &target_lang);
+
+        // 阶段内续跑: 读已有 partial, 恢复已完成 batch 与已译句
+        let (mut completed, partial_segs) = partial::read_partial(&partial_path);
+        if !completed.is_empty() {
+            tracing::info!(
+                target: "translate",
+                "resume: {} 个 batch 已完成, 跳过 (共 {} batch)",
+                completed.len(),
+                total_batches
+            );
         }
-        for (&bi, segs) in by_batch.iter() {
-            if !completed.contains(&bi) {
+
+        // 把 partial 中已完成 batch 的已译句回填到 dsts (缺失句 dst=None 仍待翻)
+        let mut dsts: Vec<Option<String>> = vec![None; texts.len()];
+        {
+            let mut by_batch:
+                std::collections::HashMap<usize, Vec<&out::TranslatePartialSegment>> =
+                std::collections::HashMap::new();
+            for ps in partial_segs.iter() {
+                by_batch.entry(ps.batch_index).or_default().push(ps);
+            }
+            for (&bi, segs) in by_batch.iter() {
+                if !completed.contains(&bi) {
+                    continue;
+                }
+                let start = bi * partial::BATCH_SIZE;
+                for (k, ps) in segs.iter().enumerate() {
+                    let gi = start + k;
+                    if gi < dsts.len() && !ps.missing {
+                        dsts[gi] = Some(ps.dst.clone());
+                    }
+                }
+            }
+        }
+
+        for (i, chunk) in texts.chunks(partial::BATCH_SIZE).enumerate() {
+            if completed.contains(&i) {
+                tracing::info!(target: "translate", "batch {}/{}: 已完成, 跳过", i + 1, total_batches);
                 continue;
             }
-            let start = bi * partial::BATCH_SIZE;
-            for (k, ps) in segs.iter().enumerate() {
-                let gi = start + k;
-                if gi < dsts.len() && !ps.missing {
-                    dsts[gi] = Some(ps.dst.clone());
-                }
-            }
-        }
-    }
-
-    for (i, chunk) in texts.chunks(partial::BATCH_SIZE).enumerate() {
-        if completed.contains(&i) {
-            tracing::info!(target: "translate", "batch {}/{}: 已完成, 跳过", i + 1, total_batches);
-            continue;
-        }
-        let batch: Vec<String> = chunk.to_vec();
-        tracing::info!(target: "translate", "batch {}/{}: {} 句", i + 1, total_batches, batch.len());
-        match batch::translate_batch(&batch, &system, &target_lang, &args) {
-            Ok(results) => {
-                for (k, r) in results.into_iter().enumerate() {
-                    let gi = i * partial::BATCH_SIZE + k;
-                    if gi < dsts.len() {
-                        dsts[gi] = Some(r.replace("——", "，"));
+            let batch: Vec<String> = chunk.to_vec();
+            tracing::info!(target: "translate", "batch {}/{}: {} 句", i + 1, total_batches, batch.len());
+            match batch::translate_batch(&batch, &system, &target_lang, &args) {
+                Ok(results) => {
+                    for (k, r) in results.into_iter().enumerate() {
+                        let gi = i * partial::BATCH_SIZE + k;
+                        if gi < dsts.len() {
+                            dsts[gi] = Some(r.replace("——", "，"));
+                        }
                     }
+                    completed.insert(i);
                 }
-                completed.insert(i);
-            }
-            Err(e) => {
-                // 把已译部分写进 partial (含缺失标注), 然后暴露错误
-                for (k, opt) in e.filled.into_iter().enumerate() {
-                    let gi = i * partial::BATCH_SIZE + k;
-                    if gi < dsts.len() {
-                        dsts[gi] = opt.map(|s| s.replace("——", "，"));
+                Err(e) => {
+                    // 把已译部分写进 partial (含缺失标注), 然后暴露错误
+                    for (k, opt) in e.filled.into_iter().enumerate() {
+                        let gi = i * partial::BATCH_SIZE + k;
+                        if gi < dsts.len() {
+                            dsts[gi] = opt.map(|s| s.replace("——", "，"));
+                        }
                     }
+                    partial::write_partial(
+                        &partial_path,
+                        &texts,
+                        &srt_segments,
+                        &dsts,
+                        &completed,
+                        &src_lang,
+                        &target_lang,
+                    )
+                    .ok();
+                    return Err(anyhow::anyhow!("Step translate failed: {}", e.message));
                 }
-                partial::write_partial(
-                    &partial_path,
-                    &texts,
-                    &srt_segments,
-                    &dsts,
-                    &completed,
-                    &src_lang,
-                    &target_lang,
-                )
-                .ok();
-                return Err(anyhow::anyhow!("Step translate failed: {}", e.message));
             }
+            // 每 batch 完成即增量落盘 partial (阶段内续跑 + 分析用)
+            partial::write_partial(
+                &partial_path,
+                &texts,
+                &srt_segments,
+                &dsts,
+                &completed,
+                &src_lang,
+                &target_lang,
+            )?;
+            set_step_anyhow(
+                &video_dir,
+                "translate",
+                StepPatch {
+                    last_message: Some(format!(
+                        "Translating {}/{}...",
+                        (i + 1) * partial::BATCH_SIZE,
+                        texts.len()
+                    )),
+                    ..Default::default()
+                },
+            )
+            .ok();
         }
-        // 每 batch 完成即增量落盘 partial (阶段内续跑 + 分析用)
-        partial::write_partial(
-            &partial_path,
-            &texts,
-            &srt_segments,
-            &dsts,
-            &completed,
-            &src_lang,
-            &target_lang,
-        )?;
-        set_step_anyhow(
-            &video_dir,
-            "translate",
-            StepPatch {
-                last_message: Some(format!(
-                    "Translating {}/{}...",
-                    (i + 1) * partial::BATCH_SIZE,
-                    texts.len()
-                )),
-                ..Default::default()
-            },
-        )
-        .ok();
-    }
+        dsts
+    };
 
     // 全部完成: 组装正式结果, 写 translation.{lang}.json, 删除 partial
     let segments: Vec<TranslateSegment> = srt_segments
@@ -443,8 +462,9 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     std::fs::write(&out_file, json)
         .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", out_file.display(), e))?;
 
-    // 正式结果已落盘, 删掉增量 partial (避免残留误导)
-    let _ = std::fs::remove_file(&partial_path);
+    // 正式结果已落盘, 删掉增量 partial (避免残留误导; 直通模式无 partial,
+    // 但清掉历史遗留也无害)
+    let _ = std::fs::remove_file(translation_partial_path(&video_dir, &target_lang));
 
     // 确保 ctx.target_language 在内存之外也落盘 (resolve_language 已写回文件, 这里仅保险)
     set_step_anyhow(
@@ -454,7 +474,11 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             status: Some(StepStatus::Success),
             completed_at: Some(now_iso()),
             progress: Some(100.0),
-            last_message: Some("Translated".to_string()),
+            last_message: Some(if args.enabled {
+                "Translated".to_string()
+            } else {
+                "Translated (passthrough, 原文作为译文)".to_string()
+            }),
             ..Default::default()
         },
     )?;
