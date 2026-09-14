@@ -10,8 +10,7 @@ use crate::cmd::env::ensure_bin;
 use crate::context::WorkflowCtx;
 use crate::steps::sf_ocr::fix_args::OcrFixArgs;
 use crate::steps::utils::{
-    now_iso, probe_video_resolution, set_step_anyhow, sf_ocr_dir, sf_ocr_fix_dir, video_source_path,
-    StepPatch, StepStatus,
+    now_iso, set_step_anyhow, sf_ocr_dir, sf_ocr_fix_dir, StepPatch, StepStatus,
 };
 use std::process::Command;
 
@@ -36,11 +35,9 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             frames_file.display()
         ));
     }
-    // 新 subtitle-ocr-post 不再接收 --video, 画面高度优先读 frames.json 的 meta.video_height
-    // (v0.1.1 subtitle-ocr 识别侧写入), 缺失时用 --video-height 兜底 (ffprobe 取原始分辨率高)。
-    let fallback_height = video_source_path(ctx)
-        .map(|v| probe_video_resolution(&v).1)
-        .unwrap_or(0);
+    // 画面高度由 `subtitle-ocr-post` 自己从 frames.json 的 meta.video_height 读
+    // (v0.1.1 起 subtitle-ocr 识别侧写入), 这里不再传 --video-height, 也不再为拿
+    // 分辨率去碰 video_source_path。
     let out_dir = sf_ocr_fix_dir(&video_dir);
     std::fs::create_dir_all(&out_dir)
         .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", out_dir.display(), e))?;
@@ -63,10 +60,6 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         "--stop-at".to_string(),
         "filter-segment".to_string(),
     ];
-    if fallback_height > 0 {
-        post_args.push("--video-height".to_string());
-        post_args.push(fallback_height.to_string());
-    }
     tracing::info!(target: "sf_ocr", "subtitle-ocr-post {}", post_args.join(" "));
     let status = Command::new(&bin)
         .args(&post_args)

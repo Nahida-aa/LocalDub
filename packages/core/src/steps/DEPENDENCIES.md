@@ -127,7 +127,11 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | | 路径 |
 | --- | --- |
 | **读** ⚠️ | `sf_ocr/frames.json` |
-| **读** | `ctx.video_source_path`（取分辨率兜底） |
+
+> 画面高度**不再从这里取**：`subtitle-ocr` v0.1.1 起把 `meta.video_height` 写进
+> `frames.json`，`subtitle-ocr-post` 拿到 `--frames` 后自己读。以前为了兜底会
+> `probe_video_resolution(video_source_path)` 并传 `--video-height`，现在已删。
+> 实测产物：`sf_ocr/frames.json` 的 `meta` = `{"engine":"ort-rust","device":"cpu","video_height":720}`。
 | **读** | `data/bin/subtitle-ocr-post`（缺则下载） |
 | **写** | `sf_ocr_fix/segment_filter.json`、`segment_filter_llm_fix.json`（`llmFix` 时） |
 | **写** | `sf_ocr_fix/{frames_box_adjust,frames_box_filter,frames_merged,segment_adjust}.json`（`subtitle-ocr-post` 各级中间产物） |
