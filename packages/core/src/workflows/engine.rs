@@ -251,6 +251,18 @@ pub fn run_workflow_engine(workflow_dir: &str, opts: &EngineOptions) -> anyhow::
     let outcome = run_workflow_sync(&wf, Arc::new(store), &r_opts, None)
         .map_err(|e| anyhow::anyhow!("workflow engine error: {e}"))?;
 
+    apply_outcome(workflow_dir, &run_id, outcome)
+}
+
+/// 把引擎终态映射到 workflow 状态 + 返回值。
+///
+/// 单独抽出来是为了能直接测 `Paused` 那一支——pipeline 的 step handler 是固定的
+/// 一组真实工序，没法顺手塞一个「会挂起」的进去。
+fn apply_outcome(
+    workflow_dir: &str,
+    run_id: &str,
+    outcome: workflow_core::RunOutcome,
+) -> anyhow::Result<()> {
     match outcome.status {
         RunStatus::Finished => {
             set_workflow_anyhow(
@@ -266,8 +278,10 @@ pub fn run_workflow_engine(workflow_dir: &str, opts: &EngineOptions) -> anyhow::
             Ok(())
         }
         RunStatus::Errored => {
+            // `outcome.error` 是结构化的 `RunError`（`Display` 转发 message）。
             let msg = outcome
                 .error
+                .map(|e| e.message)
                 .unwrap_or_else(|| "unknown engine error".to_string());
             set_workflow_anyhow(
                 workflow_dir,
@@ -279,8 +293,73 @@ pub fn run_workflow_engine(workflow_dir: &str, opts: &EngineOptions) -> anyhow::
             )?;
             Err(anyhow::anyhow!(msg))
         }
-        other => Err(anyhow::anyhow!("unexpected engine status: {other:?}")),
+        // ── 挂起（aa-workflow D3）────────────────────────────────────────
+        //
+        // core 跑到 `ctx.approve` / `ctx.sleep` / `wait_for_event` 时**写盘就返回**，
+        // 不再原地等待（对齐上游 TanStack：`throw new WorkflowPaused()`）。
+        // 所以「跑完一次 run_workflow_engine」不再等于「pipeline 跑完了」。
+        //
+        // 本仓的 pipeline 目前**不使用任何挂起原语**（handler 是纯 `ctx.step` 序列），
+        // 所以正常路径下不会走到这里。走到这里说明：
+        //   - 要么将来给某步加了 `approve`/`sleep`（那需要外部的投递者/驱动器）；
+        //   - 要么引擎语义又变了（那说明这里的假设过期了）。
+        // 两种情况都不该被静默当成成功或失败——如实报错，把问题暴露给调用方。
+        // 见 aa-workflow `docs/runtime-design.md` D3。
+        RunStatus::Paused => {
+            let w = store_wait_desc(workflow_dir);
+            set_workflow_anyhow(
+                workflow_dir,
+                WorkflowPatch {
+                    status: Some("paused".to_string()),
+                    current_step: Some(None),
+                    ..Default::default()
+                },
+            )?;
+            Err(anyhow::anyhow!(
+                "workflow {run_id} 在挂起点停下，等待外部投递{w}；\
+                 当前宿主没有投递者（pipeline 不带挂起原语，走到这里说明用例超出了引擎的\
+                 当前支持范围）。见 aa-workflow docs/runtime-design.md D3"
+            ))
+        }
+        RunStatus::Aborted => {
+            set_workflow_anyhow(
+                workflow_dir,
+                WorkflowPatch {
+                    status: Some("failed".to_string()),
+                    error_message: Some("workflow aborted".to_string()),
+                    ..Default::default()
+                },
+            )?;
+            Err(anyhow::anyhow!("workflow {run_id} aborted"))
+        }
+        // `run_workflow` 的返回值只可能是上面四种终态；`Running` 不该出现。
+        // 显式列出而不是留 `_`：将来 aa-workflow 加了新状态，这里会编译失败，
+        // 逼我们回来决定它该怎么映射——而不是静默走进某个兜底分支。
+        RunStatus::Running => Err(anyhow::anyhow!(
+            "engine 返回了 Running 终态（不该发生）：run {run_id}"
+        )),
     }
+}
+
+/// 挂起时把「在等什么」读出来，附进错误信息——`RunState` 信封里有投影。
+fn store_wait_desc(workflow_dir: &str) -> String {
+    let path = std::path::Path::new(workflow_dir)
+        .join("workflow-engine")
+        .join("run.json");
+    let Ok(raw) = std::fs::read_to_string(&path) else {
+        return String::new();
+    };
+    let Ok(st) = serde_json::from_str::<workflow_core::RunState>(&raw) else {
+        return String::new();
+    };
+    if let Some(w) = st.waiting_for {
+        let step = w.step_id.unwrap_or_default();
+        return format!("（等信号 \"{}\"，step \"{step}\"）", w.signal_name);
+    }
+    if let Some(pa) = st.pending_approval {
+        return format!("（等审批 \"{}\"）", pa.approval_id);
+    }
+    String::new()
 }
 
 #[cfg(test)]
@@ -369,7 +448,7 @@ mod tests {
         let n_finished = |step: &str| {
             events
                 .iter()
-                .filter(|e| matches!(e, workflow_core::RunEvent::StepFinished { step_id, .. } if step_id == step))
+                .filter(|e| matches!(e, workflow_core::WorkflowEvent::StepFinished { step_id, .. } if step_id == step))
                 .count()
         };
         assert_eq!(n_finished("separate"), 1);
@@ -381,7 +460,7 @@ mod tests {
         assert_eq!(
             events
                 .iter()
-                .filter(|e| matches!(e, workflow_core::RunEvent::StepFinished { step_id, .. } if step_id == "separate"))
+                .filter(|e| matches!(e, workflow_core::WorkflowEvent::StepFinished { step_id, .. } if step_id == "separate"))
                 .count(),
             1
         );
@@ -423,7 +502,7 @@ mod tests {
         assert!(
             events
                 .iter()
-                .filter(|e| matches!(e, workflow_core::RunEvent::StepFinished { .. }))
+                .filter(|e| matches!(e, workflow_core::WorkflowEvent::StepFinished { .. }))
                 .all(|e| e.step_id() != Some("separate_after")),
             "separate_after 不应被引擎执行"
         );
@@ -443,7 +522,7 @@ mod tests {
         let separate_res = events
             .iter()
             .find_map(|e| match e {
-                workflow_core::RunEvent::StepFinished {
+                workflow_core::WorkflowEvent::StepFinished {
                     step_id, result, ..
                 } if step_id == "separate" => result.clone(),
                 _ => None,
@@ -470,11 +549,11 @@ mod tests {
         run_workflow_engine(&dir, &EngineOptions::default()).unwrap();
 
         let store = FsRunStore::new(&dir);
-        let get_sf_ts = |events: &[workflow_core::RunEvent], step: &str| -> i64 {
+        let get_sf_ts = |events: &[workflow_core::WorkflowEvent], step: &str| -> i64 {
             events
                 .iter()
                 .find_map(|e| match e {
-                    workflow_core::RunEvent::StepFinished {
+                    workflow_core::WorkflowEvent::StepFinished {
                         step_id, ts, ..
                     } if step_id == step => Some(*ts),
                     _ => None,
@@ -515,7 +594,7 @@ mod tests {
         assert_eq!(
             events_2
                 .iter()
-                .filter(|e| matches!(e, workflow_core::RunEvent::StepFinished { step_id, .. } if step_id == "separate_after"))
+                .filter(|e| matches!(e, workflow_core::WorkflowEvent::StepFinished { step_id, .. } if step_id == "separate_after"))
                 .count(),
             1
         );
@@ -524,6 +603,60 @@ mod tests {
         assert_eq!(ctx.workflow.status, "success");
         assert_eq!(status_of(&dir, "separate"), StepStatus::Success);
         assert_eq!(status_of(&dir, "separate_after"), StepStatus::Success);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 挂起状态必须**如实报错**，不能静默当成成功或失败。
+    ///
+    /// pipeline 本身不带挂起原语（handler 是纯 `ctx.step` 序列），所以正常路径
+    /// 走不到 `RunStatus::Paused`——直接调 `apply_outcome` 验那一支的映射。
+    /// 先跑一个真会挂起的 workflow，拿到**真实的** `RunOutcome`（不是手搓的），
+    /// 再喂给映射函数，这样两侧都覆盖到。见 aa-workflow D3。
+    #[test]
+    fn engine_reports_paused_instead_of_swallowing_it() {
+        let dir = temp_dir("paused");
+        setup_subtitle(&dir);
+
+        // 真跑一个会挂起的 workflow：`approve` 写盘后立刻返回，不阻塞。
+        let wf = Workflow::new("gate").handler(|wctx: WorkflowCtx| async move {
+            wctx.approve("release", "manual gate").await?;
+            Ok(serde_json::Value::Null)
+        });
+        let store = FsRunStore::new(&dir);
+        let outcome = workflow_core::run_workflow_sync(
+            &wf,
+            Arc::new(store),
+            &RunOptions::new(serde_json::json!({})).run_id("t"),
+            None,
+        )
+        .unwrap();
+        assert_eq!(outcome.status, RunStatus::Paused, "core 侧应挂起即返回");
+
+        // 真实 outcome → 映射函数（就是 `run_workflow_engine` 用的那个）。
+        let err = apply_outcome(&dir, "t", outcome)
+            .expect_err("挂起必须报错，不能当成成功");
+
+        let msg = err.to_string();
+        assert!(
+            msg.contains("挂起点") && msg.contains("release"),
+            "错误信息应说明在等什么，实际: {msg}"
+        );
+
+        // workflow 状态如实置 paused（不是 success / failed）。
+        let ctx = read_ctx(&dir).unwrap();
+        assert_eq!(ctx.workflow.status, "paused");
+
+        // 日志里不得出现终态事件——挂起不是终局。
+        let events = FsRunStore::new(&dir).get_events("t").unwrap();
+        assert!(
+            !events.iter().any(|e| matches!(
+                e,
+                workflow_core::WorkflowEvent::RunFinished { .. }
+                    | workflow_core::WorkflowEvent::RunErrored { .. }
+            )),
+            "挂起不得写终态事件"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }

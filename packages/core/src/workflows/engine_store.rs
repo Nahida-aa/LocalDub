@@ -2,7 +2,7 @@
 //! `<workflow_dir>/workflow-engine/`。
 //!
 //! - `run.json` — 运行元数据信封 ([`workflow_core::RunState`])
-//! - `events.jsonl` — append-only 事件日志 (每行一个 JSON [`workflow_core::RunEvent`],
+//! - `events.jsonl` — append-only 事件日志 (每行一个 JSON [`workflow_core::WorkflowEvent`],
 //!   append 走 CAS expected_index, 冲突报 [`StoreError::Conflict`])
 //!
 //! 与 ctx.json 的关系: ctx.json 是 UI 读取的投影/缓存; 引擎的"成败真相"在本目录的日志。
@@ -12,7 +12,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use workflow_core::{RunEvent, RunState, RunStore, StoreError};
+use workflow_core::{DeleteReason, RunState, RunStore, StoreError, WorkflowEvent};
 
 fn map_io(e: std::io::Error) -> StoreError {
     StoreError::Io(e.to_string())
@@ -52,7 +52,7 @@ impl FsRunStore {
     }
 
     /// 读 events.jsonl: 返回 (events, 事件数)。文件缺失视为空日志。
-    fn read_events(&self) -> Result<(Vec<RunEvent>, usize), StoreError> {
+    fn read_events(&self) -> Result<(Vec<WorkflowEvent>, usize), StoreError> {
         let raw = match fs::read_to_string(self.events_path()) {
             Ok(s) => s,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok((Vec::new(), 0)),
@@ -90,7 +90,7 @@ impl RunStore for FsRunStore {
         Self::atomic_write(&self.run_state_path(), &raw)
     }
 
-    fn delete_run(&self, _run_id: &str) -> Result<(), StoreError> {
+    fn delete_run(&self, _run_id: &str, _reason: DeleteReason) -> Result<(), StoreError> {
         match self.dir.metadata() {
             Ok(_) => fs::remove_dir_all(&self.dir).map_err(map_io),
             Err(_) => Ok(()),
@@ -101,7 +101,7 @@ impl RunStore for FsRunStore {
         &self,
         run_id: &str,
         expected_next_index: usize,
-        event: &RunEvent,
+        event: &WorkflowEvent,
     ) -> Result<(), StoreError> {
         let _guard = self
             .lock
@@ -130,7 +130,7 @@ impl RunStore for FsRunStore {
         Self::atomic_write(&self.events_path(), &out)
     }
 
-    fn get_events(&self, _run_id: &str) -> Result<Vec<RunEvent>, StoreError> {
+    fn get_events(&self, _run_id: &str) -> Result<Vec<WorkflowEvent>, StoreError> {
         self.read_events().map(|(v, _)| v)
     }
 
@@ -144,8 +144,8 @@ impl RunStore for FsRunStore {
         let Some(cut) = events
             .iter()
             .rposition(|ev| match ev {
-                RunEvent::StepFinished { step_id: id, .. }
-                | RunEvent::StepFailed { step_id: id, .. } => id == step_id,
+                WorkflowEvent::StepFinished { step_id: id, .. }
+                | WorkflowEvent::StepFailed { step_id: id, .. } => id == step_id,
                 _ => false,
             })
         else {
@@ -175,8 +175,8 @@ mod tests {
         dir
     }
 
-    fn event(run_id: &str, step: &str) -> RunEvent {
-        RunEvent::StepFinished {
+    fn event(run_id: &str, step: &str) -> WorkflowEvent {
+        WorkflowEvent::StepFinished {
             ts: 1,
             run_id: run_id.to_string(),
             step_id: step.to_string(),
@@ -200,6 +200,8 @@ mod tests {
             input: serde_json::json!({"x": 1}),
             output: None,
             error: None,
+            waiting_for: None,
+            pending_approval: None,
             created_at: 1,
             updated_at: 2,
         };
