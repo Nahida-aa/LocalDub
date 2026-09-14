@@ -99,8 +99,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | | 路径 |
 | --- | --- |
 | **读** ⚠️ | `asr/asr.json` |
-| **读** | `subtitle_file_path(ctx)`（见下方「焦点文件」） |
-| **写** | `subtitle_file_path(ctx)`（就地改写，或写 `asr_fix/`） |
+| **写** | `asr_fix/asr_fix.json`（= **asr 源下的焦点文件**，见下节；代码里写的是自己的输出目录，路径恰好与解析结果一致，并**没有**调 `subtitle_file_path`） |
 
 ### `sf_ocr_pre`
 
@@ -161,6 +160,8 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | --- | --- |
 | **读** ⚠️ | `asr/asr.json`、`asr_ocr_pre/asr_split.json`、`asr_ocr/frames.json` |
 | **读** | `ctx.video_source_path`：**resample 抽帧**（`-i <video>`）；高度探测仅老产物回退（见下） |
+| **写** | `asr_ocr_fix/asr_ocr_fused[_llm_fix].json`（= **asr_ocr 源下的焦点文件**，见下节；代码写的是自己的输出目录，路径恰好与解析结果一致，并**没有**调 `subtitle_file_path`） |
+| **写** | `asr_ocr_fix/{frames_box_adjust,frames_box_filter,frames_merged,segment_adjust}.json`（中间产物） |
 
 > 高度（`adjust-segment` 的 Y 惩罚归一化分母）的来源，**两条路径不同**：
 >
@@ -173,13 +174,12 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 >
 > 高度的用途：把字幕框 Y 像素偏差归一化成 0..1 的位置惩罚（画面中部的 OCR
 > 误识别压低置信度）。**传 0 不会报错，只会让位置惩罚静默失效**。
-| **写** | `asr_ocr_fix/`（融合结果）、`subtitle_file_path(ctx)` |
 
 ### `translate`
 
 | | 路径 |
 | --- | --- |
-| **读** ⚠️ | `subtitle_file_path(ctx)` |
+| **读** ⚠️ | 焦点文件（按 `subtitleSource` 解析，具体路径见下节） |
 | **读** | `data/bin/yt-dlp` 产物（可选元信息） |
 | **写** | `translate/translation.{lang}.json`、中间态 `translation.{lang}.partial.json` |
 
@@ -187,7 +187,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 | | 路径 |
 | --- | --- |
-| **读** ⚠️ | `subtitle_file_path(ctx)`（时间轴） |
+| **读** ⚠️ | 焦点文件（按 `subtitleSource` 解析，具体路径见下节）——时间轴 |
 | **读** | `translate/translation.{lang}.json`（`translate.enabled` 时；否则用原文） |
 | **读** | `separate/target_3_vocals.wav`（dub 模式切 wav 块；subtitle 模式不需要） |
 | **写** | `split_audio/split_audio.json`、`timings.json`、`vocals/*.wav` |
@@ -217,19 +217,19 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 | | 路径 |
 | --- | --- |
-| **读** ⚠️ | `ctx.video_source_path` |
+| **读** ⚠️ | `ctx.video_source_path`（ffmpeg 输入） |
 | **读** | `mix_audio/audio_dubbing.wav`（**dub 模式**；`subtitle` 模式不需要） |
 | **读** | `separate_after/target_bgm.wav` 或 `mix_video.bgmPath` 覆盖（**dub 模式**） |
-| **读** | `subtitle_file_path(ctx)` 或 `mix_video.subtitlePath` 覆盖 |
-| **读** | `translate/translation.{lang}.json`（烧译文字幕时） |
-| **写** | `mix_video/{dub,subtitle,dub_ntl}/{id}.mp4`（最终产物） |
+| **读** | 字幕轨来源**三选一**（代码 `mix_video/mod.rs:293`）：`split_audio/split_audio.json`（`vadAlign: true`）／焦点文件 或 `mix_video.srtPath` 覆盖（`noTranslate`）／`translate/translation.{lang}.json`（默认，有译文时） |
+| **写** | `mix_video/{dub,subtitle,dub_ntl}/{id}.mp4`（最终产物）、中间 SRT |
 
 ---
 
-## 焦点文件：`subtitle_file_path(ctx)`
+## 焦点文件（下文各表简称「焦点文件」）
 
-这是**唯一一个「谁写的」取决于 `subtitleSource` 的路径**，所以单列
-（实现见 `utils/mod.rs:523`）：
+**定义**：`subtitle_file_path(ctx)`（实现 `utils/mod.rs:523`）按 `subtitleSource`
+解析出的**具体路径**——下文各表里写的「焦点文件」就是指本表中的路径，
+不是 helper 名。这是**唯一一个「谁写的」取决于 `subtitleSource` 的路径**：
 
 | `subtitleSource` | 路径 | 谁写 |
 | --- | --- | --- |
@@ -239,6 +239,10 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 > ⚠️ 注意 `asr` 源走的是 **`asr_fix/asr_fix.json`**，不是 `asr/asr.json`。
 > `asr/asr.json` 是 `asr` 的**中间产物**，只被 `asr_fix` 和 `asr_ocr_pre` 读。
+>
+> ⚠️ 调用 `subtitle_file_path` helper 的只有三个：`translate` / `split_audio` /
+> `mix_video`。`asr_fix` / `asr_ocr_fix` 写自己的输出目录，**路径恰好**与解析
+> 结果一致——它们并没有调 helper（曾在本表中误写成调用）。
 
 `translate`、`split_audio`、`mix_video` 都读它——所以**这三个 step 的上游不是固定的**，
 随 `subtitleSource` 与对应 `llmFix` 开关变（路径因此有 3×2 种可能）。
@@ -260,7 +264,7 @@ separate ──► separate_after ┤                                       │
    └────────────────────────┬─────────────────────┘                 │
                             │                                       │
                             ▼                                       │
-                    subtitle_file_path ◄──────────────────────────┘
+                    焦点文件 ◄──────────────────────────┘
                             │
                             ├──► translate ──► translation.{lang}.json ─┐
                             │                                           │
