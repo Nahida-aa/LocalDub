@@ -1,25 +1,27 @@
 {
   "$schema": "./input.schema.json",
-  "command": "task",
-  "task": {
-    "action": "start",
-    "url": "/home/aa/下载/大/38.mp4",
-    "taskDir": "/home/aa/repos/env_ls/LocalDub/workfolder/大/37",
-    "continueFrom": "mix_video",
+  "command": "workflow",
+  "workflow": {
+    "action": "continue",
+    "url": "/home/aa/下载/师尊带我炸修真/4",
+    "videoDir": "workfolder/师尊带我炸修真/4",
+    "continueFrom": "tts",
     "targetStep": "mix_video",
     "pipeline": "dub",
     "subtitleSource": "sf_ocr",
+    "sourceLang": "zh",
+    "targetLang": "vi",
   },
   "check": {
     "type": "font",
   },
   "env": {
     "action": "check",
-    "targets": ["ffmpeg"],
+    "targets": [],
   },
   "servers": {
     "action": "discovery",
-    "name": "voxcpm_torch_gradio",
+    "name": "main",
   },
   "steps": {
     "separate": {
@@ -36,6 +38,9 @@
       "vadModel": "silero-v6",
       "wordsOutput": true,
     },
+    "asr_fix": {
+      "llmFix": true,
+    },
     "asr_ocr": {
       "runtime": "ort-rust",
       "textScore": 0.45,
@@ -44,15 +49,12 @@
       "is_resample": false,
       "llmFix": true,
     },
-    "asr_fix": {
-      "llmFix": true,
-    },
+
     "sf_ocr_fix": {
       "llmFix": true,
     },
     "translate": {
       "enabled": true,
-      "targetLang": "vi",
       "apiBase": "http://localhost:11434/v1",
       "model": "gemma4:31b-cloud",
     },
@@ -67,13 +69,13 @@
       "regenIndices": [],
     },
     "mix_audio": {
-      "maxSpeed": 1.55,
+      "maxSpeed": 1.65,
       "maxAdvanceMs": 300,
       "maxDelayMs": 300,
     },
     "mix_video": {
       "fontSize": 21.4,
-      "marginV": 45,
+      "marginV": 50,
       "font": "Noto Sans CJK SC Medium",
       "shadow": 1.1,
       "bgmGain": -9,
