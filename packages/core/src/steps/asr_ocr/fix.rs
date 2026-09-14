@@ -480,10 +480,9 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
     write_json_file(&out_dir.join("asr_ocr_fused.json"), &fused_result)?;
 
     // === Step 8 (optional): LLM fix ===
+    let mut final_segments = fused_result.result.segments.clone();
     if args.ocr_fix.llm_fix.llm_fix {
-        let src_texts: Vec<String> = fused_result
-            .result
-            .segments
+        let src_texts: Vec<String> = final_segments
             .iter()
             .map(|s| s.base.text.clone())
             .collect();
@@ -505,11 +504,10 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
         );
         match llm::ocr_llm_fix(&src_texts, &lang_label, &args.ocr_fix.llm_fix) {
             Ok(fixed) => {
-                let mut llm_segments = fused_result.result.segments.clone();
-                for (seg, text) in llm_segments.iter_mut().zip(fixed) {
+                for (seg, text) in final_segments.iter_mut().zip(fixed) {
                     seg.base.text = text;
                 }
-                let llm_text = llm_segments
+                let llm_text = final_segments
                     .iter()
                     .map(|s| s.base.text.as_str())
                     .collect::<Vec<_>>()
@@ -517,7 +515,7 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
                 let llm_result = serde_json::json!({
                     "result": {
                         "text": llm_text,
-                        "segments": llm_segments,
+                        "segments": final_segments,
                     }
                 });
                 write_json_file(&out_dir.join("asr_ocr_fused_llm_fix.json"), &llm_result)?;
@@ -527,6 +525,12 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
             }
         }
     }
+
+    // 规范化字幕产物（下游 translate/split_audio/mix_video 的唯一契约）——
+    // llmFix 与否已由上面消化，这里统一落最终结果。
+    let srt_segs: Vec<subtitle::SubtitleSegment> =
+        final_segments.iter().map(|s| s.base.clone()).collect();
+    crate::steps::utils::write_srt_json(&out_dir.join("srt.json"), &srt_segs)?;
 
     info!(target: "asr_ocr",
         "filter-segment done (threshold={}) → {} ASR → {} split → {} merged, {} fused",

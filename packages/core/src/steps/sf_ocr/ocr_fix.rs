@@ -157,6 +157,20 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", llm_fix_file.display(), e))?;
     }
 
+    // 规范化字幕产物（下游 translate/split_audio/mix_video 的唯一契约）——
+    // llmFix 与否已由上面消化，这里统一落最终结果。
+    let srt_segs: Vec<subtitle::SubtitleSegment> = final_segments
+        .iter()
+        .filter_map(|s| {
+            Some(subtitle::SubtitleSegment {
+                text: s.get("text")?.as_str()?.to_string(),
+                start_ms: s.get("start_ms")?.as_u64()? as u32,
+                end_ms: s.get("end_ms")?.as_u64()? as u32,
+            })
+        })
+        .collect();
+    crate::steps::utils::write_srt_json(&out_dir.join("srt.json"), &srt_segs)?;
+
     set_step_anyhow(
         &video_dir,
         "sf_ocr_fix",

@@ -23,8 +23,8 @@ use crate::context::WorkflowCtx;
 use crate::steps::translate::out::{TranslateResult, TranslateResultMeta, TranslateSegment};
 use crate::steps::translate::prompts::{build_preprocess_prompt, build_translate_system, MetaView};
 use crate::steps::utils::{
-    lang_name, now_iso, resolve_language, set_step_anyhow, subtitle_file_path,
-    translation_file_path, translation_partial_path, StepPatch, StepStatus,
+    asr_fix_dir, asr_ocr_fix_dir, lang_name, now_iso, resolve_language, set_step_anyhow,
+    sf_ocr_fix_dir, translation_file_path, translation_partial_path, StepPatch, StepStatus,
 };
 use config_rs::env::openai_api_key;
 
@@ -37,12 +37,15 @@ fn read_args(ctx: &WorkflowCtx) -> args::TranslateArgs {
         .unwrap_or_default()
 }
 
-/// 读 `download/ytdlp_info.json` → [`MetaView`]。
+/// 读视频元信息 → [`MetaView`]。
 ///
-/// 文件缺失 / 内容非法都退化为 `MetaView::default()`——元信息只用于给 LLM
-/// 加上下文, 缺了照样能翻, 不该让 step 失败。字段做了长度截断 (避免把整段
-/// 视频简介塞进提示词)。
-fn load_video_meta(path: &Path) -> MetaView {
+/// `None`（ytdlp_info.json 不存在）或内容非法都退化为 `MetaView::default()`——
+/// 元信息只用于给 LLM 加上下文, 缺了照样能翻, 不该让 step 失败。
+/// 字段做了长度截断 (避免把整段视频简介塞进提示词)。
+fn load_video_meta(path: Option<&Path>) -> MetaView {
+    let Some(path) = path else {
+        return MetaView::default();
+    };
     let Ok(raw) = std::fs::read_to_string(path) else {
         return MetaView::default();
     };
@@ -179,59 +182,115 @@ pub fn parse_json_reply(raw: &str) -> anyhow::Result<Value> {
     ))
 }
 
+/// translate 的**输入契约**：按 `subtitleSource` 分三种来源，每种指向该链
+/// fix 步骤落盘的规范化字幕 `srt.json`（`{"result": {"segments": [SubtitleSegment]}}`）。
+///
+/// 设计要点：
+/// - **llmFix 不出现在这里**——跑没跑 LLM 修正由产出方消化（fix 步骤最后统一
+///   落 srt.json），消费者只认规范化产物。旧的 3×2 焦点文件矩阵由此消失。
+/// - 未知 `subtitleSource` → 报错而非静默回退（fail-fast）。
+/// - `srt.json` 缺失 → 报错并提示先跑对应 fix 步骤（不做旧产物回退）。
+#[derive(Debug, Clone)]
+pub struct TranslateInput {
+    pub subtitle: SubtitleSrt,
+    /// 视频元信息（`download/ytdlp_info.json`），preprocess 用；缺省 `None`。
+    pub meta: Option<std::path::PathBuf>,
+}
+
+/// 规范化字幕的来源。字段名即产出方（provenance 在类型里）。
+#[derive(Debug, Clone)]
+pub enum SubtitleSrt {
+    /// `asr_fix/srt.json`（`subtitleSource = asr`）
+    Asr(std::path::PathBuf),
+    /// `sf_ocr_fix/srt.json`（`subtitleSource = sf_ocr`）
+    SfOcr(std::path::PathBuf),
+    /// `asr_ocr_fix/srt.json`（`subtitleSource = asr_ocr`）
+    AsrOcr(std::path::PathBuf),
+}
+
+impl SubtitleSrt {
+    pub fn path(&self) -> &std::path::Path {
+        match self {
+            SubtitleSrt::Asr(p) | SubtitleSrt::SfOcr(p) | SubtitleSrt::AsrOcr(p) => p,
+        }
+    }
+
+    /// 产出方 step 名（报错提示用）。
+    pub fn producer(&self) -> &'static str {
+        match self {
+            SubtitleSrt::Asr(_) => "asr_fix",
+            SubtitleSrt::SfOcr(_) => "sf_ocr_fix",
+            SubtitleSrt::AsrOcr(_) => "asr_ocr_fix",
+        }
+    }
+}
+
+impl TranslateInput {
+    /// 从 ctx 解析输入。`subtitleSource` 未知、或 srt.json 缺失 → 报错。
+    pub fn from_ctx(ctx: &WorkflowCtx) -> anyhow::Result<Self> {
+        let video_dir = ctx.workflow.video_dir.clone();
+        let source = ctx
+            .input
+            .get("workflow")
+            .and_then(|v| v.get("subtitleSource"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("asr")
+            .to_string();
+
+        let subtitle = match source.as_str() {
+            "sf_ocr" => SubtitleSrt::SfOcr(sf_ocr_fix_dir(&video_dir).join("srt.json")),
+            "asr_ocr" => SubtitleSrt::AsrOcr(asr_ocr_fix_dir(&video_dir).join("srt.json")),
+            "asr" => SubtitleSrt::Asr(asr_fix_dir(&video_dir).join("srt.json")),
+            other => {
+                return Err(anyhow::anyhow!(
+                    "未知的 subtitleSource \"{other}\"（期望 asr / sf_ocr / asr_ocr）"
+                ))
+            }
+        };
+        if !subtitle.path().exists() {
+            return Err(anyhow::anyhow!(
+                "规范化字幕 {} 不存在；请先运行 {}（或从该步骤 continue 以重新生成）",
+                subtitle.path().display(),
+                subtitle.producer()
+            ));
+        }
+
+        let meta_path = std::path::Path::new(&video_dir)
+            .join("download")
+            .join("ytdlp_info.json");
+        let meta = meta_path.exists().then_some(meta_path);
+
+        Ok(Self { subtitle, meta })
+    }
+}
+
 /// 入口 (镜像 TS `stepTranslate`)。
 pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "translate", "start");
 
+    let input = TranslateInput::from_ctx(ctx)?;
     let args = read_args(ctx);
     let (src_lang, target_lang) = resolve_language(ctx)?;
     let src_lang_name = lang_name(&src_lang);
     let dst_lang_name = lang_name(&target_lang);
 
-    let srt_file = subtitle_file_path(ctx);
-    if !Path::new(&srt_file).exists() {
+    let srt_segs: Vec<subtitle::SubtitleSegment> =
+        crate::steps::utils::read_srt_json(input.subtitle.path())?;
+    if srt_segs.is_empty() {
         return Err(anyhow::anyhow!(
-            "字幕文件不存在: {srt_file}; 请先完成识别阶段"
+            "{} 无 segments",
+            input.subtitle.path().display()
         ));
     }
-    let srt_raw = std::fs::read_to_string(&srt_file)
-        .map_err(|e| anyhow::anyhow!("读取字幕文件 {srt_file} 失败: {e}"))?;
-    let srt: Value = serde_json::from_str(&srt_raw)
-        .map_err(|e| anyhow::anyhow!("解析字幕文件 {srt_file} 失败: {e}"))?;
-    let srt_segments = srt
-        .get("result")
-        .and_then(|r| r.get("segments"))
-        .and_then(|s| s.as_array())
-        .cloned()
-        .unwrap_or_default();
-    if srt_segments.is_empty() {
-        return Err(anyhow::anyhow!("{srt_file} 无 segments"));
-    }
-    let texts: Vec<String> = srt_segments
-        .iter()
-        .map(|u| {
-            u.get("text")
-                .and_then(|t| t.as_str())
-                .unwrap_or("")
-                .trim()
-                .to_string()
-        })
-        .collect();
-    let full_text = srt
-        .get("result")
-        .and_then(|r| r.get("text"))
-        .and_then(|t| t.as_str())
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| texts.join(" "));
+    let srt_segments: Vec<Value> =
+        serde_json::from_value(serde_json::to_value(&srt_segs)?)?;
+    let texts: Vec<String> = srt_segs.iter().map(|s| s.text.trim().to_string()).collect();
+    let full_text = texts.join(" ");
 
     // 视频元信息 (ytdlp_info.json 可选)
-    let ytdlp_path = Path::new(&video_dir)
-        .join("download")
-        .join("ytdlp_info.json");
-    let has_meta = ytdlp_path.exists();
-    let meta = load_video_meta(&ytdlp_path);
+    let meta = load_video_meta(input.meta.as_deref());
+    let has_meta = input.meta.is_some();
     // preprocess (仅在有元信息时): 让 LLM 先读一遍全文, 产出摘要/热词/纠错,
     // 注入后续批量翻译的系统提示。失败不阻断——退化成"无预处理"直接翻。
     let pre = if has_meta {
@@ -494,8 +553,83 @@ mod tests {
         );
         crate::context::write_ctx(&dir, &ctx).unwrap();
         let res = step_translate(&ctx);
-        assert!(res.is_err());
-        assert!(res.unwrap_err().to_string().contains("字幕文件不存在"));
+        let err = res.expect_err("缺 srt.json 必须报错");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("不存在") && msg.contains("asr_fix"),
+            "错误应指向缺失的 srt.json 与产出方, 实际: {msg}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `subtitleSource` 未知 → from_ctx 显式报错（fail-fast，不静默回退）。
+    #[test]
+    fn unknown_subtitle_source_errors() {
+        let dir = std::env::temp_dir()
+            .join(format!("ld_translate_src_{}", std::process::id()))
+            .to_string_lossy()
+            .to_string();
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let ctx = ctx_at(
+            &dir,
+            json!({
+                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
+                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
+                "input": {"workflow": {"subtitleSource": "wat"}}
+            }),
+        );
+        let err = TranslateInput::from_ctx(&ctx).expect_err("未知来源必须报错");
+        assert!(
+            err.to_string().contains("未知的 subtitleSource"),
+            "实际: {err}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `subtitleSource` → 对应的 srt.json 路径（provenance 在类型里）。
+    #[test]
+    fn from_ctx_resolves_srt_path_per_source() {
+        let dir = std::env::temp_dir()
+            .join(format!("ld_translate_p_{}", std::process::id()))
+            .to_string_lossy()
+            .to_string();
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        for (source, producer_dir, expected) in [
+            ("asr", "asr_fix", "asr_fix/srt.json"),
+            ("sf_ocr", "sf_ocr_fix", "sf_ocr_fix/srt.json"),
+            ("asr_ocr", "asr_ocr_fix", "asr_ocr_fix/srt.json"),
+        ] {
+            // 先落 srt.json（from_ctx 对缺失文件 fail-fast）。
+            std::fs::create_dir_all(std::path::Path::new(&dir).join(producer_dir)).unwrap();
+            crate::steps::utils::write_srt_json(
+                &std::path::Path::new(&dir).join(producer_dir).join("srt.json"),
+                &[subtitle::SubtitleSegment {
+                    text: "t".into(),
+                    start_ms: 0,
+                    end_ms: 1,
+                }],
+            )
+            .unwrap();
+
+            let ctx = ctx_at(
+                &dir,
+                json!({
+                    "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
+                             "status":"running","created_at":"2024-01-01T00:00:00Z"},
+                    "input": {"workflow": {"subtitleSource": source}}
+                }),
+            );
+            let input = TranslateInput::from_ctx(&ctx)
+                .unwrap_or_else(|e| panic!("{source}: {e}"));
+            assert!(
+                input.subtitle.path().to_string_lossy().ends_with(expected),
+                "{source} 应解析到 {expected}, 实际 {:?}",
+                input.subtitle.path()
+            );
+        }
         let _ = std::fs::remove_dir_all(&dir);
     }
 

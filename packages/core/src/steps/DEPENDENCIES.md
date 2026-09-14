@@ -99,7 +99,8 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | | 路径 |
 | --- | --- |
 | **读** ⚠️ | `asr/asr.json` |
-| **写** | `asr_fix/asr_fix.json`（= **asr 源下的焦点文件**，见下节；代码里写的是自己的输出目录，路径恰好与解析结果一致，并**没有**调 `subtitle_file_path`） |
+| **写** | `asr_fix/asr_fix.json`（详细产物，含 words/confidence 等） |
+| **写** | `asr_fix/srt.json`（**规范化字幕**，见「规范化字幕」节） |
 
 ### `sf_ocr_pre`
 
@@ -126,15 +127,16 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | | 路径 |
 | --- | --- |
 | **读** ⚠️ | `sf_ocr/frames.json` |
+| **读** | `data/bin/subtitle-ocr-post`（缺则下载） |
+| **写** | `sf_ocr_fix/segment_filter.json`、`segment_filter_llm_fix.json`（`llmFix` 时） |
+| **写** | `sf_ocr_fix/{frames_box_adjust,frames_box_filter,frames_merged,segment_adjust}.json`（`subtitle-ocr-post` 各级中间产物） |
+| **写** | `sf_ocr_fix/srt.json`（**规范化字幕**，见「规范化字幕」节） |
 
 > 画面高度**不再从这里取**：`subtitle-ocr` v0.1.1 起把 `meta.video_height` 写进
 > `frames.json`，`subtitle-ocr-post` 拿到 `--frames` 后自己读。以前为了兜底会
 > `probe_video_resolution(video_source_path)` 并传 `--video-height`，现在已删。
 > 实测产物：`sf_ocr/frames.json` 的 `meta` = `{"engine":"ort-rust","device":"cpu","video_height":720}`。
-| **读** | `data/bin/subtitle-ocr-post`（缺则下载） |
-| **写** | `sf_ocr_fix/segment_filter.json`、`segment_filter_llm_fix.json`（`llmFix` 时） |
-| **写** | `sf_ocr_fix/{frames_box_adjust,frames_box_filter,frames_merged,segment_adjust}.json`（`subtitle-ocr-post` 各级中间产物） |
-
+>
 > `subtitle-ocr-post` 的 `--stop-at filter-segment` 会留下一条流水线产物：
 > `frames_box_adjust → frames_box_filter → frames_merged → segment_adjust → segment_filter`。
 > 真正的**交付物是 `segment_filter*.json`**，其余是中间态（便于定位哪一级出问题）。
@@ -160,7 +162,8 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | --- | --- |
 | **读** ⚠️ | `asr/asr.json`、`asr_ocr_pre/asr_split.json`、`asr_ocr/frames.json` |
 | **读** | `ctx.video_source_path`：**resample 抽帧**（`-i <video>`）；高度探测仅老产物回退（见下） |
-| **写** | `asr_ocr_fix/asr_ocr_fused[_llm_fix].json`（= **asr_ocr 源下的焦点文件**，见下节；代码写的是自己的输出目录，路径恰好与解析结果一致，并**没有**调 `subtitle_file_path`） |
+| **写** | `asr_ocr_fix/asr_ocr_fused[_llm_fix].json`（详细产物） |
+| **写** | `asr_ocr_fix/srt.json`（**规范化字幕**，见「规范化字幕」节） |
 | **写** | `asr_ocr_fix/{frames_box_adjust,frames_box_filter,frames_merged,segment_adjust}.json`（中间产物） |
 
 > 高度（`adjust-segment` 的 Y 惩罚归一化分母）的来源，**两条路径不同**：
@@ -179,7 +182,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 | | 路径 |
 | --- | --- |
-| **读** ⚠️ | 焦点文件（按 `subtitleSource` 解析，具体路径见下节） |
+| **读** ⚠️ | 规范化字幕 `srt.json`（按 `subtitleSource` 选目录，见「规范化字幕」节；类型化契约 `TranslateInput::from_ctx`，未知来源 / 缺文件**报错**） |
 | **读** | `data/bin/yt-dlp` 产物（可选元信息） |
 | **写** | `translate/translation.{lang}.json`、中间态 `translation.{lang}.partial.json` |
 
@@ -235,7 +238,25 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 ---
 
-## 焦点文件（下文各表简称「焦点文件」）
+## 规范化字幕 `srt.json`（新契约）与焦点文件（旧契约）
+
+### 新契约：`{fix_dir}/srt.json`
+
+三个 fix 步骤（`asr_fix` / `sf_ocr_fix` / `asr_ocr_fix`）收尾时各自落一个**规范化
+字幕**：`{"result": {"segments": [SubtitleSegment]}}`，段结构用 `subtitle` crate
+的权威类型（`text` / `start_ms` / `end_ms`，详细字段留在各自的详细产物里）。
+
+**要点**：
+
+- **`llmFix` 维度在消费者侧消失**——跑没跑 LLM 修正由产出方消化
+  （详细文件照写，最后统一落 srt.json），下游不再需要知道。
+- 消费方由类型保证：`TranslateInput::from_ctx`（`translate/mod.rs`）按
+  `subtitleSource` 解析到 `SubtitleSrt::Asr / SfOcr / AsrOcr` 三变体，
+  未知来源 / 缺文件**报错**（fail-fast，不回退旧产物）。
+- 尚未迁移的消费者：`split_audio`、`mix_video`（subtitle 分支）仍读焦点文件
+  ——迁移后「焦点文件」概念可整个退役。
+
+### 旧契约：焦点文件（`subtitle_file_path(ctx)`）
 
 **定义**：`subtitle_file_path(ctx)`（实现 `utils/mod.rs:523`）按 `subtitleSource`
 解析出的**具体路径**——下文各表里写的「焦点文件」就是指本表中的路径，
@@ -250,12 +271,13 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 > ⚠️ 注意 `asr` 源走的是 **`asr_fix/asr_fix.json`**，不是 `asr/asr.json`。
 > `asr/asr.json` 是 `asr` 的**中间产物**，只被 `asr_fix` 和 `asr_ocr_pre` 读。
 >
-> ⚠️ 调用 `subtitle_file_path` helper 的只有三个：`translate` / `split_audio` /
-> `mix_video`。`asr_fix` / `asr_ocr_fix` 写自己的输出目录，**路径恰好**与解析
-> 结果一致——它们并没有调 helper（曾在本表中误写成调用）。
+> ⚠️ 调用 `subtitle_file_path` helper 的只剩两个：`split_audio` / `mix_video`。
+> `translate` 已迁到 srt.json；`asr_fix` / `asr_ocr_fix` 写自己的输出目录，
+> **路径恰好**与解析结果一致——它们并没有调 helper（曾在本表中误写成调用）。
 
-`translate`、`split_audio`、`mix_video` 都读它——所以**这三个 step 的上游不是固定的**，
-随 `subtitleSource` 与对应 `llmFix` 开关变（路径因此有 3×2 种可能）。
+`split_audio`、`mix_video`（subtitle 分支）仍读它——所以**这两个 step 的上游不是固定的**，
+随 `subtitleSource` 与对应 `llmFix` 开关变（路径因此有 3×2 种可能）。迁移到
+srt.json 后这个 3×2 会消失。
 
 ---
 

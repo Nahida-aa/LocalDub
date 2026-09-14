@@ -11,6 +11,7 @@ use anyhow::Result;
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
+use subtitle::SubtitleSegment;
 use tracing::info;
 
 const SPLIT_PAT: &str = r"[，,。！？.!?]";
@@ -62,12 +63,12 @@ struct AsrSplitResultMeta {
     segments_count: usize,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct SubtitleSegment {
-    pub text: String,
-    pub start_ms: u32,
-    pub end_ms: u32,
-}
+// #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+// pub struct SubtitleSegment {
+//     pub text: String,
+//     pub start_ms: u32,
+//     pub end_ms: u32,
+// }
 
 /// Split long ASR segments by punctuation using word-level timestamps.
 fn split_asr_by_words(segs: &[AsrSegment]) -> Vec<SubtitleSegment> {

@@ -19,6 +19,7 @@ use serde::Serialize;
 
 use crate::context::{read_ctx, write_ctx, WorkflowStep};
 use crate::r#const::lang::{default_lang, infer_target_lang, Language, TargetLang};
+use subtitle::SubtitleSegment;
 
 /// RFC3339 时间戳, 去毫秒 (镜像 TS `nowISO`, 形如 `2024-01-01T00:00:00Z`)。
 pub fn now_iso() -> String {
@@ -442,6 +443,10 @@ pub fn asr_ocr_dir(video_dir: &str) -> PathBuf {
 pub fn asr_ocr_fix_dir(video_dir: &str) -> PathBuf {
     Path::new(video_dir).join("asr_ocr_fix")
 }
+/// asr_fix 修正结果目录
+pub fn asr_fix_dir(video_dir: &str) -> PathBuf {
+    Path::new(video_dir).join("asr_fix")
+}
 
 /// 取 video_source_path (缺则报错, 与 TS `video_source_path` 一致)。
 pub fn video_source_path(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<String> {
@@ -456,6 +461,42 @@ pub fn video_source_path(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<St
 /// 确保目录存在 (镜像 TS `ensureDir`)。
 pub fn ensure_dir(path: &std::path::Path) -> anyhow::Result<()> {
     fs::create_dir_all(path).map_err(|e| anyhow::anyhow!("创建目录 {} 失败: {}", path.display(), e))
+}
+
+/// 写**规范化字幕产物** `srt.json`（`{"result": {"segments": [SubtitleSegment]}}`）。
+///
+/// 这是下游消费者（`translate` / `split_audio` / `mix_video`）的**唯一字幕契约**：
+/// 各 fix 步骤（`asr_fix` / `sf_ocr_fix` / `asr_ocr_fix`）收尾时写出——**llmFix
+/// 与否由产出方消化**（先写各自带内部字段的详细文件，最后统一落 srt.json），
+/// 消费者不再需要知道产出方内部有没有跑过 LLM 修正。
+///
+/// 段结构用 `subtitle` crate 的 [`SubtitleSegment`]（text/start_ms/end_ms，
+/// 权威定义在 vision-lab），与本仓此前散落的本地定义不同源——以 crate 为准。
+pub fn write_srt_json(path: &std::path::Path, segments: &[SubtitleSegment]) -> anyhow::Result<()> {
+    let out = serde_json::json!({ "result": { "segments": segments } });
+    if let Some(parent) = path.parent() {
+        ensure_dir(parent)?;
+    }
+    let json = serde_json::to_string_pretty(&out)
+        .map_err(|e| anyhow::anyhow!("序列化 srt.json 失败: {e}"))?;
+    fs::write(path, json)
+        .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", path.display(), e))?;
+    Ok(())
+}
+
+/// 读 [`write_srt_json`] 产出的规范化字幕。
+pub fn read_srt_json(path: &std::path::Path) -> anyhow::Result<Vec<SubtitleSegment>> {
+    let raw = fs::read_to_string(path)
+        .map_err(|e| anyhow::anyhow!("读取 {} 失败: {e}", path.display()))?;
+    let v: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("解析 {} 失败: {e}", path.display()))?;
+    serde_json::from_value(
+        v.get("result")
+            .and_then(|r| r.get("segments"))
+            .cloned()
+            .unwrap_or(serde_json::Value::Null),
+    )
+    .map_err(|e| anyhow::anyhow!("解析 {} 的 segments 失败: {e}", path.display()))
 }
 
 /// 定位 workspace 构建的二进制: 优先 `target/release/<name>`, 回退 `target/debug/<name>`

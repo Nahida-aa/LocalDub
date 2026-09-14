@@ -132,6 +132,17 @@ pub fn step_asr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         serde_json::to_string_pretty(&out).map_err(|e| anyhow!("序列化 asr_fix 结果失败: {e}"))?;
     std::fs::write(&srt_file, json).with_context(|| format!("写入 {} 失败", srt_file.display()))?;
 
+    // 规范化字幕产物（下游 translate/split_audio/mix_video 的唯一契约）。
+    let srt_segs: Vec<subtitle::SubtitleSegment> = segments
+        .iter()
+        .map(|s| subtitle::SubtitleSegment {
+            text: s.text.clone(),
+            start_ms: s.start_ms,
+            end_ms: s.end_ms,
+        })
+        .collect();
+    crate::steps::utils::write_srt_json(&asr_fix_dir.join("srt.json"), &srt_segs)?;
+
     tracing::info!(target: "asr",
         "Written {} segs to asr_fix.json",
         segments.len()

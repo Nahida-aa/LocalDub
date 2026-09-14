@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 
 /// 字幕对齐位置 (镜像 TS `packages/core/steps/mix_video/args.ts` alignmentList)
@@ -123,4 +125,33 @@ fn default_bgm_gain() -> f64 {
 
 fn default_dub_gain() -> f64 {
     3.0
+}
+
+pub enum MixVideoInput {
+    Dub {
+        video_source_path: String,
+        mix_audio_timings_path: PathBuf,
+        dubbing_path: PathBuf,
+        bgm_path: PathBuf,
+    },
+    Subtitle {
+        video_source_path: String,
+        translation_path: PathBuf,
+    },
+    SubtitleAsrNoTranslate {
+        video_source_path: String,
+        asr_fix_path: PathBuf,
+    },
+    SubtitleSfOcrNoTranslateLlmFix {
+        video_source_path: String,
+        sf_ocr_segment_filter_llm_fix: PathBuf,
+    },
+    SubtitleSfOcrNoTranslate {
+        video_source_path: String,
+        sf_ocr_segment_filter: PathBuf,
+    },
+    SubtitleVadAlign {
+        video_source_path: String,
+        split_audio_path: PathBuf,
+    },
 }
