@@ -1082,9 +1082,12 @@ fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
 
     // 已就绪：顺带问一下上游最新 tag，让 UI 能提示「有新版可更新」。
     // 查不到就是 None，不写这个字段（渲染侧会跳过）——提示性信息不该让 check 失败。
+    // 仅当上游有新版本 (latest_tag != spec.tag) 时才写, 否则已是最新, 不提示。
     let mut data = json!({ "path": path.display().to_string(), "msg": "已就绪" });
     if let Some(latest) = fetch_latest_tag(spec) {
-        data["latest_tag"] = json!(latest);
+        if latest != spec.tag {
+            data["latest_tag"] = json!(latest);
+        }
     }
     CheckResult {
         key: spec.key.to_string(),
@@ -1540,6 +1543,30 @@ mod tests {
         assert!(
             elapsed < std::time::Duration::from_secs(15),
             "应在超时窗口内返回, 实际 {elapsed:?}"
+        );
+    }
+
+    #[test]
+    fn fetch_latest_tag_matches_bin_prefix() {
+        // 网络测试: 有 token 且可达时才断言 (匿名常 403 限流; 网络不可达静默跳过)。
+        // 验证 fetch_latest_tag 按 `{bin}-` 前缀精确匹配, 不跨二进制误报:
+        // vision-lab 一个 repo 含 subtitle-ocr / subtitle-ocr-post / subtitle-finder 多个 release。
+        let Ok(token) = std::env::var("GITHUB_TOKEN") else {
+            return;
+        };
+        if token.trim().is_empty() {
+            return;
+        }
+        let Some(finder) = fetch_latest_tag(&SUBTITLE_FINDER) else {
+            return;
+        };
+        assert!(
+            finder.starts_with("subtitle-finder-"),
+            "finder 应精确命中 subtitle-finder-* tag, got {finder}"
+        );
+        assert!(
+            !finder.starts_with("subtitle-ocr"),
+            "finder 不应命中 subtitle-ocr 系: {finder}"
         );
     }
 }
