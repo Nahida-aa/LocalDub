@@ -293,3 +293,21 @@ separate ──► separate_after ┤                                       │
   这类覆盖会让实际依赖与本文不符。
 - **`grep` 追不到间接层是已知风险**（已因此错过一次 `separate_after`）。
   **发现不一致时以代码为准，并回来修本文。**
+
+## 有护栏的部分 / 没有的部分
+
+`steps::utils::steps` 里有三条护栏测试，**把一部分「会悄悄过期」变成了「过期就红」**：
+
+| 护栏 | 能抓 | 抓不到 |
+| --- | --- | --- |
+| `all_pipeline_constants_are_valid_step_names` | pipeline 常量里出现非法的 step 名 | — |
+| `steps_list_matches_all_steps` | `STEPS_LIST` 与枚举漂移 | — |
+| `dependencies_doc_covers_every_step` | **本文档**缺某个 step 的小节、小节名与枚举不符、某节缺「读」或「写」 | **路径内容对不对** |
+
+**关键边界**：最后一条只校验**覆盖面**（有没有写），**不校验内容对不对**。
+它拦得住「新增 step 忘了写文档」「step 改名文档没跟」，但拦不住
+「路径写在文档里、代码已经改了」——那需要真正解析路径，而那会撞上
+「跨 helper 的间接层」（`bgm_path()` 那类），目前不做。
+
+所以 **`DEPENDENCIES.md` 的路径仍然可能过期**，只是「少一个 step」这类
+粗漏不会再发生。发现路径与代码不符时，仍以代码为准并回来修本文。

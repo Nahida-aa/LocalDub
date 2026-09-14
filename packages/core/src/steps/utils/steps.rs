@@ -234,6 +234,77 @@ mod tests {
         assert_eq!(from_list, from_enum, "STEPS_LIST 与 ALL_STEPS 不一致");
     }
 
+    /// **文档护栏**：`DEPENDENCIES.md` 必须为每个 step 都有一节，且每节都写了
+    /// 「读」与「写」。
+    ///
+    /// 为什么需要：那份文档是给人/agent 读的依赖契约，但它**会悄悄过期**——
+    /// 新增 step 忘了写、step 改名后文档没跟，都不会报错。这个测试把它变成
+    /// 「过期就红」。
+    ///
+    /// 限度（**只覆盖"有没有"，不覆盖"对不对"**）：路径内容的正确性它管不了，
+    /// 尤其是通过 helper 间接拼出来的路径（见文档「已知限制」）。
+    #[test]
+    fn dependencies_doc_covers_every_step() {
+        let doc = include_str!("../DEPENDENCIES.md");
+
+        // 收集 `### \`name\`` 形式的标题。
+        let documented: Vec<String> = doc
+            .lines()
+            .filter_map(|l| l.strip_prefix("### `"))
+            .filter_map(|l| l.strip_suffix('`'))
+            .map(|s| s.to_string())
+            .collect();
+
+        let mut expected: Vec<String> = ALL_STEPS.iter().map(|s| s.to_string()).collect();
+        expected.sort();
+        let mut got = documented.clone();
+        got.sort();
+
+        assert_eq!(
+            got, expected,
+            "DEPENDENCIES.md 的 step 小节与 ALL_STEPS 不一致：\n\
+             缺文档 = {missing:?}\n\
+             多余文档 = {extra:?}",
+            missing = expected
+                .iter()
+                .filter(|s| !got.contains(s))
+                .collect::<Vec<_>>(),
+            extra = got
+                .iter()
+                .filter(|s| !expected.contains(s))
+                .collect::<Vec<_>>(),
+        );
+
+        // 每节里必须有「读」和「写」两行（表格首列）。
+        for step in &expected {
+            let body = section_body(&doc, step);
+            assert!(
+                body.contains("**读**"),
+                "DEPENDENCIES.md 的 `{step}` 小节缺「读」行"
+            );
+            assert!(
+                body.contains("**写**"),
+                "DEPENDENCIES.md 的 `{step}` 小节缺「写」行"
+            );
+        }
+    }
+
+    /// 取出 `### \`name\`` 到下一个 `###` / `##` 之间的正文。
+    fn section_body(doc: &str, name: &str) -> String {
+        let marker = format!("### `{name}`");
+        let Some(start) = doc.find(&marker) else {
+            return String::new();
+        };
+        let rest = &doc[start + marker.len()..];
+        let end = rest
+            .find("\n## ")
+            .into_iter()
+            .chain(rest.find("\n### "))
+            .min()
+            .unwrap_or(rest.len());
+        rest[..end].to_string()
+    }
+
     #[test]
     fn dub_default_is_asr() {
         let c = ctx(
