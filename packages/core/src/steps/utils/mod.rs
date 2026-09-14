@@ -559,55 +559,9 @@ fn subtitle_source(input: &serde_json::Value) -> String {
         .to_string()
 }
 
-/// 权威字幕文件路径 (asr_fix / sf_ocr_fix / asr_ocr_fix 按 subtitleSource 决定)。
-/// 镜像 TS `subtitleFilePath`。
-pub fn subtitle_file_path(ctx: &crate::context::WorkflowCtx) -> String {
-    let src = subtitle_source(&ctx.input);
-    if src == "sf_ocr" {
-        let llm_fix = ctx
-            .input
-            .get("steps")
-            .and_then(|v| v.get("sf_ocr_fix"))
-            .and_then(|v| v.get("llmFix"))
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        let filename = if llm_fix {
-            "segment_filter_llm_fix.json"
-        } else {
-            "segment_filter.json"
-        };
-        return sf_ocr_fix_dir(&ctx.workflow.video_dir)
-            .join(filename)
-            .to_string_lossy()
-            .into_owned();
-    }
-    if src == "asr_ocr" {
-        let llm_fix = ctx
-            .input
-            .get("steps")
-            .and_then(|v| v.get("asr_ocr_fix"))
-            .and_then(|v| v.get("llmFix"))
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false);
-        let filename = if llm_fix {
-            "asr_ocr_fused_llm_fix.json"
-        } else {
-            "asr_ocr_fused.json"
-        };
-        return Path::new(&ctx.workflow.video_dir)
-            .join("asr_ocr_fix")
-            .join(filename)
-            .to_string_lossy()
-            .into_owned();
-    }
-    Path::new(&ctx.workflow.video_dir)
-        .join("asr_fix")
-        .join("asr_fix.json")
-        .to_string_lossy()
-        .into_owned()
-}
-
 /// 翻译文件路径 `translate/translation.{lang}.json`。
+/// （旧 `subtitle_file_path` 焦点文件 helper 已删除：translate 恒执行 +
+/// 规范化 srt.json 后，下游不再按 subtitleSource/llmFix 找字幕。）
 pub fn translation_file_path(video_dir: &str, lang: &str) -> PathBuf {
     Path::new(video_dir)
         .join("translate")

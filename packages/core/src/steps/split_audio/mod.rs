@@ -17,7 +17,7 @@ pub mod vad_align;
 use std::fs;
 use std::path::Path;
 
-use serde_json::Value;
+
 
 use crate::context::WorkflowCtx;
 use crate::steps::split_audio::out::{
@@ -27,8 +27,8 @@ use crate::steps::split_audio::out::{
 use crate::steps::split_audio::pad_segment::{pad_segments, SegmentBounds};
 use crate::steps::utils::{
     ensure_dir, now_iso, probe_duration_ms, read_translation_result, resolve_language,
-    set_step_anyhow, split_audio_path, split_audio_timings_path, subtitle_file_path,
-    video_source_path, vocals_path, StepPatch, StepStatus,
+    set_step_anyhow, split_audio_path, split_audio_timings_path, video_source_path, vocals_path,
+    StepPatch, StepStatus,
 };
 
 pub use args::SplitAudioArgs;
@@ -59,23 +59,18 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
 
     let args = read_args(ctx);
 
-    // 权威字幕文件 (时间轴)
-    let srt_file = subtitle_file_path(ctx);
-    if !Path::new(&srt_file).exists() {
-        return Err(anyhow::anyhow!("字幕文件不存在: {srt_file}"));
-    }
-    let srt_raw = std::fs::read_to_string(&srt_file)
-        .map_err(|e| anyhow::anyhow!("读取字幕文件 {srt_file} 失败: {e}"))?;
-    let srt: Value = serde_json::from_str(&srt_raw)
-        .map_err(|e| anyhow::anyhow!("解析字幕文件 {srt_file} 失败: {e}"))?;
-    let srt_segments = srt
-        .get("result")
-        .and_then(|r| r.get("segments"))
+    // 字幕时间轴 + 文本：**统一来自 translate 的产物**（translate 恒执行；
+    // enabled=false 时 dst=原文直通）。焦点文件不再是下游输入。
+    let trans = read_translation_result(ctx).map_err(|e| {
+        anyhow::anyhow!("{e}; 请先运行 translate（或从该步骤 continue 以重新生成）")
+    })?;
+    let segs = trans
+        .get("segments")
         .and_then(|s| s.as_array())
         .cloned()
         .unwrap_or_default();
-    if srt_segments.is_empty() {
-        return Err(anyhow::anyhow!("{srt_file} 无 segments"));
+    if segs.is_empty() {
+        return Err(anyhow::anyhow!("translation 无 segments"));
     }
 
     // 源音频: 可被 split_audio.sourceFilePath 覆盖; 否则有 vocals 用干净人声
@@ -97,80 +92,39 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         source_audio
     };
 
-    let translate_enabled = ctx
-        .input
-        .get("steps")
-        .and_then(|v| v.get("translate"))
-        .and_then(|v| v.get("enabled"))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true);
-
-    // 拼 timings: 有翻译取 dst 文本, 否则退回原文
-    let timings: Vec<SplitAudioTiming> = if translate_enabled {
-        let trans = read_translation_result(ctx)?;
-        let segs = trans
-            .get("segments")
-            .and_then(|s| s.as_array())
-            .cloned()
-            .unwrap_or_default();
-        if segs.is_empty() {
-            return Err(anyhow::anyhow!("translation 无 segments"));
-        }
-        segs.iter()
-            .enumerate()
-            .map(|(i, seg)| SplitAudioTiming {
-                seg_idx: (i + 1) as u32,
-                text: seg
-                    .get("text")
-                    .and_then(|t| t.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                start_ms: seg.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-                end_ms: seg.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-                dst: seg
-                    .get("dst")
-                    .and_then(|t| t.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                src_lang: seg
-                    .get("src_lang")
-                    .and_then(|v| v.as_str())
-                    .map(String::from),
-                dst_lang: seg
-                    .get("dst_lang")
-                    .and_then(|v| v.as_str())
-                    .map(String::from),
-                speaker: seg
-                    .get("speaker")
-                    .and_then(|v| v.as_str())
-                    .map(String::from),
-                text_confidence: None,
-            })
-            .collect()
-    } else {
-        srt_segments
-            .iter()
-            .enumerate()
-            .map(|(i, seg)| {
-                let text = seg
-                    .get("text")
-                    .and_then(|t| t.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                SplitAudioTiming {
-                    seg_idx: (i + 1) as u32,
-                    text: text.clone(),
-                    start_ms: seg.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-                    end_ms: seg.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-                    dst: text, // 未翻译时 dst 直接用原文
-                    src_lang: Some(src_lang.clone()),
-                    dst_lang: Some(src_lang.clone()),
-                    speaker: None,
-                    text_confidence: None,
-                }
-            })
-            .collect()
-    };
+    // 拼 timings: dst 直通时即原文（translate passthrough）
+    let timings: Vec<SplitAudioTiming> = segs
+        .iter()
+        .enumerate()
+        .map(|(i, seg)| SplitAudioTiming {
+            seg_idx: (i + 1) as u32,
+            text: seg
+                .get("text")
+                .and_then(|t| t.as_str())
+                .unwrap_or("")
+                .to_string(),
+            start_ms: seg.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+            end_ms: seg.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+            dst: seg
+                .get("dst")
+                .and_then(|t| t.as_str())
+                .unwrap_or("")
+                .to_string(),
+            src_lang: seg
+                .get("src_lang")
+                .and_then(|v| v.as_str())
+                .map(String::from),
+            dst_lang: seg
+                .get("dst_lang")
+                .and_then(|v| v.as_str())
+                .map(String::from),
+            speaker: seg
+                .get("speaker")
+                .and_then(|v| v.as_str())
+                .map(String::from),
+            text_confidence: None,
+        })
+        .collect();
 
     // padSegments 得到真实切块时序
     let bounds = pad_segments(&timings, args.start_pad_ms, args.end_pad_ms);
@@ -247,11 +201,9 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
 
     let meta = TranslateResultMeta {
         src_lang: src_lang.clone(),
-        target_lang: if translate_enabled {
-            target_lang.clone()
-        } else {
-            src_lang.clone()
-        },
+        // 与 translate 的产物 meta 对齐：这里始终是「目标槽位」语言
+        // （直通时 dst 内容为原文，但槽位仍是 resolve 出的 target_lang）。
+        target_lang: target_lang.clone(),
     };
     let split_result = SplitAudioResult {
         segments: split_segments.clone(),

@@ -16,7 +16,7 @@ use crate::steps::utils::srt::{write_srt, SrtSeg};
 use crate::steps::utils::{
     bgm_path, default_font, dubbing_path, ensure_dir, ffmpeg_timeout, final_video_dir,
     probe_video_resolution, read_split_audio, read_timings, read_translation_result,
-    resolve_language, set_step_anyhow, set_workflow_anyhow, split_audio_path, subtitle_file_path,
+    resolve_language, set_step_anyhow, set_workflow_anyhow, split_audio_path,
     video_source_path, StepPatch, StepStatus, WorkflowPatch,
 };
 
@@ -300,12 +300,22 @@ fn build_subtitle_srt_subtitle_branch(
         })?;
         extract_segs_from_value(&data)?
     } else if no_translate {
-        // 用已有 srt 或 subtitle file
-        let srt_path = cfg
-            .srt_path
-            .clone()
-            .unwrap_or_else(|| subtitle_file_path(ctx));
-        read_srt_file_to_segs(&srt_path)?
+        // 外部 SRT 文本文件可显式覆盖；否则走 translate 产物——
+        // translate 恒执行（直通时 dst=原文），不再读焦点文件。
+        // （旧实现无覆盖时把焦点文件 JSON 塞给 SRT 文本解析器，产出空字幕——已删。）
+        match cfg.srt_path.clone() {
+            Some(p) => read_srt_file_to_segs(&p)?,
+            None => {
+                let data = read_translation_result(ctx).with_context(|| {
+                    format!(
+                        "读取翻译结果失败: {}; 请先运行 translate",
+                        crate::steps::utils::translation_file_path(&video_dir, &target_lang)
+                            .display()
+                    )
+                })?;
+                extract_segs_from_value(&data)?
+            }
+        }
     } else {
         let tr_file = crate::steps::utils::translation_file_path(&video_dir, &target_lang);
         let data = read_translation_result(ctx)

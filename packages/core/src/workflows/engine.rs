@@ -71,7 +71,7 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
         asr_dir, asr_ocr_dir, asr_ocr_fix_dir, asr_ocr_pre_dir, dubbing_path, final_video_dir,
         gated_vocals_path, mix_audio_timings_path, mixed_vocals_path, resolve_language,
         separate_dir, sf_ocr_dir, sf_ocr_fix_dir, sf_ocr_pre_dir, split_audio_path,
-        split_audio_timings_path, subtitle_file_path, tts_filepath, video_id,
+        split_audio_timings_path, tts_filepath, video_id,
     };
     let wf = video_dir;
     let p = |pb: std::path::PathBuf| pb.to_string_lossy().into_owned();
@@ -80,7 +80,9 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
         "separate" => vec![p(separate_dir(wf))],
         "separate_after" => vec![p(mixed_vocals_path(wf)), p(gated_vocals_path(wf))],
         "asr" => vec![p(asr_dir(wf))],
-        "asr_fix" => vec![subtitle_file_path(&crate::context::read_ctx(wf).ok()?)],
+        "asr_fix" => vec![
+            p(crate::steps::utils::asr_fix_dir(wf).join("srt.json")),
+        ],
         "translate" => {
             let ctx = crate::context::read_ctx(wf).ok()?;
             let (_, lang) = resolve_language(&ctx).ok()?;

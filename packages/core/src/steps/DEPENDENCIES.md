@@ -199,8 +199,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 | | 路径 |
 | --- | --- |
-| **读** ⚠️ | 焦点文件（按 `subtitleSource` 解析，具体路径见下节）——时间轴 |
-| **读** | `translate/translation.{lang}.json`（`translate.enabled` 时；否则用原文） |
+| **读** ⚠️ | `translate/translation.{lang}.json`——**唯一字幕来源**（时间轴 + 文本 + dst；直通时 dst=原文） |
 | **读** | `separate/target_3_vocals.wav`（dub 模式切 wav 块；subtitle 模式不需要） |
 | **写** | `split_audio/split_audio.json`、`timings.json`、`vocals/*.wav` |
 
@@ -240,16 +239,19 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | pipeline | 来源 | 说明 |
 | --- | --- | --- |
 | **dub** | `mix_audio/timings.json`（`mix_video/mod.rs:353`） | 用 `actual_start/actual_end`（mix_audio 修正后的**实际**音频位置）生成 SRT——烧进去的字幕才能和配音对齐 |
-| **subtitle** | 三选一（`mix_video/mod.rs:293`）：`split_audio/split_audio.json`（`vadAlign: true`）／焦点文件 或 `mix_video.srtPath` 覆盖（`noTranslate`）／`translate/translation.{lang}.json` | 无配音，直接按字幕时序烧 |
+| **subtitle** | 两选一（`mix_video/mod.rs:293`）：`split_audio/split_audio.json`（`vadAlign: true`）／`translate/translation.{lang}.json`（默认；`mix_video.srtPath` 可覆盖为外部 SRT 文本文件） | 无配音，直接按字幕时序烧 |
 
 > 曾把 subtitle 分支的三选一误当成 mix_video 的全部来源，漏了 dub 模式这条
 > 最关键的边：**mix_audio 的 timings 产物是 mix_video 的字幕轨输入**。
+> 翻译恒执行后，subtitle 分支的「焦点文件」路径已删——顺带修掉一个**潜伏
+> bug**：旧实现无 `srtPath` 覆盖时把焦点文件 JSON 塞给 SRT 文本解析器
+> （`read_srt_file_to_segs`），块数 < 3 全被跳过 → 空字幕，静默。
 
 ---
 
-## 规范化字幕 `srt.json`（新契约）与焦点文件（旧契约）
+## 规范化字幕 `srt.json`（现役契约）；焦点文件（已退役）
 
-### 新契约：`{fix_dir}/srt.json`
+### 现役契约：`{fix_dir}/srt.json`
 
 三个 fix 步骤（`asr_fix` / `sf_ocr_fix` / `asr_ocr_fix`）收尾时各自落一个**规范化
 字幕**：`{"result": {"segments": [SubtitleSegment]}}`，段结构用 `subtitle` crate
@@ -257,42 +259,40 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 **要点**：
 
-- **`llmFix` 维度在消费者侧消失**——跑没跑 LLM 修正由产出方消化
-  （详细文件照写，最后统一落 srt.json），下游不再需要知道。
+- **`llmFix` 维度对消费者不可见**——跑没跑 LLM 修正由产出方消化
+  （详细文件照写，最后统一落 srt.json），下游只认 srt.json。
 - 消费方由类型保证：`TranslateInput::from_ctx`（`translate/mod.rs`）按
   `subtitleSource` 解析到 `SubtitleSrt::Asr / SfOcr / AsrOcr` 三变体，
-  未知来源 / 缺文件**报错**（fail-fast，不回退旧产物）。
-- 尚未迁移的消费者：`split_audio`、`mix_video`（subtitle 分支）仍读焦点文件
-  ——迁移后「焦点文件」概念可整个退役。
+  未知来源报错；srt.json 缺失的存在性语义由 `translate.enabled` 决定
+  （见 `translate` 节）。
+- **迁移已完成**：translate / split_audio / mix_video 三个消费者全部只认
+  srt.json 与 translation.json，不再按 `subtitleSource`/`llmFix` 找字幕。
 
-### 旧契约：焦点文件（`subtitle_file_path(ctx)`）
+### 已退役：焦点文件（`subtitle_file_path(ctx)`）
 
-**定义**：`subtitle_file_path(ctx)`（实现 `utils/mod.rs:523`）按 `subtitleSource`
-解析出的**具体路径**——下文各表里写的「焦点文件」就是指本表中的路径，
-不是 helper 名。这是**唯一一个「谁写的」取决于 `subtitleSource` 的路径**：
+旧契约：按 `subtitleSource` × `llmFix`（3×2）解析出「权威字幕文件」：
 
-| `subtitleSource` | 路径 | 谁写 |
-| --- | --- | --- |
-| `asr`（默认） | `asr_fix/asr_fix.json` | `asr_fix` |
-| `sf_ocr` | `sf_ocr_fix/segment_filter.json`<br>或 `segment_filter_llm_fix.json`（`sf_ocr_fix.llmFix: true`） | `sf_ocr_fix` |
-| `asr_ocr` | `asr_ocr_fix/asr_ocr_fused.json`<br>或 `asr_ocr_fused_llm_fix.json`（`asr_ocr_fix.llmFix: true`） | `asr_ocr_fix` |
+| `subtitleSource` | 路径 |
+| --- | --- |
+| `asr`（默认） | `asr_fix/asr_fix.json` |
+| `sf_ocr` | `sf_ocr_fix/segment_filter.json` 或 `segment_filter_llm_fix.json` |
+| `asr_ocr` | `asr_ocr_fix/asr_ocr_fused.json` 或 `asr_ocr_fused_llm_fix.json` |
 
-> ⚠️ 注意 `asr` 源走的是 **`asr_fix/asr_fix.json`**，不是 `asr/asr.json`。
-> `asr/asr.json` 是 `asr` 的**中间产物**，只被 `asr_fix` 和 `asr_ocr_pre` 读。
->
-> ⚠️ 调用 `subtitle_file_path` helper 的只剩两个：`split_audio` / `mix_video`。
-> `translate` 已迁到 srt.json；`asr_fix` / `asr_ocr_fix` 写自己的输出目录，
-> **路径恰好**与解析结果一致——它们并没有调 helper（曾在本表中误写成调用）。
+**2026-09-14 退役**：translate 恒执行 + 直通模式后，三个消费者（translate /
+split_audio / mix_video noTranslate）全部改道，helper 已删除。留档原因：
 
-`split_audio`、`mix_video`（subtitle 分支）仍读它——所以**这两个 step 的上游不是固定的**，
-随 `subtitleSource` 与对应 `llmFix` 开关变（路径因此有 3×2 种可能）。迁移到
-srt.json 后这个 3×2 会消失。
+- `asr` 源走的是 `asr_fix/asr_fix.json`（**asr_fix 的输出**），不是 `asr/asr.json`
+  ——`asr/asr.json` 只是中间产物，仅被 `asr_fix` 和 `asr_ocr_pre` 读。
+- 这些详细文件**仍是各 fix 步骤的内部产物**（含 confidence/words 等下游
+  不需要的字段），只是不再作为下游契约。
+- 曾有一个潜伏 bug 借此藏身：mix_video noTranslate 分支把焦点文件 JSON
+  塞给 SRT 文本解析器 → 空字幕（见 `mix_video` 节）。
 
 ---
 
 ## 由契约推导的依赖图
 
-把上面的「读」反向连到「写」的产出，得到（按 `subtitleSource` 分）：
+把上面的「读」反向连到「写」的产出（**translate 恒执行**后）：
 
 ```
 shared:  video_source.mp4 ─┬───────────────────────────────────────┐
@@ -301,30 +301,28 @@ separate ──► separate_after ┤                                       │
                             │                                       │
    ┌────────────────────────┴─────────────────────┐                 │
    │ sf_ocr 链（subtitleSource=sf_ocr）           │ asr 链（=asr）  │
-   │ sf_ocr_pre ─► sf_ocr ─► sf_ocr_fix           │ asr ─► asr_fix  │
-   └────────────────────────┬─────────────────────┘                 │
-                            │                                       │
-                            ▼                                       │
-                    焦点文件 ◄──────────────────────────┘
-                            │
-                            ├──► translate ──► translation.{lang}.json ─┐
-                            │                                           │
-                            ▼                                           │
-                      split_audio ──► split_audio/timings.json         │
-                            │                │                          │
-                            │                ▼                          │
-                            │              tts ──► tts/tts.json ──► mix_audio
-                            │                          │                │
-                            │                          └────────────────┤
-                            │                                           │
-                            │     audio_dubbing.wav + timings.json      │
-                            │     (dub: 字幕轨 = timings actual_*)      │
-                            └───────────────► mix_video ◄───────────────┘
-                                                ▲
+   │ sf_ocr_pre ─► sf_ocr ─► sf_ocr_fix ──┐       │ asr ─► asr_fix ─┤
+   └──────────────────────────────────────┼───────┘─────────────────┘
+                                          ▼
+                                    srt.json（各链规范化产物）
+                                          │
+                                          ▼
+                                  translate ──► translation.{lang}.json
+                                          │  （enabled=false: dst=原文）
+                                          ▼
+                                    split_audio ──► timings.json
+                                          │               │
+                                          ▼               ▼
+                                        tts ──► tts.json ──► mix_audio
+                                  (vadAlign:            │
+                                   split_audio.json)    │ audio_dubbing.wav
+                                                        ▼ + timings.json
+                                            mix_video ◄───────┘
+                                              ▲
                               separate_after/target_bgm.wav
 
 subtitle pipeline 的 mix_video 不吃 mix_audio 产物，
-字幕轨走 焦点文件 / split_audio.json / translation 三选一。
+字幕轨走 split_audio.json（vadAlign）或 translation.json（其余）。
 ```
 
 **可并行的边**（仅两处，且都不长）：
