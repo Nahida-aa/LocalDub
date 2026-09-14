@@ -218,10 +218,20 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | | 路径 |
 | --- | --- |
 | **读** ⚠️ | `ctx.video_source_path`（ffmpeg 输入） |
-| **读** | `mix_audio/audio_dubbing.wav`（**dub 模式**；`subtitle` 模式不需要） |
-| **读** | `separate_after/target_bgm.wav` 或 `mix_video.bgmPath` 覆盖（**dub 模式**） |
-| **读** | 字幕轨来源**三选一**（代码 `mix_video/mod.rs:293`）：`split_audio/split_audio.json`（`vadAlign: true`）／焦点文件 或 `mix_video.srtPath` 覆盖（`noTranslate`）／`translate/translation.{lang}.json`（默认，有译文时） |
+| **读** | 字幕轨按 **pipeline** 分（见下） |
+| **读** | `mix_audio/audio_dubbing.wav`（**仅 dub**） |
+| **读** | `separate_after/target_bgm.wav` 或 `mix_video.bgmPath` 覆盖（**仅 dub**） |
 | **写** | `mix_video/{dub,subtitle,dub_ntl}/{id}.mp4`（最终产物）、中间 SRT |
+
+**字幕轨来源（按 pipeline 分，代码 `mix_video/mod.rs:97`）**：
+
+| pipeline | 来源 | 说明 |
+| --- | --- | --- |
+| **dub** | `mix_audio/timings.json`（`mix_video/mod.rs:353`） | 用 `actual_start/actual_end`（mix_audio 修正后的**实际**音频位置）生成 SRT——烧进去的字幕才能和配音对齐 |
+| **subtitle** | 三选一（`mix_video/mod.rs:293`）：`split_audio/split_audio.json`（`vadAlign: true`）／焦点文件 或 `mix_video.srtPath` 覆盖（`noTranslate`）／`translate/translation.{lang}.json` | 无配音，直接按字幕时序烧 |
+
+> 曾把 subtitle 分支的三选一误当成 mix_video 的全部来源，漏了 dub 模式这条
+> 最关键的边：**mix_audio 的 timings 产物是 mix_video 的字幕轨输入**。
 
 ---
 
@@ -276,9 +286,14 @@ separate ──► separate_after ┤                                       │
                             │                          │                │
                             │                          └────────────────┤
                             │                                           │
+                            │     audio_dubbing.wav + timings.json      │
+                            │     (dub: 字幕轨 = timings actual_*)      │
                             └───────────────► mix_video ◄───────────────┘
                                                 ▲
                               separate_after/target_bgm.wav
+
+subtitle pipeline 的 mix_video 不吃 mix_audio 产物，
+字幕轨走 焦点文件 / split_audio.json / translation 三选一。
 ```
 
 **可并行的边**（仅两处，且都不长）：
