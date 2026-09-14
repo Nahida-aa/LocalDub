@@ -27,8 +27,13 @@ paths = { path = "packages/paths" }
 server = { path = "packages/server" }
 time = { path = "packages/time" }
 voxcpm-cloud = { git = "https://github.com/Nahida-aa/vox-lab", tag = "v0.1.2" }
-ocr-types = { git = "https://github.com/Nahida-aa/vision-lab", rev = "7882ef6", features = ["specta-types"] }
-subtitle-ocr-post = { git = "https://github.com/Nahida-aa/vision-lab", rev = "7882ef6", features = ["specta-types"] }
+ocr-types = { git = "https://github.com/Nahida-aa/vision-lab", rev = "4a54721", features = ["specta-types"] }
+subtitle-ocr-post = { git = "https://github.com/Nahida-aa/vision-lab", rev = "4a54721", features = ["specta-types"] }
+# subtitle-ocr-types 承载除 OcrBoxResult 外的字幕 OCR 产物/管线类型（FrameResult /
+# OcrSegment / OcrFramesResult / compute_box_* / edit_distance 等）；subtitle 承载
+# 纯字幕领域 SubtitleSegment。自 vision-lab 拆分后，LocalDub 直接依赖这两个 crate。
+subtitle-ocr-types = { git = "https://github.com/Nahida-aa/vision-lab", rev = "4a54721", features = ["specta-types"] }
+subtitle = { git = "https://github.com/Nahida-aa/vision-lab", rev = "4a54721", features = ["specta-types"] }
 regex = "1"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }

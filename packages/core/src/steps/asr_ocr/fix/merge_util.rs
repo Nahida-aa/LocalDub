@@ -1,4 +1,4 @@
-use ocr_types::{edit_distance, FrameResult, OcrSegment};
+use subtitle_ocr_types::{edit_distance, FrameResult, OcrSegment};
 
 /// fixOverlap implementation (mirrors TS `fixOverlap` in merge_frames.ts).
 pub fn fix_overlap(

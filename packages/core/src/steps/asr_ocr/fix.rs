@@ -16,9 +16,14 @@ use crate::steps::utils::{
     set_step_anyhow, video_source_path, StepPatch, StepStatus,
 };
 use anyhow::Result;
-use ocr_types::{
+// 字幕 OCR 产物/管线类型（FrameResult / OcrSegment / OcrFramesResult / compute_box_* /
+// edit_distance）已迁到 subtitle-ocr-types；纯字幕领域 SubtitleSegment 的权威来源是
+// subtitle crate。注意：asr_ocr::pre 另有本地 SubtitleSegment（ASR 域），与本处 OCR 域
+// 的不是同一类型，不要混用。
+use subtitle::SubtitleSegment;
+use subtitle_ocr_types::{
     compute_box_x_stats, compute_box_y_stats, edit_distance, FrameResult, OcrFramesResult,
-    OcrSegment, SubtitleSegment,
+    OcrSegment,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
