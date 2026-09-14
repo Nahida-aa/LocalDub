@@ -314,7 +314,13 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
     write_json_file(&out_dir.join("frames_merged.json"), &merged)?;
 
     // 4. adjust-segment
-    let (_, video_height) = probe_video_resolution(&video_source_path(ctx)?);
+    // 高度优先读 frames.json 的 meta.video_height (识别侧 v0.1.1+ 写入, 与 y_range
+    // 同坐标系)。仅老产物 (v0.1.0-) 缺该字段 → None, 回退 ffprobe 视频。
+    // (sf_ocr_fix 走 CLI 二进制, 由 post 自己读; 这里是 in-process 调库函数, 必须自己给。)
+    let video_height = match ocr_frames.meta.video_height {
+        Some(h) => h,
+        None => probe_video_resolution(&video_source_path(ctx)?).1,
+    };
     let y_stats2 = compute_box_y_stats(&filtered.frames);
     let seg_args = OcrSegmentAdjustArgs {
         iso_threshold_ms: Some(args.ocr_fix.iso_threshold_ms as u64),

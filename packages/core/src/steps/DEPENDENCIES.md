@@ -160,7 +160,19 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | | 路径 |
 | --- | --- |
 | **读** ⚠️ | `asr/asr.json`、`asr_ocr_pre/asr_split.json`、`asr_ocr/frames.json` |
-| **读** | `ctx.video_source_path`（分辨率） |
+| **读** | `ctx.video_source_path`：**resample 抽帧**（`-i <video>`）；高度探测仅老产物回退（见下） |
+
+> 高度（`adjust-segment` 的 Y 惩罚归一化分母）的来源，**两条路径不同**：
+>
+> - `sf_ocr_fix` 走 **CLI 二进制**（Release 下载的 v0.1.1+）→ post 自己从
+>   frames.json 的 `meta.video_height` 读，我们不用传（已删 `--video-height`）
+> - `asr_ocr_fix` 走 **in-process Rust 库**（`subtitle_ocr_post` crate，
+>   rev `d7d63c5`）→ `ocr_segment_adjust` 签名要 `video_height: f32`，
+>   优先读 `frames.json` 的 `meta.video_height`（ocr-types 同 rev 起有该字段，
+>   `Option<u32>`）；**仅老产物（v0.1.0-）缺字段时**回退 ffprobe 视频
+>
+> 高度的用途：把字幕框 Y 像素偏差归一化成 0..1 的位置惩罚（画面中部的 OCR
+> 误识别压低置信度）。**传 0 不会报错，只会让位置惩罚静默失效**。
 | **写** | `asr_ocr_fix/`（融合结果）、`subtitle_file_path(ctx)` |
 
 ### `translate`
