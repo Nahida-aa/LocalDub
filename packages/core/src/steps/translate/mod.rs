@@ -11,6 +11,7 @@
 
 pub mod args;
 pub mod out;
+pub mod partial;
 pub mod prompts;
 
 use std::path::Path;
@@ -18,10 +19,7 @@ use std::path::Path;
 use serde_json::Value;
 
 use crate::context::WorkflowCtx;
-use crate::steps::translate::out::{
-    TranslatePartialResult, TranslatePartialSegment, TranslateResult, TranslateResultMeta,
-    TranslateSegment,
-};
+use crate::steps::translate::out::{TranslateResult, TranslateResultMeta, TranslateSegment};
 use crate::steps::translate::prompts::{build_preprocess_prompt, build_translate_system, MetaView};
 use crate::steps::utils::{
     lang_name, now_iso, resolve_language, set_step_anyhow, subtitle_file_path,
@@ -36,6 +34,124 @@ fn read_args(ctx: &WorkflowCtx) -> args::TranslateArgs {
         .and_then(|v| v.get("translate"))
         .and_then(|v| serde_json::from_value(v.clone()).ok())
         .unwrap_or_default()
+}
+
+/// 读 `download/ytdlp_info.json` → [`MetaView`]。
+///
+/// 文件缺失 / 内容非法都退化为 `MetaView::default()`——元信息只用于给 LLM
+/// 加上下文, 缺了照样能翻, 不该让 step 失败。字段做了长度截断 (避免把整段
+/// 视频简介塞进提示词)。
+fn load_video_meta(path: &Path) -> MetaView {
+    let Ok(raw) = std::fs::read_to_string(path) else {
+        return MetaView::default();
+    };
+    let Ok(v) = serde_json::from_str::<Value>(&raw) else {
+        return MetaView::default();
+    };
+    let take = |key: &str, cap: usize| -> String {
+        v.get(key)
+            .and_then(|t| t.as_str())
+            .unwrap_or("")
+            .trim()
+            .chars()
+            .take(cap)
+            .collect()
+    };
+    let mut meta = MetaView {
+        title: take("title", 500),
+        uploader: take("uploader", 200),
+        description: take("description", 500).replace("(none)", ""),
+    };
+    if meta.description.is_empty() {
+        meta.description = "(none)".to_string();
+    }
+    meta
+}
+
+/// preprocess 的产物: 注入后续批量翻译系统提示的上下文。
+#[derive(Debug, Default, Clone, PartialEq)]
+struct PreprocessResult {
+    summary: String,
+    /// 热词表, 每行 `src -> dst`; 无则 `"(none)"`。
+    hotwords: String,
+    /// 纠错表, 每行 `wrong -> correct`; 无则 `"(none)"`。
+    corrections: String,
+}
+
+impl PreprocessResult {
+    fn hotwords_str(list: &[String]) -> String {
+        if list.is_empty() {
+            "(none)".to_string()
+        } else {
+            list.join("\n")
+        }
+    }
+}
+
+/// 让 LLM 先通读全文, 产出 summary / hotwords / corrections (镜像 TS 的 preprocess)。
+///
+/// **失败不阻断**: 网络/配额/解析任何一环出错, 都退化成 [`Default`]——
+/// 预处理只是"翻得更好"的优化项, 不是翻得出来的前提。
+fn run_preprocess(
+    args: &args::TranslateArgs,
+    src_lang_name: &str,
+    dst_lang_name: &str,
+    meta: &MetaView,
+    full_text: &str,
+) -> PreprocessResult {
+    let prompt = build_preprocess_prompt(dst_lang_name, src_lang_name, meta, full_text);
+
+    /// 从 `{"src":..,"dst":..}` 数组里拼 `a -> b` 行。
+    fn pairs(v: &Value, key: &str, from: &str, to: &str) -> Vec<String> {
+        v.get(key)
+            .and_then(|a| a.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|x| {
+                        let a = x.get(from).and_then(|s| s.as_str())?;
+                        let b = x.get(to).and_then(|s| s.as_str())?;
+                        Some(format!("{a} -> {b}"))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    match llm::chat_completions(
+        &prompt,
+        &llm::ChatOptions {
+            model: Some(args.model.clone()),
+            api_base: Some(args.api_base.clone()),
+            system_prompt: "You output strict JSON only.".to_string(),
+            api_key: openai_api_key(),
+            max_tokens: Some(2048),
+            temperature: Some(0.2),
+        },
+    ) {
+        Ok(raw) => match parse_json_reply(&raw) {
+            Ok(v) => {
+                let hotwords = pairs(&v, "hotwords", "src", "dst");
+                let corrections = pairs(&v, "corrections", "wrong", "correct");
+                PreprocessResult {
+                    summary: v
+                        .get("summary")
+                        .and_then(|s| s.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    hotwords: PreprocessResult::hotwords_str(&hotwords),
+                    corrections: PreprocessResult::hotwords_str(&corrections),
+                }
+            }
+            Err(e) => {
+                tracing::warn!(target: "translate", "[Translate] Preprocess 回复解析失败: {e}");
+                PreprocessResult::default()
+            }
+        },
+        Err(e) => {
+            tracing::warn!(target: "translate", "[Translate] Preprocess failed: {e}");
+            PreprocessResult::default()
+        }
+    }
 }
 
 /// 解析 LLM 返回的 JSON: 优先整体解析, 否则提取首个 `{...}` 块。
@@ -74,10 +190,11 @@ fn chinese_ratio(s: &str) -> f64 {
 /// 批量翻译失败但携带已译部分的错误 (供调用方写 partial + 暴露缺失)。
 struct TranslateBatchError {
     message: String,
-    /// 与 batch 等长的填充, 已译句为 Some, 缺失为 None
+    /// 与 batch 等长的填充, 已译句为 Some, 缺失为 None。
+    ///
+    /// **缺失信息只由 `filled` 的 `None` 表达**——以前还有个 `missing: Vec<usize>`
+    /// 索引表, 但它从未被读取 (调用方只用 `filled`), 是同一信息的重复编码, 已删。
     filled: Vec<Option<String>>,
-    /// 缺失句在 batch 内的索引
-    missing: Vec<usize>,
 }
 
 /// 批量翻译 (含 3 次重试), 返回与 `batch` 等长的译文 (镜像 TS `translateBatch`)。
@@ -265,7 +382,6 @@ fn translate_batch(
                 missing_detail.join("; ")
             ),
             filled,
-            missing: pending,
         });
     }
 
@@ -324,105 +440,17 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         .join("download")
         .join("ytdlp_info.json");
     let has_meta = ytdlp_path.exists();
-    let mut meta = MetaView::default();
-    if has_meta {
-        if let Ok(raw) = std::fs::read_to_string(&ytdlp_path) {
-            if let Ok(v) = serde_json::from_str::<Value>(&raw) {
-                meta = MetaView {
-                    title: v
-                        .get("title")
-                        .and_then(|t| t.as_str())
-                        .unwrap_or("")
-                        .trim()
-                        .chars()
-                        .take(500)
-                        .collect(),
-                    uploader: v
-                        .get("uploader")
-                        .and_then(|t| t.as_str())
-                        .unwrap_or("")
-                        .trim()
-                        .chars()
-                        .take(200)
-                        .collect(),
-                    description: v
-                        .get("description")
-                        .and_then(|t| t.as_str())
-                        .unwrap_or("")
-                        .trim()
-                        .chars()
-                        .take(500)
-                        .collect::<String>()
-                        .replace("(none)", ""),
-                };
-                if meta.description.is_empty() {
-                    meta.description = "(none)".to_string();
-                }
-            }
-        }
-    }
-
-    // preprocess (仅在有元信息时)
-    let mut summary = String::new();
-    let mut hotwords_str = "(none)".to_string();
-    let mut corrections_str = "(none)".to_string();
-    if has_meta {
-        let preprocess = build_preprocess_prompt(&dst_lang_name, &src_lang_name, &meta, &full_text);
-        match llm::chat_completions(
-            &preprocess,
-            &llm::ChatOptions {
-                model: Some(args.model.clone()),
-                api_base: Some(args.api_base.clone()),
-                system_prompt: "You output strict JSON only.".to_string(),
-                api_key: openai_api_key(),
-                max_tokens: Some(2048),
-                temperature: Some(0.2),
-            },
-        ) {
-            Ok(raw) => {
-                if let Ok(v) = parse_json_reply(&raw) {
-                    summary = v
-                        .get("summary")
-                        .and_then(|s| s.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    let hotwords: Vec<String> = v
-                        .get("hotwords")
-                        .and_then(|h| h.as_array())
-                        .map(|arr| {
-                            arr.iter()
-                                .filter_map(|h| {
-                                    let s = h.get("src").and_then(|x| x.as_str())?;
-                                    let d = h.get("dst").and_then(|x| x.as_str())?;
-                                    Some(format!("{s} -> {d}"))
-                                })
-                                .collect()
-                        })
-                        .unwrap_or_default();
-                    let corrections: Vec<String> = v
-                        .get("corrections")
-                        .and_then(|c| c.as_array())
-                        .map(|arr| {
-                            arr.iter()
-                                .filter_map(|c| {
-                                    let w = c.get("wrong").and_then(|x| x.as_str())?;
-                                    let r = c.get("correct").and_then(|x| x.as_str())?;
-                                    Some(format!("{w} -> {r}"))
-                                })
-                                .collect()
-                        })
-                        .unwrap_or_default();
-                    if !hotwords.is_empty() {
-                        hotwords_str = hotwords.join("\n");
-                    }
-                    if !corrections.is_empty() {
-                        corrections_str = corrections.join("\n");
-                    }
-                }
-            }
-            Err(e) => tracing::warn!(target: "translate", "[Translate] Preprocess failed: {e}"),
-        }
-    }
+    let meta = load_video_meta(&ytdlp_path);
+    // preprocess (仅在有元信息时): 让 LLM 先读一遍全文, 产出摘要/热词/纠错,
+    // 注入后续批量翻译的系统提示。失败不阻断——退化成"无预处理"直接翻。
+    let pre = if has_meta {
+        run_preprocess(&args, &src_lang_name, &dst_lang_name, &meta, &full_text)
+    } else {
+        PreprocessResult::default()
+    };
+    let summary = pre.summary;
+    let hotwords_str = pre.hotwords;
+    let corrections_str = pre.corrections;
 
     let system = build_translate_system(
         &dst_lang_name,
@@ -433,12 +461,11 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         &corrections_str,
     );
 
-    const BATCH_SIZE: usize = 50;
-    let total_batches = texts.chunks(BATCH_SIZE).count();
+    let total_batches = texts.chunks(partial::BATCH_SIZE).count();
     let partial_path = translation_partial_path(&video_dir, &target_lang);
 
     // 阶段内续跑: 读已有 partial, 恢复已完成 batch 与已译句
-    let (mut completed, partial_segs) = read_partial(&partial_path);
+    let (mut completed, partial_segs) = partial::read_partial(&partial_path);
     if !completed.is_empty() {
         tracing::info!(
             target: "translate",
@@ -451,7 +478,7 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     // 把 partial 中已完成 batch 的已译句回填到 dsts (缺失句 dst=None 仍待翻)
     let mut dsts: Vec<Option<String>> = vec![None; texts.len()];
     {
-        let mut by_batch: std::collections::HashMap<usize, Vec<&TranslatePartialSegment>> =
+        let mut by_batch: std::collections::HashMap<usize, Vec<&out::TranslatePartialSegment>> =
             std::collections::HashMap::new();
         for ps in partial_segs.iter() {
             by_batch.entry(ps.batch_index).or_default().push(ps);
@@ -460,7 +487,7 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             if !completed.contains(&bi) {
                 continue;
             }
-            let start = bi * BATCH_SIZE;
+            let start = bi * partial::BATCH_SIZE;
             for (k, ps) in segs.iter().enumerate() {
                 let gi = start + k;
                 if gi < dsts.len() && !ps.missing {
@@ -470,7 +497,7 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         }
     }
 
-    for (i, chunk) in texts.chunks(BATCH_SIZE).enumerate() {
+    for (i, chunk) in texts.chunks(partial::BATCH_SIZE).enumerate() {
         if completed.contains(&i) {
             tracing::info!(target: "translate", "batch {}/{}: 已完成, 跳过", i + 1, total_batches);
             continue;
@@ -480,7 +507,7 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         match translate_batch(&batch, &system, &target_lang, &args) {
             Ok(results) => {
                 for (k, r) in results.into_iter().enumerate() {
-                    let gi = i * BATCH_SIZE + k;
+                    let gi = i * partial::BATCH_SIZE + k;
                     if gi < dsts.len() {
                         dsts[gi] = Some(r.replace("——", "，"));
                     }
@@ -490,12 +517,12 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             Err(e) => {
                 // 把已译部分写进 partial (含缺失标注), 然后暴露错误
                 for (k, opt) in e.filled.into_iter().enumerate() {
-                    let gi = i * BATCH_SIZE + k;
+                    let gi = i * partial::BATCH_SIZE + k;
                     if gi < dsts.len() {
                         dsts[gi] = opt.map(|s| s.replace("——", "，"));
                     }
                 }
-                write_partial(
+                partial::write_partial(
                     &partial_path,
                     &texts,
                     &srt_segments,
@@ -509,7 +536,7 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             }
         }
         // 每 batch 完成即增量落盘 partial (阶段内续跑 + 分析用)
-        write_partial(
+        partial::write_partial(
             &partial_path,
             &texts,
             &srt_segments,
@@ -524,7 +551,7 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             StepPatch {
                 last_message: Some(format!(
                     "Translating {}/{}...",
-                    (i + 1) * BATCH_SIZE,
+                    (i + 1) * partial::BATCH_SIZE,
                     texts.len()
                 )),
                 ..Default::default()
@@ -582,78 +609,6 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         },
     )?;
     tracing::info!(target: "translate", "done");
-    Ok(())
-}
-
-/// 读 partial: 返回已完成 batch 集合与已记录的段。
-fn read_partial(
-    path: &Path,
-) -> (
-    std::collections::HashSet<usize>,
-    Vec<TranslatePartialSegment>,
-) {
-    let Ok(raw) = std::fs::read_to_string(path) else {
-        return (Default::default(), Vec::new());
-    };
-    let Ok(p) = serde_json::from_str::<TranslatePartialResult>(&raw) else {
-        return (Default::default(), Vec::new());
-    };
-    (p.completed_batches.into_iter().collect(), p.segments)
-}
-
-/// 写 partial: 把 `dsts` (Some=已译, None=缺失) 与 `completed` 落盘。
-fn write_partial(
-    path: &Path,
-    texts: &[String],
-    srt_segments: &[Value],
-    dsts: &[Option<String>],
-    completed: &std::collections::HashSet<usize>,
-    src_lang: &str,
-    target_lang: &str,
-) -> anyhow::Result<()> {
-    let batch_size = 50usize;
-    let segments: Vec<TranslatePartialSegment> = (0..texts.len())
-        .map(|gi| {
-            let bi = gi / batch_size;
-            let dst = dsts.get(gi).cloned().flatten().unwrap_or_default();
-            let missing =
-                dsts.get(gi).map(|o| o.is_none()).unwrap_or(true) && !completed.contains(&bi);
-            TranslatePartialSegment {
-                text: texts[gi].clone(),
-                dst,
-                src_lang: Some(src_lang.to_string()),
-                dst_lang: Some(target_lang.to_string()),
-                start_ms: srt_segments
-                    .get(gi)
-                    .and_then(|u| u.get("start_ms"))
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0) as u32,
-                end_ms: srt_segments
-                    .get(gi)
-                    .and_then(|u| u.get("end_ms"))
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0) as u32,
-                batch_index: bi,
-                missing,
-            }
-        })
-        .collect();
-    let partial = TranslatePartialResult {
-        segments,
-        completed_batches: completed.iter().copied().collect(),
-        meta: TranslateResultMeta {
-            src_lang: src_lang.to_string(),
-            target_lang: target_lang.to_string(),
-        },
-    };
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", parent.display(), e))?;
-    }
-    let json = serde_json::to_string_pretty(&partial)
-        .map_err(|e| anyhow::anyhow!("序列化 partial 失败: {e}"))?;
-    std::fs::write(path, json)
-        .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", path.display(), e))?;
     Ok(())
 }
 
@@ -780,9 +735,9 @@ mod tests {
         let mut completed = std::collections::HashSet::new();
         completed.insert(0usize); // 仅 batch 0 完成
 
-        write_partial(&path, &texts, &srt, &dsts, &completed, "en", "zh").unwrap();
+        partial::write_partial(&path, &texts, &srt, &dsts, &completed, "en", "zh").unwrap();
 
-        let (restored, segs) = read_partial(&path);
+        let (restored, segs) = partial::read_partial(&path);
         assert!(restored.contains(&0));
         assert_eq!(segs.len(), n);
         // batch 0 内全成功 → 不 missing
@@ -793,7 +748,7 @@ mod tests {
 
         // 模拟续跑回填: 仅 completed batch 的句恢复, 缺失句仍为 None
         let mut dsts2: Vec<Option<String>> = vec![None; n];
-        let mut by_batch: std::collections::HashMap<usize, Vec<&TranslatePartialSegment>> =
+        let mut by_batch: std::collections::HashMap<usize, Vec<&out::TranslatePartialSegment>> =
             std::collections::HashMap::new();
         for ps in segs.iter() {
             by_batch.entry(ps.batch_index).or_default().push(ps);
