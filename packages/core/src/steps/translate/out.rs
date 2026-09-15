@@ -26,7 +26,7 @@ pub struct TranslateSegment {
     pub speaker: Option<String>,
 }
 
-/// `translate/translation.{lang}.json` 结构 (镜像 TS `TranslateResult`)。
+/// `translate/{lang}.json` 结构 (镜像 TS `TranslateResult`)。
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 pub struct TranslateResult {
     pub segments: Vec<TranslateSegment>,
@@ -40,13 +40,13 @@ pub struct TranslateResultMeta {
     pub target_lang: String,
 }
 
-/// 增量进度文件 `translate/translation.{lang}.partial.json`。
+/// 增量进度文件 `translate/{lang}.partial.json`。
 ///
 /// 每完成一个 batch 即落盘, 记录已翻译的句子 (含缺失标注) 与已完成 batch 索引,
 /// 用于: (1) 阶段内续跑时跳过已完成 batch; (2) 把"不等的结果" (缺失句) 也存下来方便分析。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TranslatePartialResult {
-    /// 与最终 `translation.{lang}.json` 同结构的段数组 (缺失句 dst 为空 + missing=true)
+    /// 与最终 `{lang}.json` 同结构的段数组 (缺失句 dst 为空 + missing=true)
     pub segments: Vec<TranslatePartialSegment>,
     /// 已完成 (全部句翻译成功) 的 batch 索引集合
     #[serde(default)]
@@ -77,7 +77,7 @@ pub struct TranslatePartialSegment {
 ///
 /// 存在的意义是**单点构造**。此前 `translation_file_path(video_dir, lang)` 被 5 处
 /// 独立调用（写侧、split_audio 读、mix_video 读、engine 事件登记，以及两处「仅为拼
-/// 错误信息」）。`translate/` 目录名与 `translation.{lang}.json` 模板因此散落各处：
+/// 错误信息」）。`translate/` 目录名与 `{lang}.json` 模板因此散落各处：
 /// 改产物命名要同时改 5 处，**漏一处是运行时「文件不存在」，编译期无感**。
 ///
 /// 现在 `translation_file_path` 只在本类型的构造里调用，消费点接收本类型。

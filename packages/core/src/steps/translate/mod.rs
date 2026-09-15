@@ -1,7 +1,7 @@
 //! translate 阶段 (镜像 TS `packages/core/steps/05_translate/translate.ts`)。
 //!
 //! 从权威字幕文件拿时间轴 + 原文, 调 LLM 批量翻译成目标语言, 写出
-//! `translate/translation.{lang}.json`。翻译是 dub/subtitle pipeline 共享的 step。
+//! `translate/{lang}.json`。翻译是 dub/subtitle pipeline 共享的 step。
 //!
 //! 实现要点 (与 TS 对齐):
 //! - 目标语言 input > auto 推断 (resolve_language), 写回 ctx.target_language
@@ -361,7 +361,7 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         dsts
     };
 
-    // 全部完成: 组装正式结果, 写 translation.{lang}.json, 删除 partial
+    // 全部完成: 组装正式结果, 写 {lang}.json, 删除 partial
     let segments: Vec<TranslateSegment> = srt_segments
         .iter()
         .enumerate()
@@ -598,7 +598,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(format!("{dir}/translate")).unwrap();
 
-        let path = std::path::Path::new(&dir).join("translate/translation.zh.partial.json");
+        let path = std::path::Path::new(&dir).join("translate/zh.partial.json");
         // 51 句: batch 0 (句0..49) 全部完成; batch 1 仅句50, 缺失
         let n = 51usize;
         let texts: Vec<String> = (0..n).map(|i| format!("t{i}")).collect();
@@ -647,25 +647,20 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// **锁定唯一构造入口**：`TranslateOutput::for_lang` 必须与
-    /// `translation_file_path` 产出**逐字相同**的路径。
+    /// **锁定路径形状**：`TranslateOutput::for_lang` 产出 `translate/{lang}.json`。
     ///
-    /// 为什么需要：改动把 5 处拼接收拢到 `for_lang` 之后，路径形状就只由这一处决定。
-    /// 若有人「顺手」在 `for_lang` 里改了目录名或文件名模板，**所有消费点会一起
-    /// 漂移**——不再有任何一处保留旧写法可以对照。这条测试补上那个对照物。
+    /// 为什么需要：路径拼装收口到 `LangPath::new` 之后，形状就只由那一处决定。
+    /// 若有人「顺手」改了目录名或文件名模板，**所有消费点会一起漂移**——不再有
+    /// 第二处旧写法可以对照。这条测试补上那个对照物（原先是与
+    /// `translation_file_path` 对比，后者已删）。
     #[test]
     fn translate_output_matches_canonical_path() {
         let out = out::TranslateOutput::for_lang("/w", "vi");
-        assert_eq!(
-            out.path(),
-            &crate::steps::utils::translation_file_path("/w", "vi"),
-            "for_lang 必须与 translation_file_path 一致"
-        );
-        // 真实模板，防止注释与实现再次分叉（paths.rs 曾写成 translate/{lang}.json）
-        assert_eq!(out.path().to_string_lossy(), "/w/translate/translation.vi.json");
+        // 字面路径，防注释与实现分叉
+        assert_eq!(out.path().to_string_lossy(), "/w/translate/vi.json");
         assert_eq!(out.lang(), "vi");
         // Display 即路径，错误信息里 {out} 的语义
-        assert_eq!(out.to_string(), "/w/translate/translation.vi.json");
+        assert_eq!(out.to_string(), "/w/translate/vi.json");
     }
 
     /// `from_ctx` 只认 `ctx.target_language`：未设置 → 报错（不臆测语言）。

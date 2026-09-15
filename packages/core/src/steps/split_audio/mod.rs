@@ -2,7 +2,7 @@
 //!
 //! 镜像 TS `packages/core/steps/06_split_audio/split_audio.ts`。
 //! - 权威字幕文件 (asr_fix / sf_ocr / asr_ocr 按 subtitleSource) 取时间轴
-//! - translate.enabled 时译文来自 translation.{lang}.json, 否则退回原文
+//! - translate.enabled 时译文来自 {lang}.json, 否则退回原文
 //! - padSegments 加前后 padding 得到切块时序 -> split_audio.json
 //! - 意图时序 (未 padding) -> timings.json
 //! - 仅 dub 模式有 vocals 时切 wav 块; subtitle 模式只产出时序文件

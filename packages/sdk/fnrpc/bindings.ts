@@ -1732,7 +1732,7 @@ export type TranslateArgs_Serialize = {
 	enabled: boolean,
 };
 
-/**  `translate/translation.{lang}.json` 结构 (镜像 TS `TranslateResult`)。 */
+/**  `translate/{lang}.json` 结构 (镜像 TS `TranslateResult`)。 */
 export type TranslateResult = TranslateResult_Serialize | TranslateResult_Deserialize;
 
 /**  translate 结果 meta (镜像 TS `TranslateResultMeta`)。 */
@@ -1741,13 +1741,13 @@ export type TranslateResultMeta = {
 	target_lang: string,
 };
 
-/**  `translate/translation.{lang}.json` 结构 (镜像 TS `TranslateResult`)。 */
+/**  `translate/{lang}.json` 结构 (镜像 TS `TranslateResult`)。 */
 export type TranslateResult_Deserialize = {
 	segments: TranslateSegment_Deserialize[],
 	meta: TranslateResultMeta,
 };
 
-/**  `translate/translation.{lang}.json` 结构 (镜像 TS `TranslateResult`)。 */
+/**  `translate/{lang}.json` 结构 (镜像 TS `TranslateResult`)。 */
 export type TranslateResult_Serialize = {
 	segments: TranslateSegment_Serialize[],
 	meta: TranslateResultMeta,

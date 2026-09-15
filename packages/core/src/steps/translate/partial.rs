@@ -1,4 +1,4 @@
-//! 翻译阶段的**增量落盘** (`translate/translation.{lang}.partial.json`)。
+//! 翻译阶段的**增量落盘** (`translate/{lang}.partial.json`)。
 //!
 //! 为什么单独成模块: 这段是纯 I/O + 段组装, 没有业务逻辑, 可以独立测试;
 //! 与 `out.rs`(类型) / `prompts.rs`(提示词) / `args.rs`(配置) 同构。

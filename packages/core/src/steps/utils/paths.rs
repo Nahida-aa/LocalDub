@@ -155,7 +155,7 @@ pub mod asr_ocr_fix {
 pub mod translate {
     use super::*;
 
-    /// 翻译产物路径 `translate/translation.{lang}.json`。
+    /// 翻译产物路径 `translate/{lang}.json`。
     ///
     /// 字段私有：路径只能经 [`LangPath::new`] 或 [`LangPath::from_ctx`] 产生，
     /// 与三个 `SrtPath` 同款约束（拼法只有一个来源）。
@@ -176,6 +176,10 @@ pub mod translate {
     /// **存 `lang` 而不只存路径**：下游不只需要路径，还要语言本身——`mix_video`
     /// 用 `lang` 命名中间 SRT 并选字体（`default_font`：非 zh → Arial）。
     /// 若只存路径，下游就得再从 ctx 取一次语言，那又是第二个来源。
+    ///
+    /// **文件名是 `{lang}.json` 而非 `translation.{lang}.json`**：目录已经是
+    /// `translate/`，再叫 `translation.` 是重复。同时它让「这份文件属于哪个语言」
+    /// 一眼可读（`translate/vi.json`）。
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct LangPath {
         lang: String,
@@ -183,7 +187,7 @@ pub mod translate {
     }
 
     impl LangPath {
-        /// 由 `(video_dir, lang)` 构造：`{video_dir}/translate/translation.{lang}.json`。
+        /// 由 `(video_dir, lang)` 构造：`{video_dir}/translate/{lang}.json`。
         ///
         /// **翻译步骤专用**——它是唯一有资格决定 `lang` 的地方。
         pub fn new(video_dir: impl AsRef<Path>, lang: &str) -> Self {
@@ -192,7 +196,7 @@ pub mod translate {
                 path: video_dir
                     .as_ref()
                     .join("translate")
-                    .join(format!("translation.{lang}.json")),
+                    .join(format!("{lang}.json")),
             }
         }
 
@@ -327,7 +331,7 @@ mod tests {
     fn lang_path_shape() {
         assert_eq!(
             translate::LangPath::new("/w", "vi").as_path().to_string_lossy(),
-            "/w/translate/translation.vi.json"
+            "/w/translate/vi.json"
         );
     }
 
@@ -353,7 +357,7 @@ mod tests {
 
         // ctx 说 zh → 用 zh，**无视** input 里的 vi
         let p = translate::LangPath::from_ctx(&mk(Some("zh"))).unwrap();
-        assert_eq!(p.as_path().to_string_lossy(), "/w/translate/translation.zh.json");
+        assert_eq!(p.as_path().to_string_lossy(), "/w/translate/zh.json");
 
         // 缺失 → 报错（不现算、不推断）
         let err = translate::LangPath::from_ctx(&mk(None)).expect_err("缺失 target_language 必须报错");

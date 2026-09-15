@@ -546,18 +546,14 @@ pub fn lang_name(code: &str) -> String {
         .unwrap_or_else(|| code.to_string())
 }
 
-/// 翻译文件路径 `translate/translation.{lang}.json`。
-pub fn translation_file_path(video_dir: &str, lang: &str) -> PathBuf {
-    Path::new(video_dir)
-        .join("translate")
-        .join(format!("translation.{lang}.json"))
-}
-
-/// 翻译增量进度文件路径 `translate/translation.{lang}.partial.json`。
+/// 翻译增量进度文件路径 `translate/{lang}.partial.json`。
+///
+/// 与最终产物 [`crate::steps::utils::paths::translate::LangPath`] 同一目录、
+/// 同一语言前缀，只是多了 `.partial` 后缀。
 pub fn translation_partial_path(video_dir: &str, lang: &str) -> PathBuf {
     Path::new(video_dir)
         .join("translate")
-        .join(format!("translation.{lang}.partial.json"))
+        .join(format!("{lang}.partial.json"))
 }
 
 /// split_audio 结果路径 `split_audio/split_audio.json` (padding 后时序)。
@@ -590,7 +586,7 @@ pub fn read_translation_result(
 /// **规则**（按序）：
 /// 1. `translate.enabled == false`（直通）→ **目标语言 = 源语言**。
 ///    直通时 dst 装的是原文，产物就该以原文语言命名；否则会出现
-///    `translation.en.json` 里装中文这种名实不符，且下游按"目标语言"
+///    `translate/en.json` 里装中文这种名实不符，且下游按"目标语言"
 ///    选字体时（`default_font`：非 zh → Arial）会给中文字幕配 Arial。
 /// 2. 否则 `input.workflow.targetLang`
 /// 3. 否则 auto 推断（源 zh → en，其它 → zh）
@@ -727,7 +723,7 @@ mod tests {
     /// 直通（`translate.enabled=false`）→ **目标语言 = 源语言**。
     ///
     /// 没有翻译就没有"目标"这个概念：dst 装的是原文，产物就该以原文语言命名。
-    /// 否则会出现 `translation.en.json` 里装中文这种名实不符，且 `default_font`
+    /// 否则会出现 `translate/en.json` 里装中文这种名实不符，且 `default_font`
     /// 按"目标语言"选字体（非 zh → Arial）会给中文字幕配 Arial。
     #[test]
     fn passthrough_targets_source_language() {

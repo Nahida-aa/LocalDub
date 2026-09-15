@@ -181,7 +181,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 ### `translate`
 
 **恒执行**（`get_steps` 不再按 enabled 剔除）。`translate.enabled=false` 时走
-**直通**：不调 LLM，`dst` 填原文，照常写 `translation.{lang}.json`——下游步骤
+**直通**：不调 LLM，`dst` 填原文，照常写 `{lang}.json`——下游步骤
 从此只认这一种字幕来源（split_audio / mix_video 的「无译文用原文」分支成为
 历史，可后续清理）。
 
@@ -203,19 +203,19 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | --- | --- |
 | **读** ⚠️ | 规范化字幕 `srt.json`（按 `subtitleSource` 选目录，见「规范化字幕」节；类型化契约 `TranslateInput::from_ctx`，未知来源**报错**） |
 | **读** | `data/bin/yt-dlp` 产物（可选元信息） |
-| **写** | `translate/translation.{lang}.json`（类型化契约 `TranslateOutput::for_lang`）、中间态 `translation.{lang}.partial.json`（仅 LLM 路径，私有状态） |
+| **写** | `translate/{lang}.json`（类型化契约 `TranslateOutput::for_lang`）、中间态 `{lang}.partial.json`（仅 LLM 路径，私有状态） |
 | **写** | `ctx.json` 的 `target_language`——**全仓唯一写点**（`persist_target_language`），见下 |
 
 > 存在性语义按 enabled 分：**enabled** 时 srt.json 缺失/空 → 报错（要求翻译
 > 却没有内容 = 上游问题）；**disabled** 时缺失 → 空 segments 直通（上游被
 > 禁用，本来就没有字幕——与旧行为「translate 被移除」的成功语义一致）。
 >
-> 注意：直通时 `translation.{lang}.json` 的旧语言版本**不会被清理**。切换语言
-> 重跑会留下多份（真实数据里已有任务同时存在 `translation.vi.json` 与
-> `translation.zh.json`）。这是合法状态——「当前是哪份」由 `ctx.target_language`
+> 注意：直通时 `{lang}.json` 的旧语言版本**不会被清理**。切换语言
+> 重跑会留下多份（真实数据里已有任务同时存在 `vi.json` 与
+> `zh.json`）。这是合法状态——「当前是哪份」由 `ctx.target_language`
 > 单一写入点决定，不靠扫目录。
 
-> **`translation.{lang}.json` 的路径是单点构造的。** 它是全流水线唯一「产物被 5 处
+> **`{lang}.json` 的路径是单点构造的。** 它是全流水线唯一「产物被 5 处
 > 各拼一遍」的文件（写侧 + split_audio 读 + mix_video 读 + engine 事件登记，
 > 以及两处仅为拼错误信息）。现由 `TranslateOutput` 收口：`translation_file_path`
 > 只在 `TranslateOutput::for_lang` 里被调用一次，其余消费点接收该类型。
@@ -272,14 +272,14 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 >
 > 相关：`TranslateOutput::from_ctx` 只取 `ctx.target_language`、不调
 > `resolve_language`——保证「读的」与「报的」是同一路径。多语言共存是合法状态
-> （真实数据里已有任务同时存在 `translation.vi.json` 与 `translation.zh.json`），
+> （真实数据里已有任务同时存在 `vi.json` 与 `zh.json`），
 > 所以不能用「扫产物目录」来判定当前语言，必须靠这个单一写入点。
 
 ### `split_audio`
 
 | | 路径 |
 | --- | --- |
-| **读** ⚠️ | `translate/translation.{lang}.json`——**唯一字幕来源**（时间轴 + 文本 + dst；直通时 dst=原文） |
+| **读** ⚠️ | `translate/{lang}.json`——**唯一字幕来源**（时间轴 + 文本 + dst；直通时 dst=原文） |
 | **读** | `separate/target_3_vocals.wav`（dub 模式切 wav 块；subtitle 模式不需要） |
 | **写** | `split_audio/split_audio.json`、`timings.json`、`vocals/*.wav` |
 
@@ -319,7 +319,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | pipeline | 来源 | 说明 |
 | --- | --- | --- |
 | **dub** | `mix_audio/timings.json`（`mix_video/mod.rs:366`） | 用 `actual_start/actual_end`（mix_audio 修正后的**实际**音频位置）生成 SRT——烧进去的字幕才能和配音对齐 |
-| **subtitle** | 两选一（`mix_video/mod.rs:295`）：`split_audio/split_audio.json`（`vadAlign: true`）／`translate/translation.{lang}.json`（默认；`mix_video.srtPath` 可覆盖为外部 SRT 文本文件） | 无配音，直接按字幕时序烧 |
+| **subtitle** | 两选一（`mix_video/mod.rs:295`）：`split_audio/split_audio.json`（`vadAlign: true`）／`translate/{lang}.json`（默认；`mix_video.srtPath` 可覆盖为外部 SRT 文本文件） | 无配音，直接按字幕时序烧 |
 
 > 曾把 subtitle 分支的三选一误当成 mix_video 的全部来源，漏了 dub 模式这条
 > 最关键的边：**mix_audio 的 timings 产物是 mix_video 的字幕轨输入**。
@@ -352,7 +352,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
   未知来源报错；srt.json 缺失的存在性语义由 `translate.enabled` 决定
   （见 `translate` 节）。
 - **迁移已完成**：translate / split_audio / mix_video 三个消费者全部只认
-  srt.json 与 translation.json，不再按 `subtitleSource`/`llmFix` 找字幕。
+  srt.json 与 {lang}.json，不再按 `subtitleSource`/`llmFix` 找字幕。
 
 ### 已退役：焦点文件（`subtitle_file_path(ctx)`）
 
@@ -393,7 +393,7 @@ separate ──► separate_after ┤                                       │
                                     srt.json（各链规范化产物）
                                           │
                                           ▼
-                                  translate ──► translation.{lang}.json
+                                  translate ──► {lang}.json
                                           │  （enabled=false: dst=原文）
                                           ▼
                                     split_audio ──► timings.json
@@ -408,7 +408,7 @@ separate ──► separate_after ┤                                       │
                               separate_after/target_bgm.wav
 
 subtitle pipeline 的 mix_video 不吃 mix_audio 产物，
-字幕轨走 split_audio.json（vadAlign）或 translation.json（其余）。
+字幕轨走 split_audio.json（vadAlign）或 {lang}.json（其余）。
 ```
 
 **可并行的边**（仅两处，且都不长）：
