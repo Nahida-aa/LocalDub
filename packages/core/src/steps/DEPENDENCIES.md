@@ -239,6 +239,32 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 > `resolve_language` 后断言磁盘上的 ctx.json **没被改动**。把写回塞回去这条会红
 > （已实测）。
 >
+> #### 未完成：下游仍在「现算」而非「读事实」
+>
+> **约束只做了一半。** `resolve_language` 的调用点现状：
+>
+> | 调用点 | 要什么 | 应改为 |
+> | --- | --- | --- |
+> | `translate/mod.rs:190` | src + **target**（它就是决策者） | 保留 |
+> | `split_audio/mod.rs:77` | target（拼路径 :152 / 写 meta :207） | 读 `ctx.target_language` |
+> | `mix_video/mod.rs:63` | target（命名 :98/:143、字体 :101/:146） | 读 `ctx.target_language` |
+> | `workflows/engine.rs:89` | target（记产物路径） | 读 `ctx.target_language` |
+> | `asr/fix.rs:39` | **src_lang**（不要 target） | 读 `ctx.asr_language` |
+>
+> 问题：`resolve_language` 是**现算**，`ctx.target_language` 是**已落定事实**。
+> 两者现在**恰好**一致（纯函数 + 同输入），但这是巧合的稳定，不是设计保证：
+>
+> - 推断逻辑改过（如新增直通分支）时，下游「现算」的结果会变，
+>   而 `ctx.target_language` 是 translate 当时落盘的 → 中途重跑下游步骤即分叉
+> - 服务端有 `setCtx` 合并路径（`server/src/feat/workflows/mod.rs:85`），
+>   input 可能在步骤之间被改
+>
+> **目标状态**：`resolve_language` 只剩 translate 一个调用者，其余都读
+> `ctx.target_language`（源语言读 `ctx.asr_language`）。缺失即报错——
+> 与 `read_translation_result` 同款语义（没跑 translate 本来就该失败）。
+>
+> 尚未执行，先记录。
+>
 > 相关：`TranslateOutput::from_ctx` 只取 `ctx.target_language`、不调
 > `resolve_language`——保证「读的」与「报的」是同一路径。多语言共存是合法状态
 > （真实数据里已有任务同时存在 `translation.vi.json` 与 `translation.zh.json`），
