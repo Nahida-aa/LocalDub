@@ -151,6 +151,7 @@ pub mod asr_ocr_fix {
     }
 }
 
+// 动态 dynamical dynamic
 pub mod translate {
     use super::*;
     // translate/translation.{lang}.json
@@ -201,13 +202,22 @@ mod tests {
     #[test]
     fn srt_path_shape_per_fix_step() {
         for (actual, expected) in [
-            (asr_fix::SrtPath::new("/w").as_path().display().to_string(), "/w/asr_fix/srt.json"),
             (
-                sf_ocr_fix::SrtPath::new("/w").as_path().display().to_string(),
+                asr_fix::SrtPath::new("/w").as_path().display().to_string(),
+                "/w/asr_fix/srt.json",
+            ),
+            (
+                sf_ocr_fix::SrtPath::new("/w")
+                    .as_path()
+                    .display()
+                    .to_string(),
                 "/w/sf_ocr_fix/srt.json",
             ),
             (
-                asr_ocr_fix::SrtPath::new("/w").as_path().display().to_string(),
+                asr_ocr_fix::SrtPath::new("/w")
+                    .as_path()
+                    .display()
+                    .to_string(),
                 "/w/asr_ocr_fix/srt.json",
             ),
         ] {
@@ -222,7 +232,10 @@ mod tests {
     #[test]
     fn dir_is_parent_of_srt_path() {
         let p = asr_fix::SrtPath::new("/w");
-        assert_eq!(p.as_path().parent(), Some(asr_fix::SrtPath::dir("/w").as_path()));
+        assert_eq!(
+            p.as_path().parent(),
+            Some(asr_fix::SrtPath::dir("/w").as_path())
+        );
         assert_eq!(asr_fix::SrtPath::dir("/w"), PathBuf::from("/w/asr_fix"));
     }
 

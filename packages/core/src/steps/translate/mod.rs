@@ -183,12 +183,12 @@ pub fn parse_json_reply(raw: &str) -> anyhow::Result<Value> {
 
 /// 入口 (镜像 TS `stepTranslate`)。
 pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
-    let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "translate", "start");
 
     let input = args::TranslateInput::from_ctx(ctx)?;
     let args = read_args(ctx);
     let (src_lang, target_lang) = resolve_language(ctx)?;
+    let video_dir = input.video_dir.clone();
     let src_lang_name = lang_name(&src_lang);
     let dst_lang_name = lang_name(&target_lang);
 
@@ -693,6 +693,56 @@ mod tests {
         assert!(
             err.to_string().contains("target_language"),
             "错误应点名缺失的字段, 实际: {err}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// **已知分叉（未修）**：写侧用 `resolve_language()` 现算，读侧用
+    /// `ctx.target_language` 快照。
+    ///
+    /// `resolve_language`（`utils/mod.rs:632`）只在 `resolved != existing_dst` 时
+    /// 写回 ctx.json，且**写回失败只 warn 不报错**。所以当
+    /// `input.workflow.targetLang` 与已持久化的 `ctx.target_language` 不同时：
+    ///
+    /// - `step_translate` 写 `translation.{新值}.json`（现算值）
+    /// - `read_translation_result` 读 `translation.{旧值}.json`（快照）
+    ///
+    /// → 下游报「文件不存在」，但文件其实在，只是名字不同。
+    ///
+    /// 本测试**记录现状**（pair 不同），不是断言它合理。修法与取舍见
+    /// `TranslateOutput::from_ctx` 的注释：正确解是让写侧也用快照（单源），
+    /// 但那会改变「换语言重跑」的语义，故留给独立决定。
+    #[test]
+    fn write_side_and_read_side_language_can_diverge() {
+        let dir = std::env::temp_dir()
+            .join(format!("ld_tr_diverge_{}", std::process::id()))
+            .to_string_lossy()
+            .to_string();
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // ctx 里已持久化 zh；input 里要求 vi —— resolve_language 会算出 vi。
+        let mut ctx = ctx_at(
+            &dir,
+            json!({
+                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
+                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
+                "input": {"workflow": {"targetLang": "vi"}}
+            }),
+        );
+        ctx.target_language = Some("zh".to_string());
+
+        let input = args::TranslateInput::from_ctx(&ctx).expect("from_ctx 不该失败");
+        let (_, resolved) = resolve_language(&ctx).unwrap();
+
+        // 读侧（快照）→ zh；写侧（现算）→ vi。**两者不同**，这就是分叉。
+        assert_eq!(input.target_lang.as_deref(), Some("zh"));
+        assert_eq!(resolved, "vi");
+        assert_ne!(
+            input.target_lang.as_deref(),
+            Some(resolved.as_str()),
+            "若这里通过了，说明写读两侧已同源——可删掉本测试并更新注释"
         );
 
         let _ = std::fs::remove_dir_all(&dir);
