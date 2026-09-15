@@ -152,17 +152,6 @@ impl SubtitleSource {
         }
     }
 
-    /// 解析 subtitleSource 字符串。未知名返回 None——调用方应报错而非静默
-    /// 回退（配错来源会让整条链跑错，静默默认是帮倒忙）。
-    pub fn parse(s: &str) -> Option<Self> {
-        match s {
-            "asr" => Some(SubtitleSource::Asr),
-            "sf_ocr" => Some(SubtitleSource::SfOcr),
-            "asr_ocr" => Some(SubtitleSource::AsrOcr),
-            _ => None,
-        }
-    }
-
     /// 从 ctx 解析 `input.workflow.subtitleSource`。未知名 → 报错（fail-fast；
     /// 缺省时按 `#[default]` 走 asr）。
     pub fn from_ctx(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<Self> {
@@ -172,9 +161,28 @@ impl SubtitleSource {
             .and_then(|v| v.get("subtitleSource"))
             .and_then(|v| v.as_str())
             .unwrap_or("asr");
-        Self::parse(s).ok_or_else(|| {
-            anyhow::anyhow!("未知的 subtitleSource \"{s}\"（期望 asr / sf_ocr / asr_ocr）")
-        })
+        s.parse::<SubtitleSource>()
+            .map_err(|e| anyhow::anyhow!("{e}"))
+    }
+}
+
+/// 字符串解析：只认三个合法名，**未知即 Err**（不用 `From`——那是无失败
+/// 转换契约，未知串静默回退 asr 正是配错来源时帮倒忙的行为；对比
+/// `Language::from` 的 From 之所以成立，是因为 Language 是开放集合）。
+///
+/// Err 直接携带完整错误信息（含期望值列表），调用方原样上抛即可。
+impl std::str::FromStr for SubtitleSource {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "asr" => Ok(SubtitleSource::Asr),
+            "sf_ocr" => Ok(SubtitleSource::SfOcr),
+            "asr_ocr" => Ok(SubtitleSource::AsrOcr),
+            other => Err(format!(
+                "未知的 subtitleSource \"{other}\"（期望 asr / sf_ocr / asr_ocr）"
+            )),
+        }
     }
 }
 
