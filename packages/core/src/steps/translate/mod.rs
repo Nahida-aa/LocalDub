@@ -20,7 +20,6 @@ use std::path::Path;
 use serde_json::Value;
 
 use crate::context::WorkflowCtx;
-use crate::steps::translate::args::TranslateInput;
 use crate::steps::translate::out::{TranslateResult, TranslateResultMeta, TranslateSegment};
 use crate::steps::translate::prompts::{build_preprocess_prompt, build_translate_system, MetaView};
 use crate::steps::utils::{
@@ -530,7 +529,7 @@ mod tests {
                 "input": {"workflow": {"subtitleSource": "wat"}}
             }),
         );
-        let err = TranslateInput::from_ctx(&ctx).expect_err("未知来源必须报错");
+        let err = args::TranslateInput::from_ctx(&ctx).expect_err("未知来源必须报错");
         assert!(
             err.to_string().contains("未知的 subtitleSource"),
             "实际: {err}"
@@ -573,7 +572,7 @@ mod tests {
                     "input": {"workflow": {"subtitleSource": source}}
                 }),
             );
-            let input = TranslateInput::from_ctx(&ctx)
+            let input = args::TranslateInput::from_ctx(&ctx)
                 .unwrap_or_else(|e| panic!("{source}: {e}"));
             assert!(
                 input.srt_path().to_string_lossy().ends_with(expected),

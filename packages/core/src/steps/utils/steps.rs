@@ -159,8 +159,8 @@ pub fn get_steps(ctx: &WorkflowCtx) -> Vec<StepName> {
     steps
         .into_iter()
         .map(|s| {
-            StepName::parse(s).unwrap_or_else(|| {
-                panic!("pipeline 序列里的 step \"{s}\" 不是合法的 StepName（改名时漏了某处？）")
+            s.parse::<StepName>().unwrap_or_else(|e| {
+                panic!("pipeline 序列里的 step \"{s}\" 不是合法的 StepName（{e}；改名时漏了某处？）")
             })
         })
         .collect()
@@ -170,7 +170,7 @@ pub fn get_steps(ctx: &WorkflowCtx) -> Vec<StepName> {
 mod tests {
     use super::*;
     use crate::context::read_ctx_from_value;
-    use crate::workflows::args::ALL_STEPS;
+    use strum::IntoEnumIterator;
     use serde_json::json;
 
     fn ctx(pipeline: &str, input: serde_json::Value) -> WorkflowCtx {
@@ -207,7 +207,7 @@ mod tests {
         ] {
             for s in seq {
                 assert!(
-                    StepName::parse(s).is_some(),
+                    s.parse::<StepName>().is_ok(),
                     "{label} 里的 \"{s}\" 不是合法的 StepName（改名时漏了某处？）"
                 );
             }
@@ -218,7 +218,7 @@ mod tests {
     #[test]
     fn steps_list_matches_all_steps() {
         let mut from_list: Vec<&str> = STEPS_LIST.to_vec();
-        let mut from_enum = names(ALL_STEPS);
+        let mut from_enum = names(StepName::iter().collect::<Vec<_>>().as_slice());
         from_list.sort_unstable();
         from_enum.sort_unstable();
         assert_eq!(from_list, from_enum, "STEPS_LIST 与 ALL_STEPS 不一致");
@@ -245,7 +245,7 @@ mod tests {
             .map(|s| s.to_string())
             .collect();
 
-        let mut expected: Vec<String> = ALL_STEPS.iter().map(|s| s.to_string()).collect();
+        let mut expected: Vec<String> = StepName::iter().map(|s| s.to_string()).collect();
         expected.sort();
         let mut got = documented.clone();
         got.sort();

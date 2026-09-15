@@ -35,6 +35,7 @@ sha2.workspace = true
 hex.workspace = true
 zip.workspace = true
 mdns-sd-discovery.workspace = true
+strum.workspace = true
 # mdns-sd-discovery (avahi D-Bus) 需要 tokio runtime 跑 browse
 tokio = { version = "1", default-features = false, features = ["rt", "sync", "time"] }
 # aa-workflow 的 workflow-core 引擎 (独立 repo, path dep)

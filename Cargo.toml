@@ -73,6 +73,9 @@ hex = "0.4"
 sysinfo = "0.30"
 # Windows 资产为 zip（exe+dll 平铺），需解压后才能运行。
 zip = { version = "0.6", default-features = false, features = ["deflate"] }
+# 枚举派生（Display/EnumString/EnumIter/EnumVariantNames）：StepName / SubtitleSource
+# / Pipeline 的 as_str / 解析 / 全量名单从派生生成，不再手写 match。
+strum = { version = "0.27", features = ["derive"] }
 
 # ffmpeg 探测视频高度/帧率（ocr-post 由 vision-lab release 二进制提供）。
 
