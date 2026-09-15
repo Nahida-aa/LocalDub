@@ -202,12 +202,27 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 > 改产物命名不会再漏改——**但也没有第二处保留旧写法可对照**，故有
 > `translate_output_matches_canonical_path` 钉死路径形状。
 
-> **`TranslateOutput::from_ctx` 刻意不调 `resolve_language`**，只取
-> `ctx.target_language`。原因：`mix_video` 曾用现算的 lang 拼错误信息、却用
-> `read_translation_result` 里 `ctx.target_language` 的快照去读。两者通常相同
-> （`resolve_language` 会写回 ctx.json），但**来源不同**——persistent 模式下
-> 另一进程若在两次调用间改了 ctx.json，报错会指向一个没被尝试读取的文件。
-> 单源保证「读的」与「报的」必是同一个。
+> **`ctx.target_language` 只由 translate 写，且只写一次。**
+>
+> 这是刻意的**写入权限约束**。此前写回藏在 `resolve_language` 内部
+> （「算出来变了就顺手写回」），于是一个**看起来纯读**的函数带着隐形写副作用，
+> 产生顺序依赖：`split_audio` 先 `read_translation_result(ctx)`（读 ctx 里的旧值）
+> **再** `resolve_language(ctx)`（顺带改写 ctx.json）——读在写之前，读到的文件名
+> 与它认定的语言可以不是同一个。症状是报「文件不存在」，但文件在，只是名字不同。
+>
+> 现在拆开：
+> - `resolve_language(ctx)` —— **纯函数**，无副作用，谁都能随便调
+> - `persist_target_language(video_dir, lang)` —— 唯一写点，
+>   **只由 `step_translate` 调用一次**；失败返回 `Err`（原先只 `warn`）
+>
+> 由 `resolve_language_is_pure_and_does_not_persist` 守护：它调完
+> `resolve_language` 后断言磁盘上的 ctx.json **没被改动**。把写回塞回去这条会红
+> （已实测）。
+>
+> 相关：`TranslateOutput::from_ctx` 只取 `ctx.target_language`、不调
+> `resolve_language`——保证「读的」与「报的」是同一路径。多语言共存是合法状态
+> （真实数据里已有任务同时存在 `translation.vi.json` 与 `translation.zh.json`），
+> 所以不能用「扫产物目录」来判定当前语言，必须靠这个单一写入点。
 
 ### `split_audio`
 

@@ -613,33 +613,40 @@ pub fn resolve_language(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<(St
                 .map(Language::from)
         })
         .unwrap_or_else(default_lang);
-    let existing_dst = ctx
-        .target_language
-        .clone()
-        .unwrap_or_else(|| TargetLang::Zh.as_str().to_string());
     // 目标语言: input.workflow.targetLang > auto 推断 (源 zh -> en, 其它 -> zh)。
     // 目标必须是支持的翻译语言: 显式值经 TargetLang 校验 (非法回落 auto)。
     let resolved: TargetLang = input_target
         .as_deref()
         .and_then(TargetLang::from_code)
         .unwrap_or_else(|| infer_target_lang(&src_lang));
-    let resolved = resolved.as_str().to_string();
-    let src_lang = src_lang.code().to_string();
-    if resolved != existing_dst {
-        // 写回 ctx.target_language, 供后续翻译文件命名 / split_audio 读取 (best-effort:
-        // ctx.json 不存在时仅告警, 不影响当前 step 返回解析结果)
-        if let Err(e) = write_target_language(&ctx.workflow.video_dir, &resolved) {
-            tracing::warn!(target: "output_mode", "写回 target_language 失败: {e}");
-        }
-    }
-    Ok((src_lang, resolved))
+    Ok((src_lang.code().to_string(), resolved.as_str().to_string()))
 }
 
-/// 单独写回 ctx.json 的 target_language 字段 (resolve_language 内部用)。
-fn write_target_language(video_dir: &str, lang: &str) -> Result<(), String> {
-    let mut ctx = read_ctx(video_dir)?;
+/// 把本次的目标语言**落盘**（ctx.json 的 `target_language`）。
+///
+/// **只能由 [`crate::steps::translate::step_translate`] 调用一次。**
+/// 这是刻意的写入权限约束：
+///
+/// 此前这一步藏在 `resolve_language` 内部（「算出来变了就顺手写回」），于是
+/// 一个**看起来纯读**的函数带着隐形写副作用。后果是产生顺序依赖——
+/// `split_audio` 先调 `read_translation_result(ctx)`（读 ctx 里的旧值）**再**调
+/// `resolve_language(ctx)`（顺带改写 ctx.json），读在写之前，读到的文件名与
+/// 该步骤认定的语言就不是同一个。
+///
+/// 现在拆开：`resolve_language` 纯函数（可随便调、幂等、无副作用），写盘只此一处。
+/// 「谁写的」在类型/调用点上可见，不再需要读者去猜某个函数有没有副作用。
+///
+/// 失败**返回 Err**（原先只 `warn`）——写不下去就意味着下游会读到错的语言，
+/// 静默继续会让问题延后到「文件不存在」时才暴露，更难定位。
+pub fn persist_target_language(video_dir: &str, lang: &str) -> anyhow::Result<()> {
+    let mut ctx = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
+    if ctx.target_language.as_deref() == Some(lang) {
+        return Ok(()); // 已是该值，免一次无谓写盘
+    }
     ctx.target_language = Some(lang.to_string());
-    write_ctx(video_dir, &ctx)
+    write_ctx(video_dir, &ctx).map_err(anyhow::Error::msg)?;
+    tracing::info!(target: "output_mode", "target_language 已落盘: {lang}");
+    Ok(())
 }
 
 /// 序列化辅助: 把任意可序列化值转成 pretty JSON 字符串 (测试 / 透传用)。

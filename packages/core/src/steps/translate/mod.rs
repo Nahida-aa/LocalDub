@@ -189,6 +189,13 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     let args = read_args(ctx);
     let (src_lang, target_lang) = resolve_language(ctx)?;
     let video_dir = input.video_dir.clone();
+
+    // **本文件是全仓唯一把 target_language 落盘的地方**（见
+    // `persist_target_language` 的说明）。放在最前：后续所有产物（translation /
+    // split_audio / mix_audio / mix_video）都按这个语言命名，落盘后才能保证
+    // 「下游从 ctx 读到的」与「translate 实际写的」是同一个语言。
+    crate::steps::utils::persist_target_language(&video_dir, &target_lang)?;
+
     let src_lang_name = lang_name(&src_lang);
     let dst_lang_name = lang_name(&target_lang);
 
@@ -698,33 +705,22 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// **已知分叉（未修）**：同一个 `ctx` 上，读侧取 `ctx.target_language`，
-    /// 写侧取 `resolve_language()` 的现算值——**两个不同来源**。
+    /// **分叉已被约束消除（本测试守护那个约束）**：同一个 `ctx` 上，
+    /// `ctx.target_language` 与 `resolve_language()` 仍可能给出不同的值——
+    /// 但这**不再会写出错的文件**，因为：
     ///
-    /// `ctx.target_language` 本身有两个写入点，语义不同：
+    /// 1. `resolve_language` 已是**纯函数**，不再顺手改写 ctx.json；
+    /// 2. 落盘只由 `step_translate` 显式调 `persist_target_language` 一次。
     ///
-    /// | 写入点 | 值 |
-    /// | --- | --- |
-    /// | import（`import/download.rs:174`） | `input.workflow.targetLang` 的**直接映射**（不推断，缺则 `None`） |
-    /// | `resolve_language` 写回（`utils/mod.rs:630-638`） | `targetLang` **或从源语言推断**的结果 |
+    /// 约束前的问题形状：`resolve_language` 内部「算出来变了就写回」，于是
+    /// `split_audio` 先 `read_translation_result(ctx)`（读旧值）**再**
+    /// `resolve_language(ctx)`（顺带改写 ctx.json）——读在写之前，读到的文件名
+    /// 与该步骤认定的语言不是同一个。症状：报「文件不存在」，但文件在，只是名字不同。
     ///
-    /// 后者只在 `resolved != existing_dst` 时写，**且写回失败只 warn 不报错**。
-    ///
-    /// **它通常收敛**，靠的是 `resolve_language` 的写回副作用：translate 自己会先调
-    /// 它（`mod.rs:190`）把 ctx.json 更新掉，下游 `read_translation_result` 重新
-    /// `read_ctx` 就拿到新值。这是**跨函数靠持久化对齐**，脆但多数情况下安全。
-    ///
-    /// **真正会断的场景**：同一 `ctx` 引用上先读后算——`split_audio/mod.rs:64`
-    /// 调 `read_translation_result(ctx)`（快照），`:77` 才调 `resolve_language(ctx)`，
-    /// 两者传的是同一个 `ctx`。若这两次调用之间 ctx.json 被写回了新语言，
-    /// `:64` 读的文件名与 `:77` 认定的语言就不是同一个。
-    ///
-    /// 症状：报「文件不存在」，但文件在，只是名字不同。
-    ///
-    /// 本测试**记录现状**（两者不同），不是断言它合理。修法是让写侧也用快照
-    /// （单源），但那会改变「换语言重跑」的语义，故留给独立决定。
+    /// 本测试断言**两个来源仍可不同**（这是事实：调用者手里的 ctx 可能是陈旧的），
+    /// 但不再意味着「会持久化污染」——下半部分验证写盘没发生。
     #[test]
-    fn write_side_and_read_side_language_can_diverge() {
+    fn resolve_language_is_pure_and_does_not_persist() {
         let dir = std::env::temp_dir()
             .join(format!("ld_tr_diverge_{}", std::process::id()))
             .to_string_lossy()
@@ -741,19 +737,31 @@ mod tests {
                 "input": {"workflow": {"targetLang": "vi"}}
             }),
         );
+        // ctx.json 落盘，内容为 zh
         ctx.target_language = Some("zh".to_string());
+        crate::context::write_ctx(&dir, &ctx).unwrap();
 
         let input = args::TranslateInput::from_ctx(&ctx).expect("from_ctx 不该失败");
-        let (_, resolved) = resolve_language(&ctx).unwrap();
 
-        // 读侧（快照）→ zh；写侧（现算）→ vi。**两者不同**，这就是分叉。
+        // ① 两个来源确实可以不同（调用者手里的 ctx 可能陈旧）
+        let (_, resolved) = resolve_language(&ctx).unwrap();
         assert_eq!(input.target_lang.as_deref(), Some("zh"));
         assert_eq!(resolved, "vi");
-        assert_ne!(
-            input.target_lang.as_deref(),
-            Some(resolved.as_str()),
-            "若这里通过了，说明写读两侧已同源——可删掉本测试并更新注释"
+
+        // ② **关键**：调 resolve_language 之后，磁盘上的 ctx.json 必须**没变**。
+        //    这是「纯函数」的实质保障——若有人把写回塞回 resolve_language，
+        //    这条会红。分叉之所以不再有害，全靠这一步不写盘。
+        let after = crate::context::read_ctx(&dir).unwrap();
+        assert_eq!(
+            after.target_language.as_deref(),
+            Some("zh"),
+            "resolve_language 不该有副作用；ctx.json 被改说明写回又回到了它里面"
         );
+
+        // ③ 显式落盘才改（这是 translate 唯一的写点）
+        crate::steps::utils::persist_target_language(&dir, &resolved).unwrap();
+        let persisted = crate::context::read_ctx(&dir).unwrap();
+        assert_eq!(persisted.target_language.as_deref(), Some("vi"));
 
         let _ = std::fs::remove_dir_all(&dir);
     }
