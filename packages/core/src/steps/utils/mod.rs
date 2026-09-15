@@ -469,7 +469,41 @@ pub fn ensure_dir(path: &std::path::Path) -> anyhow::Result<()> {
 ///
 /// 段结构用 `subtitle` crate 的 [`SubtitleSegment`]（text/start_ms/end_ms，
 /// 权威定义在 vision-lab）。
+///
+/// # fail-fast：时间轴必须 `start_ms < end_ms`
+///
+/// 坏数据在**产出方**就报错，而不是等下游去猜。为什么必须拦：
+///
+/// - `pad_segments` 的两条 padding 路径基准不同（start 用 `start_ms`、end 用
+///   `end_ms` 量到下一段的 gap），段反向时后者会把 gap 算得虚大，产出
+///   `split_start >= split_end` 的**反向边界**——错误被放大而非暴露
+/// - `split_audio` 对反向边界只写 44 字节空 wav 占位（不崩），而 `tts` 读的是
+///   `timings.json` 的段、不是这些 wav——**问题被掩盖到成片里**
+///
+/// **`start == end` 也算错**（零长段）：它同样会在下游变成空产物，且没有任何
+/// 合法场景需要「零长度的字幕段」。
 pub fn write_srt_json(path: &std::path::Path, segments: &[SubtitleSegment]) -> anyhow::Result<()> {
+    if let Some((i, s)) = segments
+        .iter()
+        .enumerate()
+        .find(|(_, s)| s.start_ms >= s.end_ms)
+    {
+        // 从路径反推产出方步骤名（`{video_dir}/{step}/srt.json`），
+        // 让错误直接指向**哪个步骤**产出了坏数据。
+        let step = path
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            .unwrap_or("?");
+        return Err(anyhow::anyhow!(
+            "{step}: 第 {} 段时间轴非法 (start_ms={} >= end_ms={}); \
+             请检查该步骤的输入数据（段必须满足 start_ms < end_ms）",
+            i + 1,
+            s.start_ms,
+            s.end_ms
+        ));
+    }
+
     let out = serde_json::json!({ "result": { "segments": segments } });
     if let Some(parent) = path.parent() {
         ensure_dir(parent)?;
@@ -718,6 +752,53 @@ mod tests {
         assert!(s.ends_with('Z'));
         assert!(!s.contains('.'), "不应含毫秒: {s}");
         assert_eq!(s.len(), 20);
+    }
+
+    /// `write_srt_json` 对非法时间轴 fail-fast：`start_ms >= end_ms` → 报错。
+    ///
+    /// 为什么必须在**产出方**拦：坏数据流到下游只会被放大而非暴露——
+    /// `pad_segments` 会把反向段算出反向边界，`split_audio` 对它只写 44 字节
+    /// 空 wav 占位，而 `tts` 读的是 timings 的段（不是那些 wav）——问题一路
+    /// 掩盖到成片。
+    #[test]
+    fn write_srt_json_rejects_invalid_timeline() {
+        let dir = std::env::temp_dir()
+            .join(format!("ld_srt_json_{}", std::process::id()))
+            .to_string_lossy()
+            .to_string();
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let seg = |start_ms: u32, end_ms: u32| subtitle::SubtitleSegment {
+            text: "t".into(),
+            start_ms,
+            end_ms,
+        };
+        let p = std::path::Path::new(&dir).join("asr_fix").join("srt.json");
+
+        // 反向 → 报错，且错误点明步骤名、段索引与具体数值
+        let err = write_srt_json(&p, &[seg(1000, 2000), seg(5000, 3000)])
+            .expect_err("反向段必须报错");
+        let msg = err.to_string();
+        assert!(msg.contains("asr_fix"), "应点明产出方步骤: {msg}");
+        assert!(msg.contains('2'), "应点明段索引(第 2 段): {msg}");
+        assert!(
+            msg.contains("5000") && msg.contains("3000"),
+            "应含具体数值: {msg}"
+        );
+
+        // 零长也算错（无合法场景需要零长度字幕段）
+        write_srt_json(&p, &[seg(1000, 1000)]).expect_err("零长段必须报错");
+
+        // 合法 → 通过，且确实落盘
+        write_srt_json(&p, &[seg(0, 1), seg(1000, 2000)]).expect("合法段不该失败");
+        assert!(p.exists(), "合法时应落盘");
+
+        // 报错时**不该**留下产物（坏数据不能落盘）
+        let _ = std::fs::remove_file(&p);
+        let _ = write_srt_json(&p, &[seg(5000, 3000)]);
+        assert!(!p.exists(), "非法数据不该落盘");
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// 直通（`translate.enabled=false`）→ **目标语言 = 源语言**。

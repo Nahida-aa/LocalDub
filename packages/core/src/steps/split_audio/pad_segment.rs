@@ -111,4 +111,53 @@ mod tests {
         assert_eq!(out[0].1, 1015);
         assert_eq!(out[1].0, 1015);
     }
+
+    /// **中间段自身反向时，输出也会反向**（`start >= end`）。
+    ///
+    /// 两条 padding 路径用了**不同基准**：
+    /// - `start_pad_at` 用本段 `start_ms`
+    /// - `end_pad_at` 用本段 `end_ms` 去量「到下一段 start 的 gap」
+    ///
+    /// 段正常时两者一致；段反向时（`end < start`）后者的 gap 会被算得虚大，
+    /// 于是给足 `end_pad`，而前者已把 start 减小 —— 结果 `start > end`。
+    ///
+    /// **上游数据反向才会触发**（本函数不做校验也不修正）。
+    /// 下游 `split_audio/mod.rs` 有 `start_ms >= end_ms` 的检查，会写 44 字节
+    /// 空 wav 占位——不崩，但那个段实际是空的。
+    #[test]
+    fn reversed_segment_yields_reversed_bounds() {
+        let segs = vec![
+            Seg { s: 1000, e: 2000 },
+            Seg { s: 3000, e: 2100 }, // 反向：end < start
+            Seg { s: 5000, e: 6000 },
+        ];
+        let out = pad_segments(&segs, 100, 300);
+        // 前/后段正常
+        assert!(out[0].0 < out[0].1);
+        assert!(out[2].0 < out[2].1);
+        // 中间段反向 —— 这是当前行为（记录事实，非断言其合理）
+        assert!(
+            out[1].0 >= out[1].1,
+            "反向段的 padding 结果也反向: {:?}",
+            out[1]
+        );
+    }
+
+    /// 单段（极短甚至自身反向）**不会**反向——这是巧合的安全，不是设计保证。
+    ///
+    /// 单段时 `idx==0` 走 `orig - start_pad`、`idx==len-1` 走 `orig + end_pad`，
+    /// 只有段本身反向超过 `start_pad + end_pad`（默认 400ms）才会翻转。
+    /// 钉住它是为了：若将来改了首/末段分支，这条会红。
+    #[test]
+    fn single_short_segment_does_not_reverse() {
+        for (s, e) in [(1000u32, 1100u32), (1000, 1000), (1000, 900)] {
+            let segs = vec![Seg { s, e }];
+            let out = pad_segments(&segs, 100, 300);
+            assert!(
+                out[0].0 < out[0].1,
+                "单段 ({s},{e}) 不该反向: {:?}",
+                out[0]
+            );
+        }
+    }
 }
