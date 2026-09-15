@@ -698,21 +698,31 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// **已知分叉（未修）**：写侧用 `resolve_language()` 现算，读侧用
-    /// `ctx.target_language` 快照。
+    /// **已知分叉（未修）**：同一个 `ctx` 上，读侧取 `ctx.target_language`，
+    /// 写侧取 `resolve_language()` 的现算值——**两个不同来源**。
     ///
-    /// `resolve_language`（`utils/mod.rs:632`）只在 `resolved != existing_dst` 时
-    /// 写回 ctx.json，且**写回失败只 warn 不报错**。所以当
-    /// `input.workflow.targetLang` 与已持久化的 `ctx.target_language` 不同时：
+    /// `ctx.target_language` 本身有两个写入点，语义不同：
     ///
-    /// - `step_translate` 写 `translation.{新值}.json`（现算值）
-    /// - `read_translation_result` 读 `translation.{旧值}.json`（快照）
+    /// | 写入点 | 值 |
+    /// | --- | --- |
+    /// | import（`import/download.rs:174`） | `input.workflow.targetLang` 的**直接映射**（不推断，缺则 `None`） |
+    /// | `resolve_language` 写回（`utils/mod.rs:630-638`） | `targetLang` **或从源语言推断**的结果 |
     ///
-    /// → 下游报「文件不存在」，但文件其实在，只是名字不同。
+    /// 后者只在 `resolved != existing_dst` 时写，**且写回失败只 warn 不报错**。
     ///
-    /// 本测试**记录现状**（pair 不同），不是断言它合理。修法与取舍见
-    /// `TranslateOutput::from_ctx` 的注释：正确解是让写侧也用快照（单源），
-    /// 但那会改变「换语言重跑」的语义，故留给独立决定。
+    /// **它通常收敛**，靠的是 `resolve_language` 的写回副作用：translate 自己会先调
+    /// 它（`mod.rs:190`）把 ctx.json 更新掉，下游 `read_translation_result` 重新
+    /// `read_ctx` 就拿到新值。这是**跨函数靠持久化对齐**，脆但多数情况下安全。
+    ///
+    /// **真正会断的场景**：同一 `ctx` 引用上先读后算——`split_audio/mod.rs:64`
+    /// 调 `read_translation_result(ctx)`（快照），`:77` 才调 `resolve_language(ctx)`，
+    /// 两者传的是同一个 `ctx`。若这两次调用之间 ctx.json 被写回了新语言，
+    /// `:64` 读的文件名与 `:77` 认定的语言就不是同一个。
+    ///
+    /// 症状：报「文件不存在」，但文件在，只是名字不同。
+    ///
+    /// 本测试**记录现状**（两者不同），不是断言它合理。修法是让写侧也用快照
+    /// （单源），但那会改变「换语言重跑」的语义，故留给独立决定。
     #[test]
     fn write_side_and_read_side_language_can_diverge() {
         let dir = std::env::temp_dir()
