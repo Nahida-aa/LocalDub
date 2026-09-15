@@ -86,12 +86,9 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
         }
         "translate" => {
             let ctx = crate::context::read_ctx(wf).ok()?;
-            let (_, lang) = resolve_language(&ctx).ok()?;
-            vec![p(
-                crate::steps::translate::out::TranslateOutput::for_lang(wf, &lang)
-                    .path()
-                    .to_path_buf(),
-            )]
+            // 读已落定的事实（translation 步骤写的），不现算。
+            let p_lang = crate::steps::utils::paths::translate::LangPath::from_ctx(&ctx).ok()?;
+            vec![p(p_lang.as_path().to_path_buf())]
         }
         "split_audio" => vec![p(split_audio_path(wf)), p(split_audio_timings_path(wf))],
         "tts" => vec![p(tts_filepath(wf))],

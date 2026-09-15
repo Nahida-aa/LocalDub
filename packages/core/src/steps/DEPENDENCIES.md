@@ -239,31 +239,36 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 > `resolve_language` 后断言磁盘上的 ctx.json **没被改动**。把写回塞回去这条会红
 > （已实测）。
 >
-> #### 未完成：下游仍在「现算」而非「读事实」
+> #### 已完成：下游改为「读事实」
 >
-> **约束只做了一半。** `resolve_language` 的调用点现状：
+> `resolve_language` 现在**只剩 translate 一个调用者**。其余各步骤的取法：
 >
-> | 调用点 | 要什么 | 应改为 |
+> | 调用点 | 原来 | 现在 |
 > | --- | --- | --- |
-> | `translate/mod.rs:190` | src + **target**（它就是决策者） | 保留 |
-> | `split_audio/mod.rs:77` | target（拼路径 :152 / 写 meta :207） | 读 `ctx.target_language` |
-> | `mix_video/mod.rs:63` | target（命名 :98/:143、字体 :101/:146） | 读 `ctx.target_language` |
-> | `workflows/engine.rs:89` | target（记产物路径） | 读 `ctx.target_language` |
-> | `asr/fix.rs:39` | **src_lang**（不要 target） | 读 `ctx.asr_language` |
+> | `translate/mod.rs:190` | `resolve_language` | **保留**（它就是决策者） |
+> | `split_audio/mod.rs` | `resolve_language` | `LangPath::from_ctx`（路径+语言）；源语言用 `src_language` |
+> | `mix_video/mod.rs:63` | `resolve_language` | `LangPath::from_ctx(...).lang()` |
+> | `workflows/engine.rs:89` | `resolve_language` | `LangPath::from_ctx` |
+> | `asr/fix.rs:39` | `resolve_language` | `src_language(ctx)`（它只要源语言） |
 >
-> 问题：`resolve_language` 是**现算**，`ctx.target_language` 是**已落定事实**。
-> 两者现在**恰好**一致（纯函数 + 同输入），但这是巧合的稳定，不是设计保证：
+> 为什么必须改：`resolve_language` 是**现算**，`ctx.target_language` 是**已落定
+> 事实**。两者曾**恰好**一致（纯函数 + 同输入），但那是巧合的稳定：
+> 推断逻辑一改（如直通时目标=源），下游现算的结果就变，而
+> `ctx.target_language` 是 translate 当时落盘的 → 中途重跑下游步骤即分叉。
+> 服务端还有 `setCtx` 合并路径（`server/src/feat/workflows/mod.rs:85`），
+> input 可能在步骤之间被改。
 >
-> - 推断逻辑改过（如新增直通分支）时，下游「现算」的结果会变，
->   而 `ctx.target_language` 是 translate 当时落盘的 → 中途重跑下游步骤即分叉
-> - 服务端有 `setCtx` 合并路径（`server/src/feat/workflows/mod.rs:85`），
->   input 可能在步骤之间被改
+> 现在两条路各有明确用途：
+> - **`LangPath::new(dir, lang)`** —— 翻译步骤专用（它有权决定 `lang`）
+> - **`LangPath::from_ctx(ctx)`** —— 后续步骤专用（读事实，缺失即报错）
 >
-> **目标状态**：`resolve_language` 只剩 translate 一个调用者，其余都读
-> `ctx.target_language`（源语言读 `ctx.asr_language`）。缺失即报错——
-> 与 `read_translation_result` 同款语义（没跑 translate 本来就该失败）。
+> 由 `target_lang_comes_from_persisted_fact_not_config` 守护：构造
+> 「配置说 vi、事实是 zh」的错配，断言 `mix_video` 取 **zh**，并连带验证
+> 字体选到 CJK 而非 Arial。改回现算这条会红（已实测）。
 >
-> 尚未执行，先记录。
+> **源语言单独走 [`src_language`]**：`ctx.asr_language`（ASR 实测）>
+> `input.workflow.sourceLang` > 兜底。纯 OCR / subtitle 路径没有 ASR，
+> 必须靠后两级回退——所以它**不能**简化成读 `ctx.asr_language`。
 >
 > 相关：`TranslateOutput::from_ctx` 只取 `ctx.target_language`、不调
 > `resolve_language`——保证「读的」与「报的」是同一路径。多语言共存是合法状态

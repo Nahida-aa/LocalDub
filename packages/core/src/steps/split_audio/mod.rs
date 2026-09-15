@@ -74,7 +74,10 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     }
 
     // 源音频: 可被 split_audio.sourceFilePath 覆盖; 否则有 vocals 用干净人声
-    let (src_lang, target_lang) = resolve_language(ctx)?;
+    // 目标语言读**已落定的事实**（翻译步骤写的），不现算；
+    // 源语言独立解析（它有自己的三级回退，与目标语言无关）。
+    let lang_path = crate::steps::utils::paths::translate::LangPath::from_ctx(ctx)?;
+    let src_lang = crate::steps::utils::src_language(ctx).code().to_string();
     let fallback_source = video_source_path(ctx)?;
     let source_audio = args
         .source_file_path
@@ -148,9 +151,7 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     // 切块 (仅 dub 模式有 vocals 时执行; subtitle 模式跳过, 只产出时序文件)
     if has_vocals {
         // 若翻译文件比已切出的块更新 (重跑翻译), 清空旧块重新切
-        let translation_out =
-            crate::steps::translate::out::TranslateOutput::for_lang(&video_dir, &target_lang);
-        let translation_file = translation_out.path();
+        let translation_file = lang_path.as_path();
         let has_seg = fs::read_dir(&vocals_segment_dir)
             .ok()
             .map(|d| {
@@ -200,11 +201,18 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         }
     }
 
+    // meta 与 translate 产物的 meta 对齐：src/target 都取**产物自述**的值
+    // （`trans` 在函数开头已读入），而不是重新解析——本步骤处理的就是那份
+    // segments，meta 理应与之逐字一致。
     let meta = TranslateResultMeta {
-        src_lang: src_lang.clone(),
-        // 与 translate 的产物 meta 对齐：这里始终是「目标槽位」语言
-        // （直通时 dst 内容为原文，但槽位仍是 resolve 出的 target_lang）。
-        target_lang: target_lang.clone(),
+        src_lang: trans
+            .get("meta")
+            .and_then(|m| m.get("src_lang"))
+            .and_then(|v| v.as_str())
+            // 产物缺 meta 时回退到独立解析（老产物可能没有该字段）
+            .map(String::from)
+            .unwrap_or_else(|| src_lang.clone()),
+        target_lang: lang_path.lang().to_string(),
     };
     let split_result = SplitAudioResult {
         segments: split_segments.clone(),

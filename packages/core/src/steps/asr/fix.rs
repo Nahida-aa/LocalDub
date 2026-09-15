@@ -36,7 +36,8 @@ pub fn step_asr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             .to_string_lossy()
             .to_string()
     });
-    let (src_lang, _) = resolve_language(ctx)?;
+    // 源语言独立解析（三级回退），与目标语言无关——本步骤只用它做 LLM 提示词标签。
+    let src_lang = crate::steps::utils::src_language(ctx).code().to_string();
 
     if !std::path::Path::new(&asr_file).exists() {
         return Err(anyhow!(

@@ -60,7 +60,11 @@ pub fn step_mix_video(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     }
 
     let output_mode = ctx.output_mode.clone();
-    let (_, target_lang) = resolve_language(ctx)?;
+    // 目标语言读**已落定的事实**（翻译步骤写的唯一写入点），不再现算：
+    // `resolve_language` 是现算，推断逻辑一变就会与产物不一致。
+    let target_lang = crate::steps::utils::paths::translate::LangPath::from_ctx(ctx)?
+        .lang()
+        .to_string();
 
     let no_translate = ctx
         .input
@@ -440,6 +444,38 @@ fn parse_srt_time(t: &str) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `mix_video` 的目标语言必须来自**已落定的事实**（`ctx.target_language`），
+    /// 而不是 `resolve_language` 的现算值。
+    ///
+    /// 为什么这条重要：`target_lang` 不只用于命名，还驱动 `probe_style` →
+    /// `default_font`（非 zh → Arial）。若它取现算值，推断逻辑一改（如直通时
+    /// 目标=源），这里就会与产物实际的语言不一致——中文字幕配上 Arial。
+    ///
+    /// 构造「配置说 vi、事实是 zh」的错配，断言以**事实**为准。
+    #[test]
+    fn target_lang_comes_from_persisted_fact_not_config() {
+        use crate::context::read_ctx_from_value;
+        use crate::steps::utils::paths::translate::LangPath;
+
+        let mut ctx = read_ctx_from_value(serde_json::json!({
+            "workflow": {"id":"t","video_dir":"/w","url":"http://e","source":"remote",
+                     "status":"running","created_at":"2024-01-01T00:00:00Z"},
+            "input": {"workflow": {"targetLang": "vi"}}
+        }))
+        .unwrap();
+        ctx.target_language = Some("zh".to_string());
+
+        let lang = LangPath::from_ctx(&ctx).unwrap().lang().to_string();
+        assert_eq!(lang, "zh", "应以 ctx 的事实为准，而非 input 里的 vi");
+
+        // 与字体选择挂钩：zh 必须选到 CJK 字体而非 Arial
+        let style = probe_style("/nonexistent.mp4", &lang, &MixVideoArgs::default(), 2);
+        assert!(
+            !style.contains("FontName=Arial"),
+            "中文字幕不该配 Arial（无中文字形）: {style}"
+        );
+    }
 
     #[test]
     fn mix_video_args_defaults() {

@@ -172,20 +172,28 @@ pub mod translate {
     /// 事实**。两者现在恰好一致（纯函数 + 同输入），但那是巧合的稳定——推断逻辑
     /// 一改（如新增直通分支），中途重跑下游就会分叉。`from_ctx` 让下游只能读到
     /// 事实，读不到「另算一遍」的机会。
+    ///
+    /// **存 `lang` 而不只存路径**：下游不只需要路径，还要语言本身——`mix_video`
+    /// 用 `lang` 命名中间 SRT 并选字体（`default_font`：非 zh → Arial）。
+    /// 若只存路径，下游就得再从 ctx 取一次语言，那又是第二个来源。
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct LangPath(PathBuf);
+    pub struct LangPath {
+        lang: String,
+        path: PathBuf,
+    }
 
     impl LangPath {
         /// 由 `(video_dir, lang)` 构造：`{video_dir}/translate/translation.{lang}.json`。
         ///
         /// **翻译步骤专用**——它是唯一有资格决定 `lang` 的地方。
         pub fn new(video_dir: impl AsRef<Path>, lang: &str) -> Self {
-            Self(
-                video_dir
+            Self {
+                lang: lang.to_string(),
+                path: video_dir
                     .as_ref()
                     .join("translate")
                     .join(format!("translation.{lang}.json")),
-            )
+            }
         }
 
         /// 由 ctx 构造，语言取 `ctx.target_language`（**唯一写入点**见
@@ -206,7 +214,13 @@ pub mod translate {
         }
 
         pub fn as_path(&self) -> &Path {
-            &self.0
+            &self.path
+        }
+
+        /// 目标语言——与 [`as_path`](Self::as_path) **同源同构**，
+        /// 该路径里的 `{lang}` 就是它。
+        pub fn lang(&self) -> &str {
+            &self.lang
         }
     }
 }

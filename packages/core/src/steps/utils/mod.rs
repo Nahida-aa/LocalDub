@@ -611,21 +611,7 @@ pub fn resolve_language(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<(St
         .and_then(|v| v.get("targetLang"))
         .and_then(|v| v.as_str())
         .map(String::from);
-    // 源语言: ASR 实测 (ctx.asr_language) > input.workflow.sourceLang > 兜底空声明。
-    // (纯 OCR / subtitle 路径没有 ASR, 必须回落到配置的 sourceLang, 否则非中文
-    //  任务会被当成 zh -> 目标语言错误推断为 en)
-    // 源语言是开放事实 (Language), 不做枚举截断 —— 列表外语言如实透传。
-    let src_lang: Language = ctx
-        .asr_language
-        .clone()
-        .or_else(|| {
-            ctx.input
-                .get("workflow")
-                .and_then(|v| v.get("sourceLang"))
-                .and_then(|v| v.as_str())
-                .map(Language::from)
-        })
-        .unwrap_or_else(default_lang);
+    let src_lang = src_language(ctx);
     let src_code = src_lang.code().to_string();
 
     // ① 直通：目标 = 源。不查配置、不推断——没有翻译就没有"目标"这个概念。
@@ -640,6 +626,31 @@ pub fn resolve_language(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<(St
         .and_then(TargetLang::from_code)
         .unwrap_or_else(|| infer_target_lang(&src_lang));
     Ok((src_code, resolved.as_str().to_string()))
+}
+
+/// 解析**源语言**（与目标语言无关，故独立成函数）。
+///
+/// 回退链：`ctx.asr_language`（ASR 实测）> `input.workflow.sourceLang` > 兜底。
+///
+/// **为什么纯 OCR / subtitle 路径依赖后两级**：那些路径没有 ASR，
+/// `ctx.asr_language` 是 `None`——必须回落到配置的 `sourceLang`，否则非中文任务
+/// 被当成 zh，进而把目标语言错误推断成 en。
+///
+/// 源语言是开放事实（`Language`），不做枚举截断——列表外语言如实透传。
+///
+/// 纯函数、无副作用：`asr_fix`（LLM 提示词的源语言标签）与 `split_audio`
+/// （写 meta）都调它，各自拿到的必然一致。
+pub fn src_language(ctx: &crate::context::WorkflowCtx) -> Language {
+    ctx.asr_language
+        .clone()
+        .or_else(|| {
+            ctx.input
+                .get("workflow")
+                .and_then(|v| v.get("sourceLang"))
+                .and_then(|v| v.as_str())
+                .map(Language::from)
+        })
+        .unwrap_or_else(default_lang)
 }
 
 /// `steps.translate.enabled`，缺省 `true`（与 `TranslateArgs` 的 serde 默认一致）。
