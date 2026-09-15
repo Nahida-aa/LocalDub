@@ -7,6 +7,11 @@
 //!    且三种类型互不兼容（provenance 由类型系统保证，见 `srt_path_types_are_distinct`）。
 //! 2. **裸别名 + 预留命名的 `*Path`**——尚无消费者，见本文件后半段的说明。
 //!
+//! 三个 `SrtPath` **各写一遍、不用宏生成**：三个 fix 步骤的产物结构并不相像
+//! （`asr_fix` 2 个文件 / `sf_ocr_fix` 3 个 / `asr_ocr_fix` 11 个），只有
+//! `srt.json` 这一个文件名偶然重合。用宏会把「目录名只写一次」的收益，换成
+//! 三个类型全部失去跳转定义——而它们随时可能各自长出别的产物，届时宏会碍事。
+//!
 //! `dead_code` 在此**刻意放行**：后半部分是词汇表，未使用的条目不是疏漏而是待用。
 //! （注意：`translate::LangPath` 转成 `pub mod` 后，编译器才开始检查本文件的
 //! 其余条目——此前它们在私有模块里，分析被跳过。）
@@ -32,62 +37,126 @@ mod asr {
     pub type AsrPath = PathBuf;
 }
 
-/// 声明一个 fix 步骤的**规范化字幕路径** `{step}/srt.json`。
-///
-/// 三个 fix 步骤（asr_fix / sf_ocr_fix / asr_ocr_fix）的产物**同名同形**，
-/// 只有目录不同。用宏生成是为了让「目录名」这个唯一的差异点**只出现一次**，
-/// 且三个类型各自独立（`asr_fix::SrtPath` 与 `sf_ocr_fix::SrtPath` 不可互换——
-/// provenance 不丢）。
-macro_rules! fix_srt_path {
-    ($mod_name:ident, $dir:literal) => {
-        pub mod $mod_name {
-            use super::*;
+pub mod asr_fix {
+    use super::*;
+    // asr_fix/asr_fix.json（详细产物，**非**规范化字幕——规范化的是下面 SrtPath）
+    pub type AsrFixPath = PathBuf;
 
-            /// 规范化字幕产物 `srt.json`。
-            ///
-            /// 字段私有：路径只能经 [`SrtPath::new`] 构造，故拼法只有一个来源。
-            #[derive(Debug, Clone, PartialEq, Eq)]
-            pub struct SrtPath(PathBuf);
+    /// 规范化字幕产物 `asr_fix/srt.json`。
+    ///
+    /// 字段私有：路径只能经 [`SrtPath::new`] 构造，故拼法只有一个来源。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct SrtPath(PathBuf);
 
-            impl SrtPath {
-                /// 构造：`{video_dir}/` + 本步骤目录 + `/srt.json`。
-                ///
-                /// **这是全仓唯一的拼法**。此前 `"srt.json"` 在 6 处各写一遍
-                /// （3 个产出方的 `out_dir.join("srt.json")` + 消费者手拼的
-                /// `video.join("asr_fix").join("srt.json")` + engine 事件登记），
-                /// 改名要同时改 6 处，漏一处是运行时「文件不存在」。
-                pub fn new(video_dir: impl AsRef<Path>) -> Self {
-                    Self(video_dir.as_ref().join($dir).join("srt.json"))
-                }
-
-                pub fn as_path(&self) -> &Path {
-                    &self.0
-                }
-
-                /// 所属目录（产出方需要先 `ensure_dir` 再来写）。
-                pub fn dir(video_dir: impl AsRef<Path>) -> PathBuf {
-                    video_dir.as_ref().join($dir)
-                }
-            }
-
-            impl AsRef<Path> for SrtPath {
-                fn as_ref(&self) -> &Path {
-                    &self.0
-                }
-            }
-
-            impl std::fmt::Display for SrtPath {
-                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    write!(f, "{}", self.0.display())
-                }
-            }
+    impl SrtPath {
+        /// 构造：`{video_dir}/asr_fix/srt.json`。
+        ///
+        /// **这是全仓唯一的拼法**。此前 `"srt.json"` 在 6 处各写一遍
+        /// （3 个产出方的 `out_dir.join("srt.json")` + 消费者手拼的
+        /// `video.join("asr_fix").join("srt.json")` + engine 事件登记），
+        /// 改名要同时改 6 处，漏一处是运行时「文件不存在」。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(video_dir.as_ref().join("asr_fix").join("srt.json"))
         }
-    };
+
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+
+        /// 所属目录（产出方需要先 `ensure_dir` 再来写）。
+        pub fn dir(video_dir: impl AsRef<Path>) -> PathBuf {
+            video_dir.as_ref().join("asr_fix")
+        }
+    }
+
+    impl AsRef<Path> for SrtPath {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl std::fmt::Display for SrtPath {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.0.display())
+        }
+    }
 }
 
-fix_srt_path!(asr_fix, "asr_fix");
-fix_srt_path!(sf_ocr_fix, "sf_ocr_fix");
-fix_srt_path!(asr_ocr_fix, "asr_ocr_fix");
+pub mod sf_ocr_fix {
+    use super::*;
+
+    /// 规范化字幕产物 `sf_ocr_fix/srt.json`。
+    ///
+    /// 与 `asr_fix::SrtPath` **形似但不同型**——两者不可互换，provenance 由类型
+    /// 系统保证。详见 `asr_fix::SrtPath` 的说明。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct SrtPath(PathBuf);
+
+    impl SrtPath {
+        /// 构造：`{video_dir}/sf_ocr_fix/srt.json`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(video_dir.as_ref().join("sf_ocr_fix").join("srt.json"))
+        }
+
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+
+        pub fn dir(video_dir: impl AsRef<Path>) -> PathBuf {
+            video_dir.as_ref().join("sf_ocr_fix")
+        }
+    }
+
+    impl AsRef<Path> for SrtPath {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl std::fmt::Display for SrtPath {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.0.display())
+        }
+    }
+}
+
+pub mod asr_ocr_fix {
+    use super::*;
+
+    /// 规范化字幕产物 `asr_ocr_fix/srt.json`。
+    ///
+    /// 与 `asr_fix::SrtPath` **形似但不同型**——两者不可互换，provenance 由类型
+    /// 系统保证。详见 `asr_fix::SrtPath` 的说明。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct SrtPath(PathBuf);
+
+    impl SrtPath {
+        /// 构造：`{video_dir}/asr_ocr_fix/srt.json`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(video_dir.as_ref().join("asr_ocr_fix").join("srt.json"))
+        }
+
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+
+        pub fn dir(video_dir: impl AsRef<Path>) -> PathBuf {
+            video_dir.as_ref().join("asr_ocr_fix")
+        }
+    }
+
+    impl AsRef<Path> for SrtPath {
+        fn as_ref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl std::fmt::Display for SrtPath {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.0.display())
+        }
+    }
+}
 
 pub mod translate {
     use super::*;
@@ -99,12 +168,6 @@ pub mod translate {
 // 以下为**尚无消费者的预留命名**（见文件头说明）。
 // 读到它们时不要假设「有人在用」——实际路径拼装仍在 `utils/mod.rs`。
 // ---------------------------------------------------------------------------
-
-mod asr_fix_detail {
-    use super::*;
-    // asr_fix/asr_fix.json（详细产物，**非**规范化字幕；规范化的是上面 asr_fix::SrtPath）
-    pub type AsrFixPath = PathBuf;
-}
 
 mod split_audio {
     use super::*;
