@@ -366,6 +366,7 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         .iter()
         .enumerate()
         .map(|(idx, u)| TranslateSegment {
+            idx: (idx + 1) as u32, // 1-based，与 SplitAudioTiming.seg_idx 对齐
             text: texts[idx].clone(),
             dst: dsts.get(idx).cloned().flatten().unwrap_or_default(),
             src_lang: Some(src_lang.clone()),
@@ -661,6 +662,55 @@ mod tests {
         assert_eq!(out.lang(), "vi");
         // Display 即路径，错误信息里 {out} 的语义
         assert_eq!(out.to_string(), "/w/translate/vi.json");
+    }
+
+    /// `TranslateSegment.idx` 是 **1-based**，且必须与数组位置一致。
+    ///
+    /// 为什么值这个测试：`idx` 此前是隐式的（各处 `enumerate()` 现推），写进
+    /// 产物后就成了一份**可能过期的副本**——若序列化时算错（如写成 0-based），
+    /// `split_audio` 会原样搬走 `seg_idx`，错误静默传到 timings/字幕。
+    ///
+    /// 1-based 的选择也是对 `SplitAudioTiming.seg_idx` 的承诺（后者一直是
+    /// `i + 1`）：两者的段号必须能直接对照，换算一次就多一个出错点。
+    #[test]
+    fn translate_segment_idx_is_one_based_and_dense() {
+        let segs: Vec<TranslateSegment> = (0..3)
+            .map(|i| TranslateSegment {
+                idx: (i + 1) as u32,
+                text: format!("t{i}"),
+                ..Default::default()
+            })
+            .collect();
+
+        // 首个是 1 而非 0
+        assert_eq!(segs[0].idx, 1, "应为 1-based");
+        // 与位置严格对应，无空洞、无重复
+        for (i, s) in segs.iter().enumerate() {
+            assert_eq!(s.idx as usize, i + 1, "idx 应与位置一致");
+        }
+    }
+
+    /// `TranslateSegment` 缺 `idx` → 反序列化失败（**刻意不兼容旧产物**）。
+    ///
+    /// 若给它 `serde(default)`，「字段缺失」与「真的是第 0 段」就分不开，
+    /// 而这个字段的全部价值就是可被信任。失败是刻意的：提示重跑 translate，
+    /// 而不是拿一个 0 当下标一路传下去。
+    #[test]
+    fn translate_segment_requires_idx() {
+        let missing = r#"{"segments":[{"text":"a","dst":"b","start_ms":0,"end_ms":1}],
+                          "meta":{"src_lang":"zh","target_lang":"vi"}}"#;
+        let err = serde_json::from_str::<TranslateResult>(missing)
+            .expect_err("缺 idx 应反序列化失败");
+        assert!(
+            err.to_string().contains("idx"),
+            "错误应点明缺的是 idx, 实际: {err}"
+        );
+
+        // 带 idx 才通过
+        let ok = r#"{"segments":[{"idx":1,"text":"a","dst":"b","start_ms":0,"end_ms":1}],
+                     "meta":{"src_lang":"zh","target_lang":"vi"}}"#;
+        let r: TranslateResult = serde_json::from_str(ok).expect("带 idx 应可解析");
+        assert_eq!(r.segments[0].idx, 1);
     }
 
     /// `from_ctx` 只认 `ctx.target_language`：未设置 → 报错（不臆测语言）。

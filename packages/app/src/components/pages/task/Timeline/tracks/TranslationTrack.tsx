@@ -18,9 +18,12 @@ import { TranslateResult, TranslateSegment } from "@repo/sdk/index";
 type Props = BaseTrackProps;
 
 function serializeSegments(segments: TrackSegment[]): string {
-  const segs: TranslateSegment[] = segments.map((s) => {
+  const segs: TranslateSegment[] = segments.map((s, i) => {
     const raw = (s.raw as TranslateSegment) || {};
     return {
+      // 1-based，与 translate 侧一致（SplitAudioTiming.seg_idx 同款）。
+      // 写回磁盘前重排：插入/删除段后位置会变，不能沿用 raw.idx。
+      idx: i + 1,
       text: raw.text ?? "",
       dst: s.text,
       src_lang: raw.src_lang,
@@ -52,7 +55,7 @@ export function TranslationTrack(props: Props) {
   const ctxQ = useQuery(() => client.get_workflow_ctx.queryOptions(props.videoDir));
   const lang = () => (ctxQ.isSuccess ? ctxQ.data?.target_language : undefined);
   const path = () =>
-    lang() ? `${props.videoDir}/translate/translation.${lang()}.json` : undefined;
+    lang() ? `${props.videoDir}/translate/${lang()}.json` : undefined;
 
   const { segments } = useTrackData({
     videoDir: props.videoDir,
@@ -68,7 +71,7 @@ export function TranslationTrack(props: Props) {
         raw: item,
       }));
     },
-    label: () => `translation.${lang()}.json`,
+    label: () => `${lang()}.json`,
   });
   const filePath = () => path() ?? "";
 

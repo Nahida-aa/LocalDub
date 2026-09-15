@@ -98,9 +98,10 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     // 拼 timings: dst 直通时即原文（translate passthrough）
     let timings: Vec<SplitAudioTiming> = segs
         .iter()
-        .enumerate()
-        .map(|(i, seg)| SplitAudioTiming {
-            seg_idx: (i + 1) as u32,
+        .map(|seg| SplitAudioTiming {
+            // 直接取产物里的 idx（1-based）——**不再自己 enumerate 数一遍**。
+            // 段的位置是 translate 生产时定下的事实，不是每个消费者各自的推断。
+            seg_idx: seg.get("idx").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
             text: seg
                 .get("text")
                 .and_then(|t| t.as_str())

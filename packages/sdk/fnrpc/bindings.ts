@@ -1758,6 +1758,21 @@ export type TranslateSegment = TranslateSegment_Serialize | TranslateSegment_Des
 
 /**  单条翻译段 (镜像 TS `TranslateSegment`)。 */
 export type TranslateSegment_Deserialize = {
+	/**
+	 *  段序号，**1-based**。
+	 * 
+	 *  此前这个值是隐式的（各处 `enumerate()` 现推），于是每个消费者都要自己
+	 *  数一遍——`split_audio` 就重造了一次 `seg_idx`。写进产物后：段的位置成为
+	 *  **生产时定下的事实**，而不是读的人各自的推断。
+	 * 
+	 *  1-based 与 [`crate::steps::split_audio::out::SplitAudioTiming::seg_idx`]
+	 *  对齐（后者一直是 `i + 1`），跨步骤对照同一个段不必换算。
+	 * 
+	 *  **必填**（无 `serde(default)`）：旧 `{lang}.json` 缺此字段会反序列化失败，
+	 *  提示重跑 translate。刻意不留兼容层——若给默认值 0，「缺失」与「真的第 0 段」
+	 *  无法区分，而这个字段的唯一价值就是可被信任。
+	 */
+	idx: number,
 	/**  原文 (识别文本) */
 	text: string,
 	/**  译文 (dubbed / subtitled) */
@@ -1773,6 +1788,21 @@ export type TranslateSegment_Deserialize = {
 
 /**  单条翻译段 (镜像 TS `TranslateSegment`)。 */
 export type TranslateSegment_Serialize = {
+	/**
+	 *  段序号，**1-based**。
+	 * 
+	 *  此前这个值是隐式的（各处 `enumerate()` 现推），于是每个消费者都要自己
+	 *  数一遍——`split_audio` 就重造了一次 `seg_idx`。写进产物后：段的位置成为
+	 *  **生产时定下的事实**，而不是读的人各自的推断。
+	 * 
+	 *  1-based 与 [`crate::steps::split_audio::out::SplitAudioTiming::seg_idx`]
+	 *  对齐（后者一直是 `i + 1`），跨步骤对照同一个段不必换算。
+	 * 
+	 *  **必填**（无 `serde(default)`）：旧 `{lang}.json` 缺此字段会反序列化失败，
+	 *  提示重跑 translate。刻意不留兼容层——若给默认值 0，「缺失」与「真的第 0 段」
+	 *  无法区分，而这个字段的唯一价值就是可被信任。
+	 */
+	idx: number,
 	/**  原文 (识别文本) */
 	text: string,
 	/**  译文 (dubbed / subtitled) */

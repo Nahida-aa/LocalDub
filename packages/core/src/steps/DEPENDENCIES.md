@@ -206,6 +206,22 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | **写** | `translate/{lang}.json`（类型化契约 `TranslateOutput::for_lang`）、中间态 `{lang}.partial.json`（仅 LLM 路径，私有状态） |
 | **写** | `ctx.json` 的 `target_language`——**全仓唯一写点**（`persist_target_language`），见下 |
 
+> **`{lang}.json` 的 `segments[].idx` 是 1-based 且必填。**
+>
+> 段序号此前是**隐式**的（各处 `enumerate()` 现推），每个消费者都要自己数一遍
+> ——`split_audio` 就重造过一次 `seg_idx`。写进产物后，段的位置成为**生产时
+> 定下的事实**，`split_audio` 改为直接搬运（`seg_idx = seg.idx`）。
+>
+> 1-based 是为了与 `SplitAudioTiming.seg_idx`（一直是 `i + 1`）直接对照，
+> 跨步骤看同一个段不必换算。
+>
+> **必填、无 `serde(default)`**：缺字段 → 反序列化失败，提示重跑 translate。
+> 若给默认值 0，「字段缺失」与「真的是第 0 段」就分不开——而这个字段的全部
+> 价值就是可被信任。由 `translate_segment_requires_idx` 守护。
+>
+> 前端 `TranslationTrack.tsx` 写回该文件时**按数组位置重排 idx**（插入/删除段
+> 后位置会变，不能沿用原 `raw.idx`）。
+
 > 存在性语义按 enabled 分：**enabled** 时 srt.json 缺失/空 → 报错（要求翻译
 > 却没有内容 = 上游问题）；**disabled** 时缺失 → 空 segments 直通（上游被
 > 禁用，本来就没有字幕——与旧行为「translate 被移除」的成功语义一致）。
