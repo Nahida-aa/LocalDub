@@ -5,7 +5,7 @@
 //! 的 `input` (已是 JSON Value) 解析相同字段。
 
 use crate::context::WorkflowCtx;
-use crate::workflows::args::StepName;
+use crate::workflows::args::{StepName, SubtitleSource};
 
 /// 所有合法 step 名 (镜像 TS `stepsList`)
 pub const STEPS_LIST: &[&str] = &[
@@ -100,16 +100,6 @@ pub const SUBTITLE_ASR_OCR_STEPS: &[&str] = &[
     "mix_video",
 ];
 
-/// 从 ctx.input 解析 subtitleSource (缺省 "asr")
-fn subtitle_source(ctx: &WorkflowCtx) -> String {
-    ctx.input
-        .get("workflow")
-        .and_then(|v| v.get("subtitleSource"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("asr")
-        .to_string()
-}
-
 /// 从 ctx.input 解析 split_audio.vadAlign (缺省 false)
 fn split_audio_vad_align(ctx: &WorkflowCtx) -> bool {
     ctx.input
@@ -120,32 +110,38 @@ fn split_audio_vad_align(ctx: &WorkflowCtx) -> bool {
         .unwrap_or(false)
 }
 
-/// 根据 pipeline 与 subtitleSource / 开关过滤, 返回本次要执行的 step 序列
+/// 根据 output_mode 与 subtitleSource / 开关过滤, 返回本次要执行的 step 序列
 /// (镜像 TS `getSteps`)。
 ///
 /// 返回**已解析的 [`StepName`]**：序列常量仍是字符串（便于和 TS 逐字对照），
 /// 但在这里立刻解析——**写错名字会 panic**，而不是流到后面被静默跳过。
-/// 有 `get_steps_is_exhaustive` 测试兜底，所以 panic 只在开发期触发。
-pub fn get_steps(ctx: &WorkflowCtx) -> Vec<StepName> {
+/// 有 `all_pipeline_constants_are_valid_step_names` 测试兜底，所以 panic 只在
+/// 开发期触发。
+///
+/// **subtitleSource 走 [`SubtitleSource::from_ctx`]**：与 translate / mix_video
+/// 同源。此前这里是独立的一份字符串解析、未知值静默默认 asr，与 translate 的
+/// fail-fast 相矛盾——同一个非法值在两条路径上表现不同（一个报错、一个悄悄降级）。
+/// 现在未知值统一在入口报错。
+pub fn get_steps(ctx: &WorkflowCtx) -> anyhow::Result<Vec<StepName>> {
     let is_subtitle = ctx.output_mode == "subtitle";
+    let source = SubtitleSource::from_ctx(ctx)?;
+
     let mut steps: Vec<&'static str> = if is_subtitle {
         // subtitle 模式: 按 subtitleSource 切换字幕提取策略, 但始终只到 mix_video
         // (不配音 → 无 tts / mix_audio)。subtitleSource 语义是"字幕怎么提取",
         // 不是"是否配音"; dub 序列常量含 tts/mix_audio, 不能复用。
-        let base = match subtitle_source(ctx).as_str() {
-            "sf_ocr" => SUBTITLE_SF_OCR_STEPS,
-            "asr_ocr" => SUBTITLE_ASR_OCR_STEPS,
-            _ => SUBTITLE_STEPS,
-        };
-        base.to_vec()
+        match source {
+            SubtitleSource::SfOcr => SUBTITLE_SF_OCR_STEPS.to_vec(),
+            SubtitleSource::AsrOcr => SUBTITLE_ASR_OCR_STEPS.to_vec(),
+            SubtitleSource::Asr => SUBTITLE_STEPS.to_vec(),
+        }
     } else {
         // dub 模式下按 subtitleSource 选基础序列
-        let base = match subtitle_source(ctx).as_str() {
-            "sf_ocr" => DUB_SF_OCR_STEPS,
-            "asr_ocr" => DUB_ASR_OCR_STEPS,
-            _ => DUB_STEPS,
-        };
-        base.to_vec()
+        match source {
+            SubtitleSource::SfOcr => DUB_SF_OCR_STEPS.to_vec(),
+            SubtitleSource::AsrOcr => DUB_ASR_OCR_STEPS.to_vec(),
+            SubtitleSource::Asr => DUB_STEPS.to_vec(),
+        }
     };
 
     // translate **恒在序列**（不再按 enabled 剔除）：`enabled=false` 时它以
@@ -155,15 +151,15 @@ pub fn get_steps(ctx: &WorkflowCtx) -> Vec<StepName> {
         steps.retain(|s| *s != "split_audio");
     }
 
-    // 解析成枚举——pipeline 常量与 `StepName` 必须一致，不一致说明有一处改名漏了。
-    steps
+    // 解析成枚举——序列常量与 `StepName` 必须一致，不一致说明有一处改名漏了。
+    Ok(steps
         .into_iter()
         .map(|s| {
             s.parse::<StepName>().unwrap_or_else(|e| {
-                panic!("pipeline 序列里的 step \"{s}\" 不是合法的 StepName（{e}；改名时漏了某处？）")
+                panic!("序列里的 step \"{s}\" 不是合法的 StepName（{e}；改名时漏了某处？）")
             })
         })
-        .collect()
+        .collect())
 }
 
 #[cfg(test)]
@@ -188,6 +184,11 @@ mod tests {
     /// 断言用：序列里有没有这个 step。
     fn has(steps: &[StepName], name: &str) -> bool {
         steps.iter().any(|s| s.as_str() == name)
+    }
+
+    /// 测试用：`get_steps` 在合法输入下必须 Ok，unwrap 掉 Result 噪音。
+    fn steps_of(c: &WorkflowCtx) -> Vec<StepName> {
+        get_steps(c).expect("合法 ctx 不应让 get_steps 失败")
     }
 
     /// **一致性护栏**：pipeline 常量里的每一步都必须是合法的 `StepName`。
@@ -306,7 +307,7 @@ mod tests {
             }),
         );
         assert_eq!(
-            names(&get_steps(&c)),
+            names(&steps_of(&c)),
             vec![
                 "separate",
                 "separate_after",
@@ -331,8 +332,8 @@ mod tests {
                 "input": {"workflow": {"subtitleSource": "sf_ocr"}}
             }),
         );
-        assert!(has(&get_steps(&c), "sf_ocr"));
-        assert!(!has(&get_steps(&c), "asr"));
+        assert!(has(&steps_of(&c), "sf_ocr"));
+        assert!(!has(&steps_of(&c), "asr"));
     }
 
     #[test]
@@ -345,7 +346,7 @@ mod tests {
                 "input": {"workflow": {"subtitleSource": "asr_ocr"}}
             }),
         );
-        let s = get_steps(&c);
+        let s = steps_of(&c);
         assert!(has(&s, "asr_ocr"));
         assert!(has(&s, "asr_ocr_fix"));
     }
@@ -362,7 +363,52 @@ mod tests {
                 "input": {"steps": {"translate": {"enabled": false}}}
             }),
         );
-        assert!(has(&get_steps(&c), "translate"));
+        assert!(has(&steps_of(&c), "translate"));
+    }
+
+    /// **fail-fast**：未知 subtitleSource 必须报错，不能静默降级成 asr。
+    ///
+    /// 为什么重要：这个值有三个消费者（`get_steps` / translate / mix_video），
+    /// 静默降级会让「跑哪些 step」与「读哪个字幕文件」指向不同来源——
+    /// 表现是产物错乱而非报错，最难查。注意混合写法 `sf-OCR` 也须被拒。
+    #[test]
+    fn unknown_subtitle_source_is_rejected() {
+        for bad in ["no_such_source", "sf-OCR", "sfocr", "asr_OCR"] {
+            let c = ctx(
+                "dub",
+                json!({
+                    "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
+                             "status":"running","created_at":"2024-01-01T00:00:00Z"},
+                    "input": {"workflow": {"subtitleSource": bad}}
+                }),
+            );
+            let err = get_steps(&c).expect_err(&format!("\"{bad}\" 应被拒绝"));
+            let msg = err.to_string();
+            assert!(
+                msg.contains(bad) && msg.contains("subtitleSource"),
+                "错误信息应点名非法值与其字段: {msg}"
+            );
+            assert!(
+                msg.contains("asr") && msg.contains("sf_ocr") && msg.contains("asr_ocr"),
+                "错误信息应列出全部合法值（从 VARIANTS 生成）: {msg}"
+            );
+        }
+    }
+
+    /// 缺省（字段缺失）仍按 `#[default]` 走 asr —— fail-fast 只针对**非法值**，
+    /// 不是把「没写」也当成错误。
+    #[test]
+    fn missing_subtitle_source_defaults_to_asr() {
+        let c = ctx(
+            "dub",
+            json!({
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
+                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
+                "input": {}
+            }),
+        );
+        assert!(has(&steps_of(&c), "asr"));
+        assert!(!has(&steps_of(&c), "sf_ocr"));
     }
 
     #[test]
@@ -375,7 +421,7 @@ mod tests {
                 "input": {}
             }),
         );
-        assert!(!has(&get_steps(&c), "split_audio"));
+        assert!(!has(&steps_of(&c), "split_audio"));
 
         let c2 = ctx(
             "subtitle",
@@ -385,7 +431,7 @@ mod tests {
                 "input": {"steps": {"split_audio": {"vadAlign": true}}}
             }),
         );
-        assert!(has(&get_steps(&c2), "split_audio"));
+        assert!(has(&steps_of(&c2), "split_audio"));
     }
 
     #[test]
@@ -399,7 +445,7 @@ mod tests {
                 "input": {"workflow": {"subtitleSource": "sf_ocr"}}
             }),
         );
-        let s = get_steps(&c);
+        let s = steps_of(&c);
         assert!(has(&s, "sf_ocr_pre"));
         assert!(has(&s, "sf_ocr"));
         assert!(has(&s, "sf_ocr_fix"));
@@ -420,7 +466,7 @@ mod tests {
                 "input": {"workflow": {"subtitleSource": "asr_ocr"}}
             }),
         );
-        let s = get_steps(&c);
+        let s = steps_of(&c);
         assert!(has(&s, "asr"));
         assert!(has(&s, "asr_ocr"));
         assert!(has(&s, "asr_ocr_fix"));
@@ -440,7 +486,7 @@ mod tests {
                 "input": {}
             }),
         );
-        let s = get_steps(&c);
+        let s = steps_of(&c);
         assert!(has(&s, "asr"));
         assert!(has(&s, "mix_video"));
         assert!(!has(&s, "tts"));

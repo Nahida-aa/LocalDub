@@ -55,7 +55,10 @@ const STEPS = [
   } satisfies Record<StepName, string>),
 ];
 
-const OUTPUT_MODES = ["", ...keysOf({ dub: "", subtitle: "" } satisfies Record<OutputMode, string>)];
+const OUTPUT_MODES = [
+  "",
+  ...keysOf({ dub: "", subtitle: "" } satisfies Record<OutputMode, string>),
+];
 
 const SUBTITLE_SOURCES = [
   "",

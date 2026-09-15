@@ -33,7 +33,7 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
     let ctx = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
     let output_mode = ctx.output_mode.clone();
     let video_id = ctx.workflow.id.clone();
-    let steps = get_steps(&ctx);
+    let steps = get_steps(&ctx)?;
 
     // targetStep 不在序列中则告警忽略 (镜像 TS)
     if let Some(ts) = ctx.input.get("targetStep").and_then(|v| v.as_str()) {

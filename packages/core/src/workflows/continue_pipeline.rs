@@ -25,7 +25,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
 
     let output_mode = ctx.output_mode.clone();
     let video_id = ctx.workflow.id.clone();
-    let steps = crate::steps::get_steps(&ctx);
+    let steps = crate::steps::get_steps(ctx)?;
 
     // continueFrom / targetStep 从 ctx.input.workflow 读取 (镜像 TS ctx.input?.workflow)
     let continue_from = ctx

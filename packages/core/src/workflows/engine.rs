@@ -133,7 +133,7 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
 pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Result<()> {
     let _guard = tracing::info_span!("workflow", video_dir = video_dir).entered();
     let ctx = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
-    let steps = get_steps(&ctx);
+    let steps = get_steps(&ctx)?;
 
     let target_step = opts
         .target_step
