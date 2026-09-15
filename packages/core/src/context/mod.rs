@@ -76,7 +76,7 @@ pub struct WorkflowCtx {
     pub workflow: Workflow,
     pub steps: Option<Vec<WorkflowStep>>,
     pub output_mode: String,
-    pub last_run_pipeline: Option<String>,
+    pub last_run_output_mode: Option<String>,
     #[specta(type = specta_typescript::Unknown)]
     pub input: serde_json::Value,
     pub frame_rate: FrameRate,
@@ -124,8 +124,8 @@ pub fn read_ctx_from_value(json: serde_json::Value) -> Result<WorkflowCtx, Strin
             .and_then(|v| v.as_str())
             .unwrap_or("dub")
             .to_string(),
-        last_run_pipeline: json
-            .get("last_run_pipeline")
+        last_run_output_mode: json
+            .get("last_run_output_mode")
             .and_then(|v| v.as_str())
             .map(String::from),
         input: json

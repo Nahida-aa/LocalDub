@@ -127,7 +127,7 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowCtx> {
 
     let output_mode = args.output_mode;
     let subtitle_source = args.subtitle_source;
-    let pipeline_str = serde_json::to_value(output_mode)
+    let mode_str = serde_json::to_value(output_mode)
         .ok()
         .and_then(|v| v.as_str().map(|s| s.to_string()))
         .unwrap_or_else(|| "dub".to_string());
@@ -162,8 +162,8 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowCtx> {
             completed_at: None,
         },
         steps: Some(steps),
-        output_mode: pipeline_str.clone(),
-        last_run_pipeline: Some(pipeline_str),
+        output_mode: mode_str.clone(),
+        last_run_output_mode: Some(mode_str),
         // import 阶段 input 直接透传原始 Input (序列化为 Value)
         input: serde_json::to_value(input).unwrap_or(serde_json::Value::Null),
         frame_rate,
