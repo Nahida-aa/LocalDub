@@ -288,7 +288,9 @@ fn build_subtitle_srt_subtitle_branch(
     vad_align: bool,
 ) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
-    let (_, target_lang) = resolve_language(ctx)?;
+    // 契约实例与 `read_translation_result` 同源（都取 ctx.target_language），
+    // 故错误信息里的路径**必然**就是真正尝试读取的那一个。
+    let t_out = crate::steps::translate::out::TranslateOutput::from_ctx(ctx)?;
 
     let segs: Vec<SrtSeg> = if vad_align {
         // vadAlign: 用 split_audio 的 padded 时序 (split_audio.json) 而非翻译/原始 srt。
@@ -306,20 +308,14 @@ fn build_subtitle_srt_subtitle_branch(
         match cfg.srt_path.clone() {
             Some(p) => read_srt_file_to_segs(&p)?,
             None => {
-                let data = read_translation_result(ctx).with_context(|| {
-                    format!(
-                        "读取翻译结果失败: {}; 请先运行 translate",
-                        crate::steps::utils::translation_file_path(&video_dir, &target_lang)
-                            .display()
-                    )
-                })?;
+                let data = read_translation_result(ctx)
+                    .with_context(|| format!("读取翻译结果失败: {t_out}; 请先运行 translate"))?;
                 extract_segs_from_value(&data)?
             }
         }
     } else {
-        let tr_file = crate::steps::utils::translation_file_path(&video_dir, &target_lang);
         let data = read_translation_result(ctx)
-            .with_context(|| format!("读取翻译结果失败: {}", tr_file.display()))?;
+            .with_context(|| format!("读取翻译结果失败: {t_out}"))?;
         extract_segs_from_value(&data)?
     };
     write_srt(&segs, sub_path, no_translate).map_err(|e| anyhow!("写字幕 SRT 失败: {e}"))

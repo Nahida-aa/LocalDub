@@ -23,8 +23,7 @@ use crate::context::WorkflowCtx;
 use crate::steps::translate::out::{TranslateResult, TranslateResultMeta, TranslateSegment};
 use crate::steps::translate::prompts::{build_preprocess_prompt, build_translate_system, MetaView};
 use crate::steps::utils::{
-    lang_name, now_iso, resolve_language, set_step_anyhow,
-    translation_file_path, translation_partial_path, StepPatch, StepStatus,
+    lang_name,     now_iso, resolve_language, set_step_anyhow, translation_partial_path, StepPatch, StepStatus,
 };
 use config_rs::env::openai_api_key;
 
@@ -378,15 +377,15 @@ pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         },
     };
 
-    let out_file = translation_file_path(&video_dir, &target_lang);
-    if let Some(parent) = out_file.parent() {
+    let out = out::TranslateOutput::for_lang(&video_dir, &target_lang);
+    if let Some(parent) = out.path().parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", parent.display(), e))?;
     }
     let json = serde_json::to_string_pretty(&result)
         .map_err(|e| anyhow::anyhow!("序列化翻译结果失败: {e}"))?;
-    std::fs::write(&out_file, json)
-        .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", out_file.display(), e))?;
+    std::fs::write(out.path(), json)
+        .map_err(|e| anyhow::anyhow!("写入 {out} 失败: {e}"))?;
 
     // 正式结果已落盘, 删掉增量 partial (避免残留误导; 直通模式无 partial,
     // 但清掉历史遗留也无害)
@@ -637,6 +636,64 @@ mod tests {
         assert_eq!(dsts2[0], Some("D0".to_string()));
         assert_eq!(dsts2[49], Some("D49".to_string()));
         assert_eq!(dsts2[50], None); // 缺失句仍未翻
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// **锁定唯一构造入口**：`TranslateOutput::for_lang` 必须与
+    /// `translation_file_path` 产出**逐字相同**的路径。
+    ///
+    /// 为什么需要：改动把 5 处拼接收拢到 `for_lang` 之后，路径形状就只由这一处决定。
+    /// 若有人「顺手」在 `for_lang` 里改了目录名或文件名模板，**所有消费点会一起
+    /// 漂移**——不再有任何一处保留旧写法可以对照。这条测试补上那个对照物。
+    #[test]
+    fn translate_output_matches_canonical_path() {
+        let out = out::TranslateOutput::for_lang("/w", "vi");
+        assert_eq!(
+            out.path(),
+            &crate::steps::utils::translation_file_path("/w", "vi"),
+            "for_lang 必须与 translation_file_path 一致"
+        );
+        // 真实模板，防止注释与实现再次分叉（paths.rs 曾写成 translate/{lang}.json）
+        assert_eq!(out.path().to_string_lossy(), "/w/translate/translation.vi.json");
+        assert_eq!(out.lang(), "vi");
+        // Display 即路径，错误信息里 {out} 的语义
+        assert_eq!(out.to_string(), "/w/translate/translation.vi.json");
+    }
+
+    /// `from_ctx` 只认 `ctx.target_language`：未设置 → 报错（不臆测语言）。
+    ///
+    /// 这一条钉的是**单源**承诺：读文件与报错必须指向同一路径。若改回
+    /// 「现算 `resolve_language`」，当 ctx.json 快照与现算结果不同时，
+    /// 报错会指向一个没被尝试读取的文件。
+    #[test]
+    fn translate_output_from_ctx_requires_target_language() {
+        let dir = std::env::temp_dir()
+            .join(format!("ld_tr_out_{}", std::process::id()))
+            .to_string_lossy()
+            .to_string();
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // ctx_at 的 target_language 来自 ctx.target_language 字段；input 里只给
+        // workflow.targetLang（配置），不足以让 from_ctx 成功——正是要区分的两件事。
+        let ctx = ctx_at(
+            &dir,
+            json!({
+                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
+                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
+                "input": {"workflow": {"targetLang": "vi"}}
+            }),
+        );
+        assert!(
+            ctx.target_language.is_none(),
+            "前置条件: ctx.target_language 应为 None"
+        );
+        let err = out::TranslateOutput::from_ctx(&ctx).expect_err("缺 target_language 必须报错");
+        assert!(
+            err.to_string().contains("target_language"),
+            "错误应点名缺失的字段, 实际: {err}"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }

@@ -189,11 +189,25 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | --- | --- |
 | **读** ⚠️ | 规范化字幕 `srt.json`（按 `subtitleSource` 选目录，见「规范化字幕」节；类型化契约 `TranslateInput::from_ctx`，未知来源**报错**） |
 | **读** | `data/bin/yt-dlp` 产物（可选元信息） |
-| **写** | `translate/translation.{lang}.json`、中间态 `translation.{lang}.partial.json`（仅 LLM 路径） |
+| **写** | `translate/translation.{lang}.json`（类型化契约 `TranslateOutput::for_lang`）、中间态 `translation.{lang}.partial.json`（仅 LLM 路径，私有状态） |
 
 > 存在性语义按 enabled 分：**enabled** 时 srt.json 缺失/空 → 报错（要求翻译
 > 却没有内容 = 上游问题）；**disabled** 时缺失 → 空 segments 直通（上游被
 > 禁用，本来就没有字幕——与旧行为「translate 被移除」的成功语义一致）。
+
+> **`translation.{lang}.json` 的路径是单点构造的。** 它是全流水线唯一「产物被 5 处
+> 各拼一遍」的文件（写侧 + split_audio 读 + mix_video 读 + engine 事件登记，
+> 以及两处仅为拼错误信息）。现由 `TranslateOutput` 收口：`translation_file_path`
+> 只在 `TranslateOutput::for_lang` 里被调用一次，其余消费点接收该类型。
+> 改产物命名不会再漏改——**但也没有第二处保留旧写法可对照**，故有
+> `translate_output_matches_canonical_path` 钉死路径形状。
+
+> **`TranslateOutput::from_ctx` 刻意不调 `resolve_language`**，只取
+> `ctx.target_language`。原因：`mix_video` 曾用现算的 lang 拼错误信息、却用
+> `read_translation_result` 里 `ctx.target_language` 的快照去读。两者通常相同
+> （`resolve_language` 会写回 ctx.json），但**来源不同**——persistent 模式下
+> 另一进程若在两次调用间改了 ctx.json，报错会指向一个没被尝试读取的文件。
+> 单源保证「读的」与「报的」必是同一个。
 
 ### `split_audio`
 
@@ -238,8 +252,8 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 | pipeline | 来源 | 说明 |
 | --- | --- | --- |
-| **dub** | `mix_audio/timings.json`（`mix_video/mod.rs:353`） | 用 `actual_start/actual_end`（mix_audio 修正后的**实际**音频位置）生成 SRT——烧进去的字幕才能和配音对齐 |
-| **subtitle** | 两选一（`mix_video/mod.rs:293`）：`split_audio/split_audio.json`（`vadAlign: true`）／`translate/translation.{lang}.json`（默认；`mix_video.srtPath` 可覆盖为外部 SRT 文本文件） | 无配音，直接按字幕时序烧 |
+| **dub** | `mix_audio/timings.json`（`mix_video/mod.rs:366`） | 用 `actual_start/actual_end`（mix_audio 修正后的**实际**音频位置）生成 SRT——烧进去的字幕才能和配音对齐 |
+| **subtitle** | 两选一（`mix_video/mod.rs:295`）：`split_audio/split_audio.json`（`vadAlign: true`）／`translate/translation.{lang}.json`（默认；`mix_video.srtPath` 可覆盖为外部 SRT 文本文件） | 无配音，直接按字幕时序烧 |
 
 > 曾把 subtitle 分支的三选一误当成 mix_video 的全部来源，漏了 dub 模式这条
 > 最关键的边：**mix_audio 的 timings 产物是 mix_video 的字幕轨输入**。

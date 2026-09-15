@@ -148,8 +148,9 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     // 切块 (仅 dub 模式有 vocals 时执行; subtitle 模式跳过, 只产出时序文件)
     if has_vocals {
         // 若翻译文件比已切出的块更新 (重跑翻译), 清空旧块重新切
-        let translation_file =
-            crate::steps::utils::translation_file_path(&video_dir, &target_lang);
+        let translation_out =
+            crate::steps::translate::out::TranslateOutput::for_lang(&video_dir, &target_lang);
+        let translation_file = translation_out.path();
         let has_seg = fs::read_dir(&vocals_segment_dir)
             .ok()
             .map(|d| {

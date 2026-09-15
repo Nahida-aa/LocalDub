@@ -578,15 +578,11 @@ pub fn split_audio_timings_path(video_dir: &str) -> PathBuf {
 pub fn read_translation_result(
     ctx: &crate::context::WorkflowCtx,
 ) -> anyhow::Result<serde_json::Value> {
-    let lang = ctx
-        .target_language
-        .clone()
-        .ok_or_else(|| anyhow::anyhow!("ctx.target_language 未设置, 无法读取翻译结果"))?;
-    let file = translation_file_path(&ctx.workflow.video_dir, &lang);
-    let raw = std::fs::read_to_string(&file)
-        .map_err(|e| anyhow::anyhow!("读取翻译文件 {} 失败: {}", file.display(), e))?;
-    serde_json::from_str(&raw)
-        .map_err(|e| anyhow::anyhow!("解析翻译文件 {} 失败: {}", file.display(), e))
+    // 路径走输出契约的单点构造（不再自己拼），报错里的路径与真正读的是同一个。
+    let out = crate::steps::translate::out::TranslateOutput::from_ctx(ctx)?;
+    let raw = std::fs::read_to_string(out.path())
+        .map_err(|e| anyhow::anyhow!("读取翻译文件 {out} 失败: {e}"))?;
+    serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("解析翻译文件 {out} 失败: {e}"))
 }
 
 /// 解析目标语言: input.workflow.targetLang > auto 推断 (源语言 zh -> en, 否则 -> zh)。
