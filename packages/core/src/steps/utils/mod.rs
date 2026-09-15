@@ -6,6 +6,7 @@
 //! - 各 step 输出目录 helper ([`separate_dir`] / [`asr_dir`] / [`separate_after_dir`] ...)
 //! - [`steps`] 模块: pipeline 阶段序列 ([`steps::get_steps`])
 
+pub mod paths;
 pub mod srt;
 pub mod steps;
 
@@ -372,15 +373,11 @@ pub fn dubbing_path(video_dir: &str) -> PathBuf {
 
 /// `mix_audio/timings.json` 路径 (镜像 TS `timings_filepath`)。
 pub fn mix_audio_timings_path(video_dir: &str) -> PathBuf {
-    Path::new(video_dir)
-        .join("mix_audio")
-        .join("timings.json")
+    Path::new(video_dir).join("mix_audio").join("timings.json")
 }
 
 /// 读取 `mix_audio/timings.json` (镜像 TS `read_timings`)。
-pub fn read_timings(
-    video_dir: &str,
-) -> anyhow::Result<crate::steps::mix_audio::out::TimingsFile> {
+pub fn read_timings(video_dir: &str) -> anyhow::Result<crate::steps::mix_audio::out::TimingsFile> {
     let p = mix_audio_timings_path(video_dir);
     let raw = std::fs::read_to_string(&p)
         .map_err(|e| anyhow::anyhow!("读取 {} 失败: {e}", p.display()))?;
@@ -471,7 +468,7 @@ pub fn ensure_dir(path: &std::path::Path) -> anyhow::Result<()> {
 /// 消费者不再需要知道产出方内部有没有跑过 LLM 修正。
 ///
 /// 段结构用 `subtitle` crate 的 [`SubtitleSegment`]（text/start_ms/end_ms，
-/// 权威定义在 vision-lab），与本仓此前散落的本地定义不同源——以 crate 为准。
+/// 权威定义在 vision-lab）。
 pub fn write_srt_json(path: &std::path::Path, segments: &[SubtitleSegment]) -> anyhow::Result<()> {
     let out = serde_json::json!({ "result": { "segments": segments } });
     if let Some(parent) = path.parent() {
@@ -549,19 +546,7 @@ pub fn lang_name(code: &str) -> String {
         .unwrap_or_else(|| code.to_string())
 }
 
-/// 解析 subtitleSource (缺省 "asr")
-fn subtitle_source(input: &serde_json::Value) -> String {
-    input
-        .get("workflow")
-        .and_then(|v| v.get("subtitleSource"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("asr")
-        .to_string()
-}
-
 /// 翻译文件路径 `translate/translation.{lang}.json`。
-/// （旧 `subtitle_file_path` 焦点文件 helper 已删除：translate 恒执行 +
-/// 规范化 srt.json 后，下游不再按 subtitleSource/llmFix 找字幕。）
 pub fn translation_file_path(video_dir: &str, lang: &str) -> PathBuf {
     Path::new(video_dir)
         .join("translate")
