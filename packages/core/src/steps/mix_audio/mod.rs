@@ -241,7 +241,7 @@ pub fn step_mix_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         };
         new_translation.push(Timing {
             timing: crate::steps::split_audio::out::SplitAudioTiming {
-                seg_idx: (i + 1) as u32,
+                idx: (i + 1) as u32,
                 text,
                 start_ms: start_ms as u32,
                 end_ms: end_ms as u32,
@@ -262,7 +262,6 @@ pub fn step_mix_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
                     .get("speaker")
                     .and_then(|v| v.as_str())
                     .map(String::from),
-                text_confidence: None,
             },
             original_duration_ms: original_slot_base_ms as u32,
             tts_duration_ms: tts_ms as u32,

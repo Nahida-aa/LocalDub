@@ -3,6 +3,7 @@
 use std::path::Path;
 
 use crate::steps::split_audio::out::{SplitAudioSegment, SplitAudioTiming};
+use crate::steps::translate::out::TranslateSegment;
 use crate::steps::utils::{ffmpeg, probe_duration_ms};
 
 /// 检测一段已切好 wav 开头被静音削掉的时长 (ms)。
@@ -63,7 +64,7 @@ fn detect_speech_start_ms_seek(source: &str, start_ms: u64, end_ms: u64, work_di
 /// 用静音检测把每段起点前移到真实语音处, 返回是否修正了任何段 (改写 segments/timings)。
 pub fn apply_vad_align(
     segments: &mut [SplitAudioSegment],
-    timings: &mut [SplitAudioTiming],
+    timings: &mut [TranslateSegment],
     source_audio: &str,
     total_ms: u64,
     vocals_segment_dir: &str,

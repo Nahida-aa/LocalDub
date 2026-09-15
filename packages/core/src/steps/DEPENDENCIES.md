@@ -301,6 +301,13 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 > **注意 `vocals_path` 指向 `separate/`，不是 `separate_after/`**——
 > 这里用的是**原始**人声，不是混音后的。
+>
+> **`{lang}.json` 是带类型读取的**：`TranslateResult::read(&LangPath)`。
+> 意图时序（`timings.json` 的 segments）就是**翻译 segments 的原样搬运**——
+> `SplitAudioTiming` 已是 `TranslateSegment` 的别名，不需要任何转换。
+> 此前这里逐字段 `seg.get(..).unwrap_or(0)` 拼装，等于手写一个 serde，
+> 还会把坏字段静默吞成 0。由
+> `translate_result_read_is_typed_and_fails_fast` 守护。
 
 ### `tts`
 

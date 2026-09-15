@@ -22,7 +22,7 @@ function serializeSegments(segments: TrackSegment[]): string {
   const segs: Timing[] = segments.map((s) => {
     const raw = (s.raw as Partial<Timing> | undefined) ?? {};
     return {
-      seg_idx: raw.seg_idx ?? s.index + 1,
+      idx: raw.idx ?? s.index + 1,
       text: raw.text ?? "",
       dst: s.text,
       src_lang: raw.src_lang ?? "auto",
@@ -48,7 +48,7 @@ const DEFAULT_DURATION_MS = 500;
 
 function newDefaultRaw(startMs: number, endMs: number): Timing {
   return {
-    seg_idx: 0,
+    idx: 0,
     text: "",
     dst: "",
     src_lang: "auto",

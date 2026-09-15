@@ -17,16 +17,15 @@ pub mod vad_align;
 use std::fs;
 use std::path::Path;
 
-
-
 use crate::context::WorkflowCtx;
 use crate::steps::split_audio::out::{
     SplitAudioResult, SplitAudioSegment, SplitAudioTiming, SplitAudioTimingResult,
     TranslateResultMeta,
 };
 use crate::steps::split_audio::pad_segment::{pad_segments, SegmentBounds};
+use crate::steps::translate::out::{TranslateResult, TranslateSegment};
 use crate::steps::utils::{
-    ensure_dir, now_iso, probe_duration_ms, read_translation_result, resolve_language,
+    ensure_dir, now_iso, probe_duration_ms, resolve_language,
     set_step_anyhow, split_audio_path, split_audio_timings_path, video_source_path, vocals_path,
     StepPatch, StepStatus,
 };
@@ -43,7 +42,7 @@ pub fn read_args(ctx: &WorkflowCtx) -> SplitAudioArgs {
 }
 
 /// SplitAudioTiming 实现 SegmentBounds (pad_segments 用 start/end)。
-impl SegmentBounds for SplitAudioTiming {
+impl SegmentBounds for TranslateSegment {
     fn start_ms(&self) -> u32 {
         self.start_ms
     }
@@ -61,23 +60,18 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
 
     // 字幕时间轴 + 文本：**统一来自 translate 的产物**（translate 恒执行；
     // enabled=false 时 dst=原文直通）。焦点文件不再是下游输入。
-    let trans = read_translation_result(ctx).map_err(|e| {
-        anyhow::anyhow!("{e}; 请先运行 translate（或从该步骤 continue 以重新生成）")
-    })?;
-    let segs = trans
-        .get("segments")
-        .and_then(|s| s.as_array())
-        .cloned()
-        .unwrap_or_default();
-    if segs.is_empty() {
-        return Err(anyhow::anyhow!("translation 无 segments"));
-    }
-
-    // 源音频: 可被 split_audio.sourceFilePath 覆盖; 否则有 vocals 用干净人声
+    //
     // 目标语言读**已落定的事实**（翻译步骤写的），不现算；
     // 源语言独立解析（它有自己的三级回退，与目标语言无关）。
     let lang_path = crate::steps::utils::paths::translate::LangPath::from_ctx(ctx)?;
     let src_lang = crate::steps::utils::src_language(ctx).code().to_string();
+    let trans = TranslateResult::read(&lang_path)
+        .map_err(|e| anyhow::anyhow!("{e}; 请先运行 translate（或从该步骤 continue 以重新生成）"))?;
+    if trans.segments.is_empty() {
+        return Err(anyhow::anyhow!("translation 无 segments"));
+    }
+
+    // 源音频: 可被 split_audio.sourceFilePath 覆盖; 否则有 vocals 用干净人声
     let fallback_source = video_source_path(ctx)?;
     let source_audio = args
         .source_file_path
@@ -95,40 +89,13 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         source_audio
     };
 
-    // 拼 timings: dst 直通时即原文（translate passthrough）
-    let timings: Vec<SplitAudioTiming> = segs
-        .iter()
-        .map(|seg| SplitAudioTiming {
-            // 直接取产物里的 idx（1-based）——**不再自己 enumerate 数一遍**。
-            // 段的位置是 translate 生产时定下的事实，不是每个消费者各自的推断。
-            seg_idx: seg.get("idx").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-            text: seg
-                .get("text")
-                .and_then(|t| t.as_str())
-                .unwrap_or("")
-                .to_string(),
-            start_ms: seg.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-            end_ms: seg.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-            dst: seg
-                .get("dst")
-                .and_then(|t| t.as_str())
-                .unwrap_or("")
-                .to_string(),
-            src_lang: seg
-                .get("src_lang")
-                .and_then(|v| v.as_str())
-                .map(String::from),
-            dst_lang: seg
-                .get("dst_lang")
-                .and_then(|v| v.as_str())
-                .map(String::from),
-            speaker: seg
-                .get("speaker")
-                .and_then(|v| v.as_str())
-                .map(String::from),
-            text_confidence: None,
-        })
-        .collect();
+    // 意图时序 =  translate 的 segments **原样搬运**。
+    //
+    // `SplitAudioTiming` 已是 `TranslateSegment` 的别名，所以这里不需要任何转换
+    // ——此前的 30 行逐字段 `seg.get(..).unwrap_or(0)` 就是手写一个 serde，
+    // 还把坏字段静默吞成 0。现在解析只在 `TranslateResult::read` 一处，
+    // 字段缺失/类型不对在那里就会失败。
+    let timings: Vec<TranslateSegment> = trans.segments.clone();
 
     // padSegments 得到真实切块时序
     let bounds = pad_segments(&timings, args.start_pad_ms, args.end_pad_ms);
@@ -206,13 +173,12 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     // （`trans` 在函数开头已读入），而不是重新解析——本步骤处理的就是那份
     // segments，meta 理应与之逐字一致。
     let meta = TranslateResultMeta {
-        src_lang: trans
-            .get("meta")
-            .and_then(|m| m.get("src_lang"))
-            .and_then(|v| v.as_str())
-            // 产物缺 meta 时回退到独立解析（老产物可能没有该字段）
-            .map(String::from)
-            .unwrap_or_else(|| src_lang.clone()),
+        // 产物 meta 为空串时回退到独立解析（老产物可能没写过该字段）
+        src_lang: if trans.meta.src_lang.is_empty() {
+            src_lang.clone()
+        } else {
+            trans.meta.src_lang.clone()
+        },
         target_lang: lang_path.lang().to_string(),
     };
     let split_result = SplitAudioResult {

@@ -133,7 +133,11 @@ fn should_skip_segment(
     ref_mtime_ms: u64,
     out_duration_ms: u64,
 ) -> bool {
-    skip_existing && !regen_active && out_exists && out_mtime_ms > ref_mtime_ms && out_duration_ms > 0
+    skip_existing
+        && !regen_active
+        && out_exists
+        && out_mtime_ms > ref_mtime_ms
+        && out_duration_ms > 0
 }
 
 /// 入口 (镜像 TS `stepTts`)。
@@ -219,12 +223,7 @@ pub fn step_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         if p.exists() {
             match std::fs::read_to_string(&p) {
                 Ok(raw) => serde_json::from_str::<TtsFile>(&raw)
-                    .map(|f| {
-                        f.segments
-                            .into_iter()
-                            .map(|s| (s.timing.seg_idx, s))
-                            .collect()
-                    })
+                    .map(|f| f.segments.into_iter().map(|s| (s.timing.idx, s)).collect())
                     .unwrap_or_default(),
                 Err(_) => std::collections::HashMap::new(),
             }
@@ -348,7 +347,7 @@ pub fn step_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             let dur = out_dur;
             tts_segments.push(TtsSegment {
                 timing: crate::steps::split_audio::out::SplitAudioTiming {
-                    seg_idx: (i + 1) as u32,
+                    idx: (i + 1) as u32,
                     text: item_text.clone(),
                     start_ms: start_ms as u32,
                     end_ms: start_ms + dur as u32,
@@ -365,7 +364,6 @@ pub fn step_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
                         .get("speaker")
                         .and_then(|v| v.as_str())
                         .map(String::from),
-                    text_confidence: None,
                 },
                 slot_end_ms: end_ms,
                 tts_duration_ms: dur as u32,
@@ -385,7 +383,7 @@ pub fn step_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             write_silent_wav(&out_path)?;
             tts_segments.push(TtsSegment {
                 timing: crate::steps::split_audio::out::SplitAudioTiming {
-                    seg_idx: (i + 1) as u32,
+                    idx: (i + 1) as u32,
                     text: String::new(),
                     start_ms,
                     end_ms: start_ms,
@@ -402,7 +400,6 @@ pub fn step_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
                         .get("speaker")
                         .and_then(|v| v.as_str())
                         .map(String::from),
-                    text_confidence: None,
                 },
                 slot_end_ms: end_ms,
                 tts_duration_ms: 0,
@@ -417,7 +414,7 @@ pub fn step_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             write_silent_wav(&out_path)?;
             tts_segments.push(TtsSegment {
                 timing: crate::steps::split_audio::out::SplitAudioTiming {
-                    seg_idx: (i + 1) as u32,
+                    idx: (i + 1) as u32,
                     text: item_text.clone(),
                     start_ms,
                     end_ms: start_ms,
@@ -434,7 +431,6 @@ pub fn step_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
                         .get("speaker")
                         .and_then(|v| v.as_str())
                         .map(String::from),
-                    text_confidence: None,
                 },
                 slot_end_ms: end_ms,
                 tts_duration_ms: 0,
@@ -541,7 +537,7 @@ pub fn step_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             write_silent_wav(&out_path)?;
             tts_segments.push(TtsSegment {
                 timing: crate::steps::split_audio::out::SplitAudioTiming {
-                    seg_idx: (i + 1) as u32,
+                    idx: (i + 1) as u32,
                     text: item_text.clone(),
                     start_ms,
                     end_ms: start_ms,
@@ -558,7 +554,6 @@ pub fn step_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
                         .get("speaker")
                         .and_then(|v| v.as_str())
                         .map(String::from),
-                    text_confidence: None,
                 },
                 slot_end_ms: end_ms,
                 tts_duration_ms: 0,
@@ -580,7 +575,7 @@ pub fn step_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         }
         tts_segments.push(TtsSegment {
             timing: crate::steps::split_audio::out::SplitAudioTiming {
-                seg_idx: (i + 1) as u32,
+                idx: (i + 1) as u32,
                 text: item_text.clone(),
                 start_ms,
                 end_ms: start_ms + tts_duration as u32,
@@ -597,7 +592,6 @@ pub fn step_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
                     .get("speaker")
                     .and_then(|v| v.as_str())
                     .map(String::from),
-                text_confidence: None,
             },
             slot_end_ms: end_ms,
             tts_duration_ms: tts_duration as u32,
@@ -651,7 +645,7 @@ mod tests {
     fn seg(status: &str) -> TtsSegment {
         TtsSegment {
             timing: crate::steps::split_audio::out::SplitAudioTiming {
-                seg_idx: 1,
+                idx: 1,
                 text: "t".into(),
                 start_ms: 0,
                 end_ms: 100,
@@ -659,7 +653,6 @@ mod tests {
                 src_lang: None,
                 dst_lang: None,
                 speaker: None,
-                text_confidence: None,
             },
             slot_end_ms: 100,
             tts_duration_ms: 100,

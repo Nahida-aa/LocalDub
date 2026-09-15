@@ -1484,7 +1484,7 @@ export type SplitAudioSegment_Deserialize = {
 	split_start_ms: number,
 	/**  padSegments 切分音频的终点 */
 	split_end_ms: number,
-} & SplitAudioTiming_Deserialize;
+} & TranslateSegment_Deserialize;
 
 /**  切分片段 (镜像 TS `SplitAudioSegment` = SplitAudioTiming + split bounds) */
 export type SplitAudioSegment_Serialize = {
@@ -1492,36 +1492,7 @@ export type SplitAudioSegment_Serialize = {
 	split_start_ms: number,
 	/**  padSegments 切分音频的终点 */
 	split_end_ms: number,
-} & SplitAudioTiming_Serialize;
-
-/**  意图时序片段 (镜像 TS `SplitAudioTiming`, 继承 TranslateSegment + SubtitleSegment) */
-export type SplitAudioTiming = SplitAudioTiming_Serialize | SplitAudioTiming_Deserialize;
-
-/**  意图时序片段 (镜像 TS `SplitAudioTiming`, 继承 TranslateSegment + SubtitleSegment) */
-export type SplitAudioTiming_Deserialize = {
-	seg_idx: number,
-	text: string,
-	start_ms: number,
-	end_ms: number,
-	text_confidence?: number | null,
-	dst: string,
-	src_lang?: string | null,
-	dst_lang?: string | null,
-	speaker?: string | null,
-};
-
-/**  意图时序片段 (镜像 TS `SplitAudioTiming`, 继承 TranslateSegment + SubtitleSegment) */
-export type SplitAudioTiming_Serialize = {
-	seg_idx: number,
-	text: string,
-	start_ms: number,
-	end_ms: number,
-	text_confidence?: number | null,
-	dst: string,
-	src_lang?: string,
-	dst_lang?: string,
-	speaker?: string,
-};
+} & TranslateSegment_Serialize;
 
 /**  可分离的 stem */
 export type Stem = "drums" | "bass" | "other" | "vocals";
@@ -1645,7 +1616,7 @@ export type Timing_Deserialize = {
 	actual_start: number,
 	/**  实际结束时间 (考虑了 delay) */
 	actual_end: number,
-} & SplitAudioTiming_Deserialize;
+} & TranslateSegment_Deserialize;
 
 /**  单段对齐时序 (镜像 TS `Timing` = SplitAudioTiming + 对齐字段)。 */
 export type Timing_Serialize = {
@@ -1667,7 +1638,7 @@ export type Timing_Serialize = {
 	actual_start: number,
 	/**  实际结束时间 (考虑了 delay) */
 	actual_end: number,
-} & SplitAudioTiming_Serialize;
+} & TranslateSegment_Serialize;
 
 /**  `mix_audio/timings.json` (镜像 TS `TimingsFile`)。 */
 export type TimingsFile = TimingsFile_Serialize | TimingsFile_Deserialize;
@@ -1898,7 +1869,7 @@ export type TtsSegment_Deserialize = {
 	tts_duration_ms: number,
 	/**  状态: success / skipped / error / empty */
 	status: string,
-} & SplitAudioTiming_Deserialize;
+} & TranslateSegment_Deserialize;
 
 /**  单条 TTS 段 (镜像 TS `TtsSegment` = SplitAudioTiming + tts 字段)。 */
 export type TtsSegment_Serialize = {
@@ -1908,7 +1879,7 @@ export type TtsSegment_Serialize = {
 	tts_duration_ms: number,
 	/**  状态: success / skipped / error / empty */
 	status: string,
-} & SplitAudioTiming_Serialize;
+} & TranslateSegment_Serialize;
 
 /**  whisper.cpp VAD 模型 */
 export type VadModel = "silero-v5" | "silero-v6";

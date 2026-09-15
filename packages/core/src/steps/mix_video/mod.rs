@@ -12,10 +12,11 @@ use anyhow::{anyhow, Context};
 
 use crate::context::WorkflowCtx;
 use crate::steps::mix_video::args::{Alignment, MixVideoArgs};
+use crate::steps::translate::out::TranslateResult;
 use crate::steps::utils::srt::{write_srt, SrtSeg};
 use crate::steps::utils::{
     bgm_path, default_font, dubbing_path, ensure_dir, ffmpeg_timeout, final_video_dir,
-    probe_video_resolution, read_split_audio, read_timings, read_translation_result,
+    probe_video_resolution, read_split_audio, read_timings,
     resolve_language, set_step_anyhow, set_workflow_anyhow, split_audio_path,
     video_source_path, StepPatch, StepStatus, WorkflowPatch,
 };
@@ -292,9 +293,9 @@ fn build_subtitle_srt_subtitle_branch(
     vad_align: bool,
 ) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
-    // 契约实例与 `read_translation_result` 同源（都取 ctx.target_language），
+    // 与 `TranslateResult::read` 同源（都取 ctx.target_language），
     // 故错误信息里的路径**必然**就是真正尝试读取的那一个。
-    let t_out = crate::steps::translate::out::TranslateOutput::from_ctx(ctx)?;
+    let lang_path = crate::steps::utils::paths::translate::LangPath::from_ctx(ctx)?;
 
     let segs: Vec<SrtSeg> = if vad_align {
         // vadAlign: 用 split_audio 的 padded 时序 (split_audio.json) 而非翻译/原始 srt。
@@ -312,17 +313,37 @@ fn build_subtitle_srt_subtitle_branch(
         match cfg.srt_path.clone() {
             Some(p) => read_srt_file_to_segs(&p)?,
             None => {
-                let data = read_translation_result(ctx)
-                    .with_context(|| format!("读取翻译结果失败: {t_out}; 请先运行 translate"))?;
-                extract_segs_from_value(&data)?
+                let t = TranslateResult::read(&lang_path)
+                    .with_context(|| format!("读取翻译结果失败: {lang_path}; 请先运行 translate"))?;
+                segs_from_translation(&t)
             }
         }
     } else {
-        let data = read_translation_result(ctx)
-            .with_context(|| format!("读取翻译结果失败: {t_out}"))?;
-        extract_segs_from_value(&data)?
+        let t = TranslateResult::read(&lang_path)
+            .with_context(|| format!("读取翻译结果失败: {lang_path}"))?;
+        segs_from_translation(&t)
     };
     write_srt(&segs, sub_path, no_translate).map_err(|e| anyhow!("写字幕 SRT 失败: {e}"))
+}
+
+/// 从**带类型**的翻译产物取 SrtSeg 列表。
+///
+/// 与 [`extract_segs_from_value`] 的区别：那份吃 `serde_json::Value`（用于
+/// `split_audio.json`，那个文件目前仍按 Value 读），这份吃
+/// [`TranslateResult`]——翻译产物现在是类型化的，不需要再逐字段
+/// `get(..).unwrap_or(0)`（那等于手写一个 serde，还会把坏字段静默吞成 0）。
+fn segs_from_translation(r: &TranslateResult) -> Vec<SrtSeg> {
+    r.segments
+        .iter()
+        .map(|s| SrtSeg {
+            start_ms: s.start_ms,
+            end_ms: s.end_ms,
+            text: s.text.clone(),
+            dst: s.dst.clone(),
+            actual_start: None,
+            actual_end: None,
+        })
+        .collect()
 }
 
 /// 从 `{ segments: [{start_ms, end_ms, text, dst}] }` JSON 提取 SrtSeg 列表。

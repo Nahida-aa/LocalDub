@@ -604,16 +604,12 @@ pub fn split_audio_timings_path(video_dir: &str) -> PathBuf {
         .join("timings.json")
 }
 
-/// 读取翻译结果 (镜像 TS `readTranslationResult`), 须已解析 target_language。
-pub fn read_translation_result(
-    ctx: &crate::context::WorkflowCtx,
-) -> anyhow::Result<serde_json::Value> {
-    // 路径走输出契约的单点构造（不再自己拼），报错里的路径与真正读的是同一个。
-    let out = crate::steps::translate::out::TranslateOutput::from_ctx(ctx)?;
-    let raw = std::fs::read_to_string(out.path())
-        .map_err(|e| anyhow::anyhow!("读取翻译文件 {out} 失败: {e}"))?;
-    serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("解析翻译文件 {out} 失败: {e}"))
-}
+/// 读取翻译结果 → 请用 [`crate::steps::translate::out::TranslateResult::read`]。
+///
+/// 本函数已删：它返 `serde_json::Value`，逼得每个消费者再手写一遍字段解析
+/// （`split_audio` 30 行、`mix_video` 一个 `extract_segs_from_value`），
+/// 且每处 `unwrap_or(0)` 静默吞错。现在翻译产物是**带类型**读取的，解析只在
+/// 一处。需要 ctx 版本时：`TranslateResult::read(&LangPath::from_ctx(ctx)?)`。
 
 /// 解析目标语言。返回 `(srcLang, targetLang)`。
 ///

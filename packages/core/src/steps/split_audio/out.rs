@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::steps::translate::out::TranslateSegment;
+
 /// 翻译结果 meta (镜像 TS `packages/core/steps/05_translate/out.ts` TranslateResultMeta)
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 pub struct TranslateResultMeta {
@@ -8,28 +10,14 @@ pub struct TranslateResultMeta {
 }
 
 /// 意图时序片段 (镜像 TS `SplitAudioTiming`, 继承 TranslateSegment + SubtitleSegment)
-#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
-pub struct SplitAudioTiming {
-    pub seg_idx: u32,
-    pub text: String,
-    pub start_ms: u32,
-    pub end_ms: u32,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub text_confidence: Option<f64>,
-    pub dst: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub src_lang: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub dst_lang: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub speaker: Option<String>,
-}
+// #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
+pub type SplitAudioTiming = TranslateSegment;
 
 /// 切分片段 (镜像 TS `SplitAudioSegment` = SplitAudioTiming + split bounds)
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 pub struct SplitAudioSegment {
     #[serde(flatten)]
-    pub timing: SplitAudioTiming,
+    pub timing: TranslateSegment,
     /// padSegments 切分音频的起点
     pub split_start_ms: u32,
     /// padSegments 切分音频的终点
@@ -46,5 +34,5 @@ pub struct SplitAudioResult {
 /// `split_audio/timings.json` (意图时序)
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 pub struct SplitAudioTimingResult {
-    pub segments: Vec<SplitAudioTiming>,
+    pub segments: Vec<TranslateSegment>,
 }

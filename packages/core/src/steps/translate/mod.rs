@@ -713,6 +713,67 @@ mod tests {
         assert_eq!(r.segments[0].idx, 1);
     }
 
+    /// `TranslateResult::read` 走**带类型**反序列化：坏数据在这里就失败。
+    ///
+    /// 这是改用带类型读取的**全部理由**：此前返 `serde_json::Value`，消费者用
+    /// `seg.get("start_ms").and_then(..).unwrap_or(0)` 取值，字段类型不对或缺失
+    /// 都会静默变成 0 一路传下去——字幕时序全错但不报错。
+    ///
+    /// 现在解析集中在一处，且会 fail-fast。
+    #[test]
+    fn translate_result_read_is_typed_and_fails_fast() {
+        let dir = std::env::temp_dir()
+            .join(format!("ld_tr_read_{}", std::process::id()))
+            .to_string_lossy()
+            .to_string();
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = crate::steps::utils::paths::translate::LangPath::new(&dir, "vi");
+        // LangPath::new 不建目录（它只管路径），这里补上
+        std::fs::create_dir_all(p.as_path().parent().unwrap()).unwrap();
+
+        // 缺 idx → 失败（不是读成 0）
+        std::fs::write(
+            p.as_path(),
+            r#"{"segments":[{"text":"a","dst":"b","start_ms":0,"end_ms":1}],
+                "meta":{"src_lang":"zh","target_lang":"vi"}}"#,
+        )
+        .unwrap();
+        let err = TranslateResult::read(&p).expect_err("缺 idx 应失败");
+        assert!(err.to_string().contains("解析翻译产物"), "实际: {err}");
+
+        // start_ms 是字符串 → 失败（不是静默变 0）
+        std::fs::write(
+            p.as_path(),
+            r#"{"segments":[{"idx":1,"text":"a","dst":"b","start_ms":"x","end_ms":1}],
+                "meta":{"src_lang":"zh","target_lang":"vi"}}"#,
+        )
+        .unwrap();
+        TranslateResult::read(&p).expect_err("start_ms 类型错误应失败");
+
+        // 合法 → 读成带类型的值（字段是真的，不是 unwrap_or 兜出来的）
+        std::fs::write(
+            p.as_path(),
+            r#"{"segments":[{"idx":1,"text":"a","dst":"b","start_ms":10,"end_ms":20}],
+                "meta":{"src_lang":"zh","target_lang":"vi"}}"#,
+        )
+        .unwrap();
+        let r = TranslateResult::read(&p).expect("合法应可读");
+        assert_eq!(r.segments[0].idx, 1);
+        assert_eq!(r.segments[0].start_ms, 10);
+        assert_eq!(r.meta.src_lang, "zh");
+
+        // 文件不存在 → 失败，且错误带上路径
+        let _ = std::fs::remove_file(p.as_path());
+        let err = TranslateResult::read(&p).expect_err("文件缺失应失败");
+        assert!(
+            err.to_string().contains("vi.json"),
+            "错误应含路径, 实际: {err}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// `from_ctx` 只认 `ctx.target_language`：未设置 → 报错（不臆测语言）。
     ///
     /// 这一条钉的是**单源**承诺：读文件与报错必须指向同一路径。若改回

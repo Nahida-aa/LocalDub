@@ -46,6 +46,30 @@ pub struct TranslateResult {
     pub meta: TranslateResultMeta,
 }
 
+impl TranslateResult {
+    /// 从 [`LangPath`] 读出**带类型**的结果。
+    ///
+    /// **为什么读方法放在内容类型上、而不是路径类型上**（按用户决定）：
+    /// `LangPath` 只负责「文件在哪」，不该知道「文件里是什么」。类型的知识归
+    /// 类型自己——这样 `paths` 模块可以保持对业务类型无知，不产生
+    /// `paths ↔ translate::out` 的模块环（`LangPath` 已被 `TranslateOutput` 引用）。
+    ///
+    /// **为什么返 `Self` 而非 `serde_json::Value`**：此前返 `Value`，于是每个
+    /// 消费者都要再手写一遍字段解析（`split_audio` 有 30 行、`mix_video` 有
+    /// `extract_segs_from_value`），且每处都用 `unwrap_or(0)` 静默吞错——
+    /// 坏数据不会报错，只会变成 0 一路传下去。改成带类型后，解析只有一处，
+    /// 且字段缺失/类型不对会在**这里**就失败。
+    ///
+    /// 与 [`crate::steps::utils::read_timings`] 同款（后者也是返具体类型）。
+    pub fn read(path: &LangPath) -> anyhow::Result<Self> {
+        let p = path.as_path();
+        let raw = std::fs::read_to_string(p)
+            .map_err(|e| anyhow::anyhow!("读取翻译产物 {} 失败: {e}", p.display()))?;
+        serde_json::from_str(&raw)
+            .map_err(|e| anyhow::anyhow!("解析翻译产物 {} 失败: {e}", p.display()))
+    }
+}
+
 /// translate 结果 meta (镜像 TS `TranslateResultMeta`)。
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 pub struct TranslateResultMeta {

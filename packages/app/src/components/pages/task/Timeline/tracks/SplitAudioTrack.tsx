@@ -14,15 +14,15 @@ import type { Track, TrackSegment } from "../consts";
 import { client } from "#/integrations/fnrpc/client.ts";
 import { useTrackData } from "./useTrackData";
 import type { BaseTrackProps } from "./shared";
-import { SplitAudioSegment, SplitAudioTiming } from "@repo/sdk/index";
+import { SplitAudioSegment, TranslateSegment } from "@repo/sdk/index";
 
 type Props = BaseTrackProps;
 
 function serializeSegments(segments: TrackSegment[]): string {
-  const segs: SplitAudioTiming[] = segments.map((s) => {
-    const raw = (s.raw as SplitAudioTiming) || ({} as SplitAudioTiming);
+  const segs: TranslateSegment[] = segments.map((s) => {
+    const raw = (s.raw as TranslateSegment) || ({} as TranslateSegment);
     return {
-      seg_idx: s.index + 1,
+      idx: s.index + 1,
       text: s.text,
       dst: raw.dst ?? s.text,
       src_lang: raw.src_lang ?? "auto",
@@ -48,7 +48,7 @@ function insertAt(segments: TrackSegment[], index: number, after: boolean): Trac
     startMs: after ? current.endMs : Math.max(0, current.startMs - DEFAULT_DURATION_MS),
     endMs: after ? current.endMs + DEFAULT_DURATION_MS : current.startMs,
     raw: {
-      seg_idx: 0,
+      idx: 0,
       text: "",
       dst: "",
       src_lang: "auto",
@@ -123,7 +123,7 @@ export function SplitAudioTrack(props: Props) {
   const handleEdit = (segIndex: number) => {
     const seg = segments()[segIndex];
     if (!seg) return;
-    const raw = seg.raw as SplitAudioTiming | undefined;
+    const raw = seg.raw as TranslateSegment | undefined;
 
     openModal(
       () => (
@@ -198,9 +198,9 @@ export function SplitAudioTrack(props: Props) {
                   "border-color": `${color}55`,
                 }}
                 onClick={() => onSeek(seg.startMs)}
-                title={(seg.raw as SplitAudioTiming | undefined)?.text || seg.text}
+                title={(seg.raw as TranslateSegment | undefined)?.text || seg.text}
               >
-                {(seg.raw as SplitAudioTiming | undefined)?.text || seg.text}
+                {(seg.raw as TranslateSegment | undefined)?.text || seg.text}
               </div>
             </ContextMenuTrigger>
             <ContextMenuContent>

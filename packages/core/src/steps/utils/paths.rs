@@ -227,6 +227,16 @@ pub mod translate {
             &self.lang
         }
     }
+
+    /// 路径的字符串形式——错误信息里 `{lang_path}` 直接可用。
+    ///
+    /// 与 `SrtPath` 不同（那边没人需要），这里是**真实需求**：
+    /// `TranslateResult::read` 与 `mix_video` 的错误都要带上它。
+    impl std::fmt::Display for LangPath {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.path.display())
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

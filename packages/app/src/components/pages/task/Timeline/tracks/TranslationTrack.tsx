@@ -54,8 +54,7 @@ export function TranslationTrack(props: Props) {
 
   const ctxQ = useQuery(() => client.get_workflow_ctx.queryOptions(props.videoDir));
   const lang = () => (ctxQ.isSuccess ? ctxQ.data?.target_language : undefined);
-  const path = () =>
-    lang() ? `${props.videoDir}/translate/${lang()}.json` : undefined;
+  const path = () => (lang() ? `${props.videoDir}/translate/${lang()}.json` : undefined);
 
   const { segments } = useTrackData({
     videoDir: props.videoDir,
