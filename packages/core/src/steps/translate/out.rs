@@ -1,6 +1,6 @@
 //! translate 阶段输出结构 (镜像 TS `packages/core/steps/05_translate/out.ts`)。
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -92,32 +92,36 @@ pub struct TranslateOutput {
 }
 
 impl TranslateOutput {
-    /// **唯一构造入口**。`translation_file_path` 只应在这里被调用。
+    /// **唯一构造入口**。路径拼装委托给 [`LangPath::new`]。
     pub fn for_lang(video_dir: &str, lang: &str) -> Self {
         Self {
             lang: lang.to_string(),
-            path: crate::steps::utils::translation_file_path(video_dir, lang),
+            path: LangPath::new(video_dir, lang),
         }
     }
 
     /// 从 ctx 构造，目标语言取 `ctx.target_language`。
     ///
-    /// **刻意只用 `ctx.target_language`**，不调 `resolve_language`：后者会重新推断
-    /// 并写回 ctx.json，与「读磁盘上那份 ctx.json 快照」可能得到不同答案。本类型
-    /// 承诺的是**读与报错指向同一个文件**，故必须单源。
+    /// **刻意只用 `ctx.target_language`**，不调 `resolve_language`：后者会重新推断，
+    /// 与「已落盘的事实」可能得到不同答案。本类型承诺的是**读与报错指向同一个
+    /// 文件**，故必须单源。
     ///
-    /// 未设置 → Err（与 `read_translation_result` 同款语义：目标语言未知时
-    /// 无从知道该读哪个文件）。
+    /// 未设置 → Err（委托 [`LangPath::from_ctx`]）。
     pub fn from_ctx(ctx: &WorkflowCtx) -> anyhow::Result<Self> {
+        let path = LangPath::from_ctx(ctx)?;
         let lang = ctx
             .target_language
             .clone()
-            .ok_or_else(|| anyhow::anyhow!("ctx.target_language 未设置, 无法定位翻译结果"))?;
-        Ok(Self::for_lang(&ctx.workflow.video_dir, &lang))
+            .unwrap_or_default(); // from_ctx 已保证 Some
+        Ok(Self { lang, path })
     }
 
-    pub fn path(&self) -> &PathBuf {
-        &self.path
+    /// 译文的完整路径。
+    ///
+    /// 返 `&Path` 而非 `&PathBuf`：调用点一律当路径用（`.display()` / `.parent()` /
+    /// `read_to_string` / `write`），没有一处需要 `PathBuf` 的方法。
+    pub fn path(&self) -> &Path {
+        self.path.as_path()
     }
 
     pub fn lang(&self) -> &str {
@@ -129,6 +133,6 @@ impl TranslateOutput {
 /// 不必到处 `.path().display()`。
 impl std::fmt::Display for TranslateOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.path.display())
+        write!(f, "{}", self.path.as_path().display())
     }
 }

@@ -154,8 +154,61 @@ pub mod asr_ocr_fix {
 // 动态 dynamical dynamic
 pub mod translate {
     use super::*;
-    // translate/translation.{lang}.json
-    pub type LangPath = PathBuf;
+
+    /// 翻译产物路径 `translate/translation.{lang}.json`。
+    ///
+    /// 字段私有：路径只能经 [`LangPath::new`] 或 [`LangPath::from_ctx`] 产生，
+    /// 与三个 `SrtPath` 同款约束（拼法只有一个来源）。
+    ///
+    /// **两个构造入口，对应两类调用者**——这是刻意的分工：
+    ///
+    /// | 入口 | 谁用 | 参数来源 |
+    /// | --- | --- | --- |
+    /// | [`new`](Self::new)`(video_dir, lang)` | **翻译步骤** | 它手里已有一对 `(dir, lang)`：`lang` 是它自己 `resolve_language` 决策出来的 |
+    /// | [`from_ctx`](Self::from_ctx)`(ctx)` | **后续步骤** | 读 `ctx.target_language`——那个**已落定的事实** |
+    ///
+    /// 为什么后续步骤不该走 `new` + `resolve_language`：`resolve_language` 是
+    /// **现算**（读配置、可能推断），而 `ctx.target_language` 是**翻译步骤落盘的
+    /// 事实**。两者现在恰好一致（纯函数 + 同输入），但那是巧合的稳定——推断逻辑
+    /// 一改（如新增直通分支），中途重跑下游就会分叉。`from_ctx` 让下游只能读到
+    /// 事实，读不到「另算一遍」的机会。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct LangPath(PathBuf);
+
+    impl LangPath {
+        /// 由 `(video_dir, lang)` 构造：`{video_dir}/translate/translation.{lang}.json`。
+        ///
+        /// **翻译步骤专用**——它是唯一有资格决定 `lang` 的地方。
+        pub fn new(video_dir: impl AsRef<Path>, lang: &str) -> Self {
+            Self(
+                video_dir
+                    .as_ref()
+                    .join("translate")
+                    .join(format!("translation.{lang}.json")),
+            )
+        }
+
+        /// 由 ctx 构造，语言取 `ctx.target_language`（**唯一写入点**见
+        /// [`crate::steps::utils::persist_target_language`]）。
+        ///
+        /// **后续步骤专用**：读已落定的事实，不重新解析。
+        ///
+        /// 缺失 → Err（与 `read_translation_result` 同款语义：目标语言未知时
+        /// 无从知道该读哪个文件；正常流程里 translate 跑过就一定有值）。
+        pub fn from_ctx(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<Self> {
+            let lang = ctx.target_language.as_deref().ok_or_else(|| {
+                anyhow::anyhow!(
+                    "ctx.target_language 未设置, 无法定位翻译产物 (task {}); 请先运行 translate",
+                    ctx.workflow.video_dir
+                )
+            })?;
+            Ok(Self::new(&ctx.workflow.video_dir, lang))
+        }
+
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -191,6 +244,7 @@ pub struct SeparateAfterOutput {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     /// 三个 fix 的 `srt.json` 路径形状：`{video_dir}/{step}/srt.json`。
     ///
@@ -250,5 +304,49 @@ mod tests {
         takes_asr(&asr_fix::SrtPath::new("/w"));
         // 下一行若取消注释会编译失败——证明类型不可互换：
         // takes_asr(&sf_ocr_fix::SrtPath::new("/w"));
+    }
+
+    /// `LangPath::new` 的路径形状。
+    ///
+    /// 字面钉死——它是翻译产物的唯一拼法，没有第二处旧写法可对照。
+    #[test]
+    fn lang_path_shape() {
+        assert_eq!(
+            translate::LangPath::new("/w", "vi").as_path().to_string_lossy(),
+            "/w/translate/translation.vi.json"
+        );
+    }
+
+    /// `LangPath::from_ctx` 读 `ctx.target_language`——**已落定的事实**。
+    ///
+    /// 后续步骤靠它避开 `resolve_language` 的现算：即使 `input.workflow.targetLang`
+    /// 与 ctx 里的值不同，`from_ctx` 也必须以 ctx 为准（ctx 是翻译步骤写的）。
+    #[test]
+    fn lang_path_from_ctx_uses_persisted_fact() {
+        use crate::context::read_ctx_from_value;
+
+        let mk = |ctx_lang: Option<&str>| {
+            let mut ctx = read_ctx_from_value(json!({
+                "workflow": {"id":"t","video_dir":"/w","url":"http://e","source":"remote",
+                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
+                // 配置说要 vi，但 ctx 的落定事实可能不同
+                "input": {"workflow": {"targetLang": "vi"}}
+            }))
+            .unwrap();
+            ctx.target_language = ctx_lang.map(String::from);
+            ctx
+        };
+
+        // ctx 说 zh → 用 zh，**无视** input 里的 vi
+        let p = translate::LangPath::from_ctx(&mk(Some("zh"))).unwrap();
+        assert_eq!(p.as_path().to_string_lossy(), "/w/translate/translation.zh.json");
+
+        // 缺失 → 报错（不现算、不推断）
+        let err = translate::LangPath::from_ctx(&mk(None)).expect_err("缺失 target_language 必须报错");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("target_language") && msg.contains("translate"),
+            "错误应点名字段并提示先跑 translate, 实际: {msg}"
+        );
     }
 }

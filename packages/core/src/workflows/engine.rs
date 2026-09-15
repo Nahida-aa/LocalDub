@@ -90,7 +90,7 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
             vec![p(
                 crate::steps::translate::out::TranslateOutput::for_lang(wf, &lang)
                     .path()
-                    .clone(),
+                    .to_path_buf(),
             )]
         }
         "split_audio" => vec![p(split_audio_path(wf)), p(split_audio_timings_path(wf))],
