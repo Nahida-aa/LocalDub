@@ -193,7 +193,7 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
         "workflow": {
             "action": "start",
             "url": url,
-            "pipeline": "dub",
+            "output_mode": "dub",
             "subtitleSource": "sf_ocr",
         },
         "steps": {

@@ -4,7 +4,7 @@
 //! - [`now_iso`] — RFC3339 无毫秒时间戳
 //! - [`set_step`] / [`set_workflow`] — 对 `ctx.json` 中 steps / workflow 的 upsert 合并
 //! - 各 step 输出目录 helper ([`separate_dir`] / [`asr_dir`] / [`separate_after_dir`] ...)
-//! - [`steps`] 模块: pipeline 阶段序列 ([`steps::get_steps`])
+//! - [`steps`] 模块: output_mode 阶段序列 ([`steps::get_steps`])
 
 pub mod paths;
 pub mod srt;
@@ -334,7 +334,7 @@ pub fn probe_video_resolution(path: &str) -> (u32, u32) {
 }
 
 /// 最终视频目录名 (镜像 TS `finalVideoDir`)。
-pub fn final_video_dir(pipeline: &str, subtitle_source: &str, no_translate: bool) -> String {
+pub fn final_video_dir(output_mode: &str, subtitle_source: &str, no_translate: bool) -> String {
     let suffix = if subtitle_source == "asr_ocr" {
         "_asr_ocr"
     } else if subtitle_source == "sf_ocr" {
@@ -343,7 +343,7 @@ pub fn final_video_dir(pipeline: &str, subtitle_source: &str, no_translate: bool
         ""
     };
     let ntl_suffix = if no_translate { "_ntl" } else { "" };
-    let mode = if pipeline == "subtitle" {
+    let mode = if output_mode == "subtitle" {
         "subtitle"
     } else {
         "dub"
@@ -633,7 +633,7 @@ pub fn resolve_language(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<(St
         // 写回 ctx.target_language, 供后续翻译文件命名 / split_audio 读取 (best-effort:
         // ctx.json 不存在时仅告警, 不影响当前 step 返回解析结果)
         if let Err(e) = write_target_language(&ctx.workflow.video_dir, &resolved) {
-            tracing::warn!(target: "pipeline", "写回 target_language 失败: {e}");
+            tracing::warn!(target: "output_mode", "写回 target_language 失败: {e}");
         }
     }
     Ok((src_lang, resolved))
@@ -689,7 +689,7 @@ mod tests {
             json!({
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {}, "pipeline": "dub"
+                "input": {}, "output_mode": "dub"
             }),
         );
         write_ctx(&dir, &ctx).unwrap();
@@ -757,7 +757,7 @@ mod tests {
             json!({
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {}, "pipeline": "dub"
+                "input": {}, "output_mode": "dub"
             }),
         );
         write_ctx(&dir, &ctx).unwrap();

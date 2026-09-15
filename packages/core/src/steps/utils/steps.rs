@@ -127,7 +127,7 @@ fn split_audio_vad_align(ctx: &WorkflowCtx) -> bool {
 /// 但在这里立刻解析——**写错名字会 panic**，而不是流到后面被静默跳过。
 /// 有 `get_steps_is_exhaustive` 测试兜底，所以 panic 只在开发期触发。
 pub fn get_steps(ctx: &WorkflowCtx) -> Vec<StepName> {
-    let is_subtitle = ctx.pipeline == "subtitle";
+    let is_subtitle = ctx.output_mode == "subtitle";
     let mut steps: Vec<&'static str> = if is_subtitle {
         // subtitle 模式: 按 subtitleSource 切换字幕提取策略, 但始终只到 mix_video
         // (不配音 → 无 tts / mix_audio)。subtitleSource 语义是"字幕怎么提取",
@@ -176,7 +176,7 @@ mod tests {
     fn ctx(pipeline: &str, input: serde_json::Value) -> WorkflowCtx {
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.workflow.video_dir = "/x".into();
-        ctx.pipeline = pipeline.into();
+        ctx.output_mode = pipeline.into();
         ctx
     }
 

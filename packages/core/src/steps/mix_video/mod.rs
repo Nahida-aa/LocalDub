@@ -1,8 +1,8 @@
 //! mix_video 阶段 (镜像 TS `packages/core/steps/mix_video/index.ts`)。
 //!
 //! 两条分支:
-//! - `subtitle` pipeline: 硬烧字幕到视频 (从 translation / srt)
-//! - `dub` pipeline: 混流配音音频 (audio_dubbing.wav + bgm, sidechain 压缩) 再硬烧字幕
+//! - `subtitle` output_mode: 硬烧字幕到视频 (从 translation / srt)
+//! - `dub` output_mode: 混流配音音频 (audio_dubbing.wav + bgm, sidechain 压缩) 再硬烧字幕
 
 pub mod args;
 
@@ -59,7 +59,7 @@ pub fn step_mix_video(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         return Err(anyhow!("video_source.mp4 not found: {video_file_path}"));
     }
 
-    let pipeline = ctx.pipeline.clone();
+    let output_mode = ctx.output_mode.clone();
     let (_, target_lang) = resolve_language(ctx)?;
 
     let no_translate = ctx
@@ -85,7 +85,7 @@ pub fn step_mix_video(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         .and_then(|v| v.as_bool())
         == Some(true);
 
-    let final_dir_name = final_video_dir(&pipeline, subtitle_source, no_translate);
+    let final_dir_name = final_video_dir(&output_mode, subtitle_source, no_translate);
     let final_video_dir = merge_dir.join(&final_dir_name);
     ensure_dir(&final_video_dir)?;
     let final_video = final_video_dir.join(format!("{video_id}.mp4"));
@@ -94,7 +94,7 @@ pub fn step_mix_video(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     let alignment = cfg.alignment.unwrap_or(Alignment::BottomCenter);
     let alignment_num = args::alignment_to_ffmpeg(alignment);
 
-    if pipeline == "subtitle" {
+    if output_mode == "subtitle" {
         let sub_path = merge_dir.join(format!("subtitles.{target_lang}.srt"));
         build_subtitle_srt_subtitle_branch(ctx, &sub_path, &cfg, no_translate, vad_align)?;
 

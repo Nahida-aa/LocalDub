@@ -21,7 +21,7 @@ import { CardInput, CardSelect } from "./FieldCards";
 import {
   COMMANDS,
   LANGS,
-  PIPELINES,
+  OUTPUT_MODES,
   SERVER_ACTIONS,
   SERVER_NAMES,
   STEPS,
@@ -39,7 +39,7 @@ type FormState = {
   videoDir: string;
   continueFrom: string;
   targetStep: string;
-  pipeline: string;
+  output_mode: string;
   subtitleSource: string;
   sourceLang: string;
   targetLang: string;
@@ -54,7 +54,7 @@ const emptyForm = (): FormState => ({
   videoDir: "",
   continueFrom: "",
   targetStep: "",
-  pipeline: "",
+  output_mode: "",
   subtitleSource: "",
   sourceLang: "",
   targetLang: "",
@@ -90,7 +90,7 @@ export function InputFormSettings() {
         set(["workflow", "videoDir"], value.videoDir);
         set(["workflow", "continueFrom"], value.continueFrom);
         set(["workflow", "targetStep"], value.targetStep);
-        set(["workflow", "pipeline"], value.pipeline);
+        set(["workflow", "output_mode"], value.output_mode);
         set(["workflow", "subtitleSource"], value.subtitleSource);
         set(["workflow", "sourceLang"], value.sourceLang);
         set(["workflow", "targetLang"], value.targetLang);
@@ -121,7 +121,7 @@ export function InputFormSettings() {
       videoDir: String(t.videoDir ?? ""),
       continueFrom: String(t.continueFrom ?? ""),
       targetStep: String(t.targetStep ?? ""),
-      pipeline: String(t.pipeline ?? ""),
+      output_mode: String(t.output_mode ?? ""),
       subtitleSource: String(t.subtitleSource ?? ""),
       sourceLang: String(t.sourceLang ?? ""),
       targetLang: String(t.targetLang ?? ""),
@@ -215,14 +215,14 @@ export function InputFormSettings() {
                 />
               )}
             </form.Field>
-            <h3>管线</h3>
-            <form.Field name="pipeline">
+            <h3>产出模式</h3>
+            <form.Field name="output_mode">
               {(field) => (
                 <CardSelect
-                  title="workflow.pipeline"
+                  title="workflow.output_mode"
                   description="dub = 配音, subtitle = 字幕"
                   field={field}
-                  options={PIPELINES}
+                  options={OUTPUT_MODES}
                 />
               )}
             </form.Field>

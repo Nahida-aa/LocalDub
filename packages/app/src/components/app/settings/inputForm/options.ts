@@ -5,7 +5,7 @@
 //! 类型, 保持手写。
 
 import type {
-  Pipeline,
+  OutputMode,
   ServerAction,
   ServerType_Serialize,
   StepName,
@@ -55,7 +55,7 @@ const STEPS = [
   } satisfies Record<StepName, string>),
 ];
 
-const PIPELINES = ["", ...keysOf({ dub: "", subtitle: "" } satisfies Record<Pipeline, string>)];
+const OUTPUT_MODES = ["", ...keysOf({ dub: "", subtitle: "" } satisfies Record<OutputMode, string>)];
 
 const SUBTITLE_SOURCES = [
   "",
@@ -139,7 +139,7 @@ export {
   COMMANDS,
   LANG_LABELS,
   LANGS,
-  PIPELINES,
+  OUTPUT_MODES,
   SERVER_ACTIONS,
   SERVER_NAMES,
   STEPS,

@@ -98,18 +98,39 @@ mod tests {
     #[test]
     fn deserialize_partial_fills_defaults() {
         let input: Input =
-            serde_json::from_str(r#"{"command":"env","workflow":{"pipeline":"subtitle"}}"#)
+            serde_json::from_str(r#"{"command":"env","workflow":{"output_mode":"subtitle"}}"#)
                 .unwrap();
         assert_eq!(input.command, Command::Env);
         assert!(input.steps.asr.mix_mode == crate::steps::asr::args::MixMode::Sidechain);
         assert_eq!(input.steps.asr.reduce_bgm, -12.0);
         assert_eq!(
-            input.workflow.as_ref().unwrap().pipeline,
-            args::Pipeline::Subtitle
+            input.workflow.as_ref().unwrap().output_mode,
+            args::OutputMode::Subtitle
         );
         assert_eq!(
             input.workflow.as_ref().unwrap().subtitle_source,
             args::SubtitleSource::Asr
+        );
+    }
+
+    /// **wire 键名双向钉住**：`WorkflowArgs` 是 `rename_all = "camelCase"`，
+    /// 但 `output_mode` 用显式 `rename` 覆盖成 snake_case（ctx.json 侧同名）。
+    /// 若有人删掉那个 rename，这里会红——否则键名会静默变成 `outputMode`。
+    #[test]
+    fn output_mode_wire_key_is_snake_case_both_ways() {
+        let input: Input =
+            serde_json::from_str(r#"{"workflow":{"output_mode":"subtitle"}}"#).unwrap();
+        assert_eq!(
+            input.workflow.as_ref().unwrap().output_mode,
+            args::OutputMode::Subtitle
+        );
+
+        // 反方向：序列化出来的键必须仍是 `output_mode`
+        let v = serde_json::to_value(input.workflow.unwrap()).unwrap();
+        assert_eq!(v.get("output_mode").and_then(|x| x.as_str()), Some("subtitle"));
+        assert!(
+            v.get("outputMode").is_none(),
+            "不该出现 camelCase 变体: {v}"
         );
     }
 

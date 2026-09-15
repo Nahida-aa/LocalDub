@@ -1,9 +1,9 @@
-//! pipeline 串行派发器 (镜像 TS `packages/core/workflows/start.ts` 的 `runPipeline`)。
+//! output_mode 串行派发器 (镜像 TS `packages/core/workflows/start.ts` 的 `runPipeline`)。
 //!
 //! 流程: 读 ctx → `get_steps` 得到阶段序列 → 逐个调用 `run_step` (handler 读 ctx.json
 //! 跑完写回) → 每阶段前后用 `set_step` / `set_workflow` 标状态, 失败即中断。
 //!
-//! 本文件原位于 `steps/pipeline.rs`, 后迁移到 `workflows/` (与 start / continue 派发器同层),
+//! 本文件原位于 `steps/output_mode.rs`, 后迁移到 `workflows/` (与 start / continue 派发器同层),
 //! 因为 `run_pipeline` 属于任务级编排而非某个具体 step 的实现。
 //!
 //! 目前 `run_step` 已注册 separate / separate_after / sf_ocr* / translate / split_audio /
@@ -24,22 +24,22 @@ use crate::steps::tts::step_tts;
 use crate::steps::utils::{now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
 use crate::workflows::args::StepName;
 
-/// 运行完整 pipeline (镜像 TS `runPipeline`)。
+/// 运行完整 output_mode (镜像 TS `runPipeline`)。
 pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
     // 进入 workflow span: 携带 video_dir 供 WorkflowFileLayer 落盘到 <video_dir>/<tid>.log。
     let _workflow_guard = tracing::info_span!("workflow", video_dir = video_dir).entered();
-    tracing::info!(target: "pipeline", "run_pipeline: start");
+    tracing::info!(target: "output_mode", "run_pipeline: start");
 
     let ctx = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
-    let pipeline = ctx.pipeline.clone();
+    let output_mode = ctx.output_mode.clone();
     let video_id = ctx.workflow.id.clone();
     let steps = get_steps(&ctx);
 
     // targetStep 不在序列中则告警忽略 (镜像 TS)
     if let Some(ts) = ctx.input.get("targetStep").and_then(|v| v.as_str()) {
         if !steps.iter().any(|s| s.as_str() == ts) {
-            tracing::info!(target: "pipeline",
-                "[WARN] targetStep \"{ts}\" 不在 {pipeline} pipeline 中, 忽略"
+            tracing::info!(target: "output_mode",
+                "[WARN] targetStep \"{ts}\" 不在 {output_mode} output_mode 中, 忽略"
             );
         }
     }
@@ -75,21 +75,21 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
                 ..Default::default()
             },
         )?;
-        tracing::info!(target: "pipeline", "Running {step_str}");
+        tracing::info!(target: "output_mode", "Running {step_str}");
 
         match run_step(*step, video_dir) {
             Ok(()) => {
                 // 达到 targetStep 即停止 (镜像 TS)
                 if let Some(ts) = ctx.input.get("targetStep").and_then(|v| v.as_str()) {
                     if step_str == ts {
-                        tracing::info!(target: "pipeline", "达到目标步骤 \"{ts}\", 停止");
+                        tracing::info!(target: "output_mode", "达到目标步骤 \"{ts}\", 停止");
                         break;
                     }
                 }
             }
             Err(e) => {
                 let msg = e.to_string();
-                tracing::error!(target: "pipeline", "Step {step_str} failed: {msg}");
+                tracing::error!(target: "output_mode", "Step {step_str} failed: {msg}");
                 set_step_anyhow(
                     video_dir,
                     step_str,
@@ -122,7 +122,7 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    tracing::info!(target: "pipeline", "Workflow {video_id} completed");
+    tracing::info!(target: "output_mode", "Workflow {video_id} completed");
     Ok(())
 }
 
@@ -165,13 +165,13 @@ mod tests {
     fn setup_ctx(
         dir: &str,
         input: serde_json::Value,
-        pipeline: &str,
+        output_mode: &str,
     ) -> crate::context::WorkflowCtx {
         std::fs::create_dir_all(dir).unwrap();
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.workflow.video_dir = dir.to_string();
         ctx.workflow.id = "t".to_string();
-        ctx.pipeline = pipeline.to_string();
+        ctx.output_mode = output_mode.to_string();
         crate::context::write_ctx(dir, &ctx).unwrap();
         ctx
     }
@@ -189,7 +189,7 @@ mod tests {
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"steps": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
-                "pipeline": "subtitle"
+                "output_mode": "subtitle"
             }),
             "subtitle",
         );
@@ -223,7 +223,7 @@ mod tests {
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"targetStep": "separate", "steps": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
-                "pipeline": "subtitle"
+                "output_mode": "subtitle"
             }),
             "subtitle",
         );

@@ -12,7 +12,7 @@ use crate::context::{
     read_ctx_from_value, write_ctx, VideoSource, Workflow, WorkflowCtx, WorkflowStep,
 };
 use crate::input::Input;
-use crate::workflows::args::Pipeline;
+use crate::workflows::args::OutputMode;
 use crate::workflows::import::util::{
     auto_group_id_and_video_id, copy_file_to_path, download_remote_video, encode_to_mp4,
     extract_audio, probe_frame_rate, run_yt_dlp_download,
@@ -25,13 +25,13 @@ pub struct Downloaded {
     pub audio_path: String,
 }
 
-/// 构建 pipeline 对应的 step 列表 (镜像 TS `getSteps`)。
+/// 构建 output_mode 对应的 step 列表 (镜像 TS `getSteps`)。
 ///
-/// 与 TS 不同: 不读磁盘 input.json, 直接从传入的 pipeline / subtitle_source 计算,
+/// 与 TS 不同: 不读磁盘 input.json, 直接从传入的 output_mode / subtitle_source 计算,
 /// 使 import 自包含。translate / split_audio 的开关依赖 step 配置, 这里保持默认
 /// 全量 (与 TS 无 config 时的 fallback 一致)。
 pub fn get_steps(
-    pipeline: Pipeline,
+    output_mode: OutputMode,
     subtitle_source: crate::workflows::args::SubtitleSource,
 ) -> Vec<String> {
     let mut steps: Vec<&str> = match subtitle_source {
@@ -61,7 +61,7 @@ pub fn get_steps(
             "mix_video",
         ],
         crate::workflows::args::SubtitleSource::Asr => {
-            if matches!(pipeline, Pipeline::Subtitle) {
+            if matches!(output_mode, OutputMode::Subtitle) {
                 vec![
                     "separate",
                     "separate_after",
@@ -125,13 +125,13 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowCtx> {
         frame_rate.numerator, frame_rate.denominator
     );
 
-    let pipeline = args.pipeline;
+    let output_mode = args.output_mode;
     let subtitle_source = args.subtitle_source;
-    let pipeline_str = serde_json::to_value(pipeline)
+    let pipeline_str = serde_json::to_value(output_mode)
         .ok()
         .and_then(|v| v.as_str().map(|s| s.to_string()))
         .unwrap_or_else(|| "dub".to_string());
-    let step_names = get_steps(pipeline, subtitle_source);
+    let step_names = get_steps(output_mode, subtitle_source);
     let steps: Vec<WorkflowStep> = step_names
         .iter()
         .map(|name| WorkflowStep {
@@ -162,7 +162,7 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowCtx> {
             completed_at: None,
         },
         steps: Some(steps),
-        pipeline: pipeline_str.clone(),
+        output_mode: pipeline_str.clone(),
         last_run_pipeline: Some(pipeline_str),
         // import 阶段 input 直接透传原始 Input (序列化为 Value)
         input: serde_json::to_value(input).unwrap_or(serde_json::Value::Null),
@@ -342,7 +342,7 @@ mod tests {
         let input = Input {
             workflow: Some(crate::workflows::args::WorkflowArgs {
                 url: Some(smoke.to_string()),
-                pipeline: Pipeline::Dub,
+                output_mode: OutputMode::Dub,
                 subtitle_source: crate::workflows::args::SubtitleSource::Asr,
                 ..Default::default()
             }),

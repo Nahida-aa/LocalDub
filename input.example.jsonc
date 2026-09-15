@@ -7,7 +7,7 @@
     "videoDir": "workfolder/师尊带我炸修真/4",
     "continueFrom": "tts",
     "targetStep": "mix_video",
-    "pipeline": "dub",
+    "output_mode": "dub",
     "subtitleSource": "sf_ocr",
     "sourceLang": "zh",
     "targetLang": "vi",

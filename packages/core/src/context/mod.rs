@@ -75,7 +75,7 @@ pub struct RunInfo {
 pub struct WorkflowCtx {
     pub workflow: Workflow,
     pub steps: Option<Vec<WorkflowStep>>,
-    pub pipeline: String,
+    pub output_mode: String,
     pub last_run_pipeline: Option<String>,
     #[specta(type = specta_typescript::Unknown)]
     pub input: serde_json::Value,
@@ -119,8 +119,8 @@ pub fn read_ctx_from_value(json: serde_json::Value) -> Result<WorkflowCtx, Strin
     Ok(WorkflowCtx {
         workflow,
         steps,
-        pipeline: json
-            .get("pipeline")
+        output_mode: json
+            .get("output_mode")
             .and_then(|v| v.as_str())
             .unwrap_or("dub")
             .to_string(),
@@ -189,8 +189,8 @@ pub fn read_steps(video_dir: &str) -> Result<Vec<WorkflowStep>, String> {
     read_ctx(video_dir).map(|ctx| ctx.steps.unwrap_or_default())
 }
 
-pub fn read_pipeline(video_dir: &str) -> String {
+pub fn read_output_mode(video_dir: &str) -> String {
     read_ctx(video_dir)
-        .map(|ctx| ctx.pipeline)
+        .map(|ctx| ctx.output_mode)
         .unwrap_or_else(|_| "dub".to_string())
 }

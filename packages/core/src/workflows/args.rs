@@ -11,7 +11,7 @@ pub enum WorkflowAction {
     Start,
     #[serde(rename = "continue")]
     Continue,
-    /// 只导入: 下载/拷贝视频 + 探测 + 写 ctx.json, 不跑 pipeline。
+    /// 只导入: 下载/拷贝视频 + 探测 + 写 ctx.json, 不跑 output_mode。
     /// 批量场景可先批量导入, 之后用 continue 逐个续跑重活。
     #[serde(rename = "import")]
     Import,
@@ -39,7 +39,7 @@ pub enum WorkflowAction {
     GenerateMeta,
 }
 
-/// pipeline 阶段名。
+/// output_mode 阶段名。
 ///
 /// **这是 step 名单的唯一真源**：`STEPS_LIST`、`has_handler`、`run_step` 的分派
 /// 都从它派生，这样改名漏一处会**编译失败**，而不是静默跳过。
@@ -116,7 +116,7 @@ impl StepName {
 )]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
-pub enum Pipeline {
+pub enum OutputMode {
     #[default]
     Dub,
     Subtitle,
@@ -192,7 +192,7 @@ pub struct WorkflowArgs {
     pub target_lang: Option<TargetLang>,
     /// 继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始
     pub continue_from: Option<StepName>,
-    /// 目标步骤, pipeline 跑到此步骤后自动停止, 不指定则跑完所有步骤
+    /// 目标步骤, output_mode 跑到此步骤后自动停止, 不指定则跑完所有步骤
     pub target_step: Option<StepName>,
     pub video_dir: Option<String>,
     /// 队列任务 ID (cancel_queue 指定要取消的队列项)
@@ -200,8 +200,12 @@ pub struct WorkflowArgs {
     /// rerunStep 专业参数, 指定要重新运行的步骤
     pub step_name: Option<StepName>,
     /// 任务模式, dub 配音, subtitle 仅字幕
-    #[serde(default)]
-    pub pipeline: Pipeline,
+    ///
+    /// **显式 `rename` 覆盖 `rename_all = "camelCase"`**：本字段的 wire 名沿用
+    /// snake_case（`"output_mode"`），与其余 camelCase 字段不一致——这是刻意的，
+    /// 因为 ctx.json 侧的 `output_mode` 字段也已是 snake_case。
+    #[serde(default, rename = "output_mode")]
+    pub output_mode: OutputMode,
     /// 字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)
     #[serde(default)]
     pub subtitle_source: SubtitleSource,
@@ -215,10 +219,9 @@ pub struct WorkflowArgs {
 mod strum_sync_tests {
     //! serde 的 `rename_all` 与 strum 的 `serialize_all` 是**两套独立属性**——
     //! 不同步就是「JSON 里的名字」与「解析接受的名字」静默分叉。本测试把三者
-    //! （StepName / SubtitleSource / Pipeline）的 serde↔strum 一致性钉住。
+    //! （StepName / SubtitleSource / OutputMode）的 serde↔strum 一致性钉住。
 
     use super::*;
-    use std::str::FromStr;
     use strum::IntoEnumIterator;
 
     fn roundtrip_check<T>(variants: Vec<(String, T)>)
@@ -264,9 +267,9 @@ mod strum_sync_tests {
     }
 
     #[test]
-    fn pipeline_serde_and_strum_agree() {
+    fn output_mode_serde_and_strum_agree() {
         roundtrip_check(
-            [Pipeline::Dub, Pipeline::Subtitle]
+            [OutputMode::Dub, OutputMode::Subtitle]
                 .iter()
                 .map(|v| {
                     (

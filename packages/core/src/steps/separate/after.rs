@@ -207,7 +207,7 @@ mod tests {
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.workflow.video_dir = dir.to_string();
         ctx.workflow.id = "t".to_string();
-        ctx.pipeline = "dub".to_string();
+        ctx.output_mode = "dub".to_string();
         ctx
     }
 

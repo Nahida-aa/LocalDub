@@ -299,7 +299,7 @@ mod tests {
     fn parses_repo_input_jsonc_and_mix_video_decimals() {
         let raw = r#"{
             // 行注释: subtitle_source 走 sf_ocr
-            "workflow": { "action": "start", "pipeline": "dub", "subtitleSource": "sf_ocr" },
+            "workflow": { "action": "start", "output_mode": "dub", "subtitleSource": "sf_ocr" },
             "steps": {
                 "mix_video": {
                     "fontSize": 21.4,

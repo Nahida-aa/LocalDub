@@ -251,7 +251,7 @@ pub fn step_separate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     let cfg = read_args(ctx);
 
     // subtitle 模式且未配置 always → 跳过分离
-    if ctx.pipeline == "subtitle" && !cfg.always {
+    if ctx.output_mode == "subtitle" && !cfg.always {
         tracing::info!(target: "separate", "Skipped (subtitle pipeline, set separate.always=true to force)");
         set_step_anyhow(
             &video_dir,
@@ -389,7 +389,7 @@ mod tests {
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.workflow.video_dir = "/tmp/ld_sep_test".into();
         ctx.workflow.id = "t".into();
-        ctx.pipeline = pipeline.into();
+        ctx.output_mode = pipeline.into();
         ctx.video_source_path = Some("/tmp/ld_sep_test/video_source.mp4".into());
         ctx.audio_source_path = Some("/tmp/ld_sep_test/audio_source.wav".into());
         ctx
@@ -462,12 +462,12 @@ mod tests {
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"steps": {"separate": {"always": false}}},
-                "pipeline": "subtitle"
+                "output_mode": "subtitle"
             }),
             "subtitle",
         );
         ctx.workflow.video_dir = dir.clone();
-        ctx.pipeline = "subtitle".to_string();
+        ctx.output_mode = "subtitle".to_string();
         crate::context::write_ctx(&dir, &ctx).unwrap();
         let res = step_separate(&ctx);
         assert!(res.is_ok(), "subtitle skip 不应失败: {:?}", res.err());

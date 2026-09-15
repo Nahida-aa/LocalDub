@@ -104,7 +104,7 @@ mod tests {
         }))
         .unwrap();
         ctx.workflow.video_dir = dir.to_string();
-        ctx.pipeline = "dub".to_string();
+        ctx.output_mode = "dub".to_string();
         ctx
     }
 

@@ -1,4 +1,4 @@
-//! 用 workflow-core 引擎 (aa-workflow) 驱动 pipeline (Phase 1: 串行等价)。
+//! 用 workflow-core 引擎 (aa-workflow) 驱动 output_mode (Phase 1: 串行等价)。
 //!
 //! 目标: 与 [`crate::workflows::pipeline::run_pipeline`] 对同样的 step 序列、同样的
 //! ctx.json 副作用达成一致, 但"成败真相"从 ctx.json 转移为
@@ -108,7 +108,7 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
                 .and_then(|v| v.get("subtitleSource"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("asr");
-            let dir_name = final_video_dir(&ctx.pipeline, sub_src, no_translate);
+            let dir_name = final_video_dir(&ctx.output_mode, sub_src, no_translate);
             let vid = video_id(wf).unwrap_or_default();
             vec![p(std::path::Path::new(wf)
                 .join("mix_video")
@@ -127,7 +127,7 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
     Some(serde_json::json!({ "artifacts": artifacts }))
 }
 
-/// 用引擎跑 (或续跑) 一条 pipeline, 结束后 workflow.status ∈ {success, failed}。
+/// 用引擎跑 (或续跑) 一条 output_mode, 结束后 workflow.status ∈ {success, failed}。
 ///
 /// 入口是同步的 (`run_workflow_sync` 内部自建 tokio runtime 驱动 handler)。
 pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Result<()> {
@@ -148,7 +148,7 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
     if let Some(ts) = &target_step {
         if !steps.iter().any(|s| s.as_str() == ts) {
             tracing::info!(target: "engine",
-                "[WARN] target_step \"{ts}\" 不在 {} pipeline 中, 忽略", ctx.pipeline);
+                "[WARN] target_step \"{ts}\" 不在 {} output_mode 中, 忽略", ctx.output_mode);
         }
     }
 
@@ -167,7 +167,7 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
     // handler-replay authoring 面: 串行 = 按 get_steps 顺序逐个 ctx.step.await。
     let run_id =
         video_id(video_dir).ok_or_else(|| anyhow::anyhow!("无法从 video_dir 取 run_id"))?;
-    let wf = Workflow::new(ctx.pipeline.clone()).handler({
+    let wf = Workflow::new(ctx.output_mode.clone()).handler({
         let dir = video_dir.to_string();
         let steps = steps;
         move |wctx: WorkflowCtx| {
@@ -257,7 +257,7 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
 
 /// 把引擎终态映射到 workflow 状态 + 返回值。
 ///
-/// 单独抽出来是为了能直接测 `Paused` 那一支——pipeline 的 step handler 是固定的
+/// 单独抽出来是为了能直接测 `Paused` 那一支——output_mode 的 step handler 是固定的
 /// 一组真实工序，没法顺手塞一个「会挂起」的进去。
 fn apply_outcome(
     video_dir: &str,
@@ -298,9 +298,9 @@ fn apply_outcome(
         //
         // core 跑到 `ctx.approve` / `ctx.sleep` / `wait_for_event` 时**写盘就返回**，
         // 不再原地等待（对齐上游 TanStack：`throw new WorkflowPaused()`）。
-        // 所以「跑完一次 run_workflow_engine」不再等于「pipeline 跑完了」。
+        // 所以「跑完一次 run_workflow_engine」不再等于「output_mode 跑完了」。
         //
-        // 本仓的 pipeline 目前**不使用任何挂起原语**（handler 是纯 `ctx.step` 序列），
+        // 本仓的 output_mode 目前**不使用任何挂起原语**（handler 是纯 `ctx.step` 序列），
         // 所以正常路径下不会走到这里。走到这里说明：
         //   - 要么将来给某步加了 `approve`/`sleep`（那需要外部的投递者/驱动器）；
         //   - 要么引擎语义又变了（那说明这里的假设过期了）。
@@ -318,7 +318,7 @@ fn apply_outcome(
             )?;
             Err(anyhow::anyhow!(
                 "workflow {run_id} 在挂起点停下，等待外部投递{w}；\
-                 当前宿主没有投递者（pipeline 不带挂起原语，走到这里说明用例超出了引擎的\
+                 当前宿主没有投递者（output_mode 不带挂起原语，走到这里说明用例超出了引擎的\
                  当前支持范围）。见 aa-workflow docs/runtime-design.md D3"
             ))
         }
@@ -395,12 +395,12 @@ mod tests {
             "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
             "input": input,
-            "pipeline": "subtitle"
+            "output_mode": "subtitle"
         }))
         .unwrap();
         ctx.workflow.video_dir = dir.to_string();
         ctx.workflow.id = "t".to_string();
-        ctx.pipeline = "subtitle".to_string();
+        ctx.output_mode = "subtitle".to_string();
         write_ctx(dir, &ctx).unwrap();
     }
 
@@ -610,7 +610,7 @@ mod tests {
 
     /// 挂起状态必须**如实报错**，不能静默当成成功或失败。
     ///
-    /// pipeline 本身不带挂起原语（handler 是纯 `ctx.step` 序列），所以正常路径
+    /// output_mode 本身不带挂起原语（handler 是纯 `ctx.step` 序列），所以正常路径
     /// 走不到 `RunStatus::Paused`——直接调 `apply_outcome` 验那一支的映射。
     /// 先跑一个真会挂起的 workflow，拿到**真实的** `RunOutcome`（不是手搓的），
     /// 再喂给映射函数，这样两侧都覆盖到。见 aa-workflow D3。

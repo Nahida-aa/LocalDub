@@ -542,7 +542,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.workflow.video_dir = dir.clone();
-        ctx.pipeline = "dub".into();
+        ctx.output_mode = "dub".into();
         write_ctx(&dir, &ctx).unwrap();
         ctx
     }

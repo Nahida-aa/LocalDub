@@ -13,7 +13,7 @@ use crate::context::WorkflowCtx;
 use crate::steps::utils::{now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
 use crate::workflows::pipeline::run_step;
 
-/// 续跑 pipeline (镜像 TS `continuePipeline`)。
+/// 续跑 output_mode (镜像 TS `continuePipeline`)。
 ///
 /// `ctx` 必须由调用者先 `read_ctx(video_dir)` (或自行构造) 后传入; 内部不再读磁盘,
 /// 避免续跑基于陈旧 ctx。
@@ -21,9 +21,9 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.as_str();
     // 进入 workflow span: 携带 video_dir 供 WorkflowFileLayer 落盘。
     let _workflow_guard = tracing::info_span!("workflow", video_dir = video_dir).entered();
-    tracing::info!(target: "pipeline", "continue_pipeline: start");
+    tracing::info!(target: "output_mode", "continue_pipeline: start");
 
-    let pipeline = ctx.pipeline.clone();
+    let output_mode = ctx.output_mode.clone();
     let video_id = ctx.workflow.id.clone();
     let steps = crate::steps::get_steps(&ctx);
 
@@ -44,8 +44,8 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     // targetStep 不在序列中则告警忽略 (镜像 TS)
     if let Some(ts) = &target_step {
         if !steps.iter().any(|s| s.as_str() == ts) {
-            tracing::info!(target: "pipeline",
-                "[WARN] targetStep \"{ts}\" 不在 {pipeline} pipeline 中, 忽略"
+            tracing::info!(target: "output_mode",
+                "[WARN] targetStep \"{ts}\" 不在 {output_mode} output_mode 中, 忽略"
             );
         }
     }
@@ -70,7 +70,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
                 },
             )?;
         }
-        tracing::info!(target: "pipeline",
+        tracing::info!(target: "output_mode",
             "Resetting from \"{cf}\" ({} step(s)), resuming...",
             steps.len() - start_idx
         );
@@ -90,9 +90,9 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             }
         }
         if start_idx == 0 {
-            tracing::info!(target: "pipeline", "continue from beginning");
+            tracing::info!(target: "output_mode", "continue from beginning");
         } else {
-            tracing::info!(target: "pipeline",
+            tracing::info!(target: "output_mode",
                 "Skipping {start_idx} completed step(s), resuming from \"{}\"",
                 steps[start_idx]
             );
@@ -109,7 +109,7 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         },
     )?;
 
-    tracing::info!(target: "pipeline",
+    tracing::info!(target: "output_mode",
         "Running runSteps: {:?}",
         &steps[start_idx..]
     );
@@ -136,20 +136,20 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
                 ..Default::default()
             },
         )?;
-        tracing::info!(target: "pipeline", "Running {step_str}");
+        tracing::info!(target: "output_mode", "Running {step_str}");
 
         match run_step(step, video_dir) {
             Ok(()) => {
                 if let Some(ts) = &target_step {
                     if step_str == ts {
-                        tracing::info!(target: "pipeline", "达到目标步骤 \"{ts}\", 停止");
+                        tracing::info!(target: "output_mode", "达到目标步骤 \"{ts}\", 停止");
                         break;
                     }
                 }
             }
             Err(e) => {
                 let msg = e.to_string();
-                tracing::error!(target: "pipeline", "Step {step_str} failed: {msg}");
+                tracing::error!(target: "output_mode", "Step {step_str} failed: {msg}");
                 set_step_anyhow(
                     video_dir,
                     step_str,
@@ -182,6 +182,6 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-    tracing::info!(target: "pipeline", "Workflow {video_id} completed");
+    tracing::info!(target: "output_mode", "Workflow {video_id} completed");
     Ok(())
 }
