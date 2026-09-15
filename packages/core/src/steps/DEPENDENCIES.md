@@ -275,8 +275,13 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 - **`llmFix` 维度对消费者不可见**——跑没跑 LLM 修正由产出方消化
   （详细文件照写，最后统一落 srt.json），下游只认 srt.json。
+- **路径由构造函数唯一产生**：`paths::{asr,sf_ocr,asr_ocr}_fix::SrtPath::new(video_dir)`。
+  字段私有，故 `"srt.json"` 与各自目录名**在全仓只拼一次**——此前散在 6 处
+  （3 个产出方 `out_dir.join("srt.json")` + 消费者手拼 + engine 事件登记）。
+  三种 `SrtPath` 是不同类型、不可互换，`from_ctx` 的 match 必须逐支写
+  （or-pattern 会因类型不同而编译失败——这是刻意的）。
 - 消费方由类型保证：`TranslateInput::from_ctx`（`translate/mod.rs`）按
-  `subtitleSource` 解析到 `SubtitleSrt::Asr / SfOcr / AsrOcr` 三变体，
+  `subtitleSource` 解析到 `TranslateInput::Asr / SfOcr / AsrOcr` 三变体，
   未知来源报错；srt.json 缺失的存在性语义由 `translate.enabled` 决定
   （见 `translate` 节）。
 - **迁移已完成**：translate / split_audio / mix_video 三个消费者全部只认

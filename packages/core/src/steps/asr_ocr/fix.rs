@@ -530,7 +530,10 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
     // llmFix 与否已由上面消化，这里统一落最终结果。
     let srt_segs: Vec<subtitle::SubtitleSegment> =
         final_segments.iter().map(|s| s.base.clone()).collect();
-    crate::steps::utils::write_srt_json(&out_dir.join("srt.json"), &srt_segs)?;
+    crate::steps::utils::write_srt_json(
+        crate::steps::utils::paths::asr_ocr_fix::SrtPath::new(&video_dir).as_path(),
+        &srt_segs,
+    )?;
 
     info!(target: "asr_ocr",
         "filter-segment done (threshold={}) → {} ASR → {} split → {} merged, {} fused",

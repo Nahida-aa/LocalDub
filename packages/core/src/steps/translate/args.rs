@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
@@ -74,27 +74,32 @@ impl TranslateInput {
     /// `translate.enabled` 决定（见 `step_translate`：enabled 时缺失报错，
     /// disabled 时缺失走空直通）。
     pub fn from_ctx(ctx: &WorkflowCtx) -> anyhow::Result<Self> {
-        let video = PathBuf::from(&ctx.workflow.video_dir);
+        let video = &ctx.workflow.video_dir;
         // subtitleSource 的解析收拢在 `SubtitleSource::from_ctx`——未知来源在
         // 那里报错，这里是穷尽 match，不需要 error 分支。
         Ok(match SubtitleSource::from_ctx(ctx)? {
             SubtitleSource::Asr => TranslateInput::Asr {
-                srt_path: video.join("asr_fix").join("srt.json"),
+                srt_path: asr_fix::SrtPath::new(video),
             },
             SubtitleSource::SfOcr => TranslateInput::SfOcr {
-                srt_path: video.join("sf_ocr_fix").join("srt.json"),
+                srt_path: sf_ocr_fix::SrtPath::new(video),
             },
             SubtitleSource::AsrOcr => TranslateInput::AsrOcr {
-                srt_path: video.join("asr_ocr_fix").join("srt.json"),
+                srt_path: asr_ocr_fix::SrtPath::new(video),
             },
         })
     }
 
     /// 规范化字幕的路径。
-    pub fn srt_path(&self) -> &PathBuf {
+    ///
+    /// 三个变体各写一支（不能合并成 `|` 模式）：三种 `SrtPath` 是**不同类型**，
+    /// or-pattern 要求绑定同一类型。这正是 provenance 的代价与收益——类型系统
+    /// 会挡住「把 sf_ocr 的路径塞给 asr 变量」。
+    pub fn srt_path(&self) -> &Path {
         match self {
-            TranslateInput::Asr { srt_path } | TranslateInput::SfOcr { srt_path }
-            | TranslateInput::AsrOcr { srt_path } => srt_path,
+            TranslateInput::Asr { srt_path } => srt_path.as_path(),
+            TranslateInput::SfOcr { srt_path } => srt_path.as_path(),
+            TranslateInput::AsrOcr { srt_path } => srt_path.as_path(),
         }
     }
 

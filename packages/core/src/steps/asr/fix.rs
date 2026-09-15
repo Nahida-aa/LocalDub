@@ -141,7 +141,10 @@ pub fn step_asr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             end_ms: s.end_ms,
         })
         .collect();
-    crate::steps::utils::write_srt_json(&asr_fix_dir.join("srt.json"), &srt_segs)?;
+    crate::steps::utils::write_srt_json(
+        crate::steps::utils::paths::asr_fix::SrtPath::new(&video_dir).as_path(),
+        &srt_segs,
+    )?;
 
     tracing::info!(target: "asr",
         "Written {} segs to asr_fix.json",

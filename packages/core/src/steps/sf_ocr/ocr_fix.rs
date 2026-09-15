@@ -169,7 +169,10 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             })
         })
         .collect();
-    crate::steps::utils::write_srt_json(&out_dir.join("srt.json"), &srt_segs)?;
+    crate::steps::utils::write_srt_json(
+        crate::steps::utils::paths::sf_ocr_fix::SrtPath::new(&video_dir).as_path(),
+        &srt_segs,
+    )?;
 
     set_step_anyhow(
         &video_dir,
