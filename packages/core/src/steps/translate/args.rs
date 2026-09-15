@@ -6,6 +6,7 @@ use config_rs::env::{openai_base_url, openai_model};
 
 use crate::context::WorkflowCtx;
 use crate::steps::utils::paths::{asr_fix, asr_ocr_fix, sf_ocr_fix};
+use crate::workflows::args::SubtitleSource;
 
 /// translate 阶段参数 (镜像 TS `packages/core/steps/05_translate/args.ts` TranslateArgsSchema)
 ///
@@ -73,38 +74,20 @@ impl TranslateInput {
     /// `translate.enabled` 决定（见 `step_translate`：enabled 时缺失报错，
     /// disabled 时缺失走空直通）。
     pub fn from_ctx(ctx: &WorkflowCtx) -> anyhow::Result<Self> {
-        let video_dir = &ctx.workflow.video_dir;
-        let source = ctx
-            .input
-            .get("workflow")
-            .and_then(|v| v.get("subtitleSource"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("asr")
-            .to_string();
-
-        // srt.json 路径 = `paths` 命名空间类型 + 拼接规则（与产出方一致）。
-        // 别名是透明的 PathBuf，直接构造即可。
-        let subtitle = match source.as_str() {
-            "sf_ocr" => TranslateInput::SfOcr {
-                srt_path: PathBuf::from(video_dir)
-                    .join("sf_ocr_fix")
-                    .join("srt.json"),
+        let video = PathBuf::from(&ctx.workflow.video_dir);
+        // subtitleSource 的解析收拢在 `SubtitleSource::from_ctx`——未知来源在
+        // 那里报错，这里是穷尽 match，不需要 error 分支。
+        Ok(match SubtitleSource::from_ctx(ctx)? {
+            SubtitleSource::Asr => TranslateInput::Asr {
+                srt_path: video.join("asr_fix").join("srt.json"),
             },
-            "asr_ocr" => TranslateInput::AsrOcr {
-                srt_path: PathBuf::from(video_dir)
-                    .join("asr_ocr_fix")
-                    .join("srt.json"),
+            SubtitleSource::SfOcr => TranslateInput::SfOcr {
+                srt_path: video.join("sf_ocr_fix").join("srt.json"),
             },
-            "asr" => TranslateInput::Asr {
-                srt_path: PathBuf::from(video_dir).join("asr_fix").join("srt.json"),
+            SubtitleSource::AsrOcr => TranslateInput::AsrOcr {
+                srt_path: video.join("asr_ocr_fix").join("srt.json"),
             },
-            other => {
-                return Err(anyhow::anyhow!(
-                    "未知的 subtitleSource \"{other}\"（期望 asr / sf_ocr / asr_ocr）"
-                ))
-            }
-        };
-        Ok(subtitle)
+        })
     }
 
     /// 规范化字幕的路径。

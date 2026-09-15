@@ -142,6 +142,48 @@ pub enum SubtitleSource {
     AsrOcr,
 }
 
+impl SubtitleSource {
+    /// snake_case 名（与 serde 表示、input.jsonc 里的字符串一致）。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SubtitleSource::Asr => "asr",
+            SubtitleSource::SfOcr => "sf_ocr",
+            SubtitleSource::AsrOcr => "asr_ocr",
+        }
+    }
+
+    /// 解析 subtitleSource 字符串。未知名返回 None——调用方应报错而非静默
+    /// 回退（配错来源会让整条链跑错，静默默认是帮倒忙）。
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "asr" => Some(SubtitleSource::Asr),
+            "sf_ocr" => Some(SubtitleSource::SfOcr),
+            "asr_ocr" => Some(SubtitleSource::AsrOcr),
+            _ => None,
+        }
+    }
+
+    /// 从 ctx 解析 `input.workflow.subtitleSource`。未知名 → 报错（fail-fast；
+    /// 缺省时按 `#[default]` 走 asr）。
+    pub fn from_ctx(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<Self> {
+        let s = ctx
+            .input
+            .get("workflow")
+            .and_then(|v| v.get("subtitleSource"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("asr");
+        Self::parse(s).ok_or_else(|| {
+            anyhow::anyhow!("未知的 subtitleSource \"{s}\"（期望 asr / sf_ocr / asr_ocr）")
+        })
+    }
+}
+
+impl std::fmt::Display for SubtitleSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// workflow 参数 (镜像 workflowArgsSchema)
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
