@@ -9,6 +9,7 @@
 use crate::cmd::env::ensure_bin;
 use crate::context::WorkflowCtx;
 use crate::steps::sf_ocr::fix_args::OcrFixArgs;
+use crate::steps::utils::paths::{sf_ocr_fix, SrtJsonPath};
 use crate::steps::utils::{
     now_iso, set_step_anyhow, sf_ocr_dir, sf_ocr_fix_dir, StepPatch, StepStatus,
 };
@@ -169,10 +170,7 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             })
         })
         .collect();
-    crate::steps::utils::write_srt_json(
-        crate::steps::utils::paths::sf_ocr_fix::SrtPath::new(&video_dir).as_path(),
-        &srt_segs,
-    )?;
+    crate::steps::utils::write_srt_json(sf_ocr_fix::SrtPath::new(&video_dir).as_path(), &srt_segs)?;
 
     set_step_anyhow(
         &video_dir,

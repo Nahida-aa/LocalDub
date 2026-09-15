@@ -80,11 +80,10 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
         "separate" => vec![p(separate_dir(wf))],
         "separate_after" => vec![p(mixed_vocals_path(wf)), p(gated_vocals_path(wf))],
         "asr" => vec![p(asr_dir(wf))],
-        "asr_fix" => vec![p(
-            crate::steps::utils::paths::asr_fix::SrtPath::new(wf)
-                .as_path()
-                .to_path_buf(),
-        )],
+        "asr_fix" => {
+            use crate::steps::utils::paths::{asr_fix, SrtJsonPath};
+            vec![p(asr_fix::SrtPath::new(wf).as_path().to_path_buf())]
+        }
         "translate" => {
             let ctx = crate::context::read_ctx(wf).ok()?;
             let (_, lang) = resolve_language(&ctx).ok()?;

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use config_rs::env::{openai_base_url, openai_model};
 
 use crate::context::WorkflowCtx;
-use crate::steps::utils::paths::{asr_fix, asr_ocr_fix, sf_ocr_fix};
+use crate::steps::utils::paths::{asr_fix, asr_ocr_fix, sf_ocr_fix, SrtJsonPath};
 use crate::workflows::args::SubtitleSource;
 
 /// translate 阶段参数 (镜像 TS `packages/core/steps/05_translate/args.ts` TranslateArgsSchema)

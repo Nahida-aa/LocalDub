@@ -37,6 +37,38 @@ mod asr {
     pub type AsrPath = PathBuf;
 }
 
+/// 规范化字幕产物的共同契约 `{step}/srt.json`。
+///
+/// **为什么有它**：三个 `SrtPath`（`asr_fix` / `sf_ocr_fix` / `asr_ocr_fix`）
+/// 方法签名逐字相同。特征把「三个类型都承诺这件事」写成一句话——将来加第四个
+/// （或加一个方法）时，编译器会点名谁没跟上，而不是靠三份复制互相对齐。
+///
+/// **只有三个方法，没有 `AsRef<Path>` / `Display`**：全仓的调用点一律走
+/// `as_path()`（产出方喂 `write_srt_json`、消费者喂 `read_srt_json`、错误信息
+/// 用 `{p}` 时也是 `as_path().display()`）。加 `AsRef` / `Display` 是「别人
+/// 可能会要」的猜测——而它们**无法用 blanket impl 统一**（孤儿规则：不能为
+/// 「所有实现本特征的类型」实现 `AsRef<Path>`），只能手写三份或上宏。
+/// 没有真实需求，就不该有这三个复制品。
+///
+/// **`new()` 留在里面**是刻意的矛盾权衡：返回 `Self` 的关联函数在 trait 里
+/// 调用要写 `<T as SrtJsonPath>::new(..)`，但我们**从不**这样调——调用点一律走
+/// 具体类型（`asr_fix::SrtPath::new(video_dir)`），此时编译器命中固有 impl，
+/// trait 里的声明只起契约作用，不影响可读性。
+///
+/// **`dir()` 为什么也算契约**：它无 `self`、日常用得少，但它是 `new()` 的父目录，
+/// 两者必须一致，放一起才能让「产出方建目录」与「消费者读文件」用同一套词汇。
+/// 不一致由 `dir_is_parent_of_srt_path` 钉住。
+pub trait SrtJsonPath: Sized {
+    /// 构造：`{video_dir}/{step}/srt.json`。
+    fn new(video_dir: impl AsRef<Path>) -> Self;
+
+    /// 规范化字幕的完整路径。
+    fn as_path(&self) -> &Path;
+
+    /// 所属目录（产出方需要先 `ensure_dir` 再来写）。
+    fn dir(video_dir: impl AsRef<Path>) -> PathBuf;
+}
+
 pub mod asr_fix {
     use super::*;
     // asr_fix/asr_fix.json（详细产物，**非**规范化字幕——规范化的是下面 SrtPath）
@@ -48,36 +80,23 @@ pub mod asr_fix {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct SrtPath(PathBuf);
 
-    impl SrtPath {
-        /// 构造：`{video_dir}/asr_fix/srt.json`。
+    impl SrtJsonPath for SrtPath {
+        /// `{video_dir}/asr_fix/srt.json`。
         ///
         /// **这是全仓唯一的拼法**。此前 `"srt.json"` 在 6 处各写一遍
         /// （3 个产出方的 `out_dir.join("srt.json")` + 消费者手拼的
         /// `video.join("asr_fix").join("srt.json")` + engine 事件登记），
         /// 改名要同时改 6 处，漏一处是运行时「文件不存在」。
-        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+        fn new(video_dir: impl AsRef<Path>) -> Self {
             Self(video_dir.as_ref().join("asr_fix").join("srt.json"))
         }
 
-        pub fn as_path(&self) -> &Path {
+        fn as_path(&self) -> &Path {
             &self.0
         }
 
-        /// 所属目录（产出方需要先 `ensure_dir` 再来写）。
-        pub fn dir(video_dir: impl AsRef<Path>) -> PathBuf {
+        fn dir(video_dir: impl AsRef<Path>) -> PathBuf {
             video_dir.as_ref().join("asr_fix")
-        }
-    }
-
-    impl AsRef<Path> for SrtPath {
-        fn as_ref(&self) -> &Path {
-            &self.0
-        }
-    }
-
-    impl std::fmt::Display for SrtPath {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", self.0.display())
         }
     }
 }
@@ -92,30 +111,17 @@ pub mod sf_ocr_fix {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct SrtPath(PathBuf);
 
-    impl SrtPath {
-        /// 构造：`{video_dir}/sf_ocr_fix/srt.json`。
-        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+    impl SrtJsonPath for SrtPath {
+        fn new(video_dir: impl AsRef<Path>) -> Self {
             Self(video_dir.as_ref().join("sf_ocr_fix").join("srt.json"))
         }
 
-        pub fn as_path(&self) -> &Path {
+        fn as_path(&self) -> &Path {
             &self.0
         }
 
-        pub fn dir(video_dir: impl AsRef<Path>) -> PathBuf {
+        fn dir(video_dir: impl AsRef<Path>) -> PathBuf {
             video_dir.as_ref().join("sf_ocr_fix")
-        }
-    }
-
-    impl AsRef<Path> for SrtPath {
-        fn as_ref(&self) -> &Path {
-            &self.0
-        }
-    }
-
-    impl std::fmt::Display for SrtPath {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", self.0.display())
         }
     }
 }
@@ -130,30 +136,17 @@ pub mod asr_ocr_fix {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct SrtPath(PathBuf);
 
-    impl SrtPath {
-        /// 构造：`{video_dir}/asr_ocr_fix/srt.json`。
-        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+    impl SrtJsonPath for SrtPath {
+        fn new(video_dir: impl AsRef<Path>) -> Self {
             Self(video_dir.as_ref().join("asr_ocr_fix").join("srt.json"))
         }
 
-        pub fn as_path(&self) -> &Path {
+        fn as_path(&self) -> &Path {
             &self.0
         }
 
-        pub fn dir(video_dir: impl AsRef<Path>) -> PathBuf {
+        fn dir(video_dir: impl AsRef<Path>) -> PathBuf {
             video_dir.as_ref().join("asr_ocr_fix")
-        }
-    }
-
-    impl AsRef<Path> for SrtPath {
-        fn as_ref(&self) -> &Path {
-            &self.0
-        }
-    }
-
-    impl std::fmt::Display for SrtPath {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "{}", self.0.display())
         }
     }
 }
@@ -202,19 +195,19 @@ mod tests {
     ///
     /// 字面钉死路径——构造函数是**全仓唯一拼法**，没有第二处旧写法可以对照，
     /// 所以这里必须充当那个对照物。改名时先红的是这条。
+    ///
+    /// 用 `as_path()` 取值而非 `to_string()`：这正是不给 `SrtPath` 实现
+    /// `Display` 的代价与收益——少一个复制品，多一次 `.display()`。
     #[test]
     fn srt_path_shape_per_fix_step() {
         for (actual, expected) in [
+            (asr_fix::SrtPath::new("/w").as_path().display().to_string(), "/w/asr_fix/srt.json"),
             (
-                asr_fix::SrtPath::new("/w").to_string(),
-                "/w/asr_fix/srt.json",
-            ),
-            (
-                sf_ocr_fix::SrtPath::new("/w").to_string(),
+                sf_ocr_fix::SrtPath::new("/w").as_path().display().to_string(),
                 "/w/sf_ocr_fix/srt.json",
             ),
             (
-                asr_ocr_fix::SrtPath::new("/w").to_string(),
+                asr_ocr_fix::SrtPath::new("/w").as_path().display().to_string(),
                 "/w/asr_ocr_fix/srt.json",
             ),
         ] {

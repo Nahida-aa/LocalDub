@@ -11,6 +11,7 @@ use crate::cmd::env::ensure_bin;
 use crate::context::WorkflowCtx;
 use crate::steps::asr::out::AsrResult;
 use crate::steps::asr_ocr::fix_args::AsrOcrFixArgs;
+use crate::steps::utils::paths::{asr_ocr_fix, SrtJsonPath};
 use crate::steps::utils::{
     asr_dir, asr_ocr_dir, asr_ocr_fix_dir, asr_ocr_pre_dir, now_iso, probe_video_resolution,
     set_step_anyhow, video_source_path, StepPatch, StepStatus,
@@ -530,10 +531,7 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
     // llmFix 与否已由上面消化，这里统一落最终结果。
     let srt_segs: Vec<subtitle::SubtitleSegment> =
         final_segments.iter().map(|s| s.base.clone()).collect();
-    crate::steps::utils::write_srt_json(
-        crate::steps::utils::paths::asr_ocr_fix::SrtPath::new(&video_dir).as_path(),
-        &srt_segs,
-    )?;
+    crate::steps::utils::write_srt_json(asr_ocr_fix::SrtPath::new(&video_dir).as_path(), &srt_segs)?;
 
     info!(target: "asr_ocr",
         "filter-segment done (threshold={}) → {} ASR → {} split → {} merged, {} fused",

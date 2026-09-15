@@ -5,6 +5,7 @@ use anyhow::{anyhow, Context};
 use crate::context::WorkflowCtx;
 use crate::steps::asr::fix_args::AsrFixArgs;
 use crate::steps::asr::out::AsrResult;
+use crate::steps::utils::paths::{asr_fix, SrtJsonPath};
 use crate::steps::utils::{
     asr_dir, ensure_dir, now_iso, resolve_language, set_step_anyhow, StepPatch, StepStatus,
 };
@@ -141,10 +142,7 @@ pub fn step_asr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             end_ms: s.end_ms,
         })
         .collect();
-    crate::steps::utils::write_srt_json(
-        crate::steps::utils::paths::asr_fix::SrtPath::new(&video_dir).as_path(),
-        &srt_segs,
-    )?;
+    crate::steps::utils::write_srt_json(asr_fix::SrtPath::new(&video_dir).as_path(), &srt_segs)?;
 
     tracing::info!(target: "asr",
         "Written {} segs to asr_fix.json",
