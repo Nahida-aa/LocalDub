@@ -185,15 +185,35 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 从此只认这一种字幕来源（split_audio / mix_video 的「无译文用原文」分支成为
 历史，可后续清理）。
 
+> **直通时 `{lang} = 源语言`，无条件。**
+>
+> 没有翻译就没有「目标语言」这个概念——dst 装的是原文，产物就该以原文语言命名。
+> 显式配了 `targetLang` 也一样被源语言覆盖：那在有翻译时才是"事实"，直通时只是
+> "以后打算翻译成什么"的意向，不是本次事实。
+>
+> 为什么必须这样：`{lang}` 除了命名还驱动 `default_font`（`utils/mod.rs:355`，
+> 非 `zh` → `Arial`）。若直通时 `{lang}` 是推断出的 `en`，中文字幕会被配上
+> Arial——Arial 无中文字形。这个 bug 与内容语言无关，纯粹是槽位标识惹的。
+>
+> 规则实现在 `resolve_language`（`utils/mod.rs:607`），由
+> `passthrough_targets_source_language` / `passthrough_overrides_explicit_target_lang`
+> 守护。
+
 | | 路径 |
 | --- | --- |
 | **读** ⚠️ | 规范化字幕 `srt.json`（按 `subtitleSource` 选目录，见「规范化字幕」节；类型化契约 `TranslateInput::from_ctx`，未知来源**报错**） |
 | **读** | `data/bin/yt-dlp` 产物（可选元信息） |
 | **写** | `translate/translation.{lang}.json`（类型化契约 `TranslateOutput::for_lang`）、中间态 `translation.{lang}.partial.json`（仅 LLM 路径，私有状态） |
+| **写** | `ctx.json` 的 `target_language`——**全仓唯一写点**（`persist_target_language`），见下 |
 
 > 存在性语义按 enabled 分：**enabled** 时 srt.json 缺失/空 → 报错（要求翻译
 > 却没有内容 = 上游问题）；**disabled** 时缺失 → 空 segments 直通（上游被
 > 禁用，本来就没有字幕——与旧行为「translate 被移除」的成功语义一致）。
+>
+> 注意：直通时 `translation.{lang}.json` 的旧语言版本**不会被清理**。切换语言
+> 重跑会留下多份（真实数据里已有任务同时存在 `translation.vi.json` 与
+> `translation.zh.json`）。这是合法状态——「当前是哪份」由 `ctx.target_language`
+> 单一写入点决定，不靠扫目录。
 
 > **`translation.{lang}.json` 的路径是单点构造的。** 它是全流水线唯一「产物被 5 处
 > 各拼一遍」的文件（写侧 + split_audio 读 + mix_video 读 + engine 事件登记，

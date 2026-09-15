@@ -585,12 +585,25 @@ pub fn read_translation_result(
     serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("解析翻译文件 {out} 失败: {e}"))
 }
 
-/// 解析目标语言: input.workflow.targetLang > auto 推断 (源语言 zh -> en, 否则 -> zh)。
-/// 与 TS `resolveLanguage` 一致: 若解析出的目标语言与 ctx.target_language 不同, 写回
-/// ctx.json 的 target_language (通过 [`set_workflow`])。返回 (srcLang, targetLang)。
+/// 解析目标语言。返回 `(srcLang, targetLang)`。
 ///
-/// 目标语言是任务级概念 (一个任务只有一个翻译阶段), 配置入口统一为
-/// `input.workflow.targetLang`; 旧 `steps.translate.targetLang` 已移除。
+/// **规则**（按序）：
+/// 1. `translate.enabled == false`（直通）→ **目标语言 = 源语言**。
+///    直通时 dst 装的是原文，产物就该以原文语言命名；否则会出现
+///    `translation.en.json` 里装中文这种名实不符，且下游按"目标语言"
+///    选字体时（`default_font`：非 zh → Arial）会给中文字幕配 Arial。
+/// 2. 否则 `input.workflow.targetLang`
+/// 3. 否则 auto 推断（源 zh → en，其它 → zh）
+///
+/// 直通时**无条件用源语言**，即使配了 `targetLang` 也一样——「目标语言」在
+/// 没有翻译的前提下不成立，此时它只是"以后打算翻译成什么"的意向，不是本次
+/// 事实。本次事实由产物名与 `ctx.target_language` 承载，必须是源语言。
+///
+/// 目标语言是任务级概念（一个任务只有一个翻译阶段），配置入口统一为
+/// `input.workflow.targetLang`；旧 `steps.translate.targetLang` 已移除。
+///
+/// **本函数是纯函数**（无副作用）。落盘由
+/// [`persist_target_language`] 完成，且只由 translate 调一次。
 pub fn resolve_language(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<(String, String)> {
     let input_target = ctx
         .input
@@ -613,13 +626,33 @@ pub fn resolve_language(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<(St
                 .map(Language::from)
         })
         .unwrap_or_else(default_lang);
-    // 目标语言: input.workflow.targetLang > auto 推断 (源 zh -> en, 其它 -> zh)。
+    let src_code = src_lang.code().to_string();
+
+    // ① 直通：目标 = 源。不查配置、不推断——没有翻译就没有"目标"这个概念。
+    if !translate_enabled(ctx) {
+        return Ok((src_code.clone(), src_code));
+    }
+
+    // ②③ 目标语言: input.workflow.targetLang > auto 推断 (源 zh -> en, 其它 -> zh)。
     // 目标必须是支持的翻译语言: 显式值经 TargetLang 校验 (非法回落 auto)。
     let resolved: TargetLang = input_target
         .as_deref()
         .and_then(TargetLang::from_code)
         .unwrap_or_else(|| infer_target_lang(&src_lang));
-    Ok((src_lang.code().to_string(), resolved.as_str().to_string()))
+    Ok((src_code, resolved.as_str().to_string()))
+}
+
+/// `steps.translate.enabled`，缺省 `true`（与 `TranslateArgs` 的 serde 默认一致）。
+///
+/// 直读 JSON 而非构造 `TranslateArgs`：本函数在 `utils` 层，不该依赖 translate
+/// 的 args 类型（那会形成 utils → steps::translate 的循环依赖）。
+fn translate_enabled(ctx: &crate::context::WorkflowCtx) -> bool {
+    ctx.input
+        .get("steps")
+        .and_then(|v| v.get("translate"))
+        .and_then(|v| v.get("enabled"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true)
 }
 
 /// 把本次的目标语言**落盘**（ctx.json 的 `target_language`）。
@@ -678,6 +711,81 @@ mod tests {
         assert!(s.ends_with('Z'));
         assert!(!s.contains('.'), "不应含毫秒: {s}");
         assert_eq!(s.len(), 20);
+    }
+
+    /// 直通（`translate.enabled=false`）→ **目标语言 = 源语言**。
+    ///
+    /// 没有翻译就没有"目标"这个概念：dst 装的是原文，产物就该以原文语言命名。
+    /// 否则会出现 `translation.en.json` 里装中文这种名实不符，且 `default_font`
+    /// 按"目标语言"选字体（非 zh → Arial）会给中文字幕配 Arial。
+    #[test]
+    fn passthrough_targets_source_language() {
+        let ctx = ctx_at(
+            "/x",
+            json!({
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
+                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
+                "input": {"workflow": {"sourceLang": "zh"},
+                          "steps": {"translate": {"enabled": false}}}
+            }),
+        );
+        let (src, dst) = resolve_language(&ctx).unwrap();
+        assert_eq!(src, "zh");
+        assert_eq!(dst, "zh", "直通时目标应等于源（不是推断出的 en）");
+    }
+
+    /// 直通时**无条件**用源语言——即使显式配了 `targetLang`。
+    ///
+    /// 理由：「目标语言」在没有翻译的前提下不成立，配了也只是"以后打算翻译成
+    /// 什么"的意向，不是本次事实。本次事实由产物名与 `ctx.target_language`
+    /// 承载，必须是源语言。
+    #[test]
+    fn passthrough_overrides_explicit_target_lang() {
+        let ctx = ctx_at(
+            "/x",
+            json!({
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
+                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
+                "input": {"workflow": {"sourceLang": "zh", "targetLang": "vi"},
+                          "steps": {"translate": {"enabled": false}}}
+            }),
+        );
+        let (_, dst) = resolve_language(&ctx).unwrap();
+        assert_eq!(dst, "zh", "直通时显式 targetLang 被源语言覆盖");
+    }
+
+    /// `enabled` 缺省为 true（与 `TranslateArgs` 的 serde 默认一致）→ 正常解析。
+    ///
+    /// 这条防的是「把缺省当成 false」——那会让所有没写 enabled 的任务突然
+    /// 全部走直通，静默不翻译。
+    #[test]
+    fn missing_enabled_defaults_to_translating() {
+        let ctx = ctx_at(
+            "/x",
+            json!({
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
+                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
+                "input": {"workflow": {"sourceLang": "zh"}}
+            }),
+        );
+        let (_, dst) = resolve_language(&ctx).unwrap();
+        assert_eq!(dst, "en", "缺省 enabled=true → 正常推断（源 zh → en）");
+    }
+
+    /// 开翻译时显式 `targetLang` 优先于推断。
+    #[test]
+    fn explicit_target_wins_when_translating() {
+        let ctx = ctx_at(
+            "/x",
+            json!({
+                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
+                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
+                "input": {"workflow": {"sourceLang": "zh", "targetLang": "vi"},
+                          "steps": {"translate": {"enabled": true}}}
+            }),
+        );
+        let (_, dst) = resolve_language(&ctx).unwrap();
+        assert_eq!(dst, "vi");
     }
 
     #[test]
