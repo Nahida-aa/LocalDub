@@ -113,6 +113,7 @@ impl StepName {
     strum::EnumString,
     strum::AsRefStr,
     strum::IntoStaticStr,
+    strum::EnumVariantNames,
 )]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
@@ -120,6 +121,30 @@ pub enum OutputMode {
     #[default]
     Dub,
     Subtitle,
+}
+
+impl OutputMode {
+    /// 从 ctx 解析 `ctx.output_mode`（import 落定的事实，字符串形式）。
+    ///
+    /// 与 `SubtitleSource::from_ctx`（读 `input.workflow.subtitleSource` 原始输入）不同，
+    /// OutputMode 已被 import 拍平进 `ctx.output_mode`，此处读**事实**而非重解析输入
+    /// —— 与 `LangPath::from_ctx`「读事实，缺失即报错」的取向一致。
+    ///
+    /// 空串按 `#[default]`（Dub）兜底（与 `read_ctx_from_value` / `WorkflowArgs` 默认一致）；
+    /// 未知值报错（fail-fast，期望列表由 `VARIANTS` 生成，加变体自动更新）。
+    pub fn from_ctx(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<Self> {
+        use strum::VariantNames;
+        let s = ctx.output_mode.trim();
+        if s.is_empty() {
+            return Ok(Self::default());
+        }
+        s.parse::<OutputMode>().map_err(|_| {
+            anyhow::anyhow!(
+                "未知的 output_mode \"{s}\"（期望 {}）",
+                Self::VARIANTS.join(" / ")
+            )
+        })
+    }
 }
 
 /// 字幕源
@@ -279,5 +304,35 @@ mod strum_sync_tests {
                 })
                 .collect(),
         );
+    }
+
+    #[test]
+    fn output_mode_from_ctx_reads_fact() {
+        use crate::context::read_ctx_from_value;
+        use serde_json::json;
+
+        let mk = |output_mode: Option<&str>| {
+            let mut v = json!({
+                "workflow": {"id":"t","video_dir":"/w","url":"http://e","source":"remote",
+                             "status":"running","created_at":"2024-01-01T00:00:00Z"}
+            });
+            if let Some(m) = output_mode {
+                v["output_mode"] = json!(m);
+            }
+            read_ctx_from_value(v).unwrap()
+        };
+
+        // 读事实：ctx.output_mode 已是 import 落定的值
+        assert_eq!(
+            OutputMode::from_ctx(&mk(Some("subtitle"))).unwrap(),
+            OutputMode::Subtitle
+        );
+
+        // 缺省：read_ctx_from_value 默认 dub，from_ctx 解析出 Dub
+        assert_eq!(mk(None).output_mode, "dub");
+        assert_eq!(OutputMode::from_ctx(&mk(None)).unwrap(), OutputMode::Dub);
+
+        // 未知值报错（fail-fast）
+        assert!(OutputMode::from_ctx(&mk(Some("karaoke"))).is_err());
     }
 }
