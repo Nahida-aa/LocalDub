@@ -10,7 +10,7 @@ use derive_more::{Deref, DerefMut, From, Into};
 use serde::{Deserialize, Serialize};
 use subtitle::SubtitleSegment;
 
-use super::ensure_dir;
+use crate::utils::file_ops::{ensure_parent_dir, write_json_pretty};
 
 /// 规范化字幕段集合（镜像 TS `SubtitleSegment[]`，内容类型）。
 ///
@@ -64,15 +64,8 @@ impl SubtitleSegments {
                 s.end_ms
             ));
         }
-        let out = serde_json::json!({ "result": { "segments": self.0 } });
-        if let Some(parent) = path.parent() {
-            ensure_dir(parent)?;
-        }
-        let json = serde_json::to_string_pretty(&out)
-            .map_err(|e| anyhow::anyhow!("序列化 srt.json 失败: {e}"))?;
-        fs::write(path, json)
-            .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", path.display(), e))?;
-        Ok(())
+        ensure_parent_dir(path).map_err(|e| anyhow::anyhow!("创建目录失败: {e}"))?;
+        write_json_pretty(path, &serde_json::json!({ "result": { "segments": self.0 } }))
     }
 
     /// 从 **SRT 文本文件**读入（[`write_srt`](Self::write_srt) 的逆操作）。
