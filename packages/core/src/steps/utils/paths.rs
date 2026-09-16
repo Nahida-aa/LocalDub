@@ -319,17 +319,56 @@ pub mod translate {
 // 读到它们时不要假设「有人在用」——实际路径拼装仍在 `utils/mod.rs`。
 // ---------------------------------------------------------------------------
 
-mod split_audio {
+pub mod split_audio {
     use super::*;
     // split_audio/split_audio.json
-    pub type SplitAudioPath = PathBuf;
+    #[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut, From, Into)]
+    pub struct SplitAudioPath(PathBuf);
+
+    impl SplitAudioPath {
+        /// 唯一拼法来源：`{video_dir}/split_audio/split_audio.json`
+        /// （与 `crate::steps::utils::split_audio_path` 同款落点）。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(
+                Path::new(video_dir.as_ref())
+                    .join("split_audio")
+                    .join("split_audio.json"),
+            )
+        }
+
+        /// 本类型承诺的路径访问器（与 `SrtPath` / `Target3VocalsPath` 同签名）。
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
     // split_audio/timings.json
-    pub type TimingsPath = PathBuf;
+    #[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut, From, Into)]
+    pub struct TimingsPath(PathBuf);
+
+    impl TimingsPath {
+        /// 唯一拼法来源：`{video_dir}/split_audio/timings.json`
+        /// （与 `crate::steps::utils::split_audio_timings_path` 同款落点）。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(
+                Path::new(video_dir.as_ref())
+                    .join("split_audio")
+                    .join("timings.json"),
+            )
+        }
+
+        /// 本类型承诺的路径访问器（与 `SrtPath` / `Target3VocalsPath` 同签名）。
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
 }
-mod tts {
+
+pub mod tts {
     use super::*;
     // tts/tts.json
     pub type TtsPath = PathBuf;
+    // tts/wavs/{:04}.wav
+    pub type WavsDir = PathBuf;
 }
 mod mix_audio {
     use super::*;
