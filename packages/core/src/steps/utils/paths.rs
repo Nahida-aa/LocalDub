@@ -368,7 +368,20 @@ pub mod tts {
     // tts/tts.json
     pub type TtsPath = PathBuf;
     // tts/wavs/{:04}.wav
-    pub type WavsDir = PathBuf;
+    #[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut, From, Into)]
+    pub struct WavsDir(PathBuf);
+
+    impl WavsDir {
+        /// 唯一拼法来源：`{video_dir}/tts/wavs`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(Path::new(video_dir.as_ref()).join("tts").join("wavs"))
+        }
+
+        /// 本类型承诺的路径访问器（与 `SrtPath` / `Target3VocalsPath` 同签名）。
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
 }
 mod mix_audio {
     use super::*;
