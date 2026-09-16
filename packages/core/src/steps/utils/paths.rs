@@ -455,7 +455,25 @@ pub mod tts {
 pub mod mix_audio {
     use super::*;
     // mix_audio/audio_dubbing.wav
-    pub type DubbingPath = PathBuf;
+    #[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut, From, Into)]
+    pub struct DubbingPath(PathBuf);
+
+    impl DubbingPath {
+        /// 唯一拼法来源：`{video_dir}/mix_audio/audio_dubbing.wav`
+        /// （与 `crate::steps::utils::dubbing_path` 同款落点）。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(
+                Path::new(video_dir.as_ref())
+                    .join("mix_audio")
+                    .join("audio_dubbing.wav"),
+            )
+        }
+
+        /// 本类型承诺的路径访问器（与 `SrtPath` / `Target3VocalsPath` 同签名）。
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
     // mix_audio/timings.json
     #[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut, From, Into)]
     pub struct TimingsPath(PathBuf);
