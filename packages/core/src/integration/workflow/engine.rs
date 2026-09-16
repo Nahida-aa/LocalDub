@@ -44,7 +44,7 @@ impl EngineOptions {
     /// 从 `ctx.input` 填充: `workflow.continueFrom` / `workflow.targetStep`
     /// (TS 续跑路径放这)。`ctx.input` 已是结构化 [`Input`](crate::input::Input)，
     /// 故直接读类型字段（无顶层 `targetStep` 兜底——该字段本就位于 `workflow` 下）。
-    pub fn from_ctx_input(input: &crate::input::Input) -> Self {
+    pub fn from_input(input: &crate::input::Input) -> Self {
         let wf = input.workflow.as_ref();
         let target_step = wf
             .and_then(|w| w.target_step.as_ref())
@@ -83,7 +83,7 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
         "translate" => {
             let ctx = crate::context::read_ctx(wf).ok()?;
             // 读已落定的事实（translation 步骤写的），不现算。
-            let p_lang = crate::steps::utils::paths::translate::LangPath::from_ctx(&ctx).ok()?;
+            let p_lang = crate::steps::utils::paths::translate::LangPath::from_state(&ctx).ok()?;
             vec![p(p_lang.as_path().to_path_buf())]
         }
         "split_audio" => vec![p(split_audio_path(wf)), p(split_audio_timings_path(wf))],
@@ -128,11 +128,11 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
     let target_step = opts
         .target_step
         .clone()
-        .or_else(|| EngineOptions::from_ctx_input(&ctx.input).target_step);
+        .or_else(|| EngineOptions::from_input(&ctx.input).target_step);
     let continue_from = opts
         .continue_from
         .clone()
-        .or_else(|| EngineOptions::from_ctx_input(&ctx.input).continue_from);
+        .or_else(|| EngineOptions::from_input(&ctx.input).continue_from);
 
     // target_step 不在序列中则告警忽略 (镜像 run_pipeline)
     if let Some(ts) = &target_step {
