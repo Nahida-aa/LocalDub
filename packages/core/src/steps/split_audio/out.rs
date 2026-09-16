@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::steps::translate::out::TranslateSegment;
-use crate::steps::utils::paths::split_audio::{self, TimingsPath};
+use crate::steps::utils::paths::split_audio;
 use crate::steps::utils::srt::SubtitleSegments;
 use subtitle::SubtitleSegment;
 
@@ -41,7 +41,7 @@ pub struct SplitAudioTimingResult {
 }
 
 impl SplitAudioTimingResult {
-    /// 从 [`TimingsPath`] 读出**带类型**的意图时序。
+    /// 从 [`split_audio::TimingsPath`] 读出**带类型**的意图时序。
     ///
     /// 与 [`crate::steps::translate::out::TranslateResult::read`] 同款：
     /// 解析只在「这里」一处，字段缺失/类型不对会直接失败，而不是被静默吞成 0。
