@@ -184,8 +184,37 @@ mod tests {
         ctx.workflow.video_dir = dir.to_string();
         ctx.workflow.id = "t".to_string();
         ctx.output_mode = output_mode.to_string();
+        // 模拟 import 已跑过：subtitle 序列现恒含 split_audio，无 vocals stem 时它
+        // 回退到 audio_source.wav，缺失即报错（文件本身不必存在，probe 失败按 0 处理）。
+        ctx.audio_source_path = Some(format!("{dir}/audio_source.wav"));
         crate::context::write_ctx(dir, &ctx).unwrap();
+        // split_audio 会读 translate 产物；本测试禁用了 asr/asr_fix，translate 直通
+        // 无内容可搬会写出空产物，split_audio 随即 fail-fast。故给 translate 的
+        // **输入**（subtitleSource=asr → asr_fix/srt.json）造假数据，直通原样带出。
+        seed_asr_fix_srt(dir);
         ctx
+    }
+
+    /// 落一份最小 `asr_fix/srt.json`，让 translate 直通有内容可搬。
+    fn seed_asr_fix_srt(dir: &str) {
+        let p = std::path::Path::new(dir).join("asr_fix").join("srt.json");
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        crate::steps::utils::write_srt_json(
+            &p,
+            &[
+                subtitle::SubtitleSegment {
+                    text: "一".into(),
+                    start_ms: 0,
+                    end_ms: 1000,
+                },
+                subtitle::SubtitleSegment {
+                    text: "二".into(),
+                    start_ms: 1000,
+                    end_ms: 2000,
+                },
+            ],
+        )
+        .unwrap();
     }
 
     #[test]

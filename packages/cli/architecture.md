@@ -243,7 +243,9 @@ Translate ASR text via LLM (OpenAI-compatible API). 可跳过：`config.steps.tr
 
 Slice vocals WAV into per-segment reference clips using translation timings.
 
-- subtitle 模式下仅在 `vadAlign: true` 时运行，否则 mix_video 直接读 `asr_fix.json` / `ocr.json`。
+- subtitle 模式下同样运行（不再按 `vadAlign` 剔除）：它是 `split_audio/timings.json`
+  的唯一写入方，下游只认这一个字幕来源。人声切块仅 dub 模式做、VAD 修正仅
+  `vadAlign: true` 做，均由步骤内部判断跳过。
 - translate 跳过时从字幕源文件取原文作为 `src`/`dst`。
 
 | Input                              | Source    | Description                              |
@@ -366,7 +368,7 @@ Composite PK: `(task_id, name)`, FK → `tasks.id ON DELETE CASCADE`.
 | Step        | Dub                   | Subtitle                            |
 | ----------- | --------------------- | ----------------------------------- |
 | separate    | Demucs (vocals + bgm) | Demucs (vocals + bgm, same handler) |
-| split_audio | ✅ YES                | ✅ only if `vadAlign: true`         |
+| split_audio | ✅ YES                | ✅ YES（人声切块/VAD 内部跳过）  |
 | tts         | ✅ YES                | ❌ skipped                          |
 | mix_audio   | ✅ YES                | ❌ skipped                          |
 | mix_video   | dubbing + BGM + subs  | burned-in subtitles only            |

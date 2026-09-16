@@ -100,11 +100,6 @@ pub const SUBTITLE_ASR_OCR_STEPS: &[&str] = &[
     "mix_video",
 ];
 
-/// 从 ctx.input.steps.split_audio.vad_align 解析 (缺省 false)
-fn split_audio_vad_align(ctx: &WorkflowState) -> bool {
-    ctx.input.steps.split_audio.vad_align
-}
-
 /// 根据 output_mode 与 subtitleSource / 开关过滤, 返回本次要执行的 step 序列
 /// (镜像 TS `getSteps`)。
 ///
@@ -142,9 +137,13 @@ pub fn get_steps(ctx: &WorkflowState) -> anyhow::Result<Vec<StepName>> {
     // translate **恒在序列**（不再按 enabled 剔除）：`enabled=false` 时它以
     // **直通模式**执行（原文作为译文写 translation.json），下游步骤从此只认
     // 一种字幕来源。`translate_enabled` 仍由 step 内部读取决定走 LLM 还是直通。
-    if is_subtitle && !split_audio_vad_align(ctx) {
-        steps.retain(|s| *s != "split_audio");
-    }
+    // split_audio **恒在序列**（不再按 `vad_align` 剔除）：它是「意图时序」
+    // `split_audio/timings.json` 的唯一写入方，而下游（含 subtitle 的字幕轨）
+    // 只认这一个字幕来源——剔掉它就没有时序可读。
+    //
+    // 非必要开销由步骤内部自行跳过，不需要在序列层面裁剪：
+    // `step_split_audio` 里 `is_dub == false` 就不切人声块、`vad_align == false`
+    // 就不做 VAD 修正，剩下的只是 pad + 写两个 json。
 
     // 解析成枚举——序列常量与 `StepName` 必须一致，不一致说明有一处改名漏了。
     Ok(steps
@@ -404,8 +403,11 @@ mod tests {
         assert!(!has(&steps_of(&c), "sf_ocr"));
     }
 
+    /// split_audio 恒在序列（含 `vad_align=false`）：它是 `timings.json` 的唯一
+    /// 写入方，下游只认这一个字幕来源。非必要开销由步骤内部按 `is_dub` /
+    /// `vad_align` 自行跳过，不再靠序列裁剪。
     #[test]
-    fn subtitle_default_omits_split_audio_unless_vad_align() {
+    fn subtitle_always_includes_split_audio() {
         let c = ctx(
             "subtitle",
             json!({
@@ -414,7 +416,7 @@ mod tests {
                 "input": {}
             }),
         );
-        assert!(!has(&steps_of(&c), "split_audio"));
+        assert!(has(&steps_of(&c), "split_audio"));
 
         let c2 = ctx(
             "subtitle",
