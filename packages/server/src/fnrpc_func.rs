@@ -1,7 +1,7 @@
 use fnrpc::middlewares::tracing::TracingLayer;
 use ld_core::steps::{
     asr::out::AsrResult,
-    mix_audio::out::{MixAudioOuputTimings, Timing},
+    mix_audio::out::{MixAudioOutputTimings, Timing},
     split_audio::out::{SplitAudioSegment, SplitAudioTiming},
     translate::out::{TranslateResult, TranslateSegment},
     tts::out::{TtsFile, TtsSegment},
@@ -74,7 +74,7 @@ pub fn build_fn_rpc_router() -> fnrpc::router::RpcRouter<Ctx> {
         .register_type::<TtsFile>()
         .register_type::<TtsSegment>()
         .register_type::<Timing>()
-        .register_type::<MixAudioOuputTimings>()
+        .register_type::<MixAudioOutputTimings>()
         .register_type::<OcrSegmentFilterResult>()
         .layer(TracingLayer)
         .build()

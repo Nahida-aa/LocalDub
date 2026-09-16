@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::steps::split_audio::out::SplitAudioTiming;
 use crate::steps::utils::paths::mix_audio::TimingsPath;
+use crate::steps::utils::srt::SubtitleSegments;
+use subtitle::SubtitleSegment;
 
 /// 单段对齐时序 (镜像 TS `Timing` = SplitAudioTiming + 对齐字段)。
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
@@ -30,13 +32,13 @@ pub struct Timing {
     pub actual_end: u32,
 }
 
-/// `mix_audio/timings.json` (镜像 TS `MixAudioOuputTimings`)。
+/// `mix_audio/timings.json` (镜像 TS `MixAudioOutputTimings`)。
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
-pub struct MixAudioOuputTimings {
+pub struct MixAudioOutputTimings {
     pub segments: Vec<Timing>,
 }
 
-impl MixAudioOuputTimings {
+impl MixAudioOutputTimings {
     /// 从 [`TimingsPath`] 读出**带类型**的对齐时序。
     ///
     /// 与 [`crate::steps::split_audio::out::SplitAudioTimingResult::read`] 同款：
@@ -60,8 +62,84 @@ impl MixAudioOuputTimings {
             std::fs::create_dir_all(parent)
                 .map_err(|e| anyhow::anyhow!("创建目录 {} 失败: {e}", parent.display()))?;
         }
-        std::fs::write(p, json)
-            .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", p.display(), e))?;
+        std::fs::write(p, json).map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", p.display(), e))?;
         Ok(())
+    }
+}
+
+impl From<MixAudioOutputTimings> for SubtitleSegments {
+    /// 对齐时序 → 规范化字幕：烧进视频的字幕要跟**配音**对齐，故时间轴取
+    /// `actual_start` / `actual_end`（mix_audio 拉伸、借间隙后的实际位置），
+    /// 而不是 `Timing.timing` 里的原始时间槽。
+    ///
+    /// 文本取译文 `dst`，`dst` 为空时回退原文 `text`——与 dub 分支
+    /// `write_srt(&segs, .., use_source = false)` 的选择一致
+    /// （见 [`crate::steps::utils::srt::write_srt`]）。
+    fn from(v: MixAudioOutputTimings) -> Self {
+        v.segments
+            .into_iter()
+            .map(|t| {
+                let base = &t.timing;
+                let dst = base.dst.trim();
+                SubtitleSegment {
+                    text: if dst.is_empty() {
+                        base.text.trim().to_string()
+                    } else {
+                        dst.to_string()
+                    },
+                    start_ms: t.actual_start,
+                    end_ms: t.actual_end,
+                }
+            })
+            .collect::<Vec<_>>()
+            .into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::steps::translate::out::TranslateSegment;
+
+    fn timing(text: &str, dst: &str, start_ms: u32, end_ms: u32, a_start: u32, a_end: u32) -> Timing {
+        Timing {
+            timing: TranslateSegment {
+                idx: 1,
+                text: text.into(),
+                dst: dst.into(),
+                start_ms,
+                end_ms,
+                ..Default::default()
+            },
+            actual_start: a_start,
+            actual_end: a_end,
+            ..Default::default()
+        }
+    }
+
+    /// 时间轴必须取 actual_*：字幕要跟**配音**对齐，而不是原始时间槽。
+    #[test]
+    fn into_subtitle_segments_uses_actual_times() {
+        let v = MixAudioOutputTimings {
+            segments: vec![timing("原文", "译文", 0, 1000, 120, 980)],
+        };
+        let segs: SubtitleSegments = v.into();
+        assert_eq!(segs.0.len(), 1);
+        assert_eq!(segs.0[0].start_ms, 120);
+        assert_eq!(segs.0[0].end_ms, 980);
+    }
+
+    /// 文本取译文 dst；dst 为空回退原文 text（与 write_srt(use_source=false) 同款）。
+    #[test]
+    fn into_subtitle_segments_prefers_dst_then_text() {
+        let v = MixAudioOutputTimings {
+            segments: vec![
+                timing("原文", "译文", 0, 1000, 0, 1000),
+                timing("回退原文", "   ", 1000, 2000, 1000, 2000),
+            ],
+        };
+        let segs: SubtitleSegments = v.into();
+        assert_eq!(segs.0[0].text, "译文");
+        assert_eq!(segs.0[1].text, "回退原文");
     }
 }

@@ -1697,18 +1697,18 @@ export type Timing_Serialize = {
   actual_end: number;
 } & TranslateSegment_Serialize;
 
-/**  `mix_audio/timings.json` (镜像 TS `MixAudioOuputTimings`)。 */
-export type MixAudioOuputTimings =
-  | MixAudioOuputTimings_Serialize
-  | MixAudioOuputTimings_Deserialize;
+/**  `mix_audio/timings.json` (镜像 TS `MixAudioOutputTimings`)。 */
+export type MixAudioOutputTimings =
+  | MixAudioOutputTimings_Serialize
+  | MixAudioOutputTimings_Deserialize;
 
-/**  `mix_audio/timings.json` (镜像 TS `MixAudioOuputTimings`)。 */
-export type MixAudioOuputTimings_Deserialize = {
+/**  `mix_audio/timings.json` (镜像 TS `MixAudioOutputTimings`)。 */
+export type MixAudioOutputTimings_Deserialize = {
   segments: Timing_Deserialize[];
 };
 
-/**  `mix_audio/timings.json` (镜像 TS `MixAudioOuputTimings`)。 */
-export type MixAudioOuputTimings_Serialize = {
+/**  `mix_audio/timings.json` (镜像 TS `MixAudioOutputTimings`)。 */
+export type MixAudioOutputTimings_Serialize = {
   segments: Timing_Serialize[];
 };
 

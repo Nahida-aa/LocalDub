@@ -14,7 +14,7 @@ import { TrackEditModal } from "./comp/TrackEditModal";
 import { client } from "#/integrations/fnrpc/client.ts";
 import { useTrackData } from "./useTrackData";
 import type { BaseTrackProps } from "./shared";
-import { Timing, MixAudioOuputTimings } from "@repo/sdk/index";
+import { Timing, MixAudioOutputTimings } from "@repo/sdk/index";
 
 type Props = BaseTrackProps;
 
@@ -116,7 +116,7 @@ export function MixAudioTrack(props: Props) {
     trackId: track().id,
     path: () => `${videoDir}/mix_audio/timings.json`,
     parse: (text) => {
-      const data: MixAudioOuputTimings = JSON.parse(text);
+      const data: MixAudioOutputTimings = JSON.parse(text);
       return (data.segments || []).map((item, i: number) => ({
         index: i,
         text: item.dst,

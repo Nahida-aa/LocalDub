@@ -10,7 +10,7 @@ pub mod out;
 use std::path::Path;
 
 use crate::context::WorkflowState;
-use crate::steps::mix_audio::out::{MixAudioOuputTimings, Timing};
+use crate::steps::mix_audio::out::{MixAudioOutputTimings, Timing};
 use crate::steps::split_audio::out::SplitAudioTimingResult;
 use crate::steps::utils::paths::mix_audio::TimingsPath;
 use crate::steps::utils::{
@@ -255,7 +255,7 @@ pub fn step_mix_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
         dubbing_file.to_string_lossy().into_owned(),
     ])?;
 
-    let out = MixAudioOuputTimings {
+    let out = MixAudioOutputTimings {
         segments: new_translation,
     };
     out.write(&timings_path)?;
