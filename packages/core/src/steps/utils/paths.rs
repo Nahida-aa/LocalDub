@@ -18,7 +18,7 @@
 
 #![allow(dead_code)]
 
-use derive_more::{AsRef, Deref, DerefMut, Display, From, Into};
+use derive_more::{Deref, DerefMut, From, Into};
 use std::path::{Path, PathBuf};
 // video_source.mp4
 type VideoSourcePath = PathBuf;
@@ -36,9 +36,7 @@ type VideoSourcePath = PathBuf;
 /// 两者在正常流程下指向同一文件（import 落点固定为 `{video_dir}/audio_source.wav`，
 /// 见 `import/download.rs`），但语义不同：前者是「约定拼法」，后者是「事实」。
 /// 与 `LangPath` 的 `new` / `from_state` 同一模式。
-#[derive(Debug, Clone, PartialEq, Eq, Display, AsRef)]
-#[display("{}", _0.display())]
-#[as_ref(forward)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AudioSourcePath(PathBuf);
 
 impl AudioSourcePath {
@@ -64,6 +62,15 @@ impl AudioSourcePath {
             })
     }
 
+    /// 本类型承诺的路径访问器——与 `SrtPath` / `Target3VocalsPath` **同签名**，
+    /// `SplitAudioSource::as_path` 才能在三个变体上一视同仁地调用它。
+    ///
+    /// **不用 `AsRef<Path>` 代替**：`#[as_ref(forward)]` 会同时给出
+    /// `AsRef<Path>` 与 `AsRef<OsStr>`，在需要 `&Path` 的位置（如 match 各分支
+    /// 统一返回）编译器无法唯一推断，须写类型标注或 `AsRef::<Path>::as_ref(p)`
+    /// —— 比 `as_path()` 更啰嗦。且 `AsRef` 是「继承内层的通用能力」，各类型
+    /// 具备与否取决于内层类型，无法充当路径类型之间的统一约定。
+    /// （详见本文件头对 `AsRef` / `Display` 的取舍说明。）
     pub fn as_path(&self) -> &Path {
         &self.0
     }
