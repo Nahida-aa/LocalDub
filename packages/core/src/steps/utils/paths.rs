@@ -18,8 +18,8 @@
 
 #![allow(dead_code)]
 
+use derive_more::{Deref, DerefMut, Display, From, Into};
 use std::path::{Path, PathBuf};
-
 // video_source.mp4
 type VideoSourcePath = PathBuf;
 
@@ -36,7 +36,8 @@ type VideoSourcePath = PathBuf;
 /// 两者在正常流程下指向同一文件（import 落点固定为 `{video_dir}/audio_source.wav`，
 /// 见 `import/download.rs`），但语义不同：前者是「约定拼法」，后者是「事实」。
 /// 与 `LangPath` 的 `new` / `from_state` 同一模式。
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Display)]
+#[display("{}", _0.display())]
 pub struct AudioSourcePath(PathBuf);
 
 impl AudioSourcePath {
@@ -73,15 +74,8 @@ impl AsRef<Path> for AudioSourcePath {
     }
 }
 
-impl std::fmt::Display for AudioSourcePath {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.display())
-    }
-}
-
 pub mod separate {
     use super::*;
-    use derive_more::{Deref, DerefMut, From, Into};
 
     /// separate/target_3_vocals.wav（demucs 的 vocals stem，**原始**人声）。
     ///
