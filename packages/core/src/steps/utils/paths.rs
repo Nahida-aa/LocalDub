@@ -414,7 +414,24 @@ mod mix_audio {
     // mix_audio/audio_dubbing.wav
     pub type DubbingPath = PathBuf;
     // mix_audio/timings.json
-    pub type TimingsPath = PathBuf;
+    #[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut, From, Into)]
+    pub struct TimingsPath(PathBuf);
+
+    impl TimingsPath {
+        /// 唯一拼法来源：`{video_dir}/mix_audio/timings.json`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(
+                Path::new(video_dir.as_ref())
+                    .join("mix_audio")
+                    .join("timings.json"),
+            )
+        }
+
+        /// 本类型承诺的路径访问器（与 `SrtPath` / `Target3VocalsPath` 同签名）。
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
 }
 
 pub struct SeparateAfterOutput {
