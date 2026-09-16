@@ -409,7 +409,7 @@ pub mod tts {
         }
     }
 }
-mod mix_audio {
+pub mod mix_audio {
     use super::*;
     // mix_audio/audio_dubbing.wav
     pub type DubbingPath = PathBuf;

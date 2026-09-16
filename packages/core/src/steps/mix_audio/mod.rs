@@ -10,8 +10,9 @@ pub mod out;
 use std::path::Path;
 
 use crate::context::WorkflowState;
-use crate::steps::mix_audio::out::{Timing, TimingsFile};
+use crate::steps::mix_audio::out::{MixAudioOuputTimings, Timing};
 use crate::steps::split_audio::out::SplitAudioTimingResult;
+use crate::steps::utils::paths::mix_audio::TimingsPath;
 use crate::steps::utils::{
     ensure_dir, ffmpeg, now_iso, probe_duration_ms, probe_sample_rate, set_step_anyhow, StepPatch,
     StepStatus,
@@ -32,6 +33,7 @@ pub fn step_mix_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
     let segments = SplitAudioTimingResult::read(&input.split_audio_timings_path)?.segments;
 
     let mix_audio_dir = Path::new(&video_dir).join("mix_audio");
+    let timings_path = TimingsPath::new(&video_dir);
     let stretched_dir = mix_audio_dir.join("stretched");
     let silence_dir = mix_audio_dir.join("silences");
     ensure_dir(&stretched_dir)?;
@@ -253,14 +255,10 @@ pub fn step_mix_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
         dubbing_file.to_string_lossy().into_owned(),
     ])?;
 
-    let timings_file = mix_audio_dir.join("timings.json");
-    let out = TimingsFile {
+    let out = MixAudioOuputTimings {
         segments: new_translation,
     };
-    let json = serde_json::to_string_pretty(&out)
-        .map_err(|e| anyhow::anyhow!("序列化 mix_audio timings 失败: {e}"))?;
-    std::fs::write(&timings_file, json)
-        .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", timings_file.display(), e))?;
+    out.write(&timings_path)?;
 
     set_step_anyhow(
         &video_dir,

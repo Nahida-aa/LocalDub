@@ -1,7 +1,7 @@
 use fnrpc::middlewares::tracing::TracingLayer;
 use ld_core::steps::{
     asr::out::AsrResult,
-    mix_audio::out::{Timing, TimingsFile},
+    mix_audio::out::{MixAudioOuputTimings, Timing},
     split_audio::out::{SplitAudioSegment, SplitAudioTiming},
     translate::out::{TranslateResult, TranslateSegment},
     tts::out::{TtsFile, TtsSegment},
@@ -17,13 +17,13 @@ use crate::{
             write_app_file_json, write_app_file_text,
         },
         other::{device_info, get_workfolder},
-        servers::{find_server, get_server_status, shutdown, start_main, start_voxcpm, stop_voxcpm},
+        servers::{
+            find_server, get_server_status, shutdown, start_main, start_voxcpm, stop_voxcpm,
+        },
         workflows::{
             cancel_queue, continue_workflow, enqueue_continue, enqueue_dir, enqueue_import,
-            enqueue_start,
-            get_group_list,
-            get_workflow_ctx, list_queue, log::watch_workflow_log, regen_tts, start_workflow,
-            tree::watch_workflow_tree,
+            enqueue_start, get_group_list, get_workflow_ctx, list_queue, log::watch_workflow_log,
+            regen_tts, start_workflow, tree::watch_workflow_tree,
         },
     },
 };
@@ -74,7 +74,7 @@ pub fn build_fn_rpc_router() -> fnrpc::router::RpcRouter<Ctx> {
         .register_type::<TtsFile>()
         .register_type::<TtsSegment>()
         .register_type::<Timing>()
-        .register_type::<TimingsFile>()
+        .register_type::<MixAudioOuputTimings>()
         .register_type::<OcrSegmentFilterResult>()
         .layer(TracingLayer)
         .build()

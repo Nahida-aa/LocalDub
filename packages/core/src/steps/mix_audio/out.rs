@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::steps::split_audio::out::SplitAudioTiming;
+use crate::steps::utils::paths::mix_audio::TimingsPath;
 
 /// 单段对齐时序 (镜像 TS `Timing` = SplitAudioTiming + 对齐字段)。
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
@@ -29,8 +30,38 @@ pub struct Timing {
     pub actual_end: u32,
 }
 
-/// `mix_audio/timings.json` (镜像 TS `TimingsFile`)。
+/// `mix_audio/timings.json` (镜像 TS `MixAudioOuputTimings`)。
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
-pub struct TimingsFile {
+pub struct MixAudioOuputTimings {
     pub segments: Vec<Timing>,
+}
+
+impl MixAudioOuputTimings {
+    /// 从 [`TimingsPath`] 读出**带类型**的对齐时序。
+    ///
+    /// 与 [`crate::steps::split_audio::out::SplitAudioTimingResult::read`] 同款：
+    /// 解析只在「这里」一处，字段缺失/类型不对直接失败，而不是被静默吞成 0。
+    pub fn read(path: &TimingsPath) -> anyhow::Result<Self> {
+        let p = path.as_path();
+        let raw = std::fs::read_to_string(p)
+            .map_err(|e| anyhow::anyhow!("读取 mix_audio timings {} 失败: {e}", p.display()))?;
+        serde_json::from_str(&raw)
+            .map_err(|e| anyhow::anyhow!("解析 mix_audio timings {} 失败: {e}", p.display()))
+    }
+
+    /// 写出到 [`TimingsPath`]（pretty json，自动建父目录）。
+    ///
+    /// 与读对称：序列化和落盘只在「这里」一处，此前 `mix_audio/mod.rs` 各拼一遍。
+    pub fn write(&self, path: &TimingsPath) -> anyhow::Result<()> {
+        let p = path.as_path();
+        let json = serde_json::to_string_pretty(self)
+            .map_err(|e| anyhow::anyhow!("序列化 mix_audio timings 失败: {e}"))?;
+        if let Some(parent) = p.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| anyhow::anyhow!("创建目录 {} 失败: {e}", parent.display()))?;
+        }
+        std::fs::write(p, json)
+            .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", p.display(), e))?;
+        Ok(())
+    }
 }

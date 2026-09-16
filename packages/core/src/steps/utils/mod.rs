@@ -20,6 +20,7 @@ use serde::Serialize;
 
 use crate::context::{read_ctx, write_ctx, WorkflowStep};
 use crate::r#const::lang::{default_lang, infer_target_lang, Language, TargetLang};
+use crate::steps::utils::paths::mix_audio::TimingsPath;
 use subtitle::SubtitleSegment;
 
 /// RFC3339 时间戳, 去毫秒 (镜像 TS `nowISO`, 形如 `2024-01-01T00:00:00Z`)。
@@ -377,11 +378,13 @@ pub fn mix_audio_timings_path(video_dir: &str) -> PathBuf {
 }
 
 /// 读取 `mix_audio/timings.json` (镜像 TS `read_timings`)。
-pub fn read_timings(video_dir: &str) -> anyhow::Result<crate::steps::mix_audio::out::TimingsFile> {
-    let p = mix_audio_timings_path(video_dir);
-    let raw = std::fs::read_to_string(&p)
-        .map_err(|e| anyhow::anyhow!("读取 {} 失败: {e}", p.display()))?;
-    serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("解析 {} 失败: {e}", p.display()))
+///
+/// 解析委托 [`MixAudioOuputTimings::read`](crate::steps::mix_audio::out::MixAudioOuputTimings::read)，
+/// 本函数只负责从 `video_dir` 拼出路径。
+pub fn read_timings(
+    video_dir: &str,
+) -> anyhow::Result<crate::steps::mix_audio::out::MixAudioOuputTimings> {
+    crate::steps::mix_audio::out::MixAudioOuputTimings::read(&TimingsPath::new(video_dir))
 }
 
 // ---------------------------------------------------------------------------
@@ -630,7 +633,12 @@ pub fn resolve_language(ctx: &crate::context::WorkflowState) -> anyhow::Result<(
 pub fn src_language(ctx: &crate::context::WorkflowState) -> Language {
     ctx.asr_language
         .clone()
-        .or_else(|| ctx.input.workflow.as_ref().and_then(|w| w.source_lang.clone()))
+        .or_else(|| {
+            ctx.input
+                .workflow
+                .as_ref()
+                .and_then(|w| w.source_lang.clone())
+        })
         .unwrap_or_else(default_lang)
 }
 
@@ -722,8 +730,8 @@ mod tests {
         let p = std::path::Path::new(&dir).join("asr_fix").join("srt.json");
 
         // 反向 → 报错，且错误点明步骤名、段索引与具体数值
-        let err = write_srt_json(&p, &[seg(1000, 2000), seg(5000, 3000)])
-            .expect_err("反向段必须报错");
+        let err =
+            write_srt_json(&p, &[seg(1000, 2000), seg(5000, 3000)]).expect_err("反向段必须报错");
         let msg = err.to_string();
         assert!(msg.contains("asr_fix"), "应点明产出方步骤: {msg}");
         assert!(msg.contains('2'), "应点明段索引(第 2 段): {msg}");
