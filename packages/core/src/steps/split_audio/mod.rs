@@ -47,12 +47,18 @@ pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
 
     let args = SplitAudioArgs::from_input(&ctx.input);
 
+    // 输入契约一次性构建：切块音频源 + 翻译产物路径，后续只读它，
+    // 不再各自 `LangPath::from_state` / `audio_from_state` 拼两次。
+    // 本步既要用音频源也要用 translate 路径，故走完整 `from_state`；
+    // 仅要音频源的消费者才用 `audio_from_state`。
+    let args::SplitAudioInput { audio: audio_source, translate: lang_path } =
+        args::SplitAudioInput::from_state(ctx)?;
+
     // 字幕时间轴 + 文本：**统一来自 translate 的产物**（translate 恒执行；
     // enabled=false 时 dst=原文直通）。焦点文件不再是下游输入。
     //
     // 目标语言读**已落定的事实**（翻译步骤写的），不现算；
     // 源语言独立解析（它有自己的三级回退，与目标语言无关）。
-    let lang_path = crate::steps::utils::paths::translate::LangPath::from_state(ctx)?;
     let src_lang = crate::steps::utils::src_language(ctx).code().to_string();
     let trans = TranslateResult::read(&lang_path).map_err(|e| {
         anyhow::anyhow!("{e}; 请先运行 translate（或从该步骤 continue 以重新生成）")
@@ -61,12 +67,11 @@ pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
         return Err(anyhow::anyhow!("translation 无 segments"));
     }
 
-    // 切块源：优先级与存在性判断统一在 `SplitAudioInput::audio_from_state`
+    // 切块源：已在 `SplitAudioInput::from_state` 内按优先级解析
     // （vocalsFilePath 覆盖 → 人声 stem → 原始音频），此处不再手拼。
     // NB: 旧逻辑曾支持 `sourceFilePath` 调试覆盖，但它被 vocals 检查遮蔽，
     // 实际只对「无 vocals + vad_align」窄路径生效且与 `vocalsFilePath` 概念混淆，
     // 已从 `SplitAudioArgs` 移除（自定义切块源走 `vocalsFilePath`）。
-    let audio_source = args::SplitAudioInput::audio_from_state(ctx)?;
     let source_audio = audio_source.as_path().to_string_lossy().into_owned();
 
     // 是否 dub 流程由 **output_mode 输入契约**决定，不再靠「源文件是否碰巧存在」
@@ -103,7 +108,6 @@ pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
     ensure_dir(&split_audio_dir)?;
 
     // dub 模式才切人声块; subtitle 模式跳过, 只产出时序文件。
-    // `is_dub` 即原 `has_vocals`: vocals stem 是否存在 == 是否走 dub 流程。
     if is_dub {
         cut_vocal_segments(
             &vocals_segment_dir,
