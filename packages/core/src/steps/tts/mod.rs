@@ -20,7 +20,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use crate::context::WorkflowState;
 use crate::steps::split_audio::out::SplitAudioTimingResult;
 use crate::steps::tts::args::{TtsArgs, TtsInput, TtsRuntime};
-use crate::steps::tts::out::{TtsFile, TtsSegment};
+use crate::steps::tts::out::{TtsSegment, TtsSegmentsResult};
 use crate::steps::tts::util::{
     ensure_no_failed_segments, pick_voxcpm_bin, should_skip_segment, write_silent_wav,
 };
@@ -92,11 +92,7 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
     // - 首次 start 时强制忽略, 全量跑; 仅 continue 重跑时用。
     // - 列表内的段: 无视 skipExisting, 强制重新合成 (先删旧 wav 再生成)。
     // - 列表外的段: 保留旧结果 —— 优先复用 tts.json 已有记录, 无旧记录才写合法静音占位。
-    let is_start = ctx
-        .input
-        .workflow
-        .as_ref()
-        .and_then(|w| w.action)
+    let is_start = ctx.input.workflow.as_ref().and_then(|w| w.action)
         == Some(crate::workflows::args::WorkflowAction::Start);
     let regen_indices: Option<Vec<u32>> = if is_start {
         None
@@ -118,11 +114,18 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
     let existing_segments: std::collections::HashMap<u32, TtsSegment> = if regen_active {
         let p = input.tts_path.as_path();
         if p.exists() {
-            match std::fs::read_to_string(&p) {
-                Ok(raw) => serde_json::from_str::<TtsFile>(&raw)
-                    .map(|f| f.segments.into_iter().map(|s| (s.timing.idx, s)).collect())
-                    .unwrap_or_default(),
-                Err(_) => std::collections::HashMap::new(),
+            // 读不出/解析失败时**不失败整个 step**：空 map 的语义是「没有可复用的
+            // 旧结果」，下方对 regenIndices 外的段会走正常生成（见该处注释）。
+            // 但区别于「文件本就不存在」，这种情况要留一条 warn，不能静默。
+            match TtsSegmentsResult::read(&input.tts_path) {
+                Ok(f) => f.segments.into_iter().map(|s| (s.timing.idx, s)).collect(),
+                Err(e) => {
+                    tracing::warn!(target: "tts",
+                        "读取 {} 失败, 按无旧结果处理 (regenIndices 外的段将重新生成): {e}",
+                        p.display()
+                    );
+                    std::collections::HashMap::new()
+                }
             }
         } else {
             std::collections::HashMap::new()
@@ -446,7 +449,7 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
 
     ensure_parent_dir(input.tts_path.as_path())
         .map_err(|e| anyhow::anyhow!("创建目录失败: {e}"))?;
-    let result = TtsFile {
+    let result = TtsSegmentsResult {
         segments: tts_segments,
     };
     write_json_pretty(input.tts_path.as_path(), &result)?;

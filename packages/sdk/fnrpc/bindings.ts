@@ -1901,16 +1901,16 @@ export type TtsArgs_Serialize = {
 /**  TTS 计算设备 (镜像 TS `packages/core/steps/07_tts/args.ts` TtsStepArgsSchema.device) */
 export type TtsDevice = "webgpu" | "cuda" | "rocm" | "cpu" | "mps";
 
-/**  `tts/tts.json` (镜像 TS `TtsFile`)。 */
-export type TtsFile = TtsFile_Serialize | TtsFile_Deserialize;
+/**  `tts/tts.json` (镜像 TS `TtsSegmentsResult`)。 */
+export type TtsSegmentsResult = TtsSegmentsResult_Serialize | TtsSegmentsResult_Deserialize;
 
-/**  `tts/tts.json` (镜像 TS `TtsFile`)。 */
-export type TtsFile_Deserialize = {
+/**  `tts/tts.json` (镜像 TS `TtsSegmentsResult`)。 */
+export type TtsSegmentsResult_Deserialize = {
   segments: TtsSegment_Deserialize[];
 };
 
-/**  `tts/tts.json` (镜像 TS `TtsFile`)。 */
-export type TtsFile_Serialize = {
+/**  `tts/tts.json` (镜像 TS `TtsSegmentsResult`)。 */
+export type TtsSegmentsResult_Serialize = {
   segments: TtsSegment_Serialize[];
 };
 

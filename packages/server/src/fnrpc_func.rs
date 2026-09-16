@@ -4,7 +4,7 @@ use ld_core::steps::{
     mix_audio::out::{MixAudioOutputTimings, Timing},
     split_audio::out::{SplitAudioSegment, SplitAudioTiming},
     translate::out::{TranslateResult, TranslateSegment},
-    tts::out::{TtsFile, TtsSegment},
+    tts::out::{TtsSegment, TtsSegmentsResult},
 };
 use subtitle_ocr_post::OcrSegmentFilterResult;
 
@@ -71,7 +71,7 @@ pub fn build_fn_rpc_router() -> fnrpc::router::RpcRouter<Ctx> {
         .register_type::<TranslateSegment>()
         .register_type::<SplitAudioSegment>()
         .register_type::<SplitAudioTiming>()
-        .register_type::<TtsFile>()
+        .register_type::<TtsSegmentsResult>()
         .register_type::<TtsSegment>()
         .register_type::<Timing>()
         .register_type::<MixAudioOutputTimings>()

@@ -3,7 +3,7 @@
 //! 从 `mod.rs` 拆出，让 `step_tts` 只保留编排主流程。
 
 use crate::steps::tts::args::{TtsDevice, TtsRuntime};
-use crate::steps::tts::out::TtsFile;
+use crate::steps::tts::out::TtsSegmentsResult;
 use crate::steps::utils::find_release_bin;
 
 /// TTS 静音段统一采样率。VoxCPM cloud 归一化到 48000Hz (`voxcpm_cloud::TARGET_SAMPLE_RATE`),
@@ -62,7 +62,7 @@ pub fn pick_voxcpm_bin(device: TtsDevice, _runtime: TtsRuntime) -> anyhow::Resul
 /// `skipped` / `empty` **不算失败**:
 /// - `skipped` = 复用已有有效音频 (见 [`should_skip_segment`])
 /// - `empty`   = 原文为空, 合法静音
-pub fn ensure_no_failed_segments(result: &TtsFile) -> anyhow::Result<()> {
+pub fn ensure_no_failed_segments(result: &TtsSegmentsResult) -> anyhow::Result<()> {
     let failed = result
         .segments
         .iter()
@@ -127,8 +127,8 @@ mod tests {
         }
     }
 
-    fn file(statuses: &[&str]) -> TtsFile {
-        TtsFile {
+    fn file(statuses: &[&str]) -> TtsSegmentsResult {
+        TtsSegmentsResult {
             segments: statuses.iter().map(|s| seg(s)).collect(),
         }
     }

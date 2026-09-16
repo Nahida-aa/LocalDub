@@ -13,7 +13,7 @@ import { mediaUrl } from "#/lib/utils/path.ts";
 import type { Track, TrackSegment } from "../consts";
 import { useTrackData } from "./useTrackData";
 import type { BaseTrackProps } from "./shared";
-import { TtsFile, TtsSegment } from "@repo/sdk/index";
+import { TtsSegmentsResult, TtsSegment } from "@repo/sdk/index";
 
 type Props = BaseTrackProps;
 
@@ -25,7 +25,7 @@ export function TtsTrack(props: Props) {
     trackId: track().id,
     path: () => `${videoDir}/tts/tts.json`,
     parse: (text) => {
-      const data: TtsFile = JSON.parse(text);
+      const data: TtsSegmentsResult = JSON.parse(text);
       return (data.segments || []).map((item, i: number) => ({
         index: i,
         text: item.text,
