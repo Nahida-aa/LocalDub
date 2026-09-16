@@ -20,8 +20,51 @@
 
 use derive_more::{AsRef, Deref, DerefMut, Display, From, Into};
 use std::path::{Path, PathBuf};
-// video_source.mp4
-pub type VideoSourcePath = PathBuf;
+/// 原视频 `video_source.mp4`（任务级输入，由 import 产出）。
+///
+/// 与 [`AudioSourcePath`] 同款：位置不是消费者自己拼的，而是 import 阶段
+/// **写进 ctx** 的（`ctx.video_source_path`）。两个入口对应两类调用者：
+///
+/// | 入口 | 谁用 |
+/// | --- | --- |
+/// | [`from_video_dir`](Self::from_video_dir) | **import 产出方**——它写 ctx 之前就得知道路径 |
+/// | [`from_state`](Self::from_state) | **消费者**——读 import 落下的那个值 |
+///
+/// 前者是「约定拼法」（import 落点固定为 `{video_dir}/video_source.mp4`，
+/// 见 `import/download.rs`），后者是「事实」。
+#[derive(Debug, Clone, PartialEq, Eq, Display, AsRef)]
+#[display("{}", _0.display())]
+#[as_ref(forward)]
+pub struct VideoSourcePath(PathBuf);
+
+impl VideoSourcePath {
+    /// 按约定拼：`{video_dir}/video_source.mp4`（import 的落点）。
+    pub fn from_video_dir(video_dir: impl AsRef<Path>) -> Self {
+        Self(video_dir.as_ref().join("video_source.mp4"))
+    }
+
+    /// 从 ctx 取 `ctx.video_source_path`（import 写入的路径）。
+    ///
+    /// 缺失 → Err（与 [`AudioSourcePath::from_state`] 同款语义：
+    /// 没导入过就没有这个文件，无从猜测）。
+    pub fn from_state(state: &crate::context::WorkflowState) -> anyhow::Result<Self> {
+        state
+            .video_source_path
+            .clone()
+            .map(PathBuf::from)
+            .map(Self)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "video_source_path 未设置 (session {}); 请先运行 import",
+                    state.workflow.video_dir
+                )
+            })
+    }
+
+    pub fn as_path(&self) -> &Path {
+        &self.0
+    }
+}
 
 /// 原始音频 `audio_source.wav`（任务级输入，由 import 产出）。
 ///
@@ -443,6 +486,19 @@ pub struct SeparateAfterOutput {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// `video_source.mp4` 的落点：`{video_dir}/video_source.mp4`（**无** `media/` 中间层）。
+    ///
+    /// 钉这条是因为仓里存在第二处写法 `cmd/check/mod.rs` 拼的是
+    /// `{video_dir}/media/video_source.mp4`，与 import 实际落点
+    /// （`import/download.rs`）不一致。`from_video_dir` 才是权威拼法。
+    #[test]
+    fn video_source_path_shape() {
+        let p = VideoSourcePath::from_video_dir("/w");
+        assert_eq!(p.as_path().display().to_string(), "/w/video_source.mp4");
+        // Display 走 PathBuf，便于直接拼进 ffmpeg 参数
+        assert_eq!(p.to_string(), "/w/video_source.mp4");
+    }
 
     /// 三个 fix 的 `srt.json` 路径形状：`{video_dir}/{step}/srt.json`。
     ///
