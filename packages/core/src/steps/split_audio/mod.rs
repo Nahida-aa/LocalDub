@@ -31,11 +31,6 @@ use crate::steps::utils::{
 
 pub use args::SplitAudioArgs;
 
-/// 从 `ctx.input.steps.split_audio` 解析配置, 不存在时返回默认 (与 TS default 对齐)
-pub fn read_args(ctx: &WorkflowState) -> SplitAudioArgs {
-    SplitAudioArgs::from_input(&ctx.input)
-}
-
 /// SplitAudioTiming 实现 SegmentBounds (pad_segments 用 start/end)。
 impl SegmentBounds for TranslateSegment {
     fn start_ms(&self) -> u32 {
@@ -51,7 +46,7 @@ pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "split_audio", "start");
 
-    let args = read_args(ctx);
+    let args = SplitAudioArgs::from_input(&ctx.input);
 
     // 字幕时间轴 + 文本：**统一来自 translate 的产物**（translate 恒执行；
     // enabled=false 时 dst=原文直通）。焦点文件不再是下游输入。
@@ -274,7 +269,7 @@ mod tests {
                      "status": "running", "created_at": "2024-01-01T00:00:00Z"},
             "input": {"steps": {"split_audio": {}}}
         }));
-        let cfg = read_args(&ctx);
+        let cfg = SplitAudioArgs::from_input(&ctx.input);
         assert!(!cfg.vad_align);
         assert_eq!(cfg.start_pad_ms, 100);
         assert_eq!(cfg.end_pad_ms, 300);
@@ -293,7 +288,7 @@ mod tests {
                 "vocalsFilePath": "/v.wav"
             }}}
         }));
-        let cfg = read_args(&ctx);
+        let cfg = SplitAudioArgs::from_input(&ctx.input);
         assert!(cfg.vad_align);
         assert_eq!(cfg.start_pad_ms, 150);
         assert_eq!(cfg.end_pad_ms, 400);

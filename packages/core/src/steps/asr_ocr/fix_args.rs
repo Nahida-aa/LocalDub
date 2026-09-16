@@ -30,3 +30,10 @@ impl Default for AsrOcrFixArgs {
         }
     }
 }
+
+impl AsrOcrFixArgs {
+    /// 从输入契约取本步参数：`input.steps.asr_ocr_fix`。
+    pub fn from_input(input: &crate::input::Input) -> Self {
+        input.steps.asr_ocr_fix.clone()
+    }
+}

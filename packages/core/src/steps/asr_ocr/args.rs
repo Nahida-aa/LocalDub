@@ -27,3 +27,10 @@ impl Default for AsrOcrArgs {
         }
     }
 }
+
+impl AsrOcrArgs {
+    /// 从输入契约取本步参数：`input.steps.asr_ocr`。
+    pub fn from_input(input: &crate::input::Input) -> Self {
+        input.steps.asr_ocr.clone()
+    }
+}

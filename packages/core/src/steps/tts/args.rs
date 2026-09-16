@@ -59,6 +59,13 @@ impl Default for TtsArgs {
     }
 }
 
+impl TtsArgs {
+    /// 从输入契约取本步参数：`input.steps.tts`。
+    pub fn from_input(input: &crate::input::Input) -> Self {
+        input.steps.tts.clone()
+    }
+}
+
 fn default_true() -> bool {
     true
 }

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// TS 侧为 `z.enum(["burn", "burn-tch"])` (kebab-case), 故用 `rename_all = "kebab-case"`
 /// (`BurnTch` → `"burn-tch"`)。原先误用 `lowercase` 会得到 `"burntch"`, 与 TS 对不上,
-/// 导致运行时 `"burn-tch"` 解析失败回落默认 (see `read_args_parses_camel_case_fields`)。
+/// 导致运行时 `"burn-tch"` 解析失败回落默认 (see `from_input_parses_camel_case_fields`)。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "kebab-case")]
 pub enum SeparateRuntime {
@@ -55,6 +55,13 @@ pub struct SeparateArgs {
     /// 需分离的 stems; 暂不被消费
     #[serde(default = "default_stems")]
     pub stems: Vec<Stem>,
+}
+
+impl SeparateArgs {
+    /// 从输入契约取本步参数：`input.steps.separate`。
+    pub fn from_input(input: &crate::input::Input) -> Self {
+        input.steps.separate.clone()
+    }
 }
 
 fn default_stems() -> Vec<Stem> {

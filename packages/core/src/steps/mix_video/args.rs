@@ -111,6 +111,13 @@ impl Default for MixVideoArgs {
     }
 }
 
+impl MixVideoArgs {
+    /// 从输入契约取本步参数：`input.steps.mix_video`。
+    pub fn from_input(input: &crate::input::Input) -> Self {
+        input.steps.mix_video.clone()
+    }
+}
+
 fn default_outline() -> f64 {
     0.0
 }

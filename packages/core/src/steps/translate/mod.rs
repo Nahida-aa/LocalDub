@@ -27,11 +27,6 @@ use crate::steps::utils::{
 };
 use config_rs::env::openai_api_key;
 
-/// 从 `ctx.input.steps.translate` 解析配置 (镜像 TS `readInputArgs().steps.translate`)。
-fn read_args(ctx: &WorkflowState) -> args::TranslateArgs {
-    ctx.input.steps.translate.clone()
-}
-
 /// 读视频元信息 → [`MetaView`]。
 ///
 /// `None`（ytdlp_info.json 不存在）或内容非法都退化为 `MetaView::default()`——
@@ -182,7 +177,7 @@ pub fn step_translate(ctx: &WorkflowState) -> anyhow::Result<()> {
     tracing::info!(target: "translate", "start");
 
     let input = args::TranslateInput::from_state(ctx)?;
-    let args = read_args(ctx);
+    let args = args::TranslateArgs::from_input(&ctx.input);
     let (src_lang, target_lang) = resolve_language(ctx)?;
     let video_dir = input.video_dir.clone();
 

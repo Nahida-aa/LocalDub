@@ -63,6 +63,13 @@ impl Default for OcrFixArgs {
     }
 }
 
+impl OcrFixArgs {
+    /// 从输入契约取本步参数：`input.steps.sf_ocr_fix`。
+    pub fn from_input(input: &crate::input::Input) -> Self {
+        input.steps.sf_ocr_fix.clone()
+    }
+}
+
 fn default_adjusted_confidence_threshold() -> f64 {
     0.45
 }

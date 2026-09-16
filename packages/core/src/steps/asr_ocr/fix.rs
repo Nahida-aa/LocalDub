@@ -105,11 +105,6 @@ struct AsrOcrFusedBody {
     segments: Vec<OcrSegment>,
 }
 
-/// Read asr_ocr_fix config (defaults to AsrOcrFixArgs::default).
-fn read_args(ctx: &WorkflowState) -> AsrOcrFixArgs {
-    ctx.input.steps.asr_ocr_fix.clone()
-}
-
 /// Step 1 (optional): Resample - extract additional frames at isolated high-confidence frames.
 fn maybe_resample(
     ctx: &WorkflowState,
@@ -258,7 +253,7 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowState) -> Result<()> {
         },
     )?;
 
-    let args = read_args(ctx);
+    let args = AsrOcrFixArgs::from_input(&ctx.input);
     let out_dir = asr_ocr_fix_dir(&video_dir);
     fs::create_dir_all(&out_dir)?;
 

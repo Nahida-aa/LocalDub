@@ -21,16 +21,11 @@ use crate::steps::utils::{
     video_source_path, StepPatch, StepStatus, WorkflowPatch,
 };
 
-/// 读取 mix_video 配置 (缺省用 MixVideoArgs::default)。
-fn read_args(ctx: &WorkflowState) -> MixVideoArgs {
-    ctx.input.steps.mix_video.clone()
-}
-
 /// 入口 (镜像 TS `stepMixVideo`)。
 pub fn step_mix_video(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     let video_id = ctx.workflow.id.clone();
-    let cfg = read_args(ctx);
+    let cfg = MixVideoArgs::from_input(&ctx.input);
 
     if !cfg.enabled {
         tracing::info!(target: "mix_video", "disabled (mix_video.enabled=false), skipping");

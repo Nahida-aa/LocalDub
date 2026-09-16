@@ -44,6 +44,13 @@ impl Default for TranslateArgs {
     }
 }
 
+impl TranslateArgs {
+    /// 从输入契约取本步参数：`input.steps.translate`。
+    pub fn from_input(input: &crate::input::Input) -> Self {
+        input.steps.translate.clone()
+    }
+}
+
 fn default_true() -> bool {
     true
 }

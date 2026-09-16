@@ -50,11 +50,6 @@ fn write_silent_wav(out_path: &str) -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("写静音 wav {} 失败: {e}", out_path))
 }
 
-/// 从 `ctx.input.steps.tts` 解析配置 (镜像 TS `ctx.input.steps.tts`)。
-fn read_args(ctx: &WorkflowState) -> TtsArgs {
-    ctx.input.steps.tts.clone()
-}
-
 /// 选择 voxcpm-burn 后端二进制名 (镜像 TS runtime/device -> 二进制)。
 /// 优先返回 workspace 中已构建的二进制。
 ///
@@ -141,7 +136,7 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "tts", "start");
 
-    let args = read_args(ctx);
+    let args = TtsArgs::from_input(&ctx.input);
     let vocals_dir = Path::new(&video_dir).join("split_audio").join("vocals");
     let tts_wav_dir = Path::new(&video_dir).join("tts").join("wavs");
     let doubled_dir = Path::new(&video_dir).join("tts").join("ref_doubled");
@@ -741,7 +736,7 @@ mod tests {
                 "input": {}
             }),
         );
-        let cfg = read_args(&ctx);
+        let cfg = TtsArgs::from_input(&ctx.input);
         assert!(cfg.skip_existing);
         assert!(!cfg.ref_audio_x2);
         assert_eq!(cfg.regen_indices, None);
@@ -754,7 +749,7 @@ mod tests {
                 "input": {"steps": {"tts": {"skipExisting": false, "refAudioX2": true, "regenIndices": [1,2,3]}}}
             }),
         );
-        let cfg2 = read_args(&ctx2);
+        let cfg2 = TtsArgs::from_input(&ctx2.input);
         assert!(!cfg2.skip_existing);
         assert!(cfg2.ref_audio_x2);
         assert_eq!(cfg2.regen_indices, Some(vec![1, 2, 3]));

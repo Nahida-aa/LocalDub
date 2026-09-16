@@ -22,11 +22,6 @@ use crate::steps::utils::{
     video_source_path, vocals_path, StepPatch, StepStatus,
 };
 
-/// 读取 asr 配置 (缺省用 AsrArgs::default)。
-fn read_args(ctx: &WorkflowState) -> AsrArgs {
-    ctx.input.steps.asr.clone()
-}
-
 /// 解析 ASR 人声基线路径 (镜像 TS asr.ts:30: vocalAudioPath 覆盖默认 vocals 路径)。
 fn resolve_audio_vocal(cfg: &AsrArgs, video_dir: &str) -> PathBuf {
     cfg.vocal_audio_path
@@ -50,7 +45,7 @@ pub fn step_asr(ctx: &WorkflowState) -> anyhow::Result<()> {
         },
     )?;
 
-    let cfg = read_args(ctx);
+    let cfg = AsrArgs::from_input(&ctx.input);
 
     if !cfg.enabled {
         tracing::info!(target: "asr", "disabled (asr.enabled=false), skipping");

@@ -18,17 +18,12 @@ use crate::steps::utils::{
 
 pub use args::MixAudioArgs;
 
-/// 从 `ctx.input.steps.mix_audio` 解析配置 (镜像 TS `readInputArgs().steps.mix_audio`)。
-fn read_args(ctx: &WorkflowState) -> MixAudioArgs {
-    ctx.input.steps.mix_audio.clone()
-}
-
 /// 入口 (镜像 TS `stepMixAudio`)。
 pub fn step_mix_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "mix_audio", "start");
 
-    let args = read_args(ctx);
+    let args = MixAudioArgs::from_input(&ctx.input);
 
     let merge_audio_dir = Path::new(&video_dir).join("mix_audio");
     let tts_dir = Path::new(&video_dir).join("tts").join("wavs");
@@ -347,7 +342,7 @@ mod tests {
                 "input": {}
             }),
         );
-        let cfg = read_args(&ctx);
+        let cfg = MixAudioArgs::from_input(&ctx.input);
         assert_eq!(cfg.max_speed, 1.35);
         assert_eq!(cfg.max_advance_ms, 500.0);
         assert_eq!(cfg.max_delay_ms, 500.0);

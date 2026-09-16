@@ -12,11 +12,6 @@ use crate::steps::utils::{
 };
 use std::process::Command;
 
-/// 读取 sf_ocr 配置 (缺省用 SfOcrArgs::default)。
-fn read_args(ctx: &WorkflowState) -> SfOcrArgs {
-    ctx.input.steps.sf_ocr.clone()
-}
-
 /// 入口 (镜像 TS `stepSfOcr`)。
 pub fn step_sf_ocr(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
@@ -32,7 +27,7 @@ pub fn step_sf_ocr(ctx: &WorkflowState) -> anyhow::Result<()> {
         },
     )?;
 
-    let cfg = read_args(ctx);
+    let cfg = SfOcrArgs::from_input(&ctx.input);
 
     let frame_dir = sf_ocr_pre_dir(&video_dir).join("frames");
     if !frame_dir.exists() {
@@ -147,7 +142,7 @@ mod tests {
                 "input": {"steps": {"sf_ocr": {}}}
             }),
         );
-        let cfg = read_args(&ctx);
+        let cfg = SfOcrArgs::from_input(&ctx.input);
         assert_eq!(cfg.text_confidence_threshold, 0.45);
         assert!(cfg.subtitle_only);
         assert!(!cfg.cleanup_frames);
@@ -166,7 +161,7 @@ mod tests {
                 }}}
             }),
         );
-        let cfg = read_args(&ctx);
+        let cfg = SfOcrArgs::from_input(&ctx.input);
         assert_eq!(cfg.text_confidence_threshold, 0.7);
         assert!(!cfg.subtitle_only);
         assert!(cfg.cleanup_frames);

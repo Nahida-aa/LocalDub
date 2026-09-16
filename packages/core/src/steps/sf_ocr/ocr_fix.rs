@@ -15,11 +15,6 @@ use crate::steps::utils::{
 };
 use std::process::Command;
 
-/// 读取 sf_ocr_fix 配置 (缺省用 OcrFixArgs::default)。
-fn read_args(ctx: &WorkflowState) -> OcrFixArgs {
-    ctx.input.steps.sf_ocr_fix.clone()
-}
-
 /// 入口 (镜像 TS `stepSfOcrFix`)。
 pub fn step_sf_ocr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
@@ -39,7 +34,7 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
     std::fs::create_dir_all(&out_dir)
         .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", out_dir.display(), e))?;
 
-    let args = read_args(ctx);
+    let args = OcrFixArgs::from_input(&ctx.input);
 
     let bin = ensure_bin("subtitle_ocr_post_bin").map_err(|e| {
         anyhow::anyhow!(
@@ -196,7 +191,7 @@ mod tests {
                 "input": {"steps": {"sf_ocr_fix": {}}}
             }),
         );
-        let cfg = read_args(&ctx);
+        let cfg = OcrFixArgs::from_input(&ctx.input);
         assert_eq!(cfg.adjusted_confidence_threshold, 0.45);
         assert!(!cfg.llm_fix.llm_fix);
     }
@@ -213,7 +208,7 @@ mod tests {
                 }}}
             }),
         );
-        let cfg = read_args(&ctx);
+        let cfg = OcrFixArgs::from_input(&ctx.input);
         assert_eq!(cfg.adjusted_confidence_threshold, 0.6);
         assert!(cfg.llm_fix.llm_fix);
     }

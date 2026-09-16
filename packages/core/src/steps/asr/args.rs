@@ -175,6 +175,13 @@ impl Default for AsrArgs {
     }
 }
 
+impl AsrArgs {
+    /// 从输入契约取本步参数：`input.steps.asr`。
+    pub fn from_input(input: &crate::input::Input) -> Self {
+        input.steps.asr.clone()
+    }
+}
+
 fn default_runtime() -> AsrRuntime {
     AsrRuntime::Pytorch
 }

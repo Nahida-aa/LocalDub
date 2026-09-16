@@ -17,11 +17,6 @@ use crate::steps::utils::{
 pub use after::step_separate_after;
 pub use args::SeparateArgs;
 
-/// 从 `ctx.input.steps.separate` 解析配置 (与 TS default 对齐)
-pub fn read_args(ctx: &WorkflowState) -> SeparateArgs {
-    ctx.input.steps.separate.clone()
-}
-
 /// 根据 runtime + device 选择 demucs-burn 后端 (镜像 TS `separateBurn` 的 backend 派生)。
 /// `burn-tch` → tch (device 无关); `burn` → 按 device (Cpu/Mps→cpu, Cuda→cuda,
 /// Vulkan→vulkan, Webgpu→wgpu)。须与 `cmd/env` 的 `demucs_backend_suffix` 保持一致。
@@ -244,7 +239,7 @@ pub fn step_separate(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "separate", "start");
 
-    let cfg = read_args(ctx);
+    let cfg = SeparateArgs::from_input(&ctx.input);
 
     // subtitle 模式且未配置 always → 跳过分离
     if ctx.output_mode == "subtitle" && !cfg.always {
@@ -401,7 +396,7 @@ mod tests {
             }),
             "dub",
         );
-        let cfg = read_args(&ctx);
+        let cfg = SeparateArgs::from_input(&ctx.input);
         assert_eq!(cfg.runtime, args::SeparateRuntime::BurnTch);
         assert_eq!(cfg.device, args::Device::Cuda);
         assert!(!cfg.always);
@@ -409,7 +404,7 @@ mod tests {
     }
 
     #[test]
-    fn read_args_parses_camel_case_fields() {
+    fn from_input_parses_camel_case_fields() {
         let ctx = ctx_with(
             json!({
                 "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
@@ -423,7 +418,7 @@ mod tests {
             }),
             "dub",
         );
-        let cfg = read_args(&ctx);
+        let cfg = SeparateArgs::from_input(&ctx.input);
         assert_eq!(cfg.device, args::Device::Mps);
         assert!(cfg.always);
         assert_eq!(cfg.stems, vec![args::Stem::Drums, args::Stem::Vocals]);

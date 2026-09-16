@@ -13,11 +13,6 @@ use anyhow::Result;
 use std::fs;
 use std::process::Command;
 
-/// Read asr_ocr config (defaults to AsrOcrArgs::default).
-fn read_args(ctx: &WorkflowState) -> AsrOcrArgs {
-    ctx.input.steps.asr_ocr.clone()
-}
-
 /// Entry point (mirrors TS `stepAsrOcr`).
 pub fn step_asr_ocr(ctx: &WorkflowState) -> Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
@@ -33,7 +28,7 @@ pub fn step_asr_ocr(ctx: &WorkflowState) -> Result<()> {
         },
     )?;
 
-    let cfg = read_args(ctx);
+    let cfg = AsrOcrArgs::from_input(&ctx.input);
 
     let frame_dir = asr_ocr_pre_dir(&video_dir).join("frames");
     if !frame_dir.exists() {
