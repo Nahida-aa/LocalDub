@@ -83,6 +83,8 @@ pub fn step_mix_video(ctx: &WorkflowState) -> anyhow::Result<()> {
     let alignment_num = args::alignment_to_ffmpeg(alignment);
 
     let sub_path = mix_video.join(format!("{target_lang}.srt"));
+    let style = probe_style(&video_file_path, &target_lang, &cfg, alignment_num);
+
     match input {
         // 字幕时间轴统一取 split_audio 的**意图时序** `timings.json`：
         // `split_audio.json` 里 padding 后的切块区间是给切音频用的，不是字幕显示
@@ -96,35 +98,32 @@ pub fn step_mix_video(ctx: &WorkflowState) -> anyhow::Result<()> {
             let segs: SubtitleSegments = timings.into();
             segs.write_srt(&sub_path)
                 .map_err(|e| anyhow!("写字幕 SRT 失败: {e}"))?;
-
-        let style = probe_style(&video_file_path, &target_lang, &cfg, alignment_num);
-        let filter = sub_filter_arg(&sub_path.to_string_lossy(), &style);
-
-        ffmpeg_timeout(
-            &[
-                "-i".into(),
-                video_file_path.clone(),
-                "-vf".into(),
-                filter,
-                "-map".into(),
-                "0:v:0".into(),
-                "-map".into(),
-                "0:a:0".into(),
-                "-c:v".into(),
-                "libx264".into(),
-                "-preset".into(),
-                "fast".into(),
-                "-crf".into(),
-                "23".into(),
-                "-c:a".into(),
-                "copy".into(),
-                "-movflags".into(),
-                "+faststart".into(),
-                final_video.to_string_lossy().to_string(),
-            ],
-            300_000,
-        )
-        .map_err(|e| anyhow!("mix_video (subtitle) ffmpeg 失败: {e}"))?;
+            let filter = sub_filter_arg(&sub_path.to_string_lossy(), &style);
+            ffmpeg_timeout(
+                &[
+                    "-i".into(),
+                    video_file_path.clone(),
+                    "-vf".into(),
+                    filter,
+                    "-map".into(),
+                    "0:v:0".into(),
+                    "-map".into(),
+                    "0:a:0".into(),
+                    "-c:v".into(),
+                    "libx264".into(),
+                    "-preset".into(),
+                    "fast".into(),
+                    "-crf".into(),
+                    "23".into(),
+                    "-c:a".into(),
+                    "copy".into(),
+                    "-movflags".into(),
+                    "+faststart".into(),
+                    final_video.to_string_lossy().to_string(),
+                ],
+                300_000,
+            )
+            .map_err(|e| anyhow!("mix_video (subtitle) ffmpeg 失败: {e}"))?;
         }
         MixVideoInput::Dub {
             dubbing_path,
@@ -141,15 +140,12 @@ pub fn step_mix_video(ctx: &WorkflowState) -> anyhow::Result<()> {
             let bgm_file = bgm_path.as_path().to_path_buf();
 
             build_subtitle_srt_dub_branch(&mix_audio_timings_path, &sub_path)?;
-
-        let style = probe_style(&video_file_path, &target_lang, &cfg, alignment_num);
-        let filter = sub_filter_arg(&sub_path.to_string_lossy(), &style);
-
-        // 配音 + 背景音 sidechain 压缩混流
-        let mixed_audio = mix_video.join("audio_mixed.m4a");
-        let dub_gain = cfg.dub_gain;
-        let bgm_gain = cfg.bgm_gain;
-        let filter_complex = format!(
+            let filter = sub_filter_arg(&sub_path.to_string_lossy(), &style);
+            // 配音 + 背景音 sidechain 压缩混流
+            let mixed_audio = mix_video.join("audio_mixed.m4a");
+            let dub_gain = cfg.dub_gain;
+            let bgm_gain = cfg.bgm_gain;
+            let filter_complex = format!(
             "[0:a]volume={dub_gain}dB[adub];\
              [1:a]volume={bgm_gain}dB[abgm];\
              [adub]asplit[adub_mix][adub_key];\
@@ -157,52 +153,52 @@ pub fn step_mix_video(ctx: &WorkflowState) -> anyhow::Result<()> {
              [adub_mix][abgm_sc]amix=inputs=2:duration=longest:normalize=0,\
              acompressor=threshold=-24dB:ratio=2,alimiter=limit=-1dB[aout]"
         );
-        ffmpeg_timeout(
-            &[
-                "-i".into(),
-                dubbing_path.to_string_lossy().to_string(),
-                "-i".into(),
-                bgm_file.to_string_lossy().to_string(),
-                "-filter_complex".into(),
-                filter_complex,
-                "-map".into(),
-                "[aout]".into(),
-                "-c:a".into(),
-                "aac".into(),
-                mixed_audio.to_string_lossy().to_string(),
-            ],
-            300_000,
-        )
-        .map_err(|e| anyhow!("mix_video 音频混流 ffmpeg 失败: {e}"))?;
+            ffmpeg_timeout(
+                &[
+                    "-i".into(),
+                    dubbing_path.to_string_lossy().to_string(),
+                    "-i".into(),
+                    bgm_file.to_string_lossy().to_string(),
+                    "-filter_complex".into(),
+                    filter_complex,
+                    "-map".into(),
+                    "[aout]".into(),
+                    "-c:a".into(),
+                    "aac".into(),
+                    mixed_audio.to_string_lossy().to_string(),
+                ],
+                300_000,
+            )
+            .map_err(|e| anyhow!("mix_video 音频混流 ffmpeg 失败: {e}"))?;
 
-        ffmpeg_timeout(
-            &[
-                "-i".into(),
-                video_file_path.clone(),
-                "-i".into(),
-                mixed_audio.to_string_lossy().to_string(),
-                "-vf".into(),
-                filter,
-                "-map".into(),
-                "0:v:0".into(),
-                "-map".into(),
-                "1:a:0".into(),
-                "-c:v".into(),
-                "libx264".into(),
-                "-preset".into(),
-                "fast".into(),
-                "-crf".into(),
-                "23".into(),
-                "-c:a".into(),
-                "aac".into(),
-                "-movflags".into(),
-                "+faststart".into(),
-                "-shortest".into(),
-                final_video.to_string_lossy().to_string(),
-            ],
-            300_000,
-        )
-        .map_err(|e| anyhow!("mix_video (dub) ffmpeg 失败: {e}"))?;
+            ffmpeg_timeout(
+                &[
+                    "-i".into(),
+                    video_file_path.clone(),
+                    "-i".into(),
+                    mixed_audio.to_string_lossy().to_string(),
+                    "-vf".into(),
+                    filter,
+                    "-map".into(),
+                    "0:v:0".into(),
+                    "-map".into(),
+                    "1:a:0".into(),
+                    "-c:v".into(),
+                    "libx264".into(),
+                    "-preset".into(),
+                    "fast".into(),
+                    "-crf".into(),
+                    "23".into(),
+                    "-c:a".into(),
+                    "aac".into(),
+                    "-movflags".into(),
+                    "+faststart".into(),
+                    "-shortest".into(),
+                    final_video.to_string_lossy().to_string(),
+                ],
+                300_000,
+            )
+            .map_err(|e| anyhow!("mix_video (dub) ffmpeg 失败: {e}"))?;
         }
     }
 
