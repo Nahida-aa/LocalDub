@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::steps::utils::paths::{separate_after, translate, AudioSourcePath};
+use crate::steps::utils::paths::translate;
 
 /// split_audio 阶段参数 (镜像 TS `packages/core/steps/06_split_audio/args.ts` SplitAudioArgsSchema)
 ///
@@ -25,10 +25,8 @@ pub struct SplitAudioArgs {
     /// 段落切块后缘 padding (ms), 避免语音被截断
     #[serde(default = "default_end_pad_ms")]
     pub end_pad_ms: u32,
-    /// 人声文件路径, 调试使用
+    /// 人声文件路径, 调试使用（作为 [`crate::steps::split_audio::SplitAudioSource::Custom]）
     pub vocals_file_path: Option<String>,
-    /// 原始视频音频路径, 调试使用
-    pub source_file_path: Option<String>,
 }
 
 impl Default for SplitAudioArgs {
@@ -38,7 +36,6 @@ impl Default for SplitAudioArgs {
             start_pad_ms: default_start_pad_ms(),
             end_pad_ms: default_end_pad_ms(),
             vocals_file_path: None,
-            source_file_path: None,
         }
     }
 }
@@ -82,9 +79,10 @@ pub struct SplitAudioInput {
 /// `video_source.mp4` 实际只喂给 `probe_duration_ms`，其返回时长与 wav 一致。
 /// 故本契约的 `SourceAudio` 与旧 fallback **产物相同**，无需实测比对。
 ///
-/// **真正的行为差异在 `SplitAudioArgs`**：旧逻辑的 `source_file_path` 调试覆盖（从
-/// 任意源音频切块）在本契约里被移除，只保留 `vocals_file_path` → `Custom`。
-/// 若需保留该调试入口，接线时应补回。
+/// **`SplitAudioArgs` 已移除 `source_file_path`**：旧逻辑里它被 vocals 检查遮蔽，
+/// 无法真正作为「从任意源音频切块」的覆盖（仅在「无 vocals + vad_align」窄路径影响
+/// VAD 参考音频），且与 `vocals_file_path` 概念混淆。调试自定义切块源统一走
+/// `vocals_file_path` → [`crate::steps::split_audio::SplitAudioSource::Custom`]。
 #[derive(Debug, Clone)]
 pub enum SplitAudioSource {
     /// 人声 stem `separate/target_3_vocals.wav`。

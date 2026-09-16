@@ -25,9 +25,8 @@ use crate::steps::split_audio::out::{
 use crate::steps::split_audio::pad_segment::{pad_segments, SegmentBounds};
 use crate::steps::translate::out::{TranslateResult, TranslateSegment};
 use crate::steps::utils::{
-    ensure_dir, now_iso, probe_duration_ms, resolve_language,
-    set_step_anyhow, split_audio_path, split_audio_timings_path, video_source_path, vocals_path,
-    StepPatch, StepStatus,
+    ensure_dir, now_iso, probe_duration_ms, resolve_language, set_step_anyhow, split_audio_path,
+    split_audio_timings_path, video_source_path, vocals_path, StepPatch, StepStatus,
 };
 
 pub use args::SplitAudioArgs;
@@ -65,18 +64,18 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     // 源语言独立解析（它有自己的三级回退，与目标语言无关）。
     let lang_path = crate::steps::utils::paths::translate::LangPath::from_ctx(ctx)?;
     let src_lang = crate::steps::utils::src_language(ctx).code().to_string();
-    let trans = TranslateResult::read(&lang_path)
-        .map_err(|e| anyhow::anyhow!("{e}; 请先运行 translate（或从该步骤 continue 以重新生成）"))?;
+    let trans = TranslateResult::read(&lang_path).map_err(|e| {
+        anyhow::anyhow!("{e}; 请先运行 translate（或从该步骤 continue 以重新生成）")
+    })?;
     if trans.segments.is_empty() {
         return Err(anyhow::anyhow!("translation 无 segments"));
     }
 
-    // 源音频: 可被 split_audio.sourceFilePath 覆盖; 否则有 vocals 用干净人声
+    // 切块源：有 vocals 用干净人声 stem；否则回退原始视频音频。
+    // NB: 旧逻辑曾支持 `sourceFilePath` 调试覆盖，但它被下方 vocals 检查遮蔽，
+    // 实际只对「无 vocals + vad_align」窄路径生效且与 `vocalsFilePath` 概念混淆，
+    // 已从 `SplitAudioArgs` 移除（自定义切块源走 `vocalsFilePath`）。
     let fallback_source = video_source_path(ctx)?;
-    let source_audio = args
-        .source_file_path
-        .clone()
-        .unwrap_or_else(|| fallback_source);
 
     let vocals_file_path = args.vocals_file_path.clone().unwrap_or_else(|| {
         let p = vocals_path(&video_dir);
@@ -86,7 +85,7 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     let source_audio = if has_vocals {
         vocals_file_path
     } else {
-        source_audio
+        fallback_source
     };
 
     // 意图时序 =  translate 的 segments **原样搬运**。
@@ -95,11 +94,11 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     // ——此前的 30 行逐字段 `seg.get(..).unwrap_or(0)` 就是手写一个 serde，
     // 还把坏字段静默吞成 0。现在解析只在 `TranslateResult::read` 一处，
     // 字段缺失/类型不对在那里就会失败。
-    let timings: Vec<TranslateSegment> = trans.segments.clone();
+    let segments: Vec<TranslateSegment> = trans.segments.clone();
 
     // padSegments 得到真实切块时序
-    let bounds = pad_segments(&timings, args.start_pad_ms, args.end_pad_ms);
-    let mut split_segments: Vec<SplitAudioSegment> = timings
+    let bounds = pad_segments(&segments, args.start_pad_ms, args.end_pad_ms);
+    let mut split_segments: Vec<SplitAudioSegment> = segments
         .iter()
         .zip(bounds.iter())
         .map(|(t, (s, e))| SplitAudioSegment {
@@ -193,7 +192,7 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
 
     // VAD alignment (可选)
     if args.vad_align {
-        let mut timings_mut = timings.clone();
+        let mut timings_mut = segments.clone();
         let corrected = vad_align::apply_vad_align(
             &mut split_segments,
             &mut timings_mut,
@@ -215,7 +214,7 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     }
 
     let timing_result = SplitAudioTimingResult {
-        segments: timings.clone(),
+        segments: segments.clone(),
     };
     let timings_path = split_audio_timings_path(&video_dir);
     let json = serde_json::to_string_pretty(&timing_result)
@@ -259,7 +258,6 @@ mod tests {
         assert_eq!(cfg.start_pad_ms, 100);
         assert_eq!(cfg.end_pad_ms, 300);
         assert!(cfg.vocals_file_path.is_none());
-        assert!(cfg.source_file_path.is_none());
     }
 
     #[test]
@@ -271,8 +269,7 @@ mod tests {
                 "vadAlign": true,
                 "startPadMs": 150,
                 "endPadMs": 400,
-                "vocalsFilePath": "/v.wav",
-                "sourceFilePath": "/s.mp4"
+                "vocalsFilePath": "/v.wav"
             }}}
         }));
         let cfg = read_args(&ctx);
@@ -280,6 +277,5 @@ mod tests {
         assert_eq!(cfg.start_pad_ms, 150);
         assert_eq!(cfg.end_pad_ms, 400);
         assert_eq!(cfg.vocals_file_path.as_deref(), Some("/v.wav"));
-        assert_eq!(cfg.source_file_path.as_deref(), Some("/s.mp4"));
     }
 }

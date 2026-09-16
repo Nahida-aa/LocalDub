@@ -325,7 +325,8 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 > `extract_audio(video_source.mp4)` 产出（pcm_s16le / 44100），且旧代码里 mp4 实际只
 > 喂给 `probe_duration_ms`（时长一致），`cut_audio_range` 只在有 vocals 时对
 > `separate/target_3_vocals.wav` 调用。故接线**不改变产物**。
-> 唯一差异是契约移除了 `source_file_path` 调试覆盖（见 `args.rs` 该枚举注释）。
+> 契约与现状现已一致：`source_file_path` 调试覆盖已从 `SplitAudioArgs` 移除
+> （见 `args.rs` 该结构注释），仅保留 `vocals_file_path` → `Custom`。
 >
 > **`{lang}.json` 是带类型读取的**：`TranslateResult::read(&LangPath)`。
 > 意图时序（`timings.json` 的 segments）就是**翻译 segments 的原样搬运**——
