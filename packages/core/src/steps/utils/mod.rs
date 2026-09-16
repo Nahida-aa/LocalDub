@@ -217,29 +217,6 @@ pub fn probe_sample_rate(path: &str) -> u32 {
     }
 }
 
-/// 读取 split_audio 时序文件 `split_audio/timings.json` (镜像 TS `read_split_audio_timings`)。
-pub fn read_split_audio_timings(
-    ctx: &crate::context::WorkflowState,
-) -> anyhow::Result<serde_json::Value> {
-    let file = split_audio_timings_path(&ctx.workflow.video_dir);
-    let raw = std::fs::read_to_string(&file)
-        .map_err(|e| anyhow::anyhow!("读取 {} 失败: {}", file.display(), e))?;
-    serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("解析 {} 失败: {}", file.display(), e))
-}
-
-/// 读取 split_audio 结果文件 `split_audio/split_audio.json` (镜像 TS `read_split_audio`)。
-pub fn read_split_audio(ctx: &crate::context::WorkflowState) -> anyhow::Result<serde_json::Value> {
-    let file = split_audio_path(&ctx.workflow.video_dir);
-    let raw = std::fs::read_to_string(&file)
-        .map_err(|e| anyhow::anyhow!("读取 {} 失败: {}", file.display(), e))?;
-    serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("解析 {} 失败: {}", file.display(), e))
-}
-
-/// tts 结果文件路径 `tts/tts.json` (镜像 TS `tts_filepath`)。
-pub fn tts_filepath(video_dir: &str) -> PathBuf {
-    Path::new(video_dir).join("tts").join("tts.json")
-}
-
 /// 执行 ffmpeg (自动前置 `-y` 覆盖输出), 非零退出即报错 (含 stderr)。
 /// 参数格式与 TS `ffmpeg(args)` 一致: 传入不含 `-y` 的参数字串切片。
 pub fn ffmpeg(args: &[String]) -> anyhow::Result<()> {

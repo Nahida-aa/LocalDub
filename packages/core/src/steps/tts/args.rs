@@ -96,6 +96,8 @@ pub struct TtsInput {
     pub tts_wavs_dir: tts::WavsDir,
     /// 本步中间态：短参考音翻倍产物（仅 `refAudioX2` 时用到）。
     pub ref_doubled_dir: tts::RefDoubledDir,
+    /// 本步产物清单 `tts/tts.json`（regen 时也要读回）。
+    pub tts_path: tts::TtsPath,
 }
 
 impl TtsInput {
@@ -105,6 +107,7 @@ impl TtsInput {
             split_audio_timings_path: split_audio::TimingsPath::new(&video_dir),
             tts_wavs_dir: tts::WavsDir::new(&video_dir),
             ref_doubled_dir: tts::RefDoubledDir::new(&video_dir),
+            tts_path: tts::TtsPath::new(&video_dir),
         }
     }
 }

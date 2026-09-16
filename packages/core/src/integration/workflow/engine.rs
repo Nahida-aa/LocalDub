@@ -66,9 +66,9 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
     use crate::steps::utils::{
         asr_dir, asr_ocr_dir, asr_ocr_fix_dir, asr_ocr_pre_dir, dubbing_path, final_video_dir,
         gated_vocals_path, mix_audio_timings_path, mixed_vocals_path, separate_dir, sf_ocr_dir,
-        sf_ocr_fix_dir, sf_ocr_pre_dir, split_audio_path, split_audio_timings_path, tts_filepath,
-        video_id,
+        sf_ocr_fix_dir, sf_ocr_pre_dir, split_audio_path, split_audio_timings_path, video_id,
     };
+    use crate::steps::utils::paths::tts::TtsPath;
     let wf = video_dir;
     let p = |pb: std::path::PathBuf| pb.to_string_lossy().into_owned();
     let artifacts: Vec<String> = match step {
@@ -87,7 +87,7 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
             vec![p(p_lang.as_path().to_path_buf())]
         }
         "split_audio" => vec![p(split_audio_path(wf)), p(split_audio_timings_path(wf))],
-        "tts" => vec![p(tts_filepath(wf))],
+        "tts" => vec![p(TtsPath::new(wf).into())],
         "mix_audio" => vec![p(dubbing_path(wf)), p(mix_audio_timings_path(wf))],
         "mix_video" => {
             let ctx = crate::context::read_ctx(wf).ok()?;

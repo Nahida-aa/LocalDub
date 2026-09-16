@@ -25,9 +25,9 @@ use crate::steps::tts::util::{
     ensure_no_failed_segments, pick_voxcpm_bin, should_skip_segment, write_silent_wav,
 };
 use crate::steps::utils::{
-    ensure_dir, ffmpeg, now_iso, probe_duration_ms, set_step_anyhow, tts_filepath, StepPatch,
-    StepStatus,
+    ensure_dir, ffmpeg, now_iso, probe_duration_ms, set_step_anyhow, StepPatch, StepStatus,
 };
+use crate::utils::file_ops::{ensure_parent_dir, write_json_pretty};
 
 /// vocals 参考音"非静音"判定阈值: PCM 裸数据 > 该字节数才认为有实际声音。
 /// 1200 采样帧 * 16bit * 2 声道 = 38400 bytes (~75ms @ 16kHz)。
@@ -116,7 +116,7 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
 
     // regenIndices 生效时载入已有 tts.json, 供列表外段复用旧结果 (避免重跑时覆盖其它段)。
     let existing_segments: std::collections::HashMap<u32, TtsSegment> = if regen_active {
-        let p = tts_filepath(&video_dir);
+        let p = input.tts_path.as_path();
         if p.exists() {
             match std::fs::read_to_string(&p) {
                 Ok(raw) => serde_json::from_str::<TtsFile>(&raw)
@@ -444,15 +444,12 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
     }
     pb.finish();
 
-    let tts_file = tts_filepath(&video_dir);
-    ensure_dir(Path::new(&tts_file).parent().unwrap())?;
+    ensure_parent_dir(input.tts_path.as_path())
+        .map_err(|e| anyhow::anyhow!("创建目录失败: {e}"))?;
     let result = TtsFile {
         segments: tts_segments,
     };
-    let json = serde_json::to_string_pretty(&result)
-        .map_err(|e| anyhow::anyhow!("序列化 tts 结果失败: {e}"))?;
-    fs::write(&tts_file, json)
-        .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", tts_file.display(), e))?;
+    write_json_pretty(input.tts_path.as_path(), &result)?;
 
     // tts.json 已落盘, 这里只做终局判定。
     ensure_no_failed_segments(&result)?;

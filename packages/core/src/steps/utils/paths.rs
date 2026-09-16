@@ -457,7 +457,21 @@ pub mod split_audio {
 pub mod tts {
     use super::*;
     // tts/tts.json
-    pub type TtsPath = PathBuf;
+    #[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut, From, Into)]
+    pub struct TtsPath(PathBuf);
+
+    impl TtsPath {
+        /// 唯一拼法来源：`{video_dir}/tts/tts.json`
+        /// （替代原自由函数 `crate::steps::utils::tts_filepath`）。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(Path::new(video_dir.as_ref()).join("tts").join("tts.json"))
+        }
+
+        /// 本类型承诺的路径访问器（与 `SrtPath` / `Target3VocalsPath` 同签名）。
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
     // tts/wavs/{:04}.wav
     #[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut, From, Into)]
     pub struct WavsDir(PathBuf);
