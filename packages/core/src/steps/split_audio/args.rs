@@ -123,10 +123,24 @@ impl SplitAudioInput {
     ///
     /// `audio_source_path` 缺失 → Err（与 `video_source_path` 同款）。
     pub fn from_state(state: &crate::context::WorkflowState) -> anyhow::Result<Self> {
+        Ok(Self {
+            audio: Self::audio_from_state(state)?,
+            translate: translate::LangPath::from_state(state)?,
+        })
+    }
+
+    /// 只解析**切块音频源**（优先级见 [`SplitAudioSource`]）。
+    ///
+    /// 拆出来是给「只要音频源、不要 translate 路径」的消费者用——它不必为了
+    /// 拿 audio 而顺带构造一个用不到的 `LangPath`（后者会在 `target_language`
+    /// 缺失时报错，把与该消费者无关的失败条件引进来）。
+    ///
+    /// `audio_source_path` 缺失 → Err（与 `video_source_path` 同款）。
+    pub fn audio_from_state(state: &crate::context::WorkflowState) -> anyhow::Result<SplitAudioSource> {
         let args = SplitAudioArgs::from_input(&state.input);
         let video_dir = &state.workflow.video_dir;
 
-        let audio = match args.vocals_file_path {
+        Ok(match args.vocals_file_path {
             Some(p) => SplitAudioSource::Custom(PathBuf::from(p)),
             None => {
                 let vocals = separate::Target3VocalsPath::new(video_dir);
@@ -139,11 +153,6 @@ impl SplitAudioInput {
                     )
                 }
             }
-        };
-
-        Ok(Self {
-            audio,
-            translate: translate::LangPath::from_state(state)?,
         })
     }
 }

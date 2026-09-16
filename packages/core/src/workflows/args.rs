@@ -95,7 +95,6 @@ impl StepName {
     }
 }
 
-
 /// 任务模式: dub=配音, subtitle=仅字幕
 ///
 /// `Display` / `FromStr` 由 strum 派生（serialize_all = lowercase，与 serde 一致）。
@@ -132,9 +131,9 @@ impl OutputMode {
     ///
     /// 空串按 `#[default]`（Dub）兜底（与 `read_ctx_from_value` / `WorkflowArgs` 默认一致）；
     /// 未知值报错（fail-fast，期望列表由 `VARIANTS` 生成，加变体自动更新）。
-    pub fn from_state(ctx: &crate::context::WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(state: &crate::context::WorkflowState) -> anyhow::Result<Self> {
         use strum::VariantNames;
-        let s = ctx.output_mode.trim();
+        let s = state.output_mode.trim();
         if s.is_empty() {
             return Ok(Self::default());
         }
@@ -283,7 +282,10 @@ mod strum_sync_tests {
             StepName::iter()
                 .map(|v| {
                     (
-                        serde_json::to_string(&v).unwrap().trim_matches('"').to_string(),
+                        serde_json::to_string(&v)
+                            .unwrap()
+                            .trim_matches('"')
+                            .to_string(),
                         v,
                     )
                 })
@@ -294,15 +296,22 @@ mod strum_sync_tests {
     #[test]
     fn subtitle_source_serde_and_strum_agree() {
         roundtrip_check(
-            [SubtitleSource::Asr, SubtitleSource::SfOcr, SubtitleSource::AsrOcr]
-                .iter()
-                .map(|v| {
-                    (
-                        serde_json::to_string(v).unwrap().trim_matches('"').to_string(),
-                        *v,
-                    )
-                })
-                .collect(),
+            [
+                SubtitleSource::Asr,
+                SubtitleSource::SfOcr,
+                SubtitleSource::AsrOcr,
+            ]
+            .iter()
+            .map(|v| {
+                (
+                    serde_json::to_string(v)
+                        .unwrap()
+                        .trim_matches('"')
+                        .to_string(),
+                    *v,
+                )
+            })
+            .collect(),
         );
     }
 
@@ -313,7 +322,10 @@ mod strum_sync_tests {
                 .iter()
                 .map(|v| {
                     (
-                        serde_json::to_string(v).unwrap().trim_matches('"').to_string(),
+                        serde_json::to_string(v)
+                            .unwrap()
+                            .trim_matches('"')
+                            .to_string(),
                         *v,
                     )
                 })

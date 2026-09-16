@@ -19,14 +19,13 @@ use std::path::Path;
 
 use crate::context::WorkflowState;
 use crate::steps::split_audio::out::{
-    SplitAudioResult, SplitAudioSegment, SplitAudioTiming, SplitAudioTimingResult,
-    TranslateResultMeta,
+    SplitAudioResult, SplitAudioSegment, SplitAudioTimingResult, TranslateResultMeta,
 };
 use crate::steps::split_audio::pad_segment::{pad_segments, SegmentBounds};
 use crate::steps::translate::out::{TranslateResult, TranslateSegment};
 use crate::steps::utils::{
-    ensure_dir, now_iso, probe_duration_ms, resolve_language, set_step_anyhow, split_audio_path,
-    split_audio_timings_path, video_source_path, vocals_path, StepPatch, StepStatus,
+    ensure_dir, now_iso, probe_duration_ms, set_step_anyhow, split_audio_path,
+    split_audio_timings_path, StepPatch, StepStatus,
 };
 
 pub use args::SplitAudioArgs;
@@ -62,22 +61,19 @@ pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
         return Err(anyhow::anyhow!("translation 无 segments"));
     }
 
-    // 切块源：有 vocals 用干净人声 stem；否则回退原始视频音频。
-    // NB: 旧逻辑曾支持 `sourceFilePath` 调试覆盖，但它被下方 vocals 检查遮蔽，
+    // 切块源：优先级与存在性判断统一在 `SplitAudioInput::audio_from_state`
+    // （vocalsFilePath 覆盖 → 人声 stem → 原始音频），此处不再手拼。
+    // NB: 旧逻辑曾支持 `sourceFilePath` 调试覆盖，但它被 vocals 检查遮蔽，
     // 实际只对「无 vocals + vad_align」窄路径生效且与 `vocalsFilePath` 概念混淆，
     // 已从 `SplitAudioArgs` 移除（自定义切块源走 `vocalsFilePath`）。
-    let fallback_source = video_source_path(ctx)?;
+    let audio_source = args::SplitAudioInput::audio_from_state(ctx)?;
+    let source_audio = audio_source.as_path().to_string_lossy().into_owned();
 
-    let vocals_file_path = args.vocals_file_path.clone().unwrap_or_else(|| {
-        let p = vocals_path(&video_dir);
-        p.to_string_lossy().into_owned()
-    });
-    let is_dub = Path::new(&vocals_file_path).exists();
-    let source_audio = if is_dub {
-        vocals_file_path
-    } else {
-        fallback_source
-    };
+    // 是否 dub 流程由 **output_mode 输入契约**决定，不再靠「源文件是否碰巧存在」
+    // 推断——后者把「有没有 separate 产物」当成了流程模式，是个副作用推断
+    // （subtitle 模式若残留了旧的 vocals stem，就会误判成 dub）。
+    let is_dub = crate::workflows::args::OutputMode::from_input(&ctx.input)
+        == crate::workflows::args::OutputMode::Dub;
 
     // 意图时序 =  translate 的 segments **原样搬运**。
     //
