@@ -146,18 +146,19 @@ impl OutputMode {
         })
     }
 
-    /// 从 `ctx.input.workflow.output_mode` 解析（读**输入契约**，非 import 落定的事实）。
+    /// 从 `input.workflow.output_mode` 解析（读**输入契约**，非 import 落定的事实）。
     ///
     /// 与 [`from_ctx`](Self::from_ctx)（读 `ctx.output_mode` 事实、未知值 fail-fast）互补：
     /// 此处读的是 `Input` 里**结构化**的 `output_mode` 字段——它已是 `OutputMode`
     /// 枚举，不可能出现「未知值」，故返回 `Self` 而非 `Result`；`workflow` 缺失或
     /// 字段缺省时回退 `#[default]`（Dub）。
     ///
+    /// 直接吃 `&Input`（而非 `&WorkflowCtx`），与「from_input」语义一致——只关心输入契约。
     /// 适用：需要在 import **之前**、或从原始输入（而非拍平后的事实）取 output_mode 的场景。
     /// 注意 `from_ctx` 与 `from_input` 来源不同——前者是 import 落定的事实，后者是用户传入的输入；
     /// 正常流程里两者应一致，不一致时以 `from_ctx`（事实）为准。
-    pub fn from_input(ctx: &crate::context::WorkflowCtx) -> Self {
-        ctx.input
+    pub fn from_input(input: &crate::input::Input) -> Self {
+        input
             .workflow
             .as_ref()
             .map(|w| w.output_mode)
@@ -368,11 +369,11 @@ mod strum_sync_tests {
 
         // 读结构化输入字段（与 from_ctx 来源不同：这里是 input，不是拍平事实）
         assert_eq!(
-            OutputMode::from_input(&mk(Some("subtitle"))),
+            OutputMode::from_input(&mk(Some("subtitle")).input),
             OutputMode::Subtitle
         );
 
         // 缺省：input.workflow 缺失也回退默认 Dub
-        assert_eq!(OutputMode::from_input(&mk(None)), OutputMode::Dub);
+        assert_eq!(OutputMode::from_input(&mk(None).input), OutputMode::Dub);
     }
 }
