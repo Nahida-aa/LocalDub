@@ -1,4 +1,8 @@
+use std::path::Path;
+
 use serde::{Deserialize, Serialize};
+
+use crate::steps::utils::paths::split_audio;
 
 /// TTS 运行时后端 (镜像 TS `packages/core/steps/07_tts/args.ts` TtsStepArgsSchema.runtime)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
@@ -76,4 +80,25 @@ fn default_runtime() -> TtsRuntime {
 
 fn default_device() -> TtsDevice {
     TtsDevice::Cuda
+}
+
+/// tts 步骤的输入契约：本步要读/写的全部路径。
+///
+/// 两个字段都是 `{video_dir}/split_audio/...` 的**约定拼法**，不读 ctx 里落定的
+/// 事实（不像 `VideoSourcePath` / `LangPath` 那种），故入口是
+/// [`from_video_dir`](Self::from_video_dir) 而不是 `from_state`——与
+/// [`crate::steps::utils::paths::AudioSourcePath::from_video_dir`] 同款区分：
+/// 名字本身就在说明「这是约定，不是事实」。
+pub struct TtsInput {
+    pub split_audio_vocals_dir: split_audio::VocalsDir,
+    pub split_audio_timings_path: split_audio::TimingsPath,
+}
+
+impl TtsInput {
+    pub fn from_video_dir(video_dir: impl AsRef<Path>) -> Self {
+        Self {
+            split_audio_vocals_dir: split_audio::VocalsDir::new(&video_dir),
+            split_audio_timings_path: split_audio::TimingsPath::new(&video_dir),
+        }
+    }
 }
