@@ -40,6 +40,19 @@ impl Default for SplitAudioArgs {
     }
 }
 
+impl SplitAudioArgs {
+    /// 从输入契约取本步参数：`input.steps.split_audio`。
+    ///
+    /// 与 `WorkflowState` 无关——只读 `Input`，故 `from_input` 直接吃 `&Input`。
+    /// 因 [`Steps`](crate::input::Steps) 里该字段**就是** `SplitAudioArgs`，
+    /// 这里是 `clone` 而非转换；存在的意义是给本类型一个与
+    /// [`OutputMode::from_input`](crate::workflows::args::OutputMode::from_input)
+    /// 一致的构造入口（读输入契约，而非 import 落定的事实）。
+    pub fn from_input(input: &crate::input::Input) -> Self {
+        input.steps.split_audio.clone()
+    }
+}
+
 fn default_start_pad_ms() -> u32 {
     100
 }
@@ -109,9 +122,9 @@ impl SplitAudioInput {
     /// 回退到原始音频是**正常路径**。故存在性判断留在这里，类型只表达结论。
     ///
     /// `audio_source_path` 缺失 → Err（与 `video_source_path` 同款）。
-    pub fn from_state(ctx: &crate::context::WorkflowState) -> anyhow::Result<Self> {
-        let args = super::read_args(ctx);
-        let video_dir = &ctx.workflow.video_dir;
+    pub fn from_state(state: &crate::context::WorkflowState) -> anyhow::Result<Self> {
+        let args = SplitAudioArgs::from_input(&state.input);
+        let video_dir = &state.workflow.video_dir;
 
         let audio = match args.vocals_file_path {
             Some(p) => SplitAudioSource::Custom(PathBuf::from(p)),
@@ -122,7 +135,7 @@ impl SplitAudioInput {
                     SplitAudioSource::Vocals(vocals)
                 } else {
                     SplitAudioSource::SourceAudio(
-                        crate::steps::utils::paths::AudioSourcePath::from_state(ctx)?,
+                        crate::steps::utils::paths::AudioSourcePath::from_state(state)?,
                     )
                 }
             }
@@ -130,7 +143,7 @@ impl SplitAudioInput {
 
         Ok(Self {
             audio,
-            translate: translate::LangPath::from_state(ctx)?,
+            translate: translate::LangPath::from_state(state)?,
         })
     }
 }

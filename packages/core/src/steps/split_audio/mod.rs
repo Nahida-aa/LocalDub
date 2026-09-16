@@ -33,7 +33,7 @@ pub use args::SplitAudioArgs;
 
 /// 从 `ctx.input.steps.split_audio` 解析配置, 不存在时返回默认 (与 TS default 对齐)
 pub fn read_args(ctx: &WorkflowState) -> SplitAudioArgs {
-    ctx.input.steps.split_audio.clone()
+    SplitAudioArgs::from_input(&ctx.input)
 }
 
 /// SplitAudioTiming 实现 SegmentBounds (pad_segments 用 start/end)。
