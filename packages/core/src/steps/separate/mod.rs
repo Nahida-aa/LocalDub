@@ -9,7 +9,7 @@ pub mod args;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use crate::context::WorkflowCtx;
+use crate::context::WorkflowState;
 use crate::steps::utils::{
     now_iso, separate_dir, set_step, set_step_anyhow, StepPatch, StepStatus,
 };
@@ -18,7 +18,7 @@ pub use after::step_separate_after;
 pub use args::SeparateArgs;
 
 /// 从 `ctx.input.steps.separate` 解析配置 (与 TS default 对齐)
-pub fn read_args(ctx: &WorkflowCtx) -> SeparateArgs {
+pub fn read_args(ctx: &WorkflowState) -> SeparateArgs {
     ctx.input.steps.separate.clone()
 }
 
@@ -240,7 +240,7 @@ fn run_demucs(
 }
 
 /// 入口 (镜像 TS `stepSeparate`)。
-pub fn step_separate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+pub fn step_separate(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "separate", "start");
 
@@ -381,7 +381,7 @@ mod tests {
     use crate::context::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_with(input: serde_json::Value, pipeline: &str) -> WorkflowCtx {
+    fn ctx_with(input: serde_json::Value, pipeline: &str) -> WorkflowState {
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.workflow.video_dir = "/tmp/ld_sep_test".into();
         ctx.workflow.id = "t".into();

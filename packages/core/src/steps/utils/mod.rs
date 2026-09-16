@@ -219,7 +219,7 @@ pub fn probe_sample_rate(path: &str) -> u32 {
 
 /// 读取 split_audio 时序文件 `split_audio/timings.json` (镜像 TS `read_split_audio_timings`)。
 pub fn read_split_audio_timings(
-    ctx: &crate::context::WorkflowCtx,
+    ctx: &crate::context::WorkflowState,
 ) -> anyhow::Result<serde_json::Value> {
     let file = split_audio_timings_path(&ctx.workflow.video_dir);
     let raw = std::fs::read_to_string(&file)
@@ -228,7 +228,7 @@ pub fn read_split_audio_timings(
 }
 
 /// 读取 split_audio 结果文件 `split_audio/split_audio.json` (镜像 TS `read_split_audio`)。
-pub fn read_split_audio(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<serde_json::Value> {
+pub fn read_split_audio(ctx: &crate::context::WorkflowState) -> anyhow::Result<serde_json::Value> {
     let file = split_audio_path(&ctx.workflow.video_dir);
     let raw = std::fs::read_to_string(&file)
         .map_err(|e| anyhow::anyhow!("读取 {} 失败: {}", file.display(), e))?;
@@ -446,7 +446,7 @@ pub fn asr_fix_dir(video_dir: &str) -> PathBuf {
 }
 
 /// 取 video_source_path (缺则报错, 与 TS `video_source_path` 一致)。
-pub fn video_source_path(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<String> {
+pub fn video_source_path(ctx: &crate::context::WorkflowState) -> anyhow::Result<String> {
     ctx.video_source_path.clone().ok_or_else(|| {
         anyhow::anyhow!(
             "video_source_path 未设置 (session {})",
@@ -630,7 +630,7 @@ pub fn split_audio_timings_path(video_dir: &str) -> PathBuf {
 ///
 /// **本函数是纯函数**（无副作用）。落盘由
 /// [`persist_target_language`] 完成，且只由 translate 调一次。
-pub fn resolve_language(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<(String, String)> {
+pub fn resolve_language(ctx: &crate::context::WorkflowState) -> anyhow::Result<(String, String)> {
     let input_target = ctx
         .input
         .workflow
@@ -666,7 +666,7 @@ pub fn resolve_language(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<(St
 ///
 /// 纯函数、无副作用：`asr_fix`（LLM 提示词的源语言标签）与 `split_audio`
 /// （写 meta）都调它，各自拿到的必然一致。
-pub fn src_language(ctx: &crate::context::WorkflowCtx) -> Language {
+pub fn src_language(ctx: &crate::context::WorkflowState) -> Language {
     ctx.asr_language
         .clone()
         .or_else(|| ctx.input.workflow.as_ref().and_then(|w| w.source_lang.clone()))
@@ -677,7 +677,7 @@ pub fn src_language(ctx: &crate::context::WorkflowCtx) -> Language {
 ///
 /// 直读结构化字段而非构造 `TranslateArgs`：本函数在 `utils` 层，不该依赖 translate
 /// 的 args 类型（那会形成 utils → steps::translate 的循环依赖）。
-fn translate_enabled(ctx: &crate::context::WorkflowCtx) -> bool {
+fn translate_enabled(ctx: &crate::context::WorkflowState) -> bool {
     ctx.input.steps.translate.enabled
 }
 
@@ -722,10 +722,10 @@ use std::io::Write as _;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::{read_ctx_from_value, WorkflowCtx};
+    use crate::context::{read_ctx_from_value, WorkflowState};
     use serde_json::json;
 
-    fn ctx_at(video_dir: &str, input: serde_json::Value) -> WorkflowCtx {
+    fn ctx_at(video_dir: &str, input: serde_json::Value) -> WorkflowState {
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.workflow.video_dir = video_dir.to_string();
         ctx

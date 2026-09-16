@@ -4,14 +4,14 @@
 //! 落盘 `<videoDir>/sf_ocr_pre/`: frames/(PNG) / mask/ / timeline.txt / keyframes.json。
 
 use crate::cmd::env::ensure_bin;
-use crate::context::WorkflowCtx;
+use crate::context::WorkflowState;
 use crate::steps::utils::{
     ensure_dir, now_iso, set_step_anyhow, sf_ocr_pre_dir, video_source_path, StepPatch, StepStatus,
 };
 use std::process::Command;
 
 /// 入口 (镜像 TS `stepSfOcrPre`)。
-pub fn step_sf_ocr_pre(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+pub fn step_sf_ocr_pre(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "sf_ocr", "start");
 
@@ -96,7 +96,7 @@ mod tests {
     use crate::context::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str) -> WorkflowCtx {
+    fn ctx_at(dir: &str) -> WorkflowState {
         let mut ctx = read_ctx_from_value(json!({
             "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                      "status":"running","created_at":"2024-01-01T00:00:00Z"},

@@ -16,7 +16,7 @@ use std::path::Path;
 
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::context::WorkflowCtx;
+use crate::context::WorkflowState;
 use crate::steps::tts::args::{TtsArgs, TtsDevice, TtsRuntime};
 use crate::steps::tts::out::{TtsFile, TtsSegment};
 use crate::steps::utils::{
@@ -51,7 +51,7 @@ fn write_silent_wav(out_path: &str) -> anyhow::Result<()> {
 }
 
 /// 从 `ctx.input.steps.tts` 解析配置 (镜像 TS `ctx.input.steps.tts`)。
-fn read_args(ctx: &WorkflowCtx) -> TtsArgs {
+fn read_args(ctx: &WorkflowState) -> TtsArgs {
     ctx.input.steps.tts.clone()
 }
 
@@ -137,7 +137,7 @@ fn should_skip_segment(
 }
 
 /// 入口 (镜像 TS `stepTts`)。
-pub fn step_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "tts", "start");
 
@@ -630,7 +630,7 @@ mod tests {
     use crate::context::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowCtx {
+    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowState {
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.workflow.video_dir = dir.to_string();
         ctx.output_mode = "dub".to_string();

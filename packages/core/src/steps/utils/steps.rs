@@ -1,10 +1,10 @@
 //! pipeline 阶段序列定义与解析 (镜像 TS `packages/core/steps/utils/steps.ts`)
 //!
 //! TS 侧 `getSteps` 通过 `readInputArgs()` 读取 subtitleSource / translate.enabled /
-//! split_audio.vadAlign; Rust 侧没有该全局 singleton, 改为从 [`crate::context::WorkflowCtx`]
+//! split_audio.vadAlign; Rust 侧没有该全局 singleton, 改为从 [`crate::context::WorkflowState`]
 //! 的 `input` (已是 JSON Value) 解析相同字段。
 
-use crate::context::WorkflowCtx;
+use crate::context::WorkflowState;
 use crate::workflows::args::{StepName, SubtitleSource};
 
 /// 所有合法 step 名 (镜像 TS `stepsList`)
@@ -101,7 +101,7 @@ pub const SUBTITLE_ASR_OCR_STEPS: &[&str] = &[
 ];
 
 /// 从 ctx.input.steps.split_audio.vad_align 解析 (缺省 false)
-fn split_audio_vad_align(ctx: &WorkflowCtx) -> bool {
+fn split_audio_vad_align(ctx: &WorkflowState) -> bool {
     ctx.input.steps.split_audio.vad_align
 }
 
@@ -117,7 +117,7 @@ fn split_audio_vad_align(ctx: &WorkflowCtx) -> bool {
 /// 同源。此前这里是独立的一份字符串解析、未知值静默默认 asr，与 translate 的
 /// fail-fast 相矛盾——同一个非法值在两条路径上表现不同（一个报错、一个悄悄降级）。
 /// 现在未知值统一在入口报错。
-pub fn get_steps(ctx: &WorkflowCtx) -> anyhow::Result<Vec<StepName>> {
+pub fn get_steps(ctx: &WorkflowState) -> anyhow::Result<Vec<StepName>> {
     let is_subtitle = ctx.output_mode == "subtitle";
     let source = SubtitleSource::from_ctx(ctx)?;
 
@@ -164,7 +164,7 @@ mod tests {
     use strum::IntoEnumIterator;
     use serde_json::json;
 
-    fn ctx(pipeline: &str, input: serde_json::Value) -> WorkflowCtx {
+    fn ctx(pipeline: &str, input: serde_json::Value) -> WorkflowState {
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.workflow.video_dir = "/x".into();
         ctx.output_mode = pipeline.into();
@@ -182,7 +182,7 @@ mod tests {
     }
 
     /// 测试用：`get_steps` 在合法输入下必须 Ok，unwrap 掉 Result 噪音。
-    fn steps_of(c: &WorkflowCtx) -> Vec<StepName> {
+    fn steps_of(c: &WorkflowState) -> Vec<StepName> {
         get_steps(c).expect("合法 ctx 不应让 get_steps 失败")
     }
 

@@ -21,7 +21,7 @@ import {
 } from "@repo/ui-solid/base/context-menu";
 import { StepStatusBadge } from "./StepStatusBadge";
 import { useMutation, useQueryClient } from "@tanstack/solid-query";
-import { StepName, WorkflowCtx, WorkflowStep } from "@repo/sdk/index";
+import { StepName, WorkflowState, WorkflowStep } from "@repo/sdk/index";
 
 export const steps_to_map = (
   steps: (WorkflowStep | undefined)[],
@@ -37,7 +37,7 @@ export const steps_to_map = (
 };
 
 export const WorkflowControlPanel = (p: {
-  ctx: WorkflowCtx;
+  ctx: WorkflowState;
   // onResumeFrom: (stepName: string | null) => void;
 }) => {
   const params = useParams({ from: "/group/$id/$videoId" });

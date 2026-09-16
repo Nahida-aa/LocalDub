@@ -178,7 +178,7 @@ mod tests {
         dir: &str,
         input: serde_json::Value,
         output_mode: &str,
-    ) -> crate::context::WorkflowCtx {
+    ) -> crate::context::WorkflowState {
         std::fs::create_dir_all(dir).unwrap();
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.workflow.video_dir = dir.to_string();

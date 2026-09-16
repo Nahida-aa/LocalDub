@@ -17,7 +17,7 @@ pub mod vad_align;
 use std::fs;
 use std::path::Path;
 
-use crate::context::WorkflowCtx;
+use crate::context::WorkflowState;
 use crate::steps::split_audio::out::{
     SplitAudioResult, SplitAudioSegment, SplitAudioTiming, SplitAudioTimingResult,
     TranslateResultMeta,
@@ -32,7 +32,7 @@ use crate::steps::utils::{
 pub use args::SplitAudioArgs;
 
 /// 从 `ctx.input.steps.split_audio` 解析配置, 不存在时返回默认 (与 TS default 对齐)
-pub fn read_args(ctx: &WorkflowCtx) -> SplitAudioArgs {
+pub fn read_args(ctx: &WorkflowState) -> SplitAudioArgs {
     ctx.input.steps.split_audio.clone()
 }
 
@@ -47,7 +47,7 @@ impl SegmentBounds for TranslateSegment {
 }
 
 /// 入口 (镜像 TS `stepSplitAudio`)。
-pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "split_audio", "start");
 
@@ -263,7 +263,7 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn ctx_with_input(input: serde_json::Value) -> WorkflowCtx {
+    fn ctx_with_input(input: serde_json::Value) -> WorkflowState {
         crate::context::read_ctx_from_value(input).unwrap()
     }
 

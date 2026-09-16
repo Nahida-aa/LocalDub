@@ -8,7 +8,7 @@
 //!   5. Optional LLM fix (step 8)
 
 use crate::cmd::env::ensure_bin;
-use crate::context::WorkflowCtx;
+use crate::context::WorkflowState;
 use crate::steps::asr::out::AsrResult;
 use crate::steps::asr_ocr::fix_args::AsrOcrFixArgs;
 use crate::steps::utils::paths::{asr_ocr_fix, SrtJsonPath};
@@ -106,13 +106,13 @@ struct AsrOcrFusedBody {
 }
 
 /// Read asr_ocr_fix config (defaults to AsrOcrFixArgs::default).
-fn read_args(ctx: &WorkflowCtx) -> AsrOcrFixArgs {
+fn read_args(ctx: &WorkflowState) -> AsrOcrFixArgs {
     ctx.input.steps.asr_ocr_fix.clone()
 }
 
 /// Step 1 (optional): Resample - extract additional frames at isolated high-confidence frames.
 fn maybe_resample(
-    ctx: &WorkflowCtx,
+    ctx: &WorkflowState,
     ocr_frames: &OcrFramesResult,
     out_dir: &Path,
     args: &AsrOcrFixArgs,
@@ -244,7 +244,7 @@ fn final_dedup(segs: Vec<OcrSegment>) -> Vec<OcrSegment> {
 }
 
 /// Entry point (mirrors TS `stepAsrOcrFix`).
-pub fn step_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
+pub fn step_asr_ocr_fix(ctx: &WorkflowState) -> Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     info!(target: "asr_ocr", "step_asr_ocr_fix: start");
 

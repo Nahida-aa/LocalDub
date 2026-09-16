@@ -9,7 +9,7 @@ pub mod out;
 
 use std::path::Path;
 
-use crate::context::WorkflowCtx;
+use crate::context::WorkflowState;
 use crate::steps::mix_audio::out::{Timing, TimingsFile};
 use crate::steps::utils::{
     ensure_dir, ffmpeg, now_iso, probe_duration_ms, probe_sample_rate, read_split_audio_timings,
@@ -19,12 +19,12 @@ use crate::steps::utils::{
 pub use args::MixAudioArgs;
 
 /// 从 `ctx.input.steps.mix_audio` 解析配置 (镜像 TS `readInputArgs().steps.mix_audio`)。
-fn read_args(ctx: &WorkflowCtx) -> MixAudioArgs {
+fn read_args(ctx: &WorkflowState) -> MixAudioArgs {
     ctx.input.steps.mix_audio.clone()
 }
 
 /// 入口 (镜像 TS `stepMixAudio`)。
-pub fn step_mix_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+pub fn step_mix_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "mix_audio", "start");
 
@@ -330,7 +330,7 @@ mod tests {
     use crate::context::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowCtx {
+    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowState {
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.workflow.video_dir = dir.to_string();
         ctx.output_mode = "dub".to_string();

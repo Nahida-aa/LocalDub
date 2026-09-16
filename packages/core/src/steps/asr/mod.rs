@@ -14,7 +14,7 @@ use std::process::Command;
 use anyhow::{anyhow, Context};
 use config_rs::path::models::whisper_model_path;
 
-use crate::context::{write_ctx, WorkflowCtx};
+use crate::context::{write_ctx, WorkflowState};
 use crate::steps::asr::args::{AsrArgs, VadModel};
 use crate::steps::asr::out::*;
 use crate::steps::utils::{
@@ -23,7 +23,7 @@ use crate::steps::utils::{
 };
 
 /// 读取 asr 配置 (缺省用 AsrArgs::default)。
-fn read_args(ctx: &WorkflowCtx) -> AsrArgs {
+fn read_args(ctx: &WorkflowState) -> AsrArgs {
     ctx.input.steps.asr.clone()
 }
 
@@ -36,7 +36,7 @@ fn resolve_audio_vocal(cfg: &AsrArgs, video_dir: &str) -> PathBuf {
 }
 
 /// 入口 (镜像 TS `stepAsr`)。
-pub fn step_asr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+pub fn step_asr(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "asr", "start");
 
@@ -523,7 +523,7 @@ mod tests {
     use crate::steps::asr::fix_args::AsrFixArgs;
     use serde_json::json;
 
-    fn test_ctx(input: serde_json::Value) -> WorkflowCtx {
+    fn test_ctx(input: serde_json::Value) -> WorkflowState {
         // 每个测试实例独立目录: 同进程测试并行运行, 共享目录会互相覆盖
         // ctx.json (读到半写状态导致偶发断言失败)。
         static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);

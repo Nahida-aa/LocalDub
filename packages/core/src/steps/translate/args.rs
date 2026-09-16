@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use config_rs::env::{openai_base_url, openai_model};
 
-use crate::context::WorkflowCtx;
+use crate::context::WorkflowState;
 use crate::steps::utils::paths::{asr_fix, asr_ocr_fix, sf_ocr_fix, SrtJsonPath};
 use crate::workflows::args::SubtitleSource;
 
@@ -100,7 +100,7 @@ impl TranslateInput {
     /// srt.json 的存在性**不在这里检查**——它是否必须存在由
     /// `translate.enabled` 决定（见 `step_translate`：enabled 时缺失报错，
     /// disabled 时缺失走空直通）。
-    pub fn from_ctx(ctx: &WorkflowCtx) -> anyhow::Result<Self> {
+    pub fn from_ctx(ctx: &WorkflowState) -> anyhow::Result<Self> {
         // **顺序有讲究**：先解析 subtitleSource，再取 target_language。
         // 反过来的话，配置里同时有非法 subtitleSource 与缺失 target_language 时，
         // 报的是后者——而用户真正写错的是前者，报错会指向错的地方。

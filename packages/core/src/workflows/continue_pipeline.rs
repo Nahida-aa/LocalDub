@@ -9,7 +9,7 @@
 //! 那份 ctx (例如 cli 从 `input.jsonc` 解析后写入的 ctx), 而不是可能陈旧的持久化 ctx。
 //! 不调用 `import_video` (TS `continuePipeline` 也不调), caller 应已保证 workflow 目录存在。
 
-use crate::context::WorkflowCtx;
+use crate::context::WorkflowState;
 use crate::steps::utils::{now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
 use crate::workflows::pipeline::run_step;
 
@@ -17,7 +17,7 @@ use crate::workflows::pipeline::run_step;
 ///
 /// `ctx` 必须由调用者先 `read_ctx(video_dir)` (或自行构造) 后传入; 内部不再读磁盘,
 /// 避免续跑基于陈旧 ctx。
-pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+pub fn continue_pipeline(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.as_str();
     // 进入 workflow span: 携带 video_dir 供 WorkflowFileLayer 落盘。
     let _workflow_guard = tracing::info_span!("workflow", video_dir = video_dir).entered();

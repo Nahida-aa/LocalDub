@@ -49,7 +49,7 @@ impl AudioSourcePath {
     ///
     /// 缺失 → Err（与 [`crate::steps::utils::video_source_path`] 同款语义：
     /// 没导入过就没有这个文件，无从猜测）。
-    pub fn from_ctx(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<Self> {
+    pub fn from_ctx(ctx: &crate::context::WorkflowState) -> anyhow::Result<Self> {
         ctx.audio_source_path
             .clone()
             .map(PathBuf::from)
@@ -269,7 +269,7 @@ pub mod translate {
         ///
         /// 缺失 → Err（与 `read_translation_result` 同款语义：目标语言未知时
         /// 无从知道该读哪个文件；正常流程里 translate 跑过就一定有值）。
-        pub fn from_ctx(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<Self> {
+        pub fn from_ctx(ctx: &crate::context::WorkflowState) -> anyhow::Result<Self> {
             let lang = ctx.target_language.as_deref().ok_or_else(|| {
                 anyhow::anyhow!(
                     "ctx.target_language 未设置, 无法定位翻译产物 (task {}); 请先运行 translate",

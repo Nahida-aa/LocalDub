@@ -7,7 +7,7 @@
 //! 失败时 warn 并保留原文 (不中断 step)。
 
 use crate::cmd::env::ensure_bin;
-use crate::context::WorkflowCtx;
+use crate::context::WorkflowState;
 use crate::steps::sf_ocr::fix_args::OcrFixArgs;
 use crate::steps::utils::paths::{sf_ocr_fix, SrtJsonPath};
 use crate::steps::utils::{
@@ -16,12 +16,12 @@ use crate::steps::utils::{
 use std::process::Command;
 
 /// 读取 sf_ocr_fix 配置 (缺省用 OcrFixArgs::default)。
-fn read_args(ctx: &WorkflowCtx) -> OcrFixArgs {
+fn read_args(ctx: &WorkflowState) -> OcrFixArgs {
     ctx.input.steps.sf_ocr_fix.clone()
 }
 
 /// 入口 (镜像 TS `stepSfOcrFix`)。
-pub fn step_sf_ocr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+pub fn step_sf_ocr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "sf_ocr", "start");
 
@@ -178,7 +178,7 @@ mod tests {
     use crate::context::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowCtx {
+    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowState {
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.workflow.video_dir = dir.to_string();
         ctx.output_mode = "dub".to_string();

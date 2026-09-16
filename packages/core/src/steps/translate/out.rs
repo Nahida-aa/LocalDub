@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::context::WorkflowCtx;
+use crate::context::WorkflowState;
 use crate::steps::utils::paths::translate::LangPath;
 
 /// 单条翻译段 (镜像 TS `TranslateSegment`)。
@@ -144,7 +144,7 @@ impl TranslateOutput {
     /// 文件**，故必须单源。
     ///
     /// 未设置 → Err（委托 [`LangPath::from_ctx`]）。
-    pub fn from_ctx(ctx: &WorkflowCtx) -> anyhow::Result<Self> {
+    pub fn from_ctx(ctx: &WorkflowState) -> anyhow::Result<Self> {
         let path = LangPath::from_ctx(ctx)?;
         let lang = ctx
             .target_language

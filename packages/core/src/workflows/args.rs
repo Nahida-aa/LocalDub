@@ -132,7 +132,7 @@ impl OutputMode {
     ///
     /// 空串按 `#[default]`（Dub）兜底（与 `read_ctx_from_value` / `WorkflowArgs` 默认一致）；
     /// 未知值报错（fail-fast，期望列表由 `VARIANTS` 生成，加变体自动更新）。
-    pub fn from_ctx(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<Self> {
+    pub fn from_ctx(ctx: &crate::context::WorkflowState) -> anyhow::Result<Self> {
         use strum::VariantNames;
         let s = ctx.output_mode.trim();
         if s.is_empty() {
@@ -153,7 +153,7 @@ impl OutputMode {
     /// 枚举，不可能出现「未知值」，故返回 `Self` 而非 `Result`；`workflow` 缺失或
     /// 字段缺省时回退 `#[default]`（Dub）。
     ///
-    /// 直接吃 `&Input`（而非 `&WorkflowCtx`），与「from_input」语义一致——只关心输入契约。
+    /// 直接吃 `&Input`（而非 `&WorkflowState`），与「from_input」语义一致——只关心输入契约。
     /// 适用：需要在 import **之前**、或从原始输入（而非拍平后的事实）取 output_mode 的场景。
     /// 注意 `from_ctx` 与 `from_input` 来源不同——前者是 import 落定的事实，后者是用户传入的输入；
     /// 正常流程里两者应一致，不一致时以 `from_ctx`（事实）为准。
@@ -210,7 +210,7 @@ impl SubtitleSource {
     /// `subtitle_source` 为枚举值，不可能出现「未知来源」——该 fail-fast 已上移到
     /// `Input` 反序列化阶段（CLI/RPC 请求解析）。此处仅在 `workflow` 缺失时回退
     /// 默认 `Asr`（`#[default]`），保持与原 `unwrap_or("asr")` 一致。
-    pub fn from_ctx(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<Self> {
+    pub fn from_ctx(ctx: &crate::context::WorkflowState) -> anyhow::Result<Self> {
         Ok(ctx
             .input
             .workflow

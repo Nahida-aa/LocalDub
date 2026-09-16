@@ -1,6 +1,6 @@
 //! import 阶段: 视频导入工作区 (镜像 TS `packages/core/workflows/import/download.ts`)。
 //!
-//! 主流程: 判定来源 → 下载/复制 → 转码 mp4 + 抽音频 → 探测帧率 → 写 WorkflowCtx。
+//! 主流程: 判定来源 → 下载/复制 → 转码 mp4 + 抽音频 → 探测帧率 → 写 WorkflowState。
 
 use std::path::PathBuf;
 
@@ -9,7 +9,7 @@ use chrono::Utc;
 use tracing::{info, warn};
 
 use crate::context::{
-    read_ctx_from_value, write_ctx, VideoSource, Workflow, WorkflowCtx, WorkflowStep,
+    read_ctx_from_value, write_ctx, VideoSource, Workflow, WorkflowState, WorkflowStep,
 };
 use crate::input::Input;
 use crate::workflows::args::OutputMode;
@@ -91,7 +91,7 @@ pub fn get_steps(
 }
 
 /// 顶层导入入口 (镜像 TS `importVideo`)。
-pub fn import_video(input: &Input) -> anyhow::Result<WorkflowCtx> {
+pub fn import_video(input: &Input) -> anyhow::Result<WorkflowState> {
     let args = input.workflow.clone().unwrap_or_default();
     let url = args
         .url
@@ -146,7 +146,7 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowCtx> {
         })
         .collect();
 
-    let ctx = WorkflowCtx {
+    let ctx = WorkflowState {
         workflow: Workflow {
             id: video_id.clone(),
             source,
@@ -319,7 +319,7 @@ fn download_youtube_subtitles(
 }
 
 /// 从 ctx.json 读回 (方便下游阶段复用, 镜像 TS `readCtx`)。
-pub fn read_ctx(video_dir: &str) -> anyhow::Result<WorkflowCtx> {
+pub fn read_ctx(video_dir: &str) -> anyhow::Result<WorkflowState> {
     let raw = std::fs::read_to_string(crate::context::ctx_path(video_dir))
         .with_context(|| format!("读 ctx.json 失败: {video_dir}"))?;
     let v: serde_json::Value = serde_json::from_str(&raw)?;

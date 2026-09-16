@@ -5,7 +5,7 @@
 //! 段合并 / 时间调整 / LLM 修正由下游 sf_ocr_fix 负责。
 
 use crate::cmd::env::ensure_bin;
-use crate::context::WorkflowCtx;
+use crate::context::WorkflowState;
 use crate::steps::sf_ocr::args::SfOcrArgs;
 use crate::steps::utils::{
     now_iso, set_step_anyhow, sf_ocr_dir, sf_ocr_pre_dir, StepPatch, StepStatus,
@@ -13,12 +13,12 @@ use crate::steps::utils::{
 use std::process::Command;
 
 /// 读取 sf_ocr 配置 (缺省用 SfOcrArgs::default)。
-fn read_args(ctx: &WorkflowCtx) -> SfOcrArgs {
+fn read_args(ctx: &WorkflowState) -> SfOcrArgs {
     ctx.input.steps.sf_ocr.clone()
 }
 
 /// 入口 (镜像 TS `stepSfOcr`)。
-pub fn step_sf_ocr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+pub fn step_sf_ocr(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "sf_ocr", "start");
 
@@ -129,7 +129,7 @@ mod tests {
     use crate::context::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowCtx {
+    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowState {
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.workflow.video_dir = dir.to_string();
         ctx.output_mode = "dub".to_string();

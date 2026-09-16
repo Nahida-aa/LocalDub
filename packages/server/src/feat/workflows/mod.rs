@@ -17,7 +17,7 @@ use ld_core::{
     },
     context::{
         self,
-        WorkflowCtx,
+        WorkflowState,
         // Workflow
     },
     input::Input,
@@ -39,7 +39,7 @@ pub async fn get_group_list() -> Result<Vec<GroupInfo>, String> {
 }
 
 #[fnrpc::rpc_query]
-pub async fn get_workflow_ctx(video_dir: String) -> Result<WorkflowCtx, String> {
+pub async fn get_workflow_ctx(video_dir: String) -> Result<WorkflowState, String> {
     let path = repo_root().join(&video_dir);
     context::read_ctx(
         &path

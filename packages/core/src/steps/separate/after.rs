@@ -3,19 +3,19 @@
 //!
 //! 镜像 TS `packages/core/steps/separate/after.ts` (stepSeparateAfter), 纯 ffmpeg 编排。
 
-use crate::context::WorkflowCtx;
+use crate::context::WorkflowState;
 use crate::steps::asr::args::AsrArgs;
 use crate::steps::utils::{
     ffmpeg, now_iso, separate_after_dir, separate_dir, set_step_anyhow, StepPatch, StepStatus,
 };
 
 /// 读取 asr 阶段配置 (缺省用 AsrArgs::default, 对齐 TS `?? 默认值`)。
-fn read_asr_cfg(ctx: &WorkflowCtx) -> AsrArgs {
+fn read_asr_cfg(ctx: &WorkflowState) -> AsrArgs {
     ctx.input.steps.asr.clone()
 }
 
 /// 入口 (镜像 TS `stepSeparateAfter`)。
-pub fn step_separate_after(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+pub fn step_separate_after(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "separate", "start");
 
@@ -199,7 +199,7 @@ mod tests {
         .unwrap();
     }
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowCtx {
+    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowState {
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.workflow.video_dir = dir.to_string();
         ctx.workflow.id = "t".to_string();

@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Context};
 
-use crate::context::WorkflowCtx;
+use crate::context::WorkflowState;
 use crate::steps::mix_video::args::{Alignment, MixVideoArgs};
 use crate::steps::translate::out::TranslateResult;
 use crate::steps::utils::srt::{write_srt, SrtSeg};
@@ -22,12 +22,12 @@ use crate::steps::utils::{
 };
 
 /// 读取 mix_video 配置 (缺省用 MixVideoArgs::default)。
-fn read_args(ctx: &WorkflowCtx) -> MixVideoArgs {
+fn read_args(ctx: &WorkflowState) -> MixVideoArgs {
     ctx.input.steps.mix_video.clone()
 }
 
 /// 入口 (镜像 TS `stepMixVideo`)。
-pub fn step_mix_video(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+pub fn step_mix_video(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     let video_id = ctx.workflow.id.clone();
     let cfg = read_args(ctx);
@@ -270,7 +270,7 @@ fn probe_style(video_file: &str, dst_lang: &str, cfg: &MixVideoArgs, alignment_n
 
 /// subtitle 分支: 从 translation / srt / split_audio(vadAlign) 生成字幕 SRT (镜像 TS subtitle 分支)。
 fn build_subtitle_srt_subtitle_branch(
-    ctx: &WorkflowCtx,
+    ctx: &WorkflowState,
     sub_path: &std::path::Path,
     cfg: &MixVideoArgs,
     no_translate: bool,
@@ -367,7 +367,7 @@ fn extract_segs_from_value(data: &serde_json::Value) -> anyhow::Result<Vec<SrtSe
 
 /// dub 分支: 从 mix_audio/timings.json 生成字幕 SRT (镜像 TS dub 分支)。
 fn build_subtitle_srt_dub_branch(
-    ctx: &WorkflowCtx,
+    ctx: &WorkflowState,
     sub_path: &std::path::Path,
     _cfg: &MixVideoArgs,
 ) -> anyhow::Result<()> {

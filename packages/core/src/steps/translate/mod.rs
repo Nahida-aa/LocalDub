@@ -19,7 +19,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use crate::context::WorkflowCtx;
+use crate::context::WorkflowState;
 use crate::steps::translate::out::{TranslateResult, TranslateResultMeta, TranslateSegment};
 use crate::steps::translate::prompts::{build_preprocess_prompt, build_translate_system, MetaView};
 use crate::steps::utils::{
@@ -28,7 +28,7 @@ use crate::steps::utils::{
 use config_rs::env::openai_api_key;
 
 /// 从 `ctx.input.steps.translate` 解析配置 (镜像 TS `readInputArgs().steps.translate`)。
-fn read_args(ctx: &WorkflowCtx) -> args::TranslateArgs {
+fn read_args(ctx: &WorkflowState) -> args::TranslateArgs {
     ctx.input.steps.translate.clone()
 }
 
@@ -178,7 +178,7 @@ pub fn parse_json_reply(raw: &str) -> anyhow::Result<Value> {
 }
 
 /// 入口 (镜像 TS `stepTranslate`)。
-pub fn step_translate(ctx: &WorkflowCtx) -> anyhow::Result<()> {
+pub fn step_translate(ctx: &WorkflowState) -> anyhow::Result<()> {
     tracing::info!(target: "translate", "start");
 
     let input = args::TranslateInput::from_ctx(ctx)?;
@@ -421,7 +421,7 @@ mod tests {
     use crate::context::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowCtx {
+    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowState {
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.workflow.video_dir = dir.to_string();
         ctx.output_mode = "dub".to_string();

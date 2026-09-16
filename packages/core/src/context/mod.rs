@@ -73,7 +73,7 @@ pub struct RunInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
-pub struct WorkflowCtx {
+pub struct WorkflowState {
     pub workflow: Workflow,
     pub steps: Option<Vec<WorkflowStep>>,
     pub output_mode: String,
@@ -91,7 +91,7 @@ pub fn ctx_path(video_dir: &str) -> PathBuf {
     PathBuf::from(video_dir).join("ctx.json")
 }
 
-pub fn read_ctx(video_dir: &str) -> Result<WorkflowCtx, String> {
+pub fn read_ctx(video_dir: &str) -> Result<WorkflowState, String> {
     let path = ctx_path(video_dir);
     let raw = fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
@@ -100,8 +100,8 @@ pub fn read_ctx(video_dir: &str) -> Result<WorkflowCtx, String> {
     read_ctx_from_value(json)
 }
 
-/// 从 ctx.json 的 JSON Value 解析 WorkflowCtx (不读写文件, 供测试/透传直接构造)
-pub fn read_ctx_from_value(json: serde_json::Value) -> Result<WorkflowCtx, String> {
+/// 从 ctx.json 的 JSON Value 解析 WorkflowState (不读写文件, 供测试/透传直接构造)
+pub fn read_ctx_from_value(json: serde_json::Value) -> Result<WorkflowState, String> {
     let workflow: Workflow = json
         .get("workflow")
         .ok_or_else(|| "Missing 'workflow' in ctx".to_string())
@@ -116,7 +116,7 @@ pub fn read_ctx_from_value(json: serde_json::Value) -> Result<WorkflowCtx, Strin
             .collect()
     });
 
-    Ok(WorkflowCtx {
+    Ok(WorkflowState {
         workflow,
         steps,
         output_mode: json
@@ -168,8 +168,8 @@ pub fn read_ctx_from_value(json: serde_json::Value) -> Result<WorkflowCtx, Strin
     })
 }
 
-/// 把 [`WorkflowCtx`] 序列化写回 `ctx.json` (镜像 TS `writeCtx`)。
-pub fn write_ctx(video_dir: &str, ctx: &WorkflowCtx) -> Result<(), String> {
+/// 把 [`WorkflowState`] 序列化写回 `ctx.json` (镜像 TS `writeCtx`)。
+pub fn write_ctx(video_dir: &str, ctx: &WorkflowState) -> Result<(), String> {
     let path = ctx_path(video_dir);
     let json = serde_json::to_string_pretty(ctx)
         .map_err(|e| format!("Failed to serialize ctx for {}: {}", video_dir, e))?;

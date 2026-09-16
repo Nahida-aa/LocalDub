@@ -1445,10 +1445,8 @@ export type SplitAudioArgs_Deserialize = {
 	startPadMs?: number,
 	/**  段落切块后缘 padding (ms), 避免语音被截断 */
 	endPadMs?: number,
-	/**  人声文件路径, 调试使用 */
+	/**  人声文件路径, 调试使用（作为 [`crate::steps::split_audio::SplitAudioSource::Custom]） */
 	vocalsFilePath?: string | null,
-	/**  原始视频音频路径, 调试使用 */
-	sourceFilePath?: string | null,
 };
 
 /**
@@ -1469,10 +1467,8 @@ export type SplitAudioArgs_Serialize = {
 	startPadMs: number,
 	/**  段落切块后缘 padding (ms), 避免语音被截断 */
 	endPadMs: number,
-	/**  人声文件路径, 调试使用 */
+	/**  人声文件路径, 调试使用（作为 [`crate::steps::split_audio::SplitAudioSource::Custom]） */
 	vocalsFilePath: string | null,
-	/**  原始视频音频路径, 调试使用 */
-	sourceFilePath: string | null,
 };
 
 /**  切分片段 (镜像 TS `SplitAudioSegment` = SplitAudioTiming + split bounds) */
@@ -2027,14 +2023,14 @@ export type WorkflowBrief_Serialize = {
 	error_message: string | null,
 };
 
-export type WorkflowCtx = WorkflowCtx_Serialize | WorkflowCtx_Deserialize;
+export type WorkflowState = WorkflowState_Serialize | WorkflowState_Deserialize;
 
-export type WorkflowCtx_Deserialize = {
+export type WorkflowState_Deserialize = {
 	workflow: Workflow_Deserialize,
 	steps?: WorkflowStep_Deserialize[] | null,
 	output_mode: string,
 	last_run_output_mode?: string | null,
-	input: unknown,
+	input: Input_Deserialize,
 	frame_rate: FrameRate,
 	run_info?: RunInfo_Deserialize | null,
 	video_source_path?: string | null,
@@ -2043,12 +2039,12 @@ export type WorkflowCtx_Deserialize = {
 	target_language?: string | null,
 };
 
-export type WorkflowCtx_Serialize = {
+export type WorkflowState_Serialize = {
 	workflow: Workflow_Serialize,
 	steps: WorkflowStep_Serialize[] | null,
 	output_mode: string,
 	last_run_output_mode: string | null,
-	input: unknown,
+	input: Input_Serialize,
 	frame_rate: FrameRate,
 	run_info: RunInfo_Serialize | null,
 	video_source_path: string | null,
@@ -2121,7 +2117,7 @@ export type Procedures = {
   watch_workflow_log: { kind: "subscribe"; method: "GET"; input: string; output: string; error: RpcErr };
   watch_workflow_tree: { kind: "subscribe"; method: "GET"; input: string; output: PathEvent; error: RpcErr };
   get_group_list: { kind: "query"; method: "GET"; input: null; output: GroupInfo[]; error: RpcErr };
-  get_workflow_ctx: { kind: "query"; method: "GET"; input: string; output: WorkflowCtx; error: RpcErr };
+  get_workflow_ctx: { kind: "query"; method: "GET"; input: string; output: WorkflowState; error: RpcErr };
   health_check: { kind: "query"; method: "GET"; input: null; output: string; error: RpcErr };
   find_server: { kind: "query"; method: "GET"; input: ServerType; output: ServerInfo; error: RpcErr };
   get_server_status: { kind: "query"; method: "GET"; input: ServerType; output: ModelServerStatus; error: RpcErr };

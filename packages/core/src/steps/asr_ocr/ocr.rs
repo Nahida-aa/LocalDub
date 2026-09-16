@@ -4,7 +4,7 @@
 //! Writes `<videoDir>/asr_ocr/frames.json` (OcrFramesResult).
 
 use crate::cmd::env::ensure_bin;
-use crate::context::WorkflowCtx;
+use crate::context::WorkflowState;
 use crate::steps::asr_ocr::args::AsrOcrArgs;
 use crate::steps::utils::{
     asr_ocr_dir, asr_ocr_pre_dir, now_iso, set_step_anyhow, StepPatch, StepStatus,
@@ -14,12 +14,12 @@ use std::fs;
 use std::process::Command;
 
 /// Read asr_ocr config (defaults to AsrOcrArgs::default).
-fn read_args(ctx: &WorkflowCtx) -> AsrOcrArgs {
+fn read_args(ctx: &WorkflowState) -> AsrOcrArgs {
     ctx.input.steps.asr_ocr.clone()
 }
 
 /// Entry point (mirrors TS `stepAsrOcr`).
-pub fn step_asr_ocr(ctx: &WorkflowCtx) -> Result<()> {
+pub fn step_asr_ocr(ctx: &WorkflowState) -> Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "asr_ocr", "step_asr_ocr: start");
 
@@ -123,7 +123,7 @@ mod tests {
     use crate::context::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowCtx {
+    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowState {
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.workflow.video_dir = dir.to_string();
         ctx.output_mode = "dub".to_string();
