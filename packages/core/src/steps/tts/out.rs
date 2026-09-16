@@ -1,5 +1,7 @@
 //! tts 阶段输出结构 (镜像 TS `packages/core/steps/07_tts/out.ts`)。
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::steps::split_audio::out::SplitAudioTiming;
@@ -35,6 +37,28 @@ impl TtsSegmentsResult {
             .map_err(|e| anyhow::anyhow!("读取 tts 结果 {} 失败: {e}", p.display()))?;
         serde_json::from_str(&raw)
             .map_err(|e| anyhow::anyhow!("解析 tts 结果 {} 失败: {e}", p.display()))
+    }
+
+    /// 读取 tts.json 并构建按 `idx` 索引的已有段 map, 供 regen 时复用。
+    ///
+    /// 与 [`Self::read`] 不同, 这里对**缺失/损坏**做 graceful 退化而非报错:
+    /// - 文件不存在 → 空 map (语义: 无旧结果, 下方 regenIndices 外的段会重新生成)
+    /// - 文件存在但读/解析失败 → 空 map + 一条 warn (区别于「本就不存在」, 不能静默)
+    pub fn read_existing_segments(path: &TtsPath) -> HashMap<u32, TtsSegment> {
+        let p = path.as_path();
+        if !p.exists() {
+            return HashMap::new();
+        }
+        match Self::read(path) {
+            Ok(f) => f.segments.into_iter().map(|s| (s.timing.idx, s)).collect(),
+            Err(e) => {
+                tracing::warn!(target: "tts",
+                    "读取 {} 失败, 按无旧结果处理 (regenIndices 外的段将重新生成): {e}",
+                    p.display()
+                );
+                HashMap::new()
+            }
+        }
     }
 }
 

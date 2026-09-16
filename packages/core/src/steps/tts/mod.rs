@@ -111,25 +111,10 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
         .map(|p| p.to_string_lossy().into_owned());
 
     // regenIndices 生效时载入已有 tts.json, 供列表外段复用旧结果 (避免重跑时覆盖其它段)。
+    // graceful 退化（缺失/损坏→空 map, 损坏时留 warn）封装在
+    // [`TtsSegmentsResult::read_existing_segments`]。
     let existing_segments: std::collections::HashMap<u32, TtsSegment> = if regen_active {
-        let p = input.tts_path.as_path();
-        if p.exists() {
-            // 读不出/解析失败时**不失败整个 step**：空 map 的语义是「没有可复用的
-            // 旧结果」，下方对 regenIndices 外的段会走正常生成（见该处注释）。
-            // 但区别于「文件本就不存在」，这种情况要留一条 warn，不能静默。
-            match TtsSegmentsResult::read(&input.tts_path) {
-                Ok(f) => f.segments.into_iter().map(|s| (s.timing.idx, s)).collect(),
-                Err(e) => {
-                    tracing::warn!(target: "tts",
-                        "读取 {} 失败, 按无旧结果处理 (regenIndices 外的段将重新生成): {e}",
-                        p.display()
-                    );
-                    std::collections::HashMap::new()
-                }
-            }
-        } else {
-            std::collections::HashMap::new()
-        }
+        TtsSegmentsResult::read_existing_segments(&input.tts_path)
     } else {
         std::collections::HashMap::new()
     };
