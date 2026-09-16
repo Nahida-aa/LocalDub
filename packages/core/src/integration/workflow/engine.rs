@@ -65,9 +65,9 @@ impl EngineOptions {
 fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
     use crate::steps::utils::{
         asr_dir, asr_ocr_dir, asr_ocr_fix_dir, asr_ocr_pre_dir, dubbing_path, final_video_dir,
-        gated_vocals_path, mix_audio_timings_path, mixed_vocals_path, resolve_language,
-        separate_dir, sf_ocr_dir, sf_ocr_fix_dir, sf_ocr_pre_dir, split_audio_path,
-        split_audio_timings_path, tts_filepath, video_id,
+        gated_vocals_path, mix_audio_timings_path, mixed_vocals_path, separate_dir, sf_ocr_dir,
+        sf_ocr_fix_dir, sf_ocr_pre_dir, split_audio_path, split_audio_timings_path, tts_filepath,
+        video_id,
     };
     let wf = video_dir;
     let p = |pb: std::path::PathBuf| pb.to_string_lossy().into_owned();
@@ -545,9 +545,11 @@ mod tests {
             events
                 .iter()
                 .find_map(|e| match e {
-                    workflow_core::WorkflowEvent::StepFinished {
-                        step_id, ts, ..
-                    } if step_id == step => Some(*ts),
+                    workflow_core::WorkflowEvent::StepFinished { step_id, ts, .. }
+                        if step_id == step =>
+                    {
+                        Some(*ts)
+                    }
                     _ => None,
                 })
                 .expect("应有 StepFinished")
@@ -626,8 +628,7 @@ mod tests {
         assert_eq!(outcome.status, RunStatus::Paused, "core 侧应挂起即返回");
 
         // 真实 outcome → 映射函数（就是 `run_workflow_engine` 用的那个）。
-        let err = apply_outcome(&dir, "t", outcome)
-            .expect_err("挂起必须报错，不能当成成功");
+        let err = apply_outcome(&dir, "t", outcome).expect_err("挂起必须报错，不能当成成功");
 
         let msg = err.to_string();
         assert!(
