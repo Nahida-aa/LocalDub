@@ -18,6 +18,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::context::WorkflowState;
+use crate::utils::file_ops::write_json_pretty;
 use crate::steps::split_audio::out::{
     SplitAudioResult, SplitAudioSegment, SplitAudioTimingResult, TranslateResultMeta,
 };
@@ -153,20 +154,14 @@ pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
         meta: meta.clone(),
     };
     let split_path = split_audio_path(&video_dir);
-    let json = serde_json::to_string_pretty(&split_result)
-        .map_err(|e| anyhow::anyhow!("序列化 split_audio 结果失败: {e}"))?;
-    fs::write(&split_path, json)
-        .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", split_path.display(), e))?;
+    write_json_pretty(&split_path, &split_result)?;
 
     // timings.json：意图时序（同样可能被 VAD 修正），总是写。
     let timing_result = SplitAudioTimingResult {
         segments: segments.clone(),
     };
     let timings_path = split_audio_timings_path(&video_dir);
-    let json = serde_json::to_string_pretty(&timing_result)
-        .map_err(|e| anyhow::anyhow!("序列化 timings 失败: {e}"))?;
-    fs::write(&timings_path, json)
-        .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", timings_path.display(), e))?;
+    write_json_pretty(&timings_path, &timing_result)?;
 
     set_step_anyhow(
         &video_dir,
