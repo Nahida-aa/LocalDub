@@ -21,7 +21,7 @@
 use derive_more::{AsRef, Deref, DerefMut, Display, From, Into};
 use std::path::{Path, PathBuf};
 // video_source.mp4
-type VideoSourcePath = PathBuf;
+pub type VideoSourcePath = PathBuf;
 
 /// 原始音频 `audio_source.wav`（任务级输入，由 import 产出）。
 ///
@@ -101,7 +101,25 @@ pub mod separate {
 pub mod separate_after {
     use super::*;
     // separate_after/target_bgm.wav
-    pub type TargetBgmPath = PathBuf;
+    #[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut, From, Into)]
+    pub struct TargetBgmPath(PathBuf);
+
+    impl TargetBgmPath {
+        /// 唯一拼法来源：`{video_dir}/separate_after/target_bgm.wav`
+        /// （与 `crate::steps::utils::separate_after_bgm_path` 同款落点）。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(
+                Path::new(video_dir.as_ref())
+                    .join("separate_after")
+                    .join("target_bgm.wav"),
+            )
+        }
+
+        /// 本类型承诺的路径访问器（与 `SrtPath` / `Target3VocalsPath` 同签名）。
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
     // separate_after/target_3_vocals_mixed.wav
     pub type Target3VocalsMixedPath = PathBuf;
 }
