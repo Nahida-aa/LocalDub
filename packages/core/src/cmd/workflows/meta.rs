@@ -12,7 +12,7 @@ use anyhow::Context;
 
 use crate::steps::mix_video::read_srt_file_to_segs;
 use crate::steps::utils::ensure_dir;
-use crate::steps::utils::srt::SrtSeg;
+use crate::steps::utils::srt::SubtitleSegments;
 
 /// 系统提示: 让 LLM 根据带时间戳的字幕输出结构化章节摘要 (JSON)。
 ///
@@ -168,21 +168,19 @@ fn read_ytdlp_info(video_dir: &str) -> Option<YtDlpInfo> {
 }
 
 /// 构造 LLM 用户 prompt: 视频标题 (供翻译) + 按时间戳排的字幕。
-fn build_meta_prompt(segs: &[SrtSeg], title: Option<&str>) -> String {
+///
+/// 文本直接用 [`SubtitleSegments`] 的 `text`：SRT 文件里没有原文/译文之分，
+/// 不需要 `SrtSeg` 那种「dst 为空回退 text」的选择逻辑。
+fn build_meta_prompt(segs: &SubtitleSegments, title: Option<&str>) -> String {
     let mut p = String::new();
     if let Some(t) = title {
         p.push_str(&format!("视频标题：{}\n\n", t));
     }
     p.push_str("字幕内容（时间戳 文本）：\n");
-    for s in segs {
-        let ts = format_ts(s.start_ms);
-        let text = if !s.dst.trim().is_empty() {
-            s.dst.trim()
-        } else {
-            s.text.trim()
-        };
+    for s in segs.iter() {
+        let text = s.text.trim();
         if !text.is_empty() {
-            p.push_str(&format!("{ts} {text}\n"));
+            p.push_str(&format!("{} {}\n", format_ts(s.start_ms), text));
         }
     }
     p
@@ -209,6 +207,7 @@ fn format_upload_date(d: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use subtitle::SubtitleSegment;
 
     #[test]
     fn format_ts_variants() {
@@ -226,14 +225,11 @@ mod tests {
 
     #[test]
     fn build_meta_prompt_includes_title_and_subtitles() {
-        let segs = vec![SrtSeg {
+        let segs = SubtitleSegments(vec![SubtitleSegment {
+            text: "你知道 TypeScript 是什么样的".to_string(),
             start_ms: 160,
             end_ms: 4900,
-            dst: "你知道 TypeScript 是什么样的".to_string(),
-            text: "你知道 TypeScript 是什么样的".to_string(),
-            actual_start: None,
-            actual_end: None,
-        }];
+        }]);
         let p = build_meta_prompt(&segs, Some("I tried Compiled Typescript"));
         assert!(p.contains("视频标题：I tried Compiled Typescript"));
         assert!(p.contains("00:00 你知道 TypeScript 是什么样的"));

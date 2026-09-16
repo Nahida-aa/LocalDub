@@ -12,7 +12,8 @@ use crate::context::WorkflowState;
 use crate::steps::mix_audio::out::MixAudioOutputTimings;
 use crate::steps::mix_video::args::{Alignment, MixVideoArgs, MixVideoInput};
 use crate::steps::split_audio::out::SplitAudioTimingResult;
-use crate::steps::utils::srt::{SubtitleSegments, SrtSeg};
+use crate::steps::utils::srt::SubtitleSegments;
+use subtitle::SubtitleSegment;
 use crate::steps::utils::{
     default_font, ensure_dir, ffmpeg_timeout, final_video_dir, probe_video_resolution,
     set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus, WorkflowPatch,
@@ -294,8 +295,11 @@ fn build_subtitle_srt_dub_branch(
         .map_err(|e| anyhow!("写字幕 SRT 失败: {e}"))
 }
 
-/// 读取已有 SRT 文件为 SrtSeg 列表 (subtitle 分支 noTranslate 路径 / generate_meta 复用)。
-pub fn read_srt_file_to_segs(path: &str) -> anyhow::Result<Vec<SrtSeg>> {
+/// 读取已有 SRT 文本文件为 [`SubtitleSegments`]。
+///
+/// 解析出的段**只有一个文本**：SRT 文件里没有「原文/译文」之分，`dst` 与 `text`
+/// 必然相同——旧结构在此处填两份是冗余，故直接产出 `SubtitleSegment`。
+pub fn read_srt_file_to_segs(path: &str) -> anyhow::Result<SubtitleSegments> {
     let raw = std::fs::read_to_string(path).with_context(|| format!("读取 SRT {path} 失败"))?;
     let mut segs = Vec::new();
     let mut blocks: Vec<Vec<&str>> = Vec::new();
@@ -324,16 +328,13 @@ pub fn read_srt_file_to_segs(path: &str) -> anyhow::Result<Vec<SrtSeg>> {
         let s = parse_srt_time(times[0]);
         let e = parse_srt_time(times[1]);
         let text = b[2..].join("\n");
-        segs.push(SrtSeg {
+        segs.push(SubtitleSegment {
+            text,
             start_ms: s,
             end_ms: e,
-            dst: text.clone(),
-            text,
-            actual_start: None,
-            actual_end: None,
         });
     }
-    Ok(segs)
+    Ok(segs.into())
 }
 
 fn parse_srt_time(t: &str) -> u32 {
