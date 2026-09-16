@@ -51,8 +51,10 @@ pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
     // 不再各自 `LangPath::from_state` / `audio_from_state` 拼两次。
     // 本步既要用音频源也要用 translate 路径，故走完整 `from_state`；
     // 仅要音频源的消费者才用 `audio_from_state`。
-    let args::SplitAudioInput { audio: audio_source, translate: lang_path } =
-        args::SplitAudioInput::from_state(ctx)?;
+    let args::SplitAudioInput {
+        audio: audio_source,
+        translate: lang_path,
+    } = args::SplitAudioInput::from_state(ctx)?;
 
     // 字幕时间轴 + 文本：**统一来自 translate 的产物**（translate 恒执行；
     // enabled=false 时 dst=原文直通）。焦点文件不再是下游输入。
@@ -86,7 +88,7 @@ pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
     // ——此前的 30 行逐字段 `seg.get(..).unwrap_or(0)` 就是手写一个 serde，
     // 还把坏字段静默吞成 0。现在解析只在 `TranslateResult::read` 一处，
     // 字段缺失/类型不对在那里就会失败。
-    let segments: Vec<TranslateSegment> = trans.segments.clone();
+    let mut segments: Vec<TranslateSegment> = trans.segments.clone();
 
     // padSegments 得到真实切块时序
     let bounds = pad_segments(&segments, args.start_pad_ms, args.end_pad_ms);
@@ -130,6 +132,22 @@ pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
         },
         target_lang: lang_path.lang().to_string(),
     };
+
+    // VAD alignment (可选)：原地修正 split_segments 与 segments 的时序。
+    // 是否实际修正由内部决定，这里不需要它的返回值——
+    // 最终态在下方统一各写一次盘（corrected 与否内容一致，省掉一次冗余写盘）。
+    if args.vad_align {
+        vad_align::apply_vad_align(
+            &mut split_segments,
+            &mut segments,
+            &source_audio,
+            total_ms,
+            &vocals_segment_dir.to_string_lossy(),
+            is_dub,
+        );
+    }
+
+    // split_audio.json：总是写最终（可能经 VAD 修正）的切块时序。
     let split_result = SplitAudioResult {
         segments: split_segments.clone(),
         meta: meta.clone(),
@@ -140,29 +158,7 @@ pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
     fs::write(&split_path, json)
         .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", split_path.display(), e))?;
 
-    // VAD alignment (可选)
-    if args.vad_align {
-        let mut timings_mut = segments.clone();
-        let corrected = vad_align::apply_vad_align(
-            &mut split_segments,
-            &mut timings_mut,
-            &source_audio,
-            total_ms,
-            &vocals_segment_dir.to_string_lossy(),
-            is_dub,
-        );
-        if corrected {
-            let split_result = SplitAudioResult {
-                segments: split_segments.clone(),
-                meta: meta.clone(),
-            };
-            let json = serde_json::to_string_pretty(&split_result)
-                .map_err(|e| anyhow::anyhow!("序列化 split_audio 结果失败: {e}"))?;
-            fs::write(&split_path, json)
-                .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", split_path.display(), e))?;
-        }
-    }
-
+    // timings.json：意图时序（同样可能被 VAD 修正），总是写。
     let timing_result = SplitAudioTimingResult {
         segments: segments.clone(),
     };

@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use crate::steps::split_audio::out::{SplitAudioSegment, SplitAudioTiming};
+use crate::steps::split_audio::out::SplitAudioSegment;
 use crate::steps::translate::out::TranslateSegment;
 use crate::steps::utils::{ffmpeg, probe_duration_ms};
 
@@ -63,16 +63,19 @@ fn detect_speech_start_ms_seek(source: &str, start_ms: u64, end_ms: u64, work_di
 
 /// 用静音检测把每段起点前移到真实语音处, 返回是否修正了任何段 (改写 segments/timings)。
 pub fn apply_vad_align(
-    segments: &mut [SplitAudioSegment],
-    timings: &mut [TranslateSegment],
+    split_segments: &mut [SplitAudioSegment],
+    segments: &mut [TranslateSegment],
     source_audio: &str,
     total_ms: u64,
     vocals_segment_dir: &str,
-    has_vocals: bool,
+    is_dub: bool,
 ) -> bool {
     let mut corrected = false;
-    for i in 0..segments.len() {
-        let (start_ms, end_ms) = (segments[i].split_start_ms, segments[i].split_end_ms);
+    for i in 0..split_segments.len() {
+        let (start_ms, end_ms) = (
+            split_segments[i].split_start_ms,
+            split_segments[i].split_end_ms,
+        );
         if start_ms >= end_ms {
             continue;
         }
@@ -94,7 +97,7 @@ pub fn apply_vad_align(
             continue; // 开头静音不足 500ms, 不值得修正
         }
 
-        let cut_start = segments[i].split_start_ms;
+        let cut_start = split_segments[i].split_start_ms;
         let new_cut_start = cut_start as u64 + removed - 80; // 保留 80ms 呼吸余量
         if (new_cut_start as u32) >= end_ms {
             tracing::warn!(
@@ -113,7 +116,7 @@ pub fn apply_vad_align(
             removed
         );
 
-        if has_vocals {
+        if is_dub {
             let new_end = (total_ms.min(end_ms as u64 + 160)).min(new_cut_start + 1);
             if new_end > new_cut_start {
                 let _ = crate::steps::split_audio::util::cut_audio_range(
@@ -125,8 +128,8 @@ pub fn apply_vad_align(
             }
         }
 
-        segments[i].split_start_ms = new_cut_start as u32;
-        if let Some(t) = timings.get_mut(i) {
+        split_segments[i].split_start_ms = new_cut_start as u32;
+        if let Some(t) = segments.get_mut(i) {
             let adj = (t.start_ms as u64 + removed).saturating_sub(80);
             t.start_ms = adj.min(u32::MAX as u64) as u32;
         }
