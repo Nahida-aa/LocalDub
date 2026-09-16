@@ -81,8 +81,8 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         let p = vocals_path(&video_dir);
         p.to_string_lossy().into_owned()
     });
-    let has_vocals = Path::new(&vocals_file_path).exists();
-    let source_audio = if has_vocals {
+    let is_dub = Path::new(&vocals_file_path).exists();
+    let source_audio = if is_dub {
         vocals_file_path
     } else {
         fallback_source
@@ -115,57 +115,16 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     ensure_dir(&vocals_segment_dir)?;
     ensure_dir(&split_audio_dir)?;
 
-    // 切块 (仅 dub 模式有 vocals 时执行; subtitle 模式跳过, 只产出时序文件)
-    if has_vocals {
-        // 若翻译文件比已切出的块更新 (重跑翻译), 清空旧块重新切
-        let translation_file = lang_path.as_path();
-        let has_seg = fs::read_dir(&vocals_segment_dir)
-            .ok()
-            .map(|d| {
-                d.filter_map(|e| e.ok())
-                    .any(|e| e.path().extension().map(|x| x == "wav").unwrap_or(false))
-            })
-            .unwrap_or(false);
-        if has_seg && translation_file.exists() {
-            let trans_mtime = fs::metadata(&translation_file)
-                .and_then(|m| m.modified())
-                .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
-            // 任意旧块的最新 mtime
-            let oldest_seg_is_newer = fs::read_dir(&vocals_segment_dir)
-                .ok()
-                .map(|d| {
-                    d.filter_map(|e| e.ok())
-                        .filter(|e| e.path().extension().map(|x| x == "wav").unwrap_or(false))
-                        .filter_map(|e| fs::metadata(e.path()).ok().and_then(|m| m.modified().ok()))
-                        .all(|m| m < trans_mtime)
-                })
-                .unwrap_or(false);
-            if oldest_seg_is_newer {
-                let _ = fs::remove_dir_all(&vocals_segment_dir);
-                ensure_dir(&vocals_segment_dir)?;
-            }
-        }
-
-        for (i, seg) in split_segments.iter().enumerate() {
-            let idx = format!("{:04}", i + 1);
-            let out_path = vocals_segment_dir.join(format!("{idx}.wav"));
-            let out_path = out_path.to_string_lossy().into_owned();
-            let start_ms = seg.split_start_ms;
-            let end_ms = seg.split_end_ms;
-            if start_ms >= end_ms {
-                // 无效段: 写 44 字节空 wav 头占位
-                fs::write(&out_path, vec![0u8; 44]).ok();
-                tracing::info!("#{} invalid ({} >= {}), empty wav", i + 1, start_ms, end_ms);
-                continue;
-            }
-            let start = start_ms as u64;
-            let end = total_ms.min(end_ms as u64);
-            if end <= start {
-                fs::write(&out_path, vec![0u8; 44]).ok();
-                continue;
-            }
-            util::cut_audio_range(&source_audio, start, end, &out_path)?;
-        }
+    // dub 模式才切人声块; subtitle 模式跳过, 只产出时序文件。
+    // `is_dub` 即原 `has_vocals`: vocals stem 是否存在 == 是否走 dub 流程。
+    if is_dub {
+        cut_vocal_segments(
+            &vocals_segment_dir,
+            lang_path.as_path(),
+            &split_segments,
+            &source_audio,
+            total_ms,
+        )?;
     }
 
     // meta 与 translate 产物的 meta 对齐：src/target 都取**产物自述**的值
@@ -199,7 +158,7 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             &source_audio,
             total_ms,
             &vocals_segment_dir.to_string_lossy(),
-            has_vocals,
+            is_dub,
         );
         if corrected {
             let split_result = SplitAudioResult {
@@ -234,6 +193,72 @@ pub fn step_split_audio(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         },
     )?;
     tracing::info!(target: "split_audio", "done");
+    Ok(())
+}
+
+/// dub 模式切块：把人声按 `split_segments` 切到 `vocals_segment_dir`。
+///
+/// - 若翻译产物比已切出的块更新（重跑翻译），清空旧块重切，避免 stale 块。
+/// - 无效段（起点 ≥ 终点）写 44 字节空 wav 头占位，不报错，让下游自行跳过。
+///
+/// `source_audio` 是实际要切的音频（dub 模式下即 vocals stem，
+/// 见 `step_split_audio` 的 `is_dub` 推导）。`total_ms` 仅用于把末尾段
+/// 截断到音频实际长度内。
+fn cut_vocal_segments(
+    vocals_segment_dir: &Path,
+    translation_file: &Path,
+    split_segments: &[SplitAudioSegment],
+    source_audio: &str,
+    total_ms: u64,
+) -> anyhow::Result<()> {
+    // 若翻译文件比已切出的块更新 (重跑翻译), 清空旧块重新切
+    let has_seg = fs::read_dir(vocals_segment_dir)
+        .ok()
+        .map(|d| {
+            d.filter_map(|e| e.ok())
+                .any(|e| e.path().extension().map(|x| x == "wav").unwrap_or(false))
+        })
+        .unwrap_or(false);
+    if has_seg && translation_file.exists() {
+        let trans_mtime = fs::metadata(translation_file)
+            .and_then(|m| m.modified())
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+        // 任意旧块的最新 mtime
+        let oldest_seg_is_newer = fs::read_dir(vocals_segment_dir)
+            .ok()
+            .map(|d| {
+                d.filter_map(|e| e.ok())
+                    .filter(|e| e.path().extension().map(|x| x == "wav").unwrap_or(false))
+                    .filter_map(|e| fs::metadata(e.path()).ok().and_then(|m| m.modified().ok()))
+                    .all(|m| m < trans_mtime)
+            })
+            .unwrap_or(false);
+        if oldest_seg_is_newer {
+            let _ = fs::remove_dir_all(vocals_segment_dir);
+            ensure_dir(vocals_segment_dir)?;
+        }
+    }
+
+    for (i, seg) in split_segments.iter().enumerate() {
+        let idx = format!("{:04}", i + 1);
+        let out_path = vocals_segment_dir.join(format!("{idx}.wav"));
+        let out_path = out_path.to_string_lossy().into_owned();
+        let start_ms = seg.split_start_ms;
+        let end_ms = seg.split_end_ms;
+        if start_ms >= end_ms {
+            // 无效段: 写 44 字节空 wav 头占位
+            fs::write(&out_path, vec![0u8; 44]).ok();
+            tracing::info!("#{} invalid ({} >= {}), empty wav", i + 1, start_ms, end_ms);
+            continue;
+        }
+        let start = start_ms as u64;
+        let end = total_ms.min(end_ms as u64);
+        if end <= start {
+            fs::write(&out_path, vec![0u8; 44]).ok();
+            continue;
+        }
+        util::cut_audio_range(source_audio, start, end, &out_path)?;
+    }
     Ok(())
 }
 
