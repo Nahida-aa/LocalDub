@@ -18,7 +18,6 @@ use std::fs;
 use std::path::Path;
 
 use crate::context::WorkflowState;
-use crate::utils::file_ops::write_json_pretty;
 use crate::steps::split_audio::out::{
     SplitAudioResult, SplitAudioSegment, SplitAudioTimingResult, TranslateResultMeta,
 };
@@ -28,6 +27,7 @@ use crate::steps::utils::{
     ensure_dir, now_iso, probe_duration_ms, set_step_anyhow, split_audio_path,
     split_audio_timings_path, StepPatch, StepStatus,
 };
+use crate::utils::file_ops::write_json_pretty;
 
 pub use args::SplitAudioArgs;
 
@@ -42,6 +42,7 @@ impl SegmentBounds for TranslateSegment {
 }
 
 /// 入口 (镜像 TS `stepSplitAudio`)。
+/// 本步骤耗时在 0~2s, 对于流程中的步骤来说没有必要考虑 如何设计成 与 某些步骤并行
 pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
     tracing::info!(target: "split_audio", "start");
@@ -53,8 +54,8 @@ pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
     // 本步既要用音频源也要用 translate 路径，故走完整 `from_state`；
     // 仅要音频源的消费者才用 `audio_from_state`。
     let args::SplitAudioInput {
-        audio: audio_source,
-        translate: lang_path,
+        audio_path,
+        translate_path,
     } = args::SplitAudioInput::from_state(ctx)?;
 
     // 字幕时间轴 + 文本：**统一来自 translate 的产物**（translate 恒执行；
@@ -63,7 +64,7 @@ pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
     // 目标语言读**已落定的事实**（翻译步骤写的），不现算；
     // 源语言独立解析（它有自己的三级回退，与目标语言无关）。
     let src_lang = crate::steps::utils::src_language(ctx).code().to_string();
-    let trans = TranslateResult::read(&lang_path).map_err(|e| {
+    let trans = TranslateResult::read(&translate_path).map_err(|e| {
         anyhow::anyhow!("{e}; 请先运行 translate（或从该步骤 continue 以重新生成）")
     })?;
     if trans.segments.is_empty() {
@@ -75,7 +76,7 @@ pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
     // NB: 旧逻辑曾支持 `sourceFilePath` 调试覆盖，但它被 vocals 检查遮蔽，
     // 实际只对「无 vocals + vad_align」窄路径生效且与 `vocalsFilePath` 概念混淆，
     // 已从 `SplitAudioArgs` 移除（自定义切块源走 `vocalsFilePath`）。
-    let source_audio = audio_source.as_path().to_string_lossy().into_owned();
+    let source_audio = audio_path.as_path().to_string_lossy().into_owned();
 
     // 是否 dub 流程由 **output_mode 输入契约**决定，不再靠「源文件是否碰巧存在」
     // 推断——后者把「有没有 separate 产物」当成了流程模式，是个副作用推断
@@ -114,7 +115,7 @@ pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
     if is_dub {
         cut_vocal_segments(
             &vocals_segment_dir,
-            lang_path.as_path(),
+            translate_path.as_path(),
             &split_segments,
             &source_audio,
             total_ms,
@@ -131,7 +132,7 @@ pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
         } else {
             trans.meta.src_lang.clone()
         },
-        target_lang: lang_path.lang().to_string(),
+        target_lang: translate_path.lang().to_string(),
     };
 
     // VAD alignment (可选)：原地修正 split_segments 与 segments 的时序。

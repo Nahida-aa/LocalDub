@@ -80,7 +80,7 @@ pub fn step_mix_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
         let trimmed_file = trimmed_file.to_string_lossy().into_owned();
         ffmpeg(&[
             "-i".to_string(),
-            tts_file.clone(),
+            tts_file.to_string(),
             "-af".to_string(),
             "areverse,silenceremove=start_periods=1:start_threshold=-50dB:start_duration=0.05,areverse"
                 .to_string(),

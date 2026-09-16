@@ -91,7 +91,7 @@ pub mod separate {
             )
         }
 
-        /// 规范化路径（消费点如 [`crate::steps::split_audio::SplitAudioSource::as_path`] 走这里）。
+        /// 规范化路径（消费点如 [`crate::steps::split_audio::SplitAudioSourcePath::as_path`] 走这里）。
         pub fn as_path(&self) -> &Path {
             &self.0
         }

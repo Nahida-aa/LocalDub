@@ -25,7 +25,7 @@ pub struct SplitAudioArgs {
     /// 段落切块后缘 padding (ms), 避免语音被截断
     #[serde(default = "default_end_pad_ms")]
     pub end_pad_ms: u32,
-    /// 人声文件路径, 调试使用（作为 [`crate::steps::split_audio::SplitAudioSource::Custom]）
+    /// 人声文件路径, 调试使用（作为 [`crate::steps::split_audio::SplitAudioSourcePath::Custom]）
     pub vocals_file_path: Option<String>,
 }
 
@@ -67,9 +67,9 @@ fn default_end_pad_ms() -> u32 {
 #[derive(Debug, Clone)]
 pub struct SplitAudioInput {
     /// 切块时要切哪个音频。
-    pub audio: SplitAudioSource,
+    pub audio_path: SplitAudioSourcePath,
     /// 字幕时序来源（意图时序 + 文本 + 译文）。
-    pub translate: translate::LangPath,
+    pub translate_path: translate::LangPath,
 }
 
 /// 切块用的音频源（三选一）。
@@ -95,9 +95,9 @@ pub struct SplitAudioInput {
 /// **`SplitAudioArgs` 已移除 `source_file_path`**：旧逻辑里它被 vocals 检查遮蔽，
 /// 无法真正作为「从任意源音频切块」的覆盖（仅在「无 vocals + vad_align」窄路径影响
 /// VAD 参考音频），且与 `vocals_file_path` 概念混淆。调试自定义切块源统一走
-/// `vocals_file_path` → [`crate::steps::split_audio::SplitAudioSource::Custom`]。
+/// `vocals_file_path` → [`crate::steps::split_audio::SplitAudioSourcePath::Custom`]。
 #[derive(Debug, Clone)]
-pub enum SplitAudioSource {
+pub enum SplitAudioSourcePath {
     /// 人声 stem `separate/target_3_vocals.wav`。
     ///
     /// 注意是 **`separate/`**（demucs 原始人声），不是 `separate_after/` 的
@@ -110,13 +110,13 @@ pub enum SplitAudioSource {
 }
 
 impl SplitAudioInput {
-    /// 从 ctx 解析：先定音频源（按 `SplitAudioSource` 的优先级），再取翻译产物路径。
+    /// 从 ctx 解析：先定音频源（按 `SplitAudioSourcePath` 的优先级），再取翻译产物路径。
     ///
     /// **优先级与存在性检查的现状对齐**（`step_split_audio` 原有逻辑）：
     ///
-    /// 1. `splitAudio.vocalsFilePath` 显式指定 → [`Custom`](SplitAudioSource::Custom)
-    /// 2. `separate/target_3_vocals.wav` **存在** → [`Vocals`](SplitAudioSource::Vocals)
-    /// 3. 否则 → [`SourceAudio`](SplitAudioSource::SourceAudio)（`audio_source.wav`）
+    /// 1. `splitAudio.vocalsFilePath` 显式指定 → [`Custom`](SplitAudioSourcePath::Custom)
+    /// 2. `separate/target_3_vocals.wav` **存在** → [`Vocals`](SplitAudioSourcePath::Vocals)
+    /// 3. 否则 → [`SourceAudio`](SplitAudioSourcePath::SourceAudio)（`audio_source.wav`）
     ///
     /// 第 2 步的「存在才用」是刻意的：subtitle 模式不做 separate，没有人声 stem，
     /// 回退到原始音频是**正常路径**。故存在性判断留在这里，类型只表达结论。
@@ -124,31 +124,33 @@ impl SplitAudioInput {
     /// `audio_source_path` 缺失 → Err（与 `video_source_path` 同款）。
     pub fn from_state(state: &crate::context::WorkflowState) -> anyhow::Result<Self> {
         Ok(Self {
-            audio: Self::audio_from_state(state)?,
-            translate: translate::LangPath::from_state(state)?,
+            audio_path: Self::audio_from_state(state)?,
+            translate_path: translate::LangPath::from_state(state)?,
         })
     }
 
-    /// 只解析**切块音频源**（优先级见 [`SplitAudioSource`]）。
+    /// 只解析**切块音频源**（优先级见 [`SplitAudioSourcePath`]）。
     ///
     /// 拆出来是给「只要音频源、不要 translate 路径」的消费者用——它不必为了
     /// 拿 audio 而顺带构造一个用不到的 `LangPath`（后者会在 `target_language`
     /// 缺失时报错，把与该消费者无关的失败条件引进来）。
     ///
     /// `audio_source_path` 缺失 → Err（与 `video_source_path` 同款）。
-    pub fn audio_from_state(state: &crate::context::WorkflowState) -> anyhow::Result<SplitAudioSource> {
+    pub fn audio_from_state(
+        state: &crate::context::WorkflowState,
+    ) -> anyhow::Result<SplitAudioSourcePath> {
         let args = SplitAudioArgs::from_input(&state.input);
         let video_dir = &state.workflow.video_dir;
 
         Ok(match args.vocals_file_path {
-            Some(p) => SplitAudioSource::Custom(PathBuf::from(p)),
+            Some(p) => SplitAudioSourcePath::Custom(PathBuf::from(p)),
             None => {
                 let vocals = separate::Target3VocalsPath::new(video_dir);
 
                 if vocals.exists() {
-                    SplitAudioSource::Vocals(vocals)
+                    SplitAudioSourcePath::Vocals(vocals)
                 } else {
-                    SplitAudioSource::SourceAudio(
+                    SplitAudioSourcePath::SourceAudio(
                         crate::steps::utils::paths::AudioSourcePath::from_state(state)?,
                     )
                 }
@@ -157,13 +159,13 @@ impl SplitAudioInput {
     }
 }
 
-impl SplitAudioSource {
+impl SplitAudioSourcePath {
     /// 实际要切的那个文件。
     pub fn as_path(&self) -> &std::path::Path {
         match self {
-            SplitAudioSource::Vocals(p) => p.as_path(),
-            SplitAudioSource::SourceAudio(p) => p.as_path(),
-            SplitAudioSource::Custom(p) => p.as_path(),
+            SplitAudioSourcePath::Vocals(p) => p.as_path(),
+            SplitAudioSourcePath::SourceAudio(p) => p.as_path(),
+            SplitAudioSourcePath::Custom(p) => p.as_path(),
         }
     }
 }
@@ -214,9 +216,9 @@ mod tests {
             Some("/x/audio_source.wav"),
         );
         let input = SplitAudioInput::from_state(&c).expect("应可构造");
-        assert!(matches!(input.audio, SplitAudioSource::Custom(_)));
+        assert!(matches!(input.audio_path, SplitAudioSourcePath::Custom(_)));
         assert_eq!(
-            input.audio.as_path().to_string_lossy(),
+            input.audio_path.as_path().to_string_lossy(),
             "/tmp/my_vocals.wav"
         );
 
@@ -244,19 +246,19 @@ mod tests {
         let c = mk(&dir, serde_json::json!({}), Some("/x/audio_source.wav"));
         let input = SplitAudioInput::from_state(&c).expect("应可构造");
         assert!(
-            matches!(input.audio, SplitAudioSource::Vocals(_)),
+            matches!(input.audio_path, SplitAudioSourcePath::Vocals(_)),
             "存在 vocals 时应优先用它, 实际 {:?}",
-            input.audio.as_path()
+            input.audio_path.as_path()
         );
         // 必须是 separate/（原始人声），不是 separate_after/
         assert!(
             input
-                .audio
+                .audio_path
                 .as_path()
                 .to_string_lossy()
                 .contains("/separate/"),
             "该用 separate/ 的原始人声: {:?}",
-            input.audio.as_path()
+            input.audio_path.as_path()
         );
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -277,12 +279,12 @@ mod tests {
         let c = mk(&dir, serde_json::json!({}), Some("/x/audio_source.wav"));
         let input = SplitAudioInput::from_state(&c).expect("应可构造");
         assert!(
-            matches!(input.audio, SplitAudioSource::SourceAudio(_)),
+            matches!(input.audio_path, SplitAudioSourcePath::SourceAudio(_)),
             "无 vocals 应回退音频源, 实际 {:?}",
-            input.audio.as_path()
+            input.audio_path.as_path()
         );
         assert_eq!(
-            input.audio.as_path().to_string_lossy(),
+            input.audio_path.as_path().to_string_lossy(),
             "/x/audio_source.wav"
         );
 

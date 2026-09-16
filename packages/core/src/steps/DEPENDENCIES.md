@@ -304,12 +304,12 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 >
 > ```rust
 > pub struct SplitAudioInput {
->     pub audio: SplitAudioSource,      // 切哪个音频
+>     pub audio_path: SplitAudioSourcePath,      // 切哪个音频
 >     pub translate: LangPath,          // 字幕时序从哪读
 > }
 > ```
 >
-> `SplitAudioSource` 的**顺序即优先级**（与 step 原有逻辑一致）：
+> `SplitAudioSourcePath` 的**顺序即优先级**（与 step 原有逻辑一致）：
 > 1. `Custom` —— `splitAudio.vocalsFilePath` 显式指定
 > 2. `Vocals` —— `separate/target_3_vocals.wav` **存在**时用它
 > 3. `SourceAudio` —— 否则 `audio_source.wav`
