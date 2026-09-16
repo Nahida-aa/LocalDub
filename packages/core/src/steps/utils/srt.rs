@@ -89,6 +89,51 @@ impl SubtitleSegments {
         Ok(())
     }
 
+    /// 从 **SRT 文本文件**读入（[`write_srt`](Self::write_srt) 的逆操作）。
+    ///
+    /// 与 [`read`](Self::read) 的区别：那个读 `srt.json`
+    /// （`{"result":{"segments":[...]}}` 信封），这个读可读的 `.srt` 文本。
+    ///
+    /// 结构不合法的块（不足 3 行、时间行不是 `HH:MM:SS,mmm --> HH:MM:SS,mmm`）
+    /// **跳过**——与 `write_srt` 跳过空文本段对应；全部跳过就得到空集合，
+    /// 由调用方判断是否算错（如 `generate_meta` 对空集合报错）。
+    pub fn read_srt(path: &Path) -> anyhow::Result<Self> {
+        let raw = fs::read_to_string(path)
+            .map_err(|e| anyhow::anyhow!("读取 SRT {} 失败: {e}", path.display()))?;
+        let mut blocks: Vec<Vec<&str>> = Vec::new();
+        let mut current: Vec<&str> = Vec::new();
+        for line in raw.split('\n') {
+            if line.trim().is_empty() {
+                if !current.is_empty() {
+                    blocks.push(std::mem::take(&mut current));
+                }
+            } else {
+                current.push(line);
+            }
+        }
+        if !current.is_empty() {
+            blocks.push(current);
+        }
+
+        let mut segs = Vec::new();
+        for b in blocks {
+            if b.len() < 3 {
+                continue;
+            }
+            // b[1] = "HH:MM:SS,mmm --> HH:MM:SS,mmm"
+            let times: Vec<&str> = b[1].split(" --> ").collect();
+            if times.len() != 2 {
+                continue;
+            }
+            segs.push(SubtitleSegment {
+                text: b[2..].join("\n"),
+                start_ms: parse_srt_time(times[0]),
+                end_ms: parse_srt_time(times[1]),
+            });
+        }
+        Ok(Self(segs))
+    }
+
     /// 写出可读 SRT 文本文件（`.srt`，时间轴 `HH:MM:SS,mmm --> HH:MM:SS,mmm`）。
     ///
     /// 内容来自本集合的 `SubtitleSegment`（`text` / `start_ms` / `end_ms`）。
@@ -316,6 +361,41 @@ mod tests {
         assert!(content.contains("世界"));
         assert!(content.contains("00:00:00,000 --> 00:00:01,000"));
         assert!(content.starts_with("1\n"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `write_srt` → `read_srt` 往返：`SubtitleSegment` 只有 `text` / `start_ms` /
+    /// `end_ms`，三者都能在 SRT 文本里无损表达。
+    #[test]
+    fn read_srt_roundtrips_write_srt() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tmp")
+            .join(format!("ld_srt_rt_{}", std::process::id()))
+            .to_string_lossy()
+            .to_string();
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = std::path::Path::new(&dir).join("rt.srt");
+        let original = SubtitleSegments(vec![
+            SubtitleSegment {
+                text: "你好".into(),
+                start_ms: 0,
+                end_ms: 1000,
+            },
+            SubtitleSegment {
+                text: "世界".into(),
+                start_ms: 1000,
+                end_ms: 2500,
+            },
+        ]);
+        original.write_srt(&p).unwrap();
+        let back = SubtitleSegments::read_srt(&p).unwrap();
+        assert_eq!(back.0.len(), 2);
+        assert_eq!(back.0[0].text, "你好");
+        assert_eq!(back.0[0].start_ms, 0);
+        assert_eq!(back.0[0].end_ms, 1000);
+        assert_eq!(back.0[1].text, "世界");
+        assert_eq!(back.0[1].start_ms, 1000);
+        assert_eq!(back.0[1].end_ms, 2500);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -374,7 +374,8 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 > 最关键的边：**mix_audio 的 timings 产物是 mix_video 的字幕轨输入**。
 > 翻译恒执行后，subtitle 分支的「焦点文件」路径已删——顺带修掉一个**潜伏
 > bug**：旧实现无 `srtPath` 覆盖时把焦点文件 JSON 塞给 SRT 文本解析器
-> （`read_srt_file_to_segs`），块数 < 3 全被跳过 → 空字幕，静默。
+> （[`SubtitleSegments::read_srt`]，原 `read_srt_file_to_segs`），块数 < 3 全被
+> 跳过 → 空字幕，静默。
 
 ---
 

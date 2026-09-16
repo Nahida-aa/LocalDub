@@ -10,7 +10,6 @@ use std::path::Path;
 
 use anyhow::Context;
 
-use crate::steps::mix_video::read_srt_file_to_segs;
 use crate::steps::utils::ensure_dir;
 use crate::steps::utils::srt::SubtitleSegments;
 
@@ -61,7 +60,7 @@ struct YtDlpInfo {
 /// `## title` (中文翻译 - 作者) + `## description` (元数据 + 章节摘要)。
 pub fn generate_meta(video_dir: &str) -> anyhow::Result<()> {
     let srt_path = format!("{video_dir}/mix_video/zh.srt");
-    let segs = read_srt_file_to_segs(&srt_path)
+    let segs = SubtitleSegments::read_srt(Path::new(&srt_path))
         .with_context(|| format!("读取字幕失败 (generate_meta 需要 {srt_path})"))?;
     if segs.is_empty() {
         return Err(anyhow::anyhow!("{srt_path} 无字幕段"));

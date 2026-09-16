@@ -6,14 +6,13 @@
 
 pub mod args;
 
-use anyhow::{anyhow, Context};
+use anyhow::anyhow;
 
 use crate::context::WorkflowState;
 use crate::steps::mix_audio::out::MixAudioOutputTimings;
 use crate::steps::mix_video::args::{Alignment, MixVideoArgs, MixVideoInput};
 use crate::steps::split_audio::out::SplitAudioTimingResult;
 use crate::steps::utils::srt::SubtitleSegments;
-use subtitle::SubtitleSegment;
 use crate::steps::utils::{
     default_font, ensure_dir, ffmpeg_timeout, final_video_dir, probe_video_resolution,
     set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus, WorkflowPatch,
@@ -293,61 +292,6 @@ fn build_subtitle_srt_dub_branch(
     let segs: SubtitleSegments = data.into();
     segs.write_srt(sub_path)
         .map_err(|e| anyhow!("写字幕 SRT 失败: {e}"))
-}
-
-/// 读取已有 SRT 文本文件为 [`SubtitleSegments`]。
-///
-/// 解析出的段**只有一个文本**：SRT 文件里没有「原文/译文」之分，`dst` 与 `text`
-/// 必然相同——旧结构在此处填两份是冗余，故直接产出 `SubtitleSegment`。
-pub fn read_srt_file_to_segs(path: &str) -> anyhow::Result<SubtitleSegments> {
-    let raw = std::fs::read_to_string(path).with_context(|| format!("读取 SRT {path} 失败"))?;
-    let mut segs = Vec::new();
-    let mut blocks: Vec<Vec<&str>> = Vec::new();
-    let mut current: Vec<&str> = Vec::new();
-    for line in raw.split('\n') {
-        if line.trim().is_empty() {
-            if !current.is_empty() {
-                blocks.push(std::mem::take(&mut current));
-            }
-        } else {
-            current.push(line);
-        }
-    }
-    if !current.is_empty() {
-        blocks.push(current);
-    }
-    for b in blocks {
-        if b.len() < 3 {
-            continue;
-        }
-        // b[1] = "HH:MM:SS,mmm --> HH:MM:SS,mmm"
-        let times: Vec<&str> = b[1].split(" --> ").collect();
-        if times.len() != 2 {
-            continue;
-        }
-        let s = parse_srt_time(times[0]);
-        let e = parse_srt_time(times[1]);
-        let text = b[2..].join("\n");
-        segs.push(SubtitleSegment {
-            text,
-            start_ms: s,
-            end_ms: e,
-        });
-    }
-    Ok(segs.into())
-}
-
-fn parse_srt_time(t: &str) -> u32 {
-    let parts: Vec<&str> = t.split(':').collect();
-    if parts.len() != 3 {
-        return 0;
-    }
-    let h: u32 = parts[0].parse().unwrap_or(0);
-    let m: u32 = parts[1].parse().unwrap_or(0);
-    let rest: Vec<&str> = parts[2].split(',').collect();
-    let s: u32 = rest.first().and_then(|x| x.parse().ok()).unwrap_or(0);
-    let ms: u32 = rest.get(1).and_then(|x| x.parse().ok()).unwrap_or(0);
-    (h * 3600 + m * 60 + s) * 1000 + ms
 }
 
 #[cfg(test)]
