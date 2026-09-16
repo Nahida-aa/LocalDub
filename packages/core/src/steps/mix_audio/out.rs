@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::steps::split_audio::out::SplitAudioTiming;
 use crate::steps::utils::paths::mix_audio::{self, TimingsPath};
+use crate::utils::file_ops::{ensure_parent_dir, write_json_pretty};
 use crate::steps::utils::srt::SubtitleSegments;
 use subtitle::SubtitleSegment;
 
@@ -56,14 +57,8 @@ impl MixAudioOutputTimings {
     /// 与读对称：序列化和落盘只在「这里」一处，此前 `mix_audio/mod.rs` 各拼一遍。
     pub fn write(&self, path: &mix_audio::TimingsPath) -> anyhow::Result<()> {
         let p = path.as_path();
-        let json = serde_json::to_string_pretty(self)
-            .map_err(|e| anyhow::anyhow!("序列化 mix_audio timings 失败: {e}"))?;
-        if let Some(parent) = p.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| anyhow::anyhow!("创建目录 {} 失败: {e}", parent.display()))?;
-        }
-        std::fs::write(p, json).map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", p.display(), e))?;
-        Ok(())
+        ensure_parent_dir(p).map_err(|e| anyhow::anyhow!("创建目录失败: {e}"))?;
+        write_json_pretty(p, self)
     }
 }
 
