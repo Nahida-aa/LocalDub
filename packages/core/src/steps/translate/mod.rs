@@ -26,6 +26,7 @@ use crate::steps::utils::{
     lang_name,     now_iso, resolve_language, set_step_anyhow, translation_partial_path, StepPatch, StepStatus,
 };
 use config_rs::env::openai_api_key;
+use crate::utils::file_ops::write_json_pretty;
 
 /// 读视频元信息 → [`MetaView`]。
 ///
@@ -381,10 +382,7 @@ pub fn step_translate(ctx: &WorkflowState) -> anyhow::Result<()> {
         std::fs::create_dir_all(parent)
             .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", parent.display(), e))?;
     }
-    let json = serde_json::to_string_pretty(&result)
-        .map_err(|e| anyhow::anyhow!("序列化翻译结果失败: {e}"))?;
-    std::fs::write(out.path(), json)
-        .map_err(|e| anyhow::anyhow!("写入 {out} 失败: {e}"))?;
+    write_json_pretty(out.path(), &result)?;
 
     // 正式结果已落盘, 删掉增量 partial (避免残留误导; 直通模式无 partial,
     // 但清掉历史遗留也无害)
