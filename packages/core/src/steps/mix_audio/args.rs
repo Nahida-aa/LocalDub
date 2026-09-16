@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+use crate::context::WorkflowState;
+use crate::steps::split_audio::out::SplitAudioTimingResult;
+use crate::steps::utils::paths::{split_audio, tts};
+
 /// mix_audio 阶段参数 (镜像 TS `packages/core/steps/mix_audio/args.ts` MixAudioArgsSchema)
 ///
 /// 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),
@@ -49,4 +53,40 @@ fn default_max_advance_ms() -> f64 {
 
 fn default_max_delay_ms() -> f64 {
     500.0
+}
+
+pub struct MixAudioInput {
+    pub split_audio_timings_path: split_audio::TimingsPath,
+    pub tts_wavs_dir: tts::WavsDir,
+}
+
+impl MixAudioInput {
+    /// 从 ctx 取 mix_audio 阶段的两个输入：split_audio 意图时序 + TTS 各段 wav 目录。
+    ///
+    /// 顺便做前向校验：时序文件存在且非空、每段 TTS 文件存在。这样 step 主体不必
+    /// 再手写「文件不存在」判断——失败得早、错得清楚（与 `SplitAudioInput::from_state`
+    /// 同款思路：输入契约在入口一次性查干净）。
+    pub fn from_state(state: &WorkflowState) -> anyhow::Result<Self> {
+        let video_dir = &state.workflow.video_dir;
+        let split_audio_timings_path = split_audio::TimingsPath::new(video_dir);
+        let tts_wavs_dir = tts::WavsDir::new(video_dir);
+
+        let timings = SplitAudioTimingResult::read(&split_audio_timings_path)?;
+        if timings.segments.is_empty() {
+            return Err(anyhow::anyhow!(
+                "{} 无 segments",
+                split_audio_timings_path.as_path().display()
+            ));
+        }
+        for (i, seg) in timings.segments.iter().enumerate() {
+            let f = tts_wavs_dir.segment_path(i);
+            if !f.exists() {
+                return Err(anyhow::anyhow!("缺少 TTS 段 #{}: {}", seg.idx, f.display()));
+            }
+        }
+        Ok(Self {
+            split_audio_timings_path,
+            tts_wavs_dir,
+        })
+    }
 }

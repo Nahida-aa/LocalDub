@@ -11,10 +11,13 @@ use std::path::Path;
 
 use crate::context::WorkflowState;
 use crate::steps::mix_audio::out::{Timing, TimingsFile};
+use crate::steps::split_audio::out::SplitAudioTimingResult;
 use crate::steps::utils::{
-    ensure_dir, ffmpeg, now_iso, probe_duration_ms, probe_sample_rate, read_split_audio_timings,
-    set_step_anyhow, split_audio_timings_path, StepPatch, StepStatus,
+    ensure_dir, ffmpeg, now_iso, probe_duration_ms, probe_sample_rate, set_step_anyhow, StepPatch,
+    StepStatus,
 };
+
+use args::MixAudioInput;
 
 pub use args::MixAudioArgs;
 
@@ -25,44 +28,29 @@ pub fn step_mix_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
 
     let args = MixAudioArgs::from_input(&ctx.input);
 
-    let merge_audio_dir = Path::new(&video_dir).join("mix_audio");
-    let tts_dir = Path::new(&video_dir).join("tts").join("wavs");
-    let stretched_dir = merge_audio_dir.join("stretched");
-    let silence_dir = merge_audio_dir.join("silences");
+    let input = MixAudioInput::from_state(ctx)?;
+    let segments = SplitAudioTimingResult::read(&input.split_audio_timings_path)?.segments;
+
+    let mix_audio_dir = Path::new(&video_dir).join("mix_audio");
+    let stretched_dir = mix_audio_dir.join("stretched");
+    let silence_dir = mix_audio_dir.join("silences");
     ensure_dir(&stretched_dir)?;
     ensure_dir(&silence_dir)?;
-    ensure_dir(&merge_audio_dir)?;
+    ensure_dir(&mix_audio_dir)?;
 
-    let dubbing_file = merge_audio_dir.join("audio_dubbing.wav");
-
-    let data = read_split_audio_timings(ctx)?;
-    let segments = data
-        .get("segments")
-        .and_then(|s| s.as_array())
-        .cloned()
-        .unwrap_or_default();
-    if segments.is_empty() {
-        return Err(anyhow::anyhow!(
-            "{} 无 segments",
-            split_audio_timings_path(&video_dir).display()
-        ));
-    }
+    let dubbing_file = mix_audio_dir.join("audio_dubbing.wav");
 
     let tts_files: Vec<String> = segments
         .iter()
         .enumerate()
         .map(|(i, _)| {
-            tts_dir
-                .join(format!("{:04}.wav", i + 1))
+            input
+                .tts_wavs_dir
+                .segment_path(i)
                 .to_string_lossy()
                 .into_owned()
         })
         .collect();
-    for f in &tts_files {
-        if !Path::new(f).exists() {
-            return Err(anyhow::anyhow!("缺少 TTS 段: {f}"));
-        }
-    }
 
     let sample_rate = probe_sample_rate(&tts_files[0]);
 
@@ -76,19 +64,14 @@ pub fn step_mix_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
 
     let mut new_translation: Vec<Timing> = Vec::with_capacity(segments.len());
 
-    for (i, item) in segments.iter().enumerate() {
+    for (i, seg) in segments.iter().enumerate() {
         let tts_file = &tts_files[i];
         let idx = format!("{:04}", i + 1);
         let stretched_file = stretched_dir.join(format!("{idx}.wav"));
         let stretched_file = stretched_file.to_string_lossy().into_owned();
 
-        let start_ms = item.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0);
-        let end_ms = item.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0);
-        let text = item
-            .get("text")
-            .and_then(|t| t.as_str())
-            .unwrap_or("")
-            .to_string();
+        let start_ms = seg.start_ms as u64;
+        let end_ms = seg.end_ms as u64;
 
         let tts_ms = probe_duration_ms(tts_file);
 
@@ -137,10 +120,7 @@ pub fn step_mix_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
 
         // delay: 从后间隙借时间
         let next_start_ms = if i < segments.len() - 1 {
-            segments[i + 1]
-                .get("start_ms")
-                .and_then(|v| v.as_u64())
-                .unwrap_or(end_ms)
+            segments[i + 1].start_ms as u64
         } else {
             end_ms
         };
@@ -231,29 +211,7 @@ pub fn step_mix_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
             speed
         };
         new_translation.push(Timing {
-            timing: crate::steps::split_audio::out::SplitAudioTiming {
-                idx: (i + 1) as u32,
-                text,
-                start_ms: start_ms as u32,
-                end_ms: end_ms as u32,
-                dst: item
-                    .get("dst")
-                    .and_then(|t| t.as_str())
-                    .unwrap_or("")
-                    .to_string(),
-                src_lang: item
-                    .get("src_lang")
-                    .and_then(|v| v.as_str())
-                    .map(String::from),
-                dst_lang: item
-                    .get("dst_lang")
-                    .and_then(|v| v.as_str())
-                    .map(String::from),
-                speaker: item
-                    .get("speaker")
-                    .and_then(|v| v.as_str())
-                    .map(String::from),
-            },
+            timing: seg.clone(),
             original_duration_ms: original_slot_base_ms as u32,
             tts_duration_ms: tts_ms as u32,
             stretched_duration_ms: stretched_ms as u32,
@@ -270,7 +228,7 @@ pub fn step_mix_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
         return Err(anyhow::anyhow!("没有可合并的音频段"));
     }
 
-    let concat_file = merge_audio_dir.join("concat_list.txt");
+    let concat_file = mix_audio_dir.join("concat_list.txt");
     let concat_content = segment_inputs
         .iter()
         .map(|f| format!("file '{f}'"))
@@ -295,7 +253,7 @@ pub fn step_mix_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
         dubbing_file.to_string_lossy().into_owned(),
     ])?;
 
-    let timings_file = merge_audio_dir.join("timings.json");
+    let timings_file = mix_audio_dir.join("timings.json");
     let out = TimingsFile {
         segments: new_translation,
     };

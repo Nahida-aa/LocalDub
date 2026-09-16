@@ -381,6 +381,14 @@ pub mod tts {
         pub fn as_path(&self) -> &Path {
             &self.0
         }
+
+        /// 第 `idx` 段 TTS 输出 wav：`{video_dir}/tts/wavs/{:04}.wav`（1-based）。
+        ///
+        /// 此前文件名 `{:04}.wav` 在 `mix_audio` 与 `tts` 各拼一遍（均 `i + 1`），
+        /// 改名要同步两处。现在拼法只在这里，消费点走 [`segment_path`](Self::segment_path)。
+        pub fn segment_path(&self, idx: usize) -> PathBuf {
+            self.0.join(format!("{:04}.wav", idx + 1))
+        }
     }
 }
 mod mix_audio {
