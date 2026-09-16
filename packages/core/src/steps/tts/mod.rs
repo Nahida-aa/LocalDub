@@ -18,14 +18,15 @@ use std::path::Path;
 use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::context::WorkflowState;
-use crate::steps::tts::args::{TtsArgs, TtsRuntime};
+use crate::steps::split_audio::out::SplitAudioTimingResult;
+use crate::steps::tts::args::{TtsArgs, TtsInput, TtsRuntime};
 use crate::steps::tts::out::{TtsFile, TtsSegment};
 use crate::steps::tts::util::{
     ensure_no_failed_segments, pick_voxcpm_bin, should_skip_segment, write_silent_wav,
 };
 use crate::steps::utils::{
-    ensure_dir, ffmpeg, now_iso, probe_duration_ms, read_split_audio_timings, set_step_anyhow,
-    tts_filepath, StepPatch, StepStatus,
+    ensure_dir, ffmpeg, now_iso, probe_duration_ms, set_step_anyhow, tts_filepath, StepPatch,
+    StepStatus,
 };
 
 /// vocals 参考音"非静音"判定阈值: PCM 裸数据 > 该字节数才认为有实际声音。
@@ -44,7 +45,9 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
     tracing::info!(target: "tts", "start");
 
     let args = TtsArgs::from_input(&ctx.input);
-    let vocals_dir = Path::new(&video_dir).join("split_audio").join("vocals");
+    // 输入契约一次性构建：本步只读 split_audio 的两个产物，路径全由 `paths` 里的
+    // 类型给出，本函数不再自己拼字符串。
+    let input = TtsInput::from_video_dir(&video_dir);
     let tts_wav_dir = Path::new(&video_dir).join("tts").join("wavs");
     let doubled_dir = Path::new(&video_dir).join("tts").join("ref_doubled");
     ensure_dir(&tts_wav_dir)?;
@@ -52,12 +55,10 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
         ensure_dir(&doubled_dir)?;
     }
 
-    let data = read_split_audio_timings(ctx)?;
-    let segments = data
-        .get("segments")
-        .and_then(|s| s.as_array())
-        .cloned()
-        .unwrap_or_default();
+    // 意图时序**带类型**读入：字段缺失/类型不对在这里就失败，不再被 `unwrap_or(0)`
+    // 静默吞成 0（此前逐字段 `item.get(..)` 等于手写一个 serde）。
+    let timings = SplitAudioTimingResult::read(&input.split_audio_timings_path)?;
+    let segments = &timings.segments;
     if segments.is_empty() {
         return Err(anyhow::anyhow!("split_audio/timings.json 无 segments"));
     }
@@ -111,7 +112,7 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
 
     // 找第一个非静音 vocals 作为 fallback 参考音
     let fallback_ref: Option<String> = (0..segments.len())
-        .map(|i| vocals_dir.join(format!("{:04}.wav", i + 1)))
+        .map(|i| input.split_audio_vocals_dir.segment_path(i))
         .find(|p| p.exists() && fs::metadata(p).map(|m| m.len()).unwrap_or(0) > MIN_REF_BYTES)
         .map(|p| p.to_string_lossy().into_owned());
 
@@ -177,21 +178,13 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
             }
         }
 
-        let start_ms = item.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-        let end_ms = item.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-        let text = item
-            .get("dst")
-            .and_then(|t| t.as_str())
-            .unwrap_or("")
-            .to_string();
-        let item_text = item
-            .get("text")
-            .and_then(|t| t.as_str())
-            .unwrap_or("")
-            .to_string();
+        let start_ms = item.start_ms;
+        let end_ms = item.end_ms;
+        let text = item.dst.clone();
+        let item_text = item.text.clone();
 
         // 参考音: 优先本段 vocals, 否则 fallback
-        let mut ref_wav = vocals_dir.join(format!("{idx}.wav"));
+        let mut ref_wav = input.split_audio_vocals_dir.segment_path(i);
         if !ref_wav.exists() || fs::metadata(&ref_wav).map(|m| m.len()).unwrap_or(0) < MIN_REF_BYTES
         {
             if let Some(fb) = &fallback_ref {
@@ -250,18 +243,9 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
                     start_ms: start_ms as u32,
                     end_ms: start_ms + dur as u32,
                     dst: text.clone(),
-                    src_lang: item
-                        .get("src_lang")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    dst_lang: item
-                        .get("dst_lang")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    speaker: item
-                        .get("speaker")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
+                    src_lang: item.src_lang.clone(),
+                    dst_lang: item.dst_lang.clone(),
+                    speaker: item.speaker.clone(),
                 },
                 slot_end_ms: end_ms,
                 tts_duration_ms: dur as u32,
@@ -286,18 +270,9 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
                     start_ms,
                     end_ms: start_ms,
                     dst: String::new(),
-                    src_lang: item
-                        .get("src_lang")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    dst_lang: item
-                        .get("dst_lang")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    speaker: item
-                        .get("speaker")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
+                    src_lang: item.src_lang.clone(),
+                    dst_lang: item.dst_lang.clone(),
+                    speaker: item.speaker.clone(),
                 },
                 slot_end_ms: end_ms,
                 tts_duration_ms: 0,
@@ -317,18 +292,9 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
                     start_ms,
                     end_ms: start_ms,
                     dst: text.clone(),
-                    src_lang: item
-                        .get("src_lang")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    dst_lang: item
-                        .get("dst_lang")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    speaker: item
-                        .get("speaker")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
+                    src_lang: item.src_lang.clone(),
+                    dst_lang: item.dst_lang.clone(),
+                    speaker: item.speaker.clone(),
                 },
                 slot_end_ms: end_ms,
                 tts_duration_ms: 0,
@@ -440,18 +406,9 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
                     start_ms,
                     end_ms: start_ms,
                     dst: text.clone(),
-                    src_lang: item
-                        .get("src_lang")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    dst_lang: item
-                        .get("dst_lang")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
-                    speaker: item
-                        .get("speaker")
-                        .and_then(|v| v.as_str())
-                        .map(String::from),
+                    src_lang: item.src_lang.clone(),
+                    dst_lang: item.dst_lang.clone(),
+                    speaker: item.speaker.clone(),
                 },
                 slot_end_ms: end_ms,
                 tts_duration_ms: 0,
@@ -478,18 +435,9 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
                 start_ms,
                 end_ms: start_ms + tts_duration as u32,
                 dst: text.clone(),
-                src_lang: item
-                    .get("src_lang")
-                    .and_then(|v| v.as_str())
-                    .map(String::from),
-                dst_lang: item
-                    .get("dst_lang")
-                    .and_then(|v| v.as_str())
-                    .map(String::from),
-                speaker: item
-                    .get("speaker")
-                    .and_then(|v| v.as_str())
-                    .map(String::from),
+                src_lang: item.src_lang.clone(),
+                dst_lang: item.dst_lang.clone(),
+                speaker: item.speaker.clone(),
             },
             slot_end_ms: end_ms,
             tts_duration_ms: tts_duration as u32,
