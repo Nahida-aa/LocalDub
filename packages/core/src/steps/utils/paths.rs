@@ -23,6 +23,68 @@ use std::path::{Path, PathBuf};
 // video_source.mp4
 type VideoSourcePath = PathBuf;
 
+/// 原始音频 `audio_source.wav`（任务级输入，由 import 产出）。
+///
+/// **与 `SrtPath` 的区别**：它的位置不是从 `video_dir` 拼出来的，而是 import
+/// 阶段**写进 ctx** 的（`ctx.audio_source_path`）。两个构造入口对应两类调用者：
+///
+/// | 入口 | 谁用 |
+/// | --- | --- |
+/// | [`from_video_dir`](Self::from_video_dir) | **import 产出方**——它写 ctx 之前就得知道路径 |
+/// | [`from_ctx`](Self::from_ctx) | **消费者**——读 import 落下的那个值 |
+///
+/// 两者在正常流程下指向同一文件（import 落点固定为 `{video_dir}/audio_source.wav`，
+/// 见 `import/download.rs`），但语义不同：前者是「约定拼法」，后者是「事实」。
+/// 与 `LangPath` 的 `new` / `from_ctx` 同一模式。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AudioSourcePath(PathBuf);
+
+impl AudioSourcePath {
+    /// 按约定拼：`{video_dir}/audio_source.wav`（import 的落点）。
+    pub fn from_video_dir(video_dir: impl AsRef<Path>) -> Self {
+        Self(video_dir.as_ref().join("audio_source.wav"))
+    }
+
+    /// 从 ctx 取 `ctx.audio_source_path`（import 写入的绝对路径）。
+    ///
+    /// 缺失 → Err（与 [`crate::steps::utils::video_source_path`] 同款语义：
+    /// 没导入过就没有这个文件，无从猜测）。
+    pub fn from_ctx(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<Self> {
+        ctx.audio_source_path
+            .clone()
+            .map(PathBuf::from)
+            .map(Self)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "audio_source_path 未设置 (session {}); 请先运行 import",
+                    ctx.workflow.video_dir
+                )
+            })
+    }
+
+    pub fn as_path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl AsRef<Path> for AudioSourcePath {
+    fn as_ref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for AudioSourcePath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.display())
+    }
+}
+
+pub mod separate {
+    use super::*;
+    // separate/target_3_vocals.wav（demucs 的 vocals stem，**原始**人声）
+    pub type Target3VocalsPath = PathBuf;
+}
+
 pub mod separate_after {
     use super::*;
     // separate_after/target_bgm.wav
@@ -340,7 +402,9 @@ mod tests {
     #[test]
     fn lang_path_shape() {
         assert_eq!(
-            translate::LangPath::new("/w", "vi").as_path().to_string_lossy(),
+            translate::LangPath::new("/w", "vi")
+                .as_path()
+                .to_string_lossy(),
             "/w/translate/vi.json"
         );
     }
@@ -370,7 +434,8 @@ mod tests {
         assert_eq!(p.as_path().to_string_lossy(), "/w/translate/zh.json");
 
         // 缺失 → 报错（不现算、不推断）
-        let err = translate::LangPath::from_ctx(&mk(None)).expect_err("缺失 target_language 必须报错");
+        let err =
+            translate::LangPath::from_ctx(&mk(None)).expect_err("缺失 target_language 必须报错");
         let msg = err.to_string();
         assert!(
             msg.contains("target_language") && msg.contains("translate"),

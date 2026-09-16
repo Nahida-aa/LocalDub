@@ -297,10 +297,33 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | --- | --- |
 | **读** ⚠️ | `translate/{lang}.json`——**唯一字幕来源**（时间轴 + 文本 + dst；直通时 dst=原文） |
 | **读** | `separate/target_3_vocals.wav`（dub 模式切 wav 块；subtitle 模式不需要） |
+| **读** | `audio_source.wav`（没有人声 stem 时回退；类型化 `AudioSourcePath`） |
 | **写** | `split_audio/split_audio.json`、`timings.json`、`vocals/*.wav` |
 
-> **注意 `vocals_path` 指向 `separate/`，不是 `separate_after/`**——
-> 这里用的是**原始**人声，不是混音后的。
+> **输入契约 `SplitAudioInput::from_ctx`**（`split_audio/args.rs`）：
+>
+> ```rust
+> pub struct SplitAudioInput {
+>     pub audio: SplitAudioSource,      // 切哪个音频
+>     pub translate: LangPath,          // 字幕时序从哪读
+> }
+> ```
+>
+> `SplitAudioSource` 的**顺序即优先级**（与 step 原有逻辑一致）：
+> 1. `Custom` —— `splitAudio.vocalsFilePath` 显式指定
+> 2. `Vocals` —— `separate/target_3_vocals.wav` **存在**时用它
+> 3. `SourceAudio` —— 否则 `audio_source.wav`
+>
+> 存在性检查留在 `from_ctx` 里（不进类型）：subtitle 模式不做 separate，
+> 没有 vocals 是**正常路径**而非错误。
+>
+> **注意 `Vocals` 指向 `separate/`，不是 `separate_after/`**——用**原始**人声，
+> 不是混音后的（后者是给 `asr` 用的）。这一条曾被草稿写错。
+>
+> **⚠️ 契约尚未接线**：`step_split_audio` 仍用旧逻辑，其 fallback 是
+> `video_source_path(ctx)`（`video_source.mp4`，**视频文件**），靠 ffmpeg 提音轨。
+> 契约改为 `audio_source.wav`（纯音频）。**接线时行为会变**，
+> 需实测比对产物（时长 / 采样率）。接线前请先跑一遍真实任务。
 >
 > **`{lang}.json` 是带类型读取的**：`TranslateResult::read(&LangPath)`。
 > 意图时序（`timings.json` 的 segments）就是**翻译 segments 的原样搬运**——
