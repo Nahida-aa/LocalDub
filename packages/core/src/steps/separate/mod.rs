@@ -19,11 +19,7 @@ pub use args::SeparateArgs;
 
 /// 从 `ctx.input.steps.separate` 解析配置 (与 TS default 对齐)
 pub fn read_args(ctx: &WorkflowCtx) -> SeparateArgs {
-    ctx.input
-        .get("steps")
-        .and_then(|v| v.get("separate"))
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default()
+    ctx.input.steps.separate.clone()
 }
 
 /// 根据 runtime + device 选择 demucs-burn 后端 (镜像 TS `separateBurn` 的 backend 派生)。

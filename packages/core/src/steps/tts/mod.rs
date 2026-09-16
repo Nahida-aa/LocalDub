@@ -52,11 +52,7 @@ fn write_silent_wav(out_path: &str) -> anyhow::Result<()> {
 
 /// 从 `ctx.input.steps.tts` 解析配置 (镜像 TS `ctx.input.steps.tts`)。
 fn read_args(ctx: &WorkflowCtx) -> TtsArgs {
-    ctx.input
-        .get("steps")
-        .and_then(|v| v.get("tts"))
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default()
+    ctx.input.steps.tts.clone()
 }
 
 /// 选择 voxcpm-burn 后端二进制名 (镜像 TS runtime/device -> 二进制)。
@@ -197,10 +193,10 @@ pub fn step_tts(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     // - 列表外的段: 保留旧结果 —— 优先复用 tts.json 已有记录, 无旧记录才写合法静音占位。
     let is_start = ctx
         .input
-        .get("workflow")
-        .and_then(|t| t.get("action"))
-        .and_then(|a| a.as_str())
-        == Some("start");
+        .workflow
+        .as_ref()
+        .and_then(|w| w.action)
+        == Some(crate::workflows::args::WorkflowAction::Start);
     let regen_indices: Option<Vec<u32>> = if is_start {
         None
     } else {

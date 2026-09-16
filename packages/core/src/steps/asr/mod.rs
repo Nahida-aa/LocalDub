@@ -24,11 +24,7 @@ use crate::steps::utils::{
 
 /// 读取 asr 配置 (缺省用 AsrArgs::default)。
 fn read_args(ctx: &WorkflowCtx) -> AsrArgs {
-    ctx.input
-        .get("steps")
-        .and_then(|v| v.get("asr"))
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default()
+    ctx.input.steps.asr.clone()
 }
 
 /// 解析 ASR 人声基线路径 (镜像 TS asr.ts:30: vocalAudioPath 覆盖默认 vocals 路径)。
@@ -135,11 +131,11 @@ pub fn step_asr(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     // —— 组装 whisper-cli 参数 (镜像 TS asrWhisperCpp) ——
     let language = ctx
         .input
-        .get("workflow")
-        .and_then(|v| v.get("sourceLang"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("auto")
-        .to_string();
+        .workflow
+        .as_ref()
+        .and_then(|w| w.source_lang.as_ref())
+        .map(|l| l.code().to_string())
+        .unwrap_or_else(|| "auto".to_string());
 
     let mut whisper_args: Vec<String> = vec![
         "-m".into(),

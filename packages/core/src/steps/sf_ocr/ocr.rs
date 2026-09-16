@@ -14,11 +14,7 @@ use std::process::Command;
 
 /// 读取 sf_ocr 配置 (缺省用 SfOcrArgs::default)。
 fn read_args(ctx: &WorkflowCtx) -> SfOcrArgs {
-    ctx.input
-        .get("steps")
-        .and_then(|v| v.get("sf_ocr"))
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default()
+    ctx.input.steps.sf_ocr.clone()
 }
 
 /// 入口 (镜像 TS `stepSfOcr`)。

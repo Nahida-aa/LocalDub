@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use time::FrameRate;
 pub mod types;
 pub use types::{StepStatus, WorkflowStep};
+use crate::input::Input;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
@@ -77,8 +78,7 @@ pub struct WorkflowCtx {
     pub steps: Option<Vec<WorkflowStep>>,
     pub output_mode: String,
     pub last_run_output_mode: Option<String>,
-    #[specta(type = specta_typescript::Unknown)]
-    pub input: serde_json::Value,
+    pub input: Input,
     pub frame_rate: FrameRate,
     pub run_info: Option<RunInfo>,
     pub video_source_path: Option<String>,
@@ -128,10 +128,20 @@ pub fn read_ctx_from_value(json: serde_json::Value) -> Result<WorkflowCtx, Strin
             .get("last_run_output_mode")
             .and_then(|v| v.as_str())
             .map(String::from),
+        // 宽松加载：input 由 import 以 `Input` 序列化写入；旧版 / TS 产出的
+        // ctx.json 若含非法字段（如 TranslateArgs::deny_unknown_fields 拦下的），
+        // 这里不崩溃，回退默认 Input 并告警。写回路径仍用严格类型（见 `write_ctx`）。
         input: json
             .get("input")
             .cloned()
-            .unwrap_or(serde_json::Value::Null),
+            .and_then(|v| {
+                serde_json::from_value(v)
+                    .map_err(|e| {
+                        tracing::warn!(target: "ctx", "ctx.input 解析失败, 回退默认 Input: {e}")
+                    })
+                    .ok()
+            })
+            .unwrap_or_default(),
         run_info: json
             .get("run_info")
             .and_then(|v| serde_json::from_value(v.clone()).ok()),

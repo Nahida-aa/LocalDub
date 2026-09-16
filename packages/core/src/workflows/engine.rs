@@ -42,22 +42,18 @@ pub struct EngineOptions {
 
 impl EngineOptions {
     /// 从 `ctx.input` 填充: `workflow.continueFrom` / `workflow.targetStep`
-    /// (TS 续跑路径放这); `run_pipeline` 的内联约定 `targetStep` 顶层字段也兜底读取。
-    pub fn from_ctx_input(input: &serde_json::Value) -> Self {
-        let wf = input.get("workflow");
-        let get = |k: &str| {
-            wf.and_then(|v| v.get(k))
-                .and_then(|v| v.as_str())
-                .map(String::from)
-        };
-        let target_step = get("targetStep").or_else(|| {
-            input
-                .get("targetStep")
-                .and_then(|v| v.as_str())
-                .map(String::from)
-        });
+    /// (TS 续跑路径放这)。`ctx.input` 已是结构化 [`Input`](crate::input::Input)，
+    /// 故直接读类型字段（无顶层 `targetStep` 兜底——该字段本就位于 `workflow` 下）。
+    pub fn from_ctx_input(input: &crate::input::Input) -> Self {
+        let wf = input.workflow.as_ref();
+        let target_step = wf
+            .and_then(|w| w.target_step.as_ref())
+            .map(|s| s.as_str().to_string());
+        let continue_from = wf
+            .and_then(|w| w.continue_from.as_ref())
+            .map(|s| s.as_str().to_string());
         Self {
-            continue_from: get("continueFrom"),
+            continue_from,
             target_step,
         }
     }
@@ -95,18 +91,12 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
         "mix_audio" => vec![p(dubbing_path(wf)), p(mix_audio_timings_path(wf))],
         "mix_video" => {
             let ctx = crate::context::read_ctx(wf).ok()?;
-            let no_translate = ctx
-                .input
-                .get("steps")
-                .and_then(|v| v.get("translate"))
-                .and_then(|v| v.get("enabled"))
-                .and_then(|v| v.as_bool())
-                == Some(false);
+            let no_translate = !ctx.input.steps.translate.enabled;
             let sub_src = ctx
                 .input
-                .get("workflow")
-                .and_then(|v| v.get("subtitleSource"))
-                .and_then(|v| v.as_str())
+                .workflow
+                .as_ref()
+                .map(|w| w.subtitle_source.as_str())
                 .unwrap_or("asr");
             let dir_name = final_video_dir(&ctx.output_mode, sub_src, no_translate);
             let vid = video_id(wf).unwrap_or_default();
@@ -241,7 +231,8 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
     });
 
     let store = FsRunStore::new(video_dir);
-    let mut r_opts = RunOptions::new(ctx.input.clone()).run_id(run_id.clone());
+    let mut r_opts = RunOptions::new(serde_json::to_value(&ctx.input).map_err(anyhow::Error::msg)?)
+        .run_id(run_id.clone());
     if let Some(cf) = &continue_from {
         r_opts = r_opts.continue_from(cf.clone());
     }

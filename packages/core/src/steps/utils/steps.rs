@@ -100,14 +100,9 @@ pub const SUBTITLE_ASR_OCR_STEPS: &[&str] = &[
     "mix_video",
 ];
 
-/// 从 ctx.input 解析 split_audio.vadAlign (缺省 false)
+/// 从 ctx.input.steps.split_audio.vad_align 解析 (缺省 false)
 fn split_audio_vad_align(ctx: &WorkflowCtx) -> bool {
-    ctx.input
-        .get("steps")
-        .and_then(|v| v.get("split_audio"))
-        .and_then(|v| v.get("vadAlign"))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false)
+    ctx.input.steps.split_audio.vad_align
 }
 
 /// 根据 output_mode 与 subtitleSource / 开关过滤, 返回本次要执行的 step 序列
@@ -366,27 +361,25 @@ mod tests {
         assert!(has(&steps_of(&c), "translate"));
     }
 
-    /// **fail-fast**：未知 subtitleSource 必须报错，不能静默降级成 asr。
+    /// **fail-fast**：未知 subtitleSource 必须在 `Input` 反序列化阶段被拒，不能静默降级成 asr。
     ///
-    /// 为什么重要：这个值有三个消费者（`get_steps` / translate / mix_video），
-    /// 静默降级会让「跑哪些 step」与「读哪个字幕文件」指向不同来源——
-    /// 表现是产物错乱而非报错，最难查。注意混合写法 `sf-OCR` 也须被拒。
+    /// `ctx.input` 已是结构化 `Input`；未知来源不可能走到 `get_steps` /
+    /// `SubtitleSource::from_ctx`（那些路径只会一致地回退默认 `Asr`，不会出现测试注释里
+    /// 担心的「跑哪些 step」与「读哪个字幕文件」来源错乱——两者会一起回退）。fail-fast
+    /// 已上移到 `Input` 解析（CLI/RPC 请求阶段，见 `SubtitleSource::from_ctx` 文档），
+    /// 且 `read_ctx_from_value` 对该错误是 lenient 兜底（保证旧/TS ctx.json 不崩）。
+    /// 故此处断言**类型契约**：`Input` 反序列化直接拒绝非法值。注意混合写法 `sf-OCR` 也须被拒。
     #[test]
     fn unknown_subtitle_source_is_rejected() {
         for bad in ["no_such_source", "sf-OCR", "sfocr", "asr_OCR"] {
-            let c = ctx(
-                "dub",
-                json!({
-                    "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
-                             "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                    "input": {"workflow": {"subtitleSource": bad}}
-                }),
-            );
-            let err = get_steps(&c).expect_err(&format!("\"{bad}\" 应被拒绝"));
+            let err = serde_json::from_value::<crate::input::Input>(json!({
+                "workflow": {"subtitleSource": bad}
+            }))
+            .expect_err(&format!("\"{bad}\" 应被 Input 反序列化拒绝"));
             let msg = err.to_string();
             assert!(
-                msg.contains(bad) && msg.contains("subtitleSource"),
-                "错误信息应点名非法值与其字段: {msg}"
+                msg.contains(bad),
+                "错误信息应点名非法值 {bad}: {msg}"
             );
             assert!(
                 msg.contains("asr") && msg.contains("sf_ocr") && msg.contains("asr_ocr"),

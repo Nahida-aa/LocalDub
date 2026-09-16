@@ -29,11 +29,7 @@ use config_rs::env::openai_api_key;
 
 /// 从 `ctx.input.steps.translate` 解析配置 (镜像 TS `readInputArgs().steps.translate`)。
 fn read_args(ctx: &WorkflowCtx) -> args::TranslateArgs {
-    ctx.input
-        .get("steps")
-        .and_then(|v| v.get("translate"))
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default()
+    ctx.input.steps.translate.clone()
 }
 
 /// 读视频元信息 → [`MetaView`]。
@@ -519,29 +515,23 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// `subtitleSource` 未知 → from_ctx 显式报错（fail-fast，不静默回退）。
+    /// `subtitleSource` 未知 → `Input` 反序列化阶段 fail-fast（不再在 `from_ctx` 静默回退）。
+    ///
+    /// `ctx.input` 已是结构化 [`Input`](crate::input::Input)，未知来源不可能走到
+    /// `SubtitleSource::from_ctx`（它会回退默认 `Asr`）。fail-fast 已上移到 `Input`
+    /// 解析，故此处直接断言 `Input` 反序列化拒绝非法值——与 `OutputMode`（读
+    /// `ctx.output_mode` 事实、未知值报错）的取向一致。
     #[test]
-    fn unknown_subtitle_source_errors() {
-        let dir = std::env::temp_dir()
-            .join(format!("ld_translate_src_{}", std::process::id()))
-            .to_string_lossy()
-            .to_string();
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        let ctx = ctx_at(
-            &dir,
-            json!({
-                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"subtitleSource": "wat"}}
-            }),
-        );
-        let err = args::TranslateInput::from_ctx(&ctx).expect_err("未知来源必须报错");
+    fn unknown_subtitle_source_rejected_at_input_deserialization() {
+        let err = serde_json::from_value::<crate::input::Input>(
+            json!({"workflow": {"subtitleSource": "wat"}}),
+        )
+        .expect_err("未知 subtitleSource 必须在 Input 反序列化阶段报错");
+        let msg = err.to_string();
         assert!(
-            err.to_string().contains("未知的 subtitleSource"),
-            "实际: {err}"
+            msg.contains("subtitleSource") || msg.contains("wat"),
+            "实际: {msg}"
         );
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// `subtitleSource` → 对应的 srt.json 路径（provenance 在类型里）。

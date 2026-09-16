@@ -633,10 +633,10 @@ pub fn split_audio_timings_path(video_dir: &str) -> PathBuf {
 pub fn resolve_language(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<(String, String)> {
     let input_target = ctx
         .input
-        .get("workflow")
-        .and_then(|v| v.get("targetLang"))
-        .and_then(|v| v.as_str())
-        .map(String::from);
+        .workflow
+        .as_ref()
+        .and_then(|w| w.target_lang.as_ref())
+        .map(|t| t.as_str().to_string());
     let src_lang = src_language(ctx);
     let src_code = src_lang.code().to_string();
 
@@ -669,27 +669,16 @@ pub fn resolve_language(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<(St
 pub fn src_language(ctx: &crate::context::WorkflowCtx) -> Language {
     ctx.asr_language
         .clone()
-        .or_else(|| {
-            ctx.input
-                .get("workflow")
-                .and_then(|v| v.get("sourceLang"))
-                .and_then(|v| v.as_str())
-                .map(Language::from)
-        })
+        .or_else(|| ctx.input.workflow.as_ref().and_then(|w| w.source_lang.clone()))
         .unwrap_or_else(default_lang)
 }
 
 /// `steps.translate.enabled`，缺省 `true`（与 `TranslateArgs` 的 serde 默认一致）。
 ///
-/// 直读 JSON 而非构造 `TranslateArgs`：本函数在 `utils` 层，不该依赖 translate
+/// 直读结构化字段而非构造 `TranslateArgs`：本函数在 `utils` 层，不该依赖 translate
 /// 的 args 类型（那会形成 utils → steps::translate 的循环依赖）。
 fn translate_enabled(ctx: &crate::context::WorkflowCtx) -> bool {
-    ctx.input
-        .get("steps")
-        .and_then(|v| v.get("translate"))
-        .and_then(|v| v.get("enabled"))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true)
+    ctx.input.steps.translate.enabled
 }
 
 /// 把本次的目标语言**落盘**（ctx.json 的 `target_language`）。

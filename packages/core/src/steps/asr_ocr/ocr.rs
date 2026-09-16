@@ -15,11 +15,7 @@ use std::process::Command;
 
 /// Read asr_ocr config (defaults to AsrOcrArgs::default).
 fn read_args(ctx: &WorkflowCtx) -> AsrOcrArgs {
-    ctx.input
-        .get("steps")
-        .and_then(|v| v.get("asr_ocr"))
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default()
+    ctx.input.steps.asr_ocr.clone()
 }
 
 /// Entry point (mirrors TS `stepAsrOcr`).

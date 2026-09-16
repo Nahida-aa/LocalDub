@@ -17,11 +17,7 @@ use std::process::Command;
 
 /// 读取 sf_ocr_fix 配置 (缺省用 OcrFixArgs::default)。
 fn read_args(ctx: &WorkflowCtx) -> OcrFixArgs {
-    ctx.input
-        .get("steps")
-        .and_then(|v| v.get("sf_ocr_fix"))
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default()
+    ctx.input.steps.sf_ocr_fix.clone()
 }
 
 /// 入口 (镜像 TS `stepSfOcrFix`)。
@@ -101,25 +97,10 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowCtx) -> anyhow::Result<()> {
             .collect();
         // 源语言: ASR 实测 (ctx.asr_language) > input.workflow.sourceLang > 默认 zh。
         // (step 级 sf_ocr_fix.sourceLang 已移除, 统一到任务级)
-        let legacy = ctx
-            .input
-            .get("steps")
-            .and_then(|v| v.get("sfOcrFix"))
-            .and_then(|v| v.get("sourceLang"))
-            .is_some();
-        if legacy {
-            tracing::warn!(target: "sf_ocr", "steps.sfOcrFix.sourceLang 已移除, 请在 workflow.sourceLang 配置源语言");
-        }
         let src_lang: crate::r#const::lang::Language = ctx
             .asr_language
             .clone()
-            .or_else(|| {
-                ctx.input
-                    .get("workflow")
-                    .and_then(|v| v.get("sourceLang"))
-                    .and_then(|v| v.as_str())
-                    .map(crate::r#const::lang::Language::from)
-            })
+            .or_else(|| ctx.input.workflow.as_ref().and_then(|w| w.source_lang.clone()))
             .unwrap_or_else(crate::r#const::lang::default_lang);
         let lang_label = llm::lang_label(src_lang.code());
         tracing::info!(target: "sf_ocr",

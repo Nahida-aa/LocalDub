@@ -36,7 +36,13 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
     let steps = get_steps(&ctx)?;
 
     // targetStep 不在序列中则告警忽略 (镜像 TS)
-    if let Some(ts) = ctx.input.get("targetStep").and_then(|v| v.as_str()) {
+    if let Some(ts) = ctx
+        .input
+        .workflow
+        .as_ref()
+        .and_then(|w| w.target_step.as_ref())
+        .map(|s| s.as_str())
+    {
         if !steps.iter().any(|s| s.as_str() == ts) {
             tracing::info!(target: "output_mode",
                 "[WARN] targetStep \"{ts}\" 不在 {output_mode} output_mode 中, 忽略"
@@ -80,7 +86,13 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
         match run_step(*step, video_dir) {
             Ok(()) => {
                 // 达到 targetStep 即停止 (镜像 TS)
-                if let Some(ts) = ctx.input.get("targetStep").and_then(|v| v.as_str()) {
+                if let Some(ts) = ctx
+                    .input
+                    .workflow
+                    .as_ref()
+                    .and_then(|w| w.target_step.as_ref())
+                    .map(|s| s.as_str())
+                {
                     if step_str == ts {
                         tracing::info!(target: "output_mode", "达到目标步骤 \"{ts}\", 停止");
                         break;

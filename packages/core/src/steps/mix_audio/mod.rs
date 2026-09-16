@@ -20,11 +20,7 @@ pub use args::MixAudioArgs;
 
 /// 从 `ctx.input.steps.mix_audio` 解析配置 (镜像 TS `readInputArgs().steps.mix_audio`)。
 fn read_args(ctx: &WorkflowCtx) -> MixAudioArgs {
-    ctx.input
-        .get("steps")
-        .and_then(|v| v.get("mix_audio"))
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default()
+    ctx.input.steps.mix_audio.clone()
 }
 
 /// 入口 (镜像 TS `stepMixAudio`)。

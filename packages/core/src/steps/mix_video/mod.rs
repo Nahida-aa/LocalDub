@@ -23,11 +23,7 @@ use crate::steps::utils::{
 
 /// 读取 mix_video 配置 (缺省用 MixVideoArgs::default)。
 fn read_args(ctx: &WorkflowCtx) -> MixVideoArgs {
-    ctx.input
-        .get("steps")
-        .and_then(|v| v.get("mix_video"))
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default()
+    ctx.input.steps.mix_video.clone()
 }
 
 /// 入口 (镜像 TS `stepMixVideo`)。
@@ -67,28 +63,16 @@ pub fn step_mix_video(ctx: &WorkflowCtx) -> anyhow::Result<()> {
         .lang()
         .to_string();
 
-    let no_translate = ctx
-        .input
-        .get("steps")
-        .and_then(|v| v.get("translate"))
-        .and_then(|v| v.get("enabled"))
-        .and_then(|v| v.as_bool())
-        == Some(false);
+    let no_translate = !ctx.input.steps.translate.enabled;
 
     let subtitle_source = ctx
         .input
-        .get("workflow")
-        .and_then(|v| v.get("subtitleSource"))
-        .and_then(|v| v.as_str())
+        .workflow
+        .as_ref()
+        .map(|w| w.subtitle_source.as_str())
         .unwrap_or("asr");
 
-    let vad_align = ctx
-        .input
-        .get("steps")
-        .and_then(|v| v.get("split_audio"))
-        .and_then(|v| v.get("vadAlign"))
-        .and_then(|v| v.as_bool())
-        == Some(true);
+    let vad_align = ctx.input.steps.split_audio.vad_align;
 
     let final_dir_name = final_video_dir(&output_mode, subtitle_source, no_translate);
     let final_video_dir = merge_dir.join(&final_dir_name);

@@ -165,7 +165,7 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowCtx> {
         output_mode: mode_str.clone(),
         last_run_output_mode: Some(mode_str),
         // import 阶段 input 直接透传原始 Input (序列化为 Value)
-        input: serde_json::to_value(input).unwrap_or(serde_json::Value::Null),
+        input: input.clone(),
         frame_rate,
         run_info: None,
         video_source_path: Some(downloaded.video_path.clone()),

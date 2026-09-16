@@ -37,8 +37,7 @@ pub fn continue_workflow(input: &Input) -> anyhow::Result<()> {
     // setCtx: 把当前 input 合并进 ctx.json 的 input 字段 (镜像 TS setCtx(videoDir, { input }))
     let mut ctx = read_ctx(&video_dir)
         .map_err(|e| anyhow::anyhow!("读取 {}/ctx.json 失败: {e}", video_dir))?;
-    ctx.input =
-        serde_json::to_value(input).map_err(|e| anyhow::anyhow!("序列化 input 失败: {e}"))?;
+    ctx.input = input.clone();
     write_ctx(&video_dir, &ctx)
         .map_err(|e| anyhow::anyhow!("写回 {}/ctx.json 失败: {e}", video_dir))?;
 

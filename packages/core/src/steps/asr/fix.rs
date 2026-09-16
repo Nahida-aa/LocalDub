@@ -12,11 +12,7 @@ use crate::steps::utils::{
 
 /// 读取 asr_fix 配置 (缺省用 AsrFixArgs::default)。
 fn read_fix_args(ctx: &WorkflowCtx) -> AsrFixArgs {
-    ctx.input
-        .get("steps")
-        .and_then(|v| v.get("asr_fix"))
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default()
+    ctx.input.steps.asr_fix.clone()
 }
 
 /// 入口 (镜像 TS `stepAsrFix`)。

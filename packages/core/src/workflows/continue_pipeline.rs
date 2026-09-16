@@ -30,16 +30,16 @@ pub fn continue_pipeline(ctx: &WorkflowCtx) -> anyhow::Result<()> {
     // continueFrom / targetStep 从 ctx.input.workflow 读取 (镜像 TS ctx.input?.workflow)
     let continue_from = ctx
         .input
-        .get("workflow")
-        .and_then(|v| v.get("continueFrom"))
-        .and_then(|v| v.as_str())
-        .map(String::from);
+        .workflow
+        .as_ref()
+        .and_then(|w| w.continue_from.as_ref())
+        .map(|s| s.as_str().to_string());
     let target_step = ctx
         .input
-        .get("workflow")
-        .and_then(|v| v.get("targetStep"))
-        .and_then(|v| v.as_str())
-        .map(String::from);
+        .workflow
+        .as_ref()
+        .and_then(|w| w.target_step.as_ref())
+        .map(|s| s.as_str().to_string());
 
     // targetStep 不在序列中则告警忽略 (镜像 TS)
     if let Some(ts) = &target_step {

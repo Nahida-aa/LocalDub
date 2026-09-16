@@ -185,23 +185,19 @@ impl SubtitleSource {
         self.into()
     }
 
-    /// 从 ctx 解析 `input.workflow.subtitleSource`。未知名 → 报错（fail-fast；
-    /// 缺省时按 `#[default]` 走 asr）。期望值列表从 `VARIANTS` 生成——加变体
-    /// 自动更新，不会漏。
+    /// 从 ctx 解析 `input.workflow.subtitleSource`。
+    ///
+    /// `ctx.input` 已是结构化 [`Input`](crate::input::Input)（import 落定），
+    /// `subtitle_source` 为枚举值，不可能出现「未知来源」——该 fail-fast 已上移到
+    /// `Input` 反序列化阶段（CLI/RPC 请求解析）。此处仅在 `workflow` 缺失时回退
+    /// 默认 `Asr`（`#[default]`），保持与原 `unwrap_or("asr")` 一致。
     pub fn from_ctx(ctx: &crate::context::WorkflowCtx) -> anyhow::Result<Self> {
-        use strum::VariantNames;
-        let s = ctx
+        Ok(ctx
             .input
-            .get("workflow")
-            .and_then(|v| v.get("subtitleSource"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("asr");
-        s.parse::<SubtitleSource>().map_err(|_| {
-            anyhow::anyhow!(
-                "未知的 subtitleSource \"{s}\"（期望 {}）",
-                Self::VARIANTS.join(" / ")
-            )
-        })
+            .workflow
+            .as_ref()
+            .map(|w| w.subtitle_source)
+            .unwrap_or_default())
     }
 }
 

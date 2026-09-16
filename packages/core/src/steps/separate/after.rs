@@ -11,11 +11,7 @@ use crate::steps::utils::{
 
 /// 读取 asr 阶段配置 (缺省用 AsrArgs::default, 对齐 TS `?? 默认值`)。
 fn read_asr_cfg(ctx: &WorkflowCtx) -> AsrArgs {
-    ctx.input
-        .get("steps")
-        .and_then(|v| v.get("asr"))
-        .and_then(|v| serde_json::from_value::<AsrArgs>(v.clone()).ok())
-        .unwrap_or_default()
+    ctx.input.steps.asr.clone()
 }
 
 /// 入口 (镜像 TS `stepSeparateAfter`)。

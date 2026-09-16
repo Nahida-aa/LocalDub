@@ -107,11 +107,7 @@ struct AsrOcrFusedBody {
 
 /// Read asr_ocr_fix config (defaults to AsrOcrFixArgs::default).
 fn read_args(ctx: &WorkflowCtx) -> AsrOcrFixArgs {
-    ctx.input
-        .get("steps")
-        .and_then(|v| v.get("asr_ocr_fix"))
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default()
+    ctx.input.steps.asr_ocr_fix.clone()
 }
 
 /// Step 1 (optional): Resample - extract additional frames at isolated high-confidence frames.
@@ -435,13 +431,7 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
     write_json_file(&out_dir.join("asr_ocr_merged.json"), &merged_result)?;
 
     // === Step 7: fixOverlap + final dedup ===
-    let max_advance_ms = ctx
-        .input
-        .get("steps")
-        .and_then(|v| v.get("mix_audio"))
-        .and_then(|v| v.get("maxAdvanceMs"))
-        .and_then(|v| v.as_u64())
-        .unwrap_or(500) as u32;
+    let max_advance_ms = ctx.input.steps.mix_audio.max_advance_ms as u32;
     // Convert OcrSegmentWithAdjust to OcrSegment for fix_overlap
     let ocr_segs_for_fix: Vec<OcrSegment> = seg_filter
         .result
@@ -491,13 +481,7 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowCtx) -> Result<()> {
         let src_lang = ctx
             .asr_language
             .clone()
-            .or_else(|| {
-                ctx.input
-                    .get("workflow")
-                    .and_then(|v| v.get("sourceLang"))
-                    .and_then(|v| v.as_str())
-                    .map(|s| crate::r#const::lang::Language::from(s))
-            })
+            .or_else(|| ctx.input.workflow.as_ref().and_then(|w| w.source_lang.clone()))
             .unwrap_or_else(crate::r#const::lang::default_lang);
         let lang_label = llm::lang_label(src_lang.code());
         info!(target: "asr_ocr",
