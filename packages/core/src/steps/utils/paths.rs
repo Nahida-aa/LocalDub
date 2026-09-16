@@ -422,6 +422,36 @@ pub mod split_audio {
             &self.0
         }
     }
+
+    /// 逐段人声切片目录 `split_audio/vocals`（`{:04}.wav`，1-based）。
+    ///
+    /// 产出方 `split_audio::cut_vocal_segments`，消费方 `tts`（参考资料音）。
+    #[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut, From, Into)]
+    pub struct VocalsDir(PathBuf);
+
+    impl VocalsDir {
+        /// 唯一拼法来源：`{video_dir}/split_audio/vocals`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(
+                Path::new(video_dir.as_ref())
+                    .join("split_audio")
+                    .join("vocals"),
+            )
+        }
+
+        /// 本类型承诺的路径访问器（与 `SrtPath` / `Target3VocalsPath` 同签名）。
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+
+        /// 第 `idx` 段人声切片：`{video_dir}/split_audio/vocals/{:04}.wav`（1-based）。
+        ///
+        /// 与 [`tts::WavsDir::segment_path`](crate::steps::utils::paths::tts::WavsDir::segment_path)
+        /// 同款命名；此前该文件名在 `split_audio` 与 `tts` 各拼一遍。
+        pub fn segment_path(&self, idx: usize) -> PathBuf {
+            self.0.join(format!("{:04}.wav", idx + 1))
+        }
+    }
 }
 
 pub mod tts {
