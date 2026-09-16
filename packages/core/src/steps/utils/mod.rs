@@ -400,7 +400,7 @@ pub fn separate_after_dir(video_dir: &str) -> PathBuf {
 
 /// separate 阶段人声 stem (target_3_vocals.wav)
 pub fn vocals_path(video_dir: &str) -> PathBuf {
-    separate_dir(video_dir).join("target_3_vocals.wav")
+    crate::steps::utils::paths::separate::Target3VocalsPath::new(video_dir).into()
 }
 /// separate_after 阶段背景音乐 stem
 pub fn bgm_path(video_dir: &str) -> PathBuf {

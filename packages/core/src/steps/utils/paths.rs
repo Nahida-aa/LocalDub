@@ -81,8 +81,31 @@ impl std::fmt::Display for AudioSourcePath {
 
 pub mod separate {
     use super::*;
-    // separate/target_3_vocals.wav（demucs 的 vocals stem，**原始**人声）
-    pub type Target3VocalsPath = PathBuf;
+    use derive_more::{Deref, DerefMut, From, Into};
+
+    /// separate/target_3_vocals.wav（demucs 的 vocals stem，**原始**人声）。
+    ///
+    /// newtype 包裹 `PathBuf`：拼法只有 [`new`](Self::new) 一个来源，其余靠
+    /// `Deref` / `DerefMut` 透传到 `PathBuf`（`exists()` / `display()` / `join()`
+    /// 等直接可用），`From<PathBuf>` / `Into<PathBuf>` 用于与既有 `PathBuf` 互转。
+    #[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut, From, Into)]
+    pub struct Target3VocalsPath(PathBuf);
+
+    impl Target3VocalsPath {
+        /// 唯一拼法来源：`{video_dir}/separate/target_3_vocals.wav`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(
+                Path::new(video_dir.as_ref())
+                    .join("separate")
+                    .join("target_3_vocals.wav"),
+            )
+        }
+
+        /// 规范化路径（消费点如 [`crate::steps::split_audio::SplitAudioSource::as_path`] 走这里）。
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
 }
 
 pub mod separate_after {

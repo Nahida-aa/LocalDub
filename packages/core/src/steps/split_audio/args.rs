@@ -118,7 +118,7 @@ impl SplitAudioInput {
             None => {
                 let vocals = crate::steps::utils::vocals_path(video_dir);
                 if vocals.exists() {
-                    SplitAudioSource::Vocals(vocals)
+                    SplitAudioSource::Vocals(vocals.into())
                 } else {
                     SplitAudioSource::SourceAudio(
                         crate::steps::utils::paths::AudioSourcePath::from_state(ctx)?,

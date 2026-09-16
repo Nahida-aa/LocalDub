@@ -31,6 +31,7 @@ subtitle-ocr-post = { git = "https://github.com/Nahida-aa/vision-lab", rev = "4a
 pacer-rs.workspace = true
 reqwest.workspace = true
 indicatif.workspace = true
+derive_more.workspace = true
 sha2.workspace = true
 hex.workspace = true
 zip.workspace = true

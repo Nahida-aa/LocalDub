@@ -58,6 +58,7 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 clap = { version = "4", features = ["derive"] }
 # 进度条（UX 层反馈，独立于 tracing 诊断日志）。
 indicatif = "0.17"
+derive_more = { version = "1", features = ["full"] }
 # 原生 DNS-SD/mDNS 发现（Linux 走 avahi D-Bus，macOS/Windows 走系统 API）。
 # 相比 mdns-sd 的自实现广播，这里用 OS 原生栈，与 zeroconf/bonjour 互通。
 mdns-sd-discovery = "0.3"
