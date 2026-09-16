@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::steps::utils::paths::translate;
+use crate::steps::utils::paths::{separate, translate};
 
 /// split_audio 阶段参数 (镜像 TS `packages/core/steps/06_split_audio/args.ts` SplitAudioArgsSchema)
 ///
@@ -116,9 +116,10 @@ impl SplitAudioInput {
         let audio = match args.vocals_file_path {
             Some(p) => SplitAudioSource::Custom(PathBuf::from(p)),
             None => {
-                let vocals = crate::steps::utils::vocals_path(video_dir);
+                let vocals = separate::Target3VocalsPath::new(video_dir);
+
                 if vocals.exists() {
-                    SplitAudioSource::Vocals(vocals.into())
+                    SplitAudioSource::Vocals(vocals)
                 } else {
                     SplitAudioSource::SourceAudio(
                         crate::steps::utils::paths::AudioSourcePath::from_state(ctx)?,
@@ -156,8 +157,11 @@ mod tests {
         c
     }
 
-    fn mk(video_dir: &str, split_audio_cfg: serde_json::Value, audio_src: Option<&str>)
-        -> crate::context::WorkflowState {
+    fn mk(
+        video_dir: &str,
+        split_audio_cfg: serde_json::Value,
+        audio_src: Option<&str>,
+    ) -> crate::context::WorkflowState {
         let mut c = ctx_at(
             video_dir,
             serde_json::json!({
@@ -189,7 +193,10 @@ mod tests {
         );
         let input = SplitAudioInput::from_state(&c).expect("应可构造");
         assert!(matches!(input.audio, SplitAudioSource::Custom(_)));
-        assert_eq!(input.audio.as_path().to_string_lossy(), "/tmp/my_vocals.wav");
+        assert_eq!(
+            input.audio.as_path().to_string_lossy(),
+            "/tmp/my_vocals.wav"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -205,7 +212,9 @@ mod tests {
         // 造出 separate/target_3_vocals.wav
         std::fs::create_dir_all(std::path::Path::new(&dir).join("separate")).unwrap();
         std::fs::write(
-            std::path::Path::new(&dir).join("separate").join("target_3_vocals.wav"),
+            std::path::Path::new(&dir)
+                .join("separate")
+                .join("target_3_vocals.wav"),
             b"x",
         )
         .unwrap();
@@ -219,7 +228,11 @@ mod tests {
         );
         // 必须是 separate/（原始人声），不是 separate_after/
         assert!(
-            input.audio.as_path().to_string_lossy().contains("/separate/"),
+            input
+                .audio
+                .as_path()
+                .to_string_lossy()
+                .contains("/separate/"),
             "该用 separate/ 的原始人声: {:?}",
             input.audio.as_path()
         );
@@ -246,7 +259,10 @@ mod tests {
             "无 vocals 应回退音频源, 实际 {:?}",
             input.audio.as_path()
         );
-        assert_eq!(input.audio.as_path().to_string_lossy(), "/x/audio_source.wav");
+        assert_eq!(
+            input.audio.as_path().to_string_lossy(),
+            "/x/audio_source.wav"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }
