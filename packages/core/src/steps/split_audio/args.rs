@@ -73,12 +73,18 @@ pub struct SplitAudioInput {
 /// 人声 stem，此时回退到原始音频是**正常路径**而非错误。所以存在性检查留在
 /// 选择逻辑里（`SplitAudioInput::from_ctx`），不进类型。
 ///
-/// **⚠️ 接线时会改变行为**：`step_split_audio` 目前的 fallback 是
-/// `video_source_path(ctx)`（**`video_source.mp4`，视频文件**），喂给
-/// `probe_duration_ms` / `cut_audio_range` 靠 ffmpeg 提音轨。本契约改为
-/// `audio_source.wav`（纯音频）——切块更直接，但**产物需实测比对**
-/// （尤其 `probe_duration_ms` 的时长、`cut_audio_range` 的采样率是否一致）。
-/// 接线前请先跑一遍真实任务对比。
+/// **历史说明（已核实：不构成产物差异）**：`step_split_audio` 旧逻辑的 fallback 是
+/// `video_source_path(ctx)`（`video_source.mp4`）。但 `audio_source.wav` 本就是
+/// import 阶段 `extract_audio(video_source.mp4)` 产出的同名音轨
+/// （pcm_s16le / 44100 / 2ch，见 `workflows/import/download.rs`），两者是同一段音频。
+/// 且旧代码里 `cut_audio_range`（`-c copy`）只在 `has_vocals` 时调用，彼时
+/// `source_audio` 已被改写为 `separate/target_3_vocals.wav`——
+/// `video_source.mp4` 实际只喂给 `probe_duration_ms`，其返回时长与 wav 一致。
+/// 故本契约的 `SourceAudio` 与旧 fallback **产物相同**，无需实测比对。
+///
+/// **真正的行为差异在 `SplitAudioArgs`**：旧逻辑的 `source_file_path` 调试覆盖（从
+/// 任意源音频切块）在本契约里被移除，只保留 `vocals_file_path` → `Custom`。
+/// 若需保留该调试入口，接线时应补回。
 #[derive(Debug, Clone)]
 pub enum SplitAudioSource {
     /// 人声 stem `separate/target_3_vocals.wav`。

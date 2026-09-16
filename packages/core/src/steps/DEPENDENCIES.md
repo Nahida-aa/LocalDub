@@ -320,10 +320,12 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 > **注意 `Vocals` 指向 `separate/`，不是 `separate_after/`**——用**原始**人声，
 > 不是混音后的（后者是给 `asr` 用的）。这一条曾被草稿写错。
 >
-> **⚠️ 契约尚未接线**：`step_split_audio` 仍用旧逻辑，其 fallback 是
-> `video_source_path(ctx)`（`video_source.mp4`，**视频文件**），靠 ffmpeg 提音轨。
-> 契约改为 `audio_source.wav`（纯音频）。**接线时行为会变**，
-> 需实测比对产物（时长 / 采样率）。接线前请先跑一遍真实任务。
+> **契约尚未接线**（`step_split_audio` 仍用旧逻辑）：旧 fallback `video_source.mp4`
+> 与契约的 `audio_source.wav`（纯音频）是**同一段音频**——后者由 import 的
+> `extract_audio(video_source.mp4)` 产出（pcm_s16le / 44100），且旧代码里 mp4 实际只
+> 喂给 `probe_duration_ms`（时长一致），`cut_audio_range` 只在有 vocals 时对
+> `separate/target_3_vocals.wav` 调用。故接线**不改变产物**。
+> 唯一差异是契约移除了 `source_file_path` 调试覆盖（见 `args.rs` 该枚举注释）。
 >
 > **`{lang}.json` 是带类型读取的**：`TranslateResult::read(&LangPath)`。
 > 意图时序（`timings.json` 的 segments）就是**翻译 segments 的原样搬运**——
