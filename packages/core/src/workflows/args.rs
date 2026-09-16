@@ -126,13 +126,13 @@ pub enum OutputMode {
 impl OutputMode {
     /// 从 ctx 解析 `ctx.output_mode`（import 落定的事实，字符串形式）。
     ///
-    /// 与 `SubtitleSource::from_ctx`（读 `input.workflow.subtitleSource` 原始输入）不同，
+    /// 与 `SubtitleSource::from_state`（读 `input.workflow.subtitleSource` 原始输入）不同，
     /// OutputMode 已被 import 拍平进 `ctx.output_mode`，此处读**事实**而非重解析输入
-    /// —— 与 `LangPath::from_ctx`「读事实，缺失即报错」的取向一致。
+    /// —— 与 `LangPath::from_state`「读事实，缺失即报错」的取向一致。
     ///
     /// 空串按 `#[default]`（Dub）兜底（与 `read_ctx_from_value` / `WorkflowArgs` 默认一致）；
     /// 未知值报错（fail-fast，期望列表由 `VARIANTS` 生成，加变体自动更新）。
-    pub fn from_ctx(ctx: &crate::context::WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(ctx: &crate::context::WorkflowState) -> anyhow::Result<Self> {
         use strum::VariantNames;
         let s = ctx.output_mode.trim();
         if s.is_empty() {
@@ -148,15 +148,15 @@ impl OutputMode {
 
     /// 从 `input.workflow.output_mode` 解析（读**输入契约**，非 import 落定的事实）。
     ///
-    /// 与 [`from_ctx`](Self::from_ctx)（读 `ctx.output_mode` 事实、未知值 fail-fast）互补：
+    /// 与 [`from_state`](Self::from_state)（读 `ctx.output_mode` 事实、未知值 fail-fast）互补：
     /// 此处读的是 `Input` 里**结构化**的 `output_mode` 字段——它已是 `OutputMode`
     /// 枚举，不可能出现「未知值」，故返回 `Self` 而非 `Result`；`workflow` 缺失或
     /// 字段缺省时回退 `#[default]`（Dub）。
     ///
     /// 直接吃 `&Input`（而非 `&WorkflowState`），与「from_input」语义一致——只关心输入契约。
     /// 适用：需要在 import **之前**、或从原始输入（而非拍平后的事实）取 output_mode 的场景。
-    /// 注意 `from_ctx` 与 `from_input` 来源不同——前者是 import 落定的事实，后者是用户传入的输入；
-    /// 正常流程里两者应一致，不一致时以 `from_ctx`（事实）为准。
+    /// 注意 `from_state` 与 `from_input` 来源不同——前者是 import 落定的事实，后者是用户传入的输入；
+    /// 正常流程里两者应一致，不一致时以 `from_state`（事实）为准。
     pub fn from_input(input: &crate::input::Input) -> Self {
         input
             .workflow
@@ -210,7 +210,7 @@ impl SubtitleSource {
     /// `subtitle_source` 为枚举值，不可能出现「未知来源」——该 fail-fast 已上移到
     /// `Input` 反序列化阶段（CLI/RPC 请求解析）。此处仅在 `workflow` 缺失时回退
     /// 默认 `Asr`（`#[default]`），保持与原 `unwrap_or("asr")` 一致。
-    pub fn from_ctx(ctx: &crate::context::WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(ctx: &crate::context::WorkflowState) -> anyhow::Result<Self> {
         Ok(ctx
             .input
             .workflow
@@ -322,7 +322,7 @@ mod strum_sync_tests {
     }
 
     #[test]
-    fn output_mode_from_ctx_reads_fact() {
+    fn output_mode_from_state_reads_fact() {
         use crate::context::read_ctx_from_value;
         use serde_json::json;
 
@@ -339,16 +339,16 @@ mod strum_sync_tests {
 
         // 读事实：ctx.output_mode 已是 import 落定的值
         assert_eq!(
-            OutputMode::from_ctx(&mk(Some("subtitle"))).unwrap(),
+            OutputMode::from_state(&mk(Some("subtitle"))).unwrap(),
             OutputMode::Subtitle
         );
 
-        // 缺省：read_ctx_from_value 默认 dub，from_ctx 解析出 Dub
+        // 缺省：read_ctx_from_value 默认 dub，from_state 解析出 Dub
         assert_eq!(mk(None).output_mode, "dub");
-        assert_eq!(OutputMode::from_ctx(&mk(None)).unwrap(), OutputMode::Dub);
+        assert_eq!(OutputMode::from_state(&mk(None)).unwrap(), OutputMode::Dub);
 
         // 未知值报错（fail-fast）
-        assert!(OutputMode::from_ctx(&mk(Some("karaoke"))).is_err());
+        assert!(OutputMode::from_state(&mk(Some("karaoke"))).is_err());
     }
 
     #[test]
@@ -367,7 +367,7 @@ mod strum_sync_tests {
             read_ctx_from_value(v).unwrap()
         };
 
-        // 读结构化输入字段（与 from_ctx 来源不同：这里是 input，不是拍平事实）
+        // 读结构化输入字段（与 from_state 来源不同：这里是 input，不是拍平事实）
         assert_eq!(
             OutputMode::from_input(&mk(Some("subtitle")).input),
             OutputMode::Subtitle

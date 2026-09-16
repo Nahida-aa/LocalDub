@@ -59,7 +59,7 @@ pub fn step_mix_video(ctx: &WorkflowState) -> anyhow::Result<()> {
     let output_mode = ctx.output_mode.clone();
     // 目标语言读**已落定的事实**（翻译步骤写的唯一写入点），不再现算：
     // `resolve_language` 是现算，推断逻辑一变就会与产物不一致。
-    let target_lang = crate::steps::utils::paths::translate::LangPath::from_ctx(ctx)?
+    let target_lang = crate::steps::utils::paths::translate::LangPath::from_state(ctx)?
         .lang()
         .to_string();
 
@@ -279,7 +279,7 @@ fn build_subtitle_srt_subtitle_branch(
     let video_dir = ctx.workflow.video_dir.clone();
     // 与 `TranslateResult::read` 同源（都取 ctx.target_language），
     // 故错误信息里的路径**必然**就是真正尝试读取的那一个。
-    let lang_path = crate::steps::utils::paths::translate::LangPath::from_ctx(ctx)?;
+    let lang_path = crate::steps::utils::paths::translate::LangPath::from_state(ctx)?;
 
     let segs: Vec<SrtSeg> = if vad_align {
         // vadAlign: 用 split_audio 的 padded 时序 (split_audio.json) 而非翻译/原始 srt。
@@ -471,7 +471,7 @@ mod tests {
         .unwrap();
         ctx.target_language = Some("zh".to_string());
 
-        let lang = LangPath::from_ctx(&ctx).unwrap().lang().to_string();
+        let lang = LangPath::from_state(&ctx).unwrap().lang().to_string();
         assert_eq!(lang, "zh", "应以 ctx 的事实为准，而非 input 里的 vi");
 
         // 与字体选择挂钩：zh 必须选到 CJK 字体而非 Arial

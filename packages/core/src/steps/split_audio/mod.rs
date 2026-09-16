@@ -58,7 +58,7 @@ pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
     //
     // 目标语言读**已落定的事实**（翻译步骤写的），不现算；
     // 源语言独立解析（它有自己的三级回退，与目标语言无关）。
-    let lang_path = crate::steps::utils::paths::translate::LangPath::from_ctx(ctx)?;
+    let lang_path = crate::steps::utils::paths::translate::LangPath::from_state(ctx)?;
     let src_lang = crate::steps::utils::src_language(ctx).code().to_string();
     let trans = TranslateResult::read(&lang_path).map_err(|e| {
         anyhow::anyhow!("{e}; 请先运行 translate（或从该步骤 continue 以重新生成）")

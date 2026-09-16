@@ -31,11 +31,11 @@ type VideoSourcePath = PathBuf;
 /// | 入口 | 谁用 |
 /// | --- | --- |
 /// | [`from_video_dir`](Self::from_video_dir) | **import 产出方**——它写 ctx 之前就得知道路径 |
-/// | [`from_ctx`](Self::from_ctx) | **消费者**——读 import 落下的那个值 |
+/// | [`from_state`](Self::from_state) | **消费者**——读 import 落下的那个值 |
 ///
 /// 两者在正常流程下指向同一文件（import 落点固定为 `{video_dir}/audio_source.wav`，
 /// 见 `import/download.rs`），但语义不同：前者是「约定拼法」，后者是「事实」。
-/// 与 `LangPath` 的 `new` / `from_ctx` 同一模式。
+/// 与 `LangPath` 的 `new` / `from_state` 同一模式。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AudioSourcePath(PathBuf);
 
@@ -49,7 +49,7 @@ impl AudioSourcePath {
     ///
     /// 缺失 → Err（与 [`crate::steps::utils::video_source_path`] 同款语义：
     /// 没导入过就没有这个文件，无从猜测）。
-    pub fn from_ctx(ctx: &crate::context::WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(ctx: &crate::context::WorkflowState) -> anyhow::Result<Self> {
         ctx.audio_source_path
             .clone()
             .map(PathBuf::from)
@@ -219,7 +219,7 @@ pub mod translate {
 
     /// 翻译产物路径 `translate/{lang}.json`。
     ///
-    /// 字段私有：路径只能经 [`LangPath::new`] 或 [`LangPath::from_ctx`] 产生，
+    /// 字段私有：路径只能经 [`LangPath::new`] 或 [`LangPath::from_state`] 产生，
     /// 与三个 `SrtPath` 同款约束（拼法只有一个来源）。
     ///
     /// **两个构造入口，对应两类调用者**——这是刻意的分工：
@@ -227,12 +227,12 @@ pub mod translate {
     /// | 入口 | 谁用 | 参数来源 |
     /// | --- | --- | --- |
     /// | [`new`](Self::new)`(video_dir, lang)` | **翻译步骤** | 它手里已有一对 `(dir, lang)`：`lang` 是它自己 `resolve_language` 决策出来的 |
-    /// | [`from_ctx`](Self::from_ctx)`(ctx)` | **后续步骤** | 读 `ctx.target_language`——那个**已落定的事实** |
+    /// | [`from_state`](Self::from_state)`(ctx)` | **后续步骤** | 读 `ctx.target_language`——那个**已落定的事实** |
     ///
     /// 为什么后续步骤不该走 `new` + `resolve_language`：`resolve_language` 是
     /// **现算**（读配置、可能推断），而 `ctx.target_language` 是**翻译步骤落盘的
     /// 事实**。两者现在恰好一致（纯函数 + 同输入），但那是巧合的稳定——推断逻辑
-    /// 一改（如新增直通分支），中途重跑下游就会分叉。`from_ctx` 让下游只能读到
+    /// 一改（如新增直通分支），中途重跑下游就会分叉。`from_state` 让下游只能读到
     /// 事实，读不到「另算一遍」的机会。
     ///
     /// **存 `lang` 而不只存路径**：下游不只需要路径，还要语言本身——`mix_video`
@@ -269,7 +269,7 @@ pub mod translate {
         ///
         /// 缺失 → Err（与 `read_translation_result` 同款语义：目标语言未知时
         /// 无从知道该读哪个文件；正常流程里 translate 跑过就一定有值）。
-        pub fn from_ctx(ctx: &crate::context::WorkflowState) -> anyhow::Result<Self> {
+        pub fn from_state(ctx: &crate::context::WorkflowState) -> anyhow::Result<Self> {
             let lang = ctx.target_language.as_deref().ok_or_else(|| {
                 anyhow::anyhow!(
                     "ctx.target_language 未设置, 无法定位翻译产物 (task {}); 请先运行 translate",
@@ -409,12 +409,12 @@ mod tests {
         );
     }
 
-    /// `LangPath::from_ctx` 读 `ctx.target_language`——**已落定的事实**。
+    /// `LangPath::from_state` 读 `ctx.target_language`——**已落定的事实**。
     ///
     /// 后续步骤靠它避开 `resolve_language` 的现算：即使 `input.workflow.targetLang`
-    /// 与 ctx 里的值不同，`from_ctx` 也必须以 ctx 为准（ctx 是翻译步骤写的）。
+    /// 与 ctx 里的值不同，`from_state` 也必须以 ctx 为准（ctx 是翻译步骤写的）。
     #[test]
-    fn lang_path_from_ctx_uses_persisted_fact() {
+    fn lang_path_from_state_uses_persisted_fact() {
         use crate::context::read_ctx_from_value;
 
         let mk = |ctx_lang: Option<&str>| {
@@ -430,12 +430,12 @@ mod tests {
         };
 
         // ctx 说 zh → 用 zh，**无视** input 里的 vi
-        let p = translate::LangPath::from_ctx(&mk(Some("zh"))).unwrap();
+        let p = translate::LangPath::from_state(&mk(Some("zh"))).unwrap();
         assert_eq!(p.as_path().to_string_lossy(), "/w/translate/zh.json");
 
         // 缺失 → 报错（不现算、不推断）
         let err =
-            translate::LangPath::from_ctx(&mk(None)).expect_err("缺失 target_language 必须报错");
+            translate::LangPath::from_state(&mk(None)).expect_err("缺失 target_language 必须报错");
         let msg = err.to_string();
         assert!(
             msg.contains("target_language") && msg.contains("translate"),

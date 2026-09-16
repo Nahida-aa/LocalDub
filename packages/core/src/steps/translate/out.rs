@@ -121,7 +121,7 @@ pub struct TranslatePartialSegment {
 ///
 /// 另一个被顺带修掉的问题：`mix_video` 曾用 `resolve_language()` 现算的 lang 拼
 /// 错误信息、却用 `read_translation_result(ctx)` 里 `ctx.target_language` 的快照去读，
-/// 两个来源不同（详见 `from_ctx` 注释）。
+/// 两个来源不同（详见 `from_state` 注释）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TranslateOutput {
     lang: String,
@@ -143,13 +143,13 @@ impl TranslateOutput {
     /// 与「已落盘的事实」可能得到不同答案。本类型承诺的是**读与报错指向同一个
     /// 文件**，故必须单源。
     ///
-    /// 未设置 → Err（委托 [`LangPath::from_ctx`]）。
-    pub fn from_ctx(ctx: &WorkflowState) -> anyhow::Result<Self> {
-        let path = LangPath::from_ctx(ctx)?;
+    /// 未设置 → Err（委托 [`LangPath::from_state`]）。
+    pub fn from_state(ctx: &WorkflowState) -> anyhow::Result<Self> {
+        let path = LangPath::from_state(ctx)?;
         let lang = ctx
             .target_language
             .clone()
-            .unwrap_or_default(); // from_ctx 已保证 Some
+            .unwrap_or_default(); // from_state 已保证 Some
         Ok(Self { lang, path })
     }
 

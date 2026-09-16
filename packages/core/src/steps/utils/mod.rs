@@ -609,7 +609,7 @@ pub fn split_audio_timings_path(video_dir: &str) -> PathBuf {
 /// 本函数已删：它返 `serde_json::Value`，逼得每个消费者再手写一遍字段解析
 /// （`split_audio` 30 行、`mix_video` 一个 `extract_segs_from_value`），
 /// 且每处 `unwrap_or(0)` 静默吞错。现在翻译产物是**带类型**读取的，解析只在
-/// 一处。需要 ctx 版本时：`TranslateResult::read(&LangPath::from_ctx(ctx)?)`。
+/// 一处。需要 ctx 版本时：`TranslateResult::read(&LangPath::from_state(ctx)?)`。
 
 /// 解析目标语言。返回 `(srcLang, targetLang)`。
 ///

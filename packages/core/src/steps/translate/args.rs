@@ -80,14 +80,14 @@ pub struct TranslateInput {
     /// 本次要读的字幕来源（三选一，各带自己的类型化路径）。
     pub source_path: SubtitleSourcePath,
     /// 任务目录。**与 [`TranslateOutput`] 必须同源**——两边都存是为了让契约
-    /// 自包含（消费者不必再拿 ctx），但构造时都由 `from_ctx` 从同一处取，
+    /// 自包含（消费者不必再拿 ctx），但构造时都由 `from_state` 从同一处取，
     /// 避免「读的目录」与「写的目录」分叉。
     pub video_dir: String,
     /// 目标语言（`ctx.target_language`）。
     ///
     /// **`Option` 而非必填**：本结构管的是「字幕从哪读」，而读
     /// `asr_fix/srt.json` 与目标语言**无关**——import 阶段、pipeline 中途、
-    /// engine 记产物时都可能还没解析出目标语言。若定为必填，`from_ctx` 会在
+    /// engine 记产物时都可能还没解析出目标语言。若定为必填，`from_state` 会在
     /// 这些合法场景下失败（曾如此，7 个测试红）。
     /// 需要目标语言的地方（如 [`TranslateOutput`]）自己要求必填。
     pub target_lang: Option<String>,
@@ -100,11 +100,11 @@ impl TranslateInput {
     /// srt.json 的存在性**不在这里检查**——它是否必须存在由
     /// `translate.enabled` 决定（见 `step_translate`：enabled 时缺失报错，
     /// disabled 时缺失走空直通）。
-    pub fn from_ctx(ctx: &WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(ctx: &WorkflowState) -> anyhow::Result<Self> {
         // **顺序有讲究**：先解析 subtitleSource，再取 target_language。
         // 反过来的话，配置里同时有非法 subtitleSource 与缺失 target_language 时，
         // 报的是后者——而用户真正写错的是前者，报错会指向错的地方。
-        let source_path = match SubtitleSource::from_ctx(ctx)? {
+        let source_path = match SubtitleSource::from_state(ctx)? {
             SubtitleSource::Asr => {
                 SubtitleSourcePath::Asr(asr_fix::SrtPath::new(&ctx.workflow.video_dir))
             }

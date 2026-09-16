@@ -113,13 +113,13 @@ fn split_audio_vad_align(ctx: &WorkflowState) -> bool {
 /// 有 `all_pipeline_constants_are_valid_step_names` 测试兜底，所以 panic 只在
 /// 开发期触发。
 ///
-/// **subtitleSource 走 [`SubtitleSource::from_ctx`]**：与 translate / mix_video
+/// **subtitleSource 走 [`SubtitleSource::from_state`]**：与 translate / mix_video
 /// 同源。此前这里是独立的一份字符串解析、未知值静默默认 asr，与 translate 的
 /// fail-fast 相矛盾——同一个非法值在两条路径上表现不同（一个报错、一个悄悄降级）。
 /// 现在未知值统一在入口报错。
 pub fn get_steps(ctx: &WorkflowState) -> anyhow::Result<Vec<StepName>> {
     let is_subtitle = ctx.output_mode == "subtitle";
-    let source = SubtitleSource::from_ctx(ctx)?;
+    let source = SubtitleSource::from_state(ctx)?;
 
     let mut steps: Vec<&'static str> = if is_subtitle {
         // subtitle 模式: 按 subtitleSource 切换字幕提取策略, 但始终只到 mix_video
@@ -364,9 +364,9 @@ mod tests {
     /// **fail-fast**：未知 subtitleSource 必须在 `Input` 反序列化阶段被拒，不能静默降级成 asr。
     ///
     /// `ctx.input` 已是结构化 `Input`；未知来源不可能走到 `get_steps` /
-    /// `SubtitleSource::from_ctx`（那些路径只会一致地回退默认 `Asr`，不会出现测试注释里
+    /// `SubtitleSource::from_state`（那些路径只会一致地回退默认 `Asr`，不会出现测试注释里
     /// 担心的「跑哪些 step」与「读哪个字幕文件」来源错乱——两者会一起回退）。fail-fast
-    /// 已上移到 `Input` 解析（CLI/RPC 请求阶段，见 `SubtitleSource::from_ctx` 文档），
+    /// 已上移到 `Input` 解析（CLI/RPC 请求阶段，见 `SubtitleSource::from_state` 文档），
     /// 且 `read_ctx_from_value` 对该错误是 lenient 兜底（保证旧/TS ctx.json 不崩）。
     /// 故此处断言**类型契约**：`Input` 反序列化直接拒绝非法值。注意混合写法 `sf-OCR` 也须被拒。
     #[test]

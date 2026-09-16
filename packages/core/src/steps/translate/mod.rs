@@ -181,7 +181,7 @@ pub fn parse_json_reply(raw: &str) -> anyhow::Result<Value> {
 pub fn step_translate(ctx: &WorkflowState) -> anyhow::Result<()> {
     tracing::info!(target: "translate", "start");
 
-    let input = args::TranslateInput::from_ctx(ctx)?;
+    let input = args::TranslateInput::from_state(ctx)?;
     let args = read_args(ctx);
     let (src_lang, target_lang) = resolve_language(ctx)?;
     let video_dir = input.video_dir.clone();
@@ -515,10 +515,10 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// `subtitleSource` 未知 → `Input` 反序列化阶段 fail-fast（不再在 `from_ctx` 静默回退）。
+    /// `subtitleSource` 未知 → `Input` 反序列化阶段 fail-fast（不再在 `from_state` 静默回退）。
     ///
     /// `ctx.input` 已是结构化 [`Input`](crate::input::Input)，未知来源不可能走到
-    /// `SubtitleSource::from_ctx`（它会回退默认 `Asr`）。fail-fast 已上移到 `Input`
+    /// `SubtitleSource::from_state`（它会回退默认 `Asr`）。fail-fast 已上移到 `Input`
     /// 解析，故此处直接断言 `Input` 反序列化拒绝非法值——与 `OutputMode`（读
     /// `ctx.output_mode` 事实、未知值报错）的取向一致。
     #[test]
@@ -536,7 +536,7 @@ mod tests {
 
     /// `subtitleSource` → 对应的 srt.json 路径（provenance 在类型里）。
     #[test]
-    fn from_ctx_resolves_srt_path_per_source() {
+    fn from_state_resolves_srt_path_per_source() {
         let dir = std::env::temp_dir()
             .join(format!("ld_translate_p_{}", std::process::id()))
             .to_string_lossy()
@@ -549,7 +549,7 @@ mod tests {
             ("sf_ocr", "sf_ocr_fix", "sf_ocr_fix/srt.json"),
             ("asr_ocr", "asr_ocr_fix", "asr_ocr_fix/srt.json"),
         ] {
-            // 先落 srt.json（from_ctx 对缺失文件 fail-fast）。
+            // 先落 srt.json（from_state 对缺失文件 fail-fast）。
             std::fs::create_dir_all(std::path::Path::new(&dir).join(producer_dir)).unwrap();
             crate::steps::utils::write_srt_json(
                 &std::path::Path::new(&dir).join(producer_dir).join("srt.json"),
@@ -569,7 +569,7 @@ mod tests {
                     "input": {"workflow": {"subtitleSource": source}}
                 }),
             );
-            let input = args::TranslateInput::from_ctx(&ctx)
+            let input = args::TranslateInput::from_state(&ctx)
                 .unwrap_or_else(|e| panic!("{source}: {e}"));
             assert!(
                 input.srt_path().to_string_lossy().ends_with(expected),
@@ -764,13 +764,13 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// `from_ctx` 只认 `ctx.target_language`：未设置 → 报错（不臆测语言）。
+    /// `from_state` 只认 `ctx.target_language`：未设置 → 报错（不臆测语言）。
     ///
     /// 这一条钉的是**单源**承诺：读文件与报错必须指向同一路径。若改回
     /// 「现算 `resolve_language`」，当 ctx.json 快照与现算结果不同时，
     /// 报错会指向一个没被尝试读取的文件。
     #[test]
-    fn translate_output_from_ctx_requires_target_language() {
+    fn translate_output_from_state_requires_target_language() {
         let dir = std::env::temp_dir()
             .join(format!("ld_tr_out_{}", std::process::id()))
             .to_string_lossy()
@@ -779,7 +779,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
 
         // ctx_at 的 target_language 来自 ctx.target_language 字段；input 里只给
-        // workflow.targetLang（配置），不足以让 from_ctx 成功——正是要区分的两件事。
+        // workflow.targetLang（配置），不足以让 from_state 成功——正是要区分的两件事。
         let ctx = ctx_at(
             &dir,
             json!({
@@ -792,7 +792,7 @@ mod tests {
             ctx.target_language.is_none(),
             "前置条件: ctx.target_language 应为 None"
         );
-        let err = out::TranslateOutput::from_ctx(&ctx).expect_err("缺 target_language 必须报错");
+        let err = out::TranslateOutput::from_state(&ctx).expect_err("缺 target_language 必须报错");
         assert!(
             err.to_string().contains("target_language"),
             "错误应点名缺失的字段, 实际: {err}"
@@ -837,7 +837,7 @@ mod tests {
         ctx.target_language = Some("zh".to_string());
         crate::context::write_ctx(&dir, &ctx).unwrap();
 
-        let input = args::TranslateInput::from_ctx(&ctx).expect("from_ctx 不该失败");
+        let input = args::TranslateInput::from_state(&ctx).expect("from_state 不该失败");
 
         // ① 两个来源确实可以不同（调用者手里的 ctx 可能陈旧）
         let (_, resolved) = resolve_language(&ctx).unwrap();

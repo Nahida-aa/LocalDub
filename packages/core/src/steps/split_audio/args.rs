@@ -68,7 +68,7 @@ pub struct SplitAudioInput {
 ///
 /// **为什么 `Vocals` 是「可能不存在」的**：subtitle 模式不做 separate，没有
 /// 人声 stem，此时回退到原始音频是**正常路径**而非错误。所以存在性检查留在
-/// 选择逻辑里（`SplitAudioInput::from_ctx`），不进类型。
+/// 选择逻辑里（`SplitAudioInput::from_state`），不进类型。
 ///
 /// **历史说明（已核实：不构成产物差异）**：`step_split_audio` 旧逻辑的 fallback 是
 /// `video_source_path(ctx)`（`video_source.mp4`）。但 `audio_source.wav` 本就是
@@ -109,7 +109,7 @@ impl SplitAudioInput {
     /// 回退到原始音频是**正常路径**。故存在性判断留在这里，类型只表达结论。
     ///
     /// `audio_source_path` 缺失 → Err（与 `video_source_path` 同款）。
-    pub fn from_ctx(ctx: &crate::context::WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(ctx: &crate::context::WorkflowState) -> anyhow::Result<Self> {
         let args = super::read_args(ctx);
         let video_dir = &ctx.workflow.video_dir;
 
@@ -121,7 +121,7 @@ impl SplitAudioInput {
                     SplitAudioSource::Vocals(vocals)
                 } else {
                     SplitAudioSource::SourceAudio(
-                        crate::steps::utils::paths::AudioSourcePath::from_ctx(ctx)?,
+                        crate::steps::utils::paths::AudioSourcePath::from_state(ctx)?,
                     )
                 }
             }
@@ -129,7 +129,7 @@ impl SplitAudioInput {
 
         Ok(Self {
             audio,
-            translate: translate::LangPath::from_ctx(ctx)?,
+            translate: translate::LangPath::from_state(ctx)?,
         })
     }
 }
@@ -187,7 +187,7 @@ mod tests {
             serde_json::json!({"vocalsFilePath": "/tmp/my_vocals.wav"}),
             Some("/x/audio_source.wav"),
         );
-        let input = SplitAudioInput::from_ctx(&c).expect("应可构造");
+        let input = SplitAudioInput::from_state(&c).expect("应可构造");
         assert!(matches!(input.audio, SplitAudioSource::Custom(_)));
         assert_eq!(input.audio.as_path().to_string_lossy(), "/tmp/my_vocals.wav");
 
@@ -211,7 +211,7 @@ mod tests {
         .unwrap();
 
         let c = mk(&dir, serde_json::json!({}), Some("/x/audio_source.wav"));
-        let input = SplitAudioInput::from_ctx(&c).expect("应可构造");
+        let input = SplitAudioInput::from_state(&c).expect("应可构造");
         assert!(
             matches!(input.audio, SplitAudioSource::Vocals(_)),
             "存在 vocals 时应优先用它, 实际 {:?}",
@@ -240,7 +240,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
 
         let c = mk(&dir, serde_json::json!({}), Some("/x/audio_source.wav"));
-        let input = SplitAudioInput::from_ctx(&c).expect("应可构造");
+        let input = SplitAudioInput::from_state(&c).expect("应可构造");
         assert!(
             matches!(input.audio, SplitAudioSource::SourceAudio(_)),
             "无 vocals 应回退音频源, 实际 {:?}",
@@ -264,7 +264,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
 
         let c = mk(&dir, serde_json::json!({}), None);
-        let err = SplitAudioInput::from_ctx(&c).expect_err("缺 audio_source_path 应报错");
+        let err = SplitAudioInput::from_state(&c).expect_err("缺 audio_source_path 应报错");
         assert!(
             err.to_string().contains("audio_source_path"),
             "错误应点名字段: {err}"
@@ -285,7 +285,7 @@ mod tests {
 
         let mut c = mk(&dir, serde_json::json!({}), Some("/x/audio_source.wav"));
         c.target_language = None;
-        let err = SplitAudioInput::from_ctx(&c).expect_err("缺 target_language 应报错");
+        let err = SplitAudioInput::from_state(&c).expect_err("缺 target_language 应报错");
         assert!(
             err.to_string().contains("target_language"),
             "错误应点名字段: {err}"
