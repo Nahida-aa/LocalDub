@@ -6,20 +6,18 @@
 
 pub mod args;
 
-use std::path::PathBuf;
-
 use anyhow::{anyhow, Context};
 
 use crate::context::WorkflowState;
-use crate::steps::mix_video::args::{Alignment, MixVideoArgs};
-use crate::steps::translate::out::TranslateResult;
-use crate::steps::utils::srt::{write_srt, SrtSeg};
+use crate::steps::mix_audio::out::MixAudioOutputTimings;
+use crate::steps::mix_video::args::{Alignment, MixVideoArgs, MixVideoInput};
+use crate::steps::split_audio::out::SplitAudioTimingResult;
+use crate::steps::utils::srt::{SubtitleSegments, SrtSeg};
 use crate::steps::utils::{
-    bgm_path, default_font, dubbing_path, ensure_dir, ffmpeg_timeout, final_video_dir,
-    probe_video_resolution, read_split_audio, read_timings,
-    resolve_language, set_step_anyhow, set_workflow_anyhow, split_audio_path,
-    video_source_path, StepPatch, StepStatus, WorkflowPatch,
+    default_font, ensure_dir, ffmpeg_timeout, final_video_dir, probe_video_resolution,
+    set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus, WorkflowPatch,
 };
+use crate::workflows::args::OutputMode;
 
 /// 入口 (镜像 TS `stepMixVideo`)。
 pub fn step_mix_video(ctx: &WorkflowState) -> anyhow::Result<()> {
@@ -43,15 +41,23 @@ pub fn step_mix_video(ctx: &WorkflowState) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let video_file_path = video_source_path(ctx)?;
-    let merge_dir = std::path::Path::new(&video_dir).join("mix_video");
-    ensure_dir(&merge_dir)?;
+    let input = MixVideoInput::from_state(ctx)?;
+    let video_file_path = match &input {
+        MixVideoInput::Dub {
+            video_source_path, ..
+        }
+        | MixVideoInput::Subtitle {
+            video_source_path, ..
+        } => video_source_path.to_string(),
+    };
+    let mix_video = std::path::Path::new(&video_dir).join("mix_video");
+    ensure_dir(&mix_video)?;
 
     if !std::path::Path::new(&video_file_path).exists() {
         return Err(anyhow!("video_source.mp4 not found: {video_file_path}"));
     }
 
-    let output_mode = ctx.output_mode.clone();
+    let output_mode = OutputMode::from_input(&ctx.input);
     // 目标语言读**已落定的事实**（翻译步骤写的唯一写入点），不再现算：
     // `resolve_language` 是现算，推断逻辑一变就会与产物不一致。
     let target_lang = crate::steps::utils::paths::translate::LangPath::from_state(ctx)?
@@ -67,10 +73,8 @@ pub fn step_mix_video(ctx: &WorkflowState) -> anyhow::Result<()> {
         .map(|w| w.subtitle_source.as_str())
         .unwrap_or("asr");
 
-    let vad_align = ctx.input.steps.split_audio.vad_align;
-
-    let final_dir_name = final_video_dir(&output_mode, subtitle_source, no_translate);
-    let final_video_dir = merge_dir.join(&final_dir_name);
+    let final_dir_name = final_video_dir(&output_mode.as_ref(), subtitle_source, no_translate);
+    let final_video_dir = mix_video.join(&final_dir_name);
     ensure_dir(&final_video_dir)?;
     let final_video = final_video_dir.join(format!("{video_id}.mp4"));
 
@@ -78,9 +82,20 @@ pub fn step_mix_video(ctx: &WorkflowState) -> anyhow::Result<()> {
     let alignment = cfg.alignment.unwrap_or(Alignment::BottomCenter);
     let alignment_num = args::alignment_to_ffmpeg(alignment);
 
-    if output_mode == "subtitle" {
-        let sub_path = merge_dir.join(format!("subtitles.{target_lang}.srt"));
-        build_subtitle_srt_subtitle_branch(ctx, &sub_path, &cfg, no_translate, vad_align)?;
+    let sub_path = mix_video.join(format!("{target_lang}.srt"));
+    match input {
+        // 字幕时间轴统一取 split_audio 的**意图时序** `timings.json`：
+        // `split_audio.json` 里 padding 后的切块区间是给切音频用的，不是字幕显示
+        // 时间。vad_align 打开时 timings.json 本身已含 VAD 修正，无需再分支。
+        MixVideoInput::Subtitle {
+            split_audio_timings_path,
+            ..
+        } => {
+            let timings = SplitAudioTimingResult::read(&split_audio_timings_path)
+                .map_err(|e| anyhow!("读取 split_audio 意图时序失败: {e}"))?;
+            let segs: SubtitleSegments = timings.into();
+            segs.write_srt(&sub_path)
+                .map_err(|e| anyhow!("写字幕 SRT 失败: {e}"))?;
 
         let style = probe_style(&video_file_path, &target_lang, &cfg, alignment_num);
         let filter = sub_filter_arg(&sub_path.to_string_lossy(), &style);
@@ -110,28 +125,28 @@ pub fn step_mix_video(ctx: &WorkflowState) -> anyhow::Result<()> {
             300_000,
         )
         .map_err(|e| anyhow!("mix_video (subtitle) ffmpeg 失败: {e}"))?;
-    } else {
-        let dubbing_file = dubbing_path(&video_dir);
-        if !dubbing_file.exists() {
-            return Err(anyhow!(
-                "audio_dubbing.wav not found: {}; 请先运行 mix_audio",
-                dubbing_file.display()
-            ));
         }
-        let bgm_file = cfg
-            .bgm_path
-            .clone()
-            .map(PathBuf::from)
-            .unwrap_or_else(|| bgm_path(&video_dir));
+        MixVideoInput::Dub {
+            dubbing_path,
+            bgm_path,
+            mix_audio_timings_path,
+            ..
+        } => {
+            if !dubbing_path.exists() {
+                return Err(anyhow!(
+                    "audio_dubbing.wav not found: {}; 请先运行 mix_audio",
+                    dubbing_path.display()
+                ));
+            }
+            let bgm_file = bgm_path.as_path().to_path_buf();
 
-        let sub_path = merge_dir.join(format!("{target_lang}.srt"));
-        build_subtitle_srt_dub_branch(ctx, &sub_path, &cfg)?;
+            build_subtitle_srt_dub_branch(&mix_audio_timings_path, &sub_path)?;
 
         let style = probe_style(&video_file_path, &target_lang, &cfg, alignment_num);
         let filter = sub_filter_arg(&sub_path.to_string_lossy(), &style);
 
         // 配音 + 背景音 sidechain 压缩混流
-        let mixed_audio = merge_dir.join("audio_mixed.m4a");
+        let mixed_audio = mix_video.join("audio_mixed.m4a");
         let dub_gain = cfg.dub_gain;
         let bgm_gain = cfg.bgm_gain;
         let filter_complex = format!(
@@ -145,7 +160,7 @@ pub fn step_mix_video(ctx: &WorkflowState) -> anyhow::Result<()> {
         ffmpeg_timeout(
             &[
                 "-i".into(),
-                dubbing_file.to_string_lossy().to_string(),
+                dubbing_path.to_string_lossy().to_string(),
                 "-i".into(),
                 bgm_file.to_string_lossy().to_string(),
                 "-filter_complex".into(),
@@ -188,6 +203,7 @@ pub fn step_mix_video(ctx: &WorkflowState) -> anyhow::Result<()> {
             300_000,
         )
         .map_err(|e| anyhow!("mix_video (dub) ffmpeg 失败: {e}"))?;
+        }
     }
 
     tracing::info!(target: "mix_video", "Wrote final video: {}", final_video.display());
@@ -263,127 +279,19 @@ fn probe_style(video_file: &str, dst_lang: &str, cfg: &MixVideoArgs, alignment_n
     )
 }
 
-/// subtitle 分支: 从 translation / srt / split_audio(vadAlign) 生成字幕 SRT (镜像 TS subtitle 分支)。
-fn build_subtitle_srt_subtitle_branch(
-    ctx: &WorkflowState,
-    sub_path: &std::path::Path,
-    cfg: &MixVideoArgs,
-    no_translate: bool,
-    vad_align: bool,
-) -> anyhow::Result<()> {
-    let video_dir = ctx.workflow.video_dir.clone();
-    // 与 `TranslateResult::read` 同源（都取 ctx.target_language），
-    // 故错误信息里的路径**必然**就是真正尝试读取的那一个。
-    let lang_path = crate::steps::utils::paths::translate::LangPath::from_state(ctx)?;
-
-    let segs: Vec<SrtSeg> = if vad_align {
-        // vadAlign: 用 split_audio 的 padded 时序 (split_audio.json) 而非翻译/原始 srt。
-        let data = read_split_audio(ctx).with_context(|| {
-            format!(
-                "读取 split_audio 结果失败: {}",
-                split_audio_path(&video_dir).display()
-            )
-        })?;
-        extract_segs_from_value(&data)?
-    } else if no_translate {
-        // 外部 SRT 文本文件可显式覆盖；否则走 translate 产物——
-        // translate 恒执行（直通时 dst=原文），不再读焦点文件。
-        // （旧实现无覆盖时把焦点文件 JSON 塞给 SRT 文本解析器，产出空字幕——已删。）
-        match cfg.srt_path.clone() {
-            Some(p) => read_srt_file_to_segs(&p)?,
-            None => {
-                let t = TranslateResult::read(&lang_path)
-                    .with_context(|| format!("读取翻译结果失败: {lang_path}; 请先运行 translate"))?;
-                segs_from_translation(&t)
-            }
-        }
-    } else {
-        let t = TranslateResult::read(&lang_path)
-            .with_context(|| format!("读取翻译结果失败: {lang_path}"))?;
-        segs_from_translation(&t)
-    };
-    write_srt(&segs, sub_path, no_translate).map_err(|e| anyhow!("写字幕 SRT 失败: {e}"))
-}
-
-/// 从**带类型**的翻译产物取 SrtSeg 列表。
-///
-/// 与 [`extract_segs_from_value`] 的区别：那份吃 `serde_json::Value`（用于
-/// `split_audio.json`，那个文件目前仍按 Value 读），这份吃
-/// [`TranslateResult`]——翻译产物现在是类型化的，不需要再逐字段
-/// `get(..).unwrap_or(0)`（那等于手写一个 serde，还会把坏字段静默吞成 0）。
-fn segs_from_translation(r: &TranslateResult) -> Vec<SrtSeg> {
-    r.segments
-        .iter()
-        .map(|s| SrtSeg {
-            start_ms: s.start_ms,
-            end_ms: s.end_ms,
-            text: s.text.clone(),
-            dst: s.dst.clone(),
-            actual_start: None,
-            actual_end: None,
-        })
-        .collect()
-}
-
-/// 从 `{ segments: [{start_ms, end_ms, text, dst}] }` JSON 提取 SrtSeg 列表。
-/// 同时用于 split_audio.json (vadAlign) 与翻译文件 (translate) 两种来源 (字段一致)。
-fn extract_segs_from_value(data: &serde_json::Value) -> anyhow::Result<Vec<SrtSeg>> {
-    let segments = data
-        .get("segments")
-        .and_then(|v| v.as_array())
-        .cloned()
-        .unwrap_or_default();
-    Ok(segments
-        .iter()
-        .map(|s| {
-            let start_ms = s.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-            let end_ms = s.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-            let text = s
-                .get("text")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            let dst = s
-                .get("dst")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-            SrtSeg {
-                start_ms,
-                end_ms,
-                dst,
-                text,
-                actual_start: None,
-                actual_end: None,
-            }
-        })
-        .collect())
-}
-
 /// dub 分支: 从 mix_audio/timings.json 生成字幕 SRT (镜像 TS dub 分支)。
 fn build_subtitle_srt_dub_branch(
-    ctx: &WorkflowState,
+    mix_audio_timings_path: &crate::steps::utils::paths::mix_audio::TimingsPath,
     sub_path: &std::path::Path,
-    _cfg: &MixVideoArgs,
 ) -> anyhow::Result<()> {
-    let video_dir = ctx.workflow.video_dir.clone();
-    let data = read_timings(&video_dir).map_err(|e| anyhow!("读取 timings 失败: {e}"))?;
-    let segs: Vec<SrtSeg> = data
-        .segments
-        .iter()
-        .map(|t| {
-            let base = &t.timing;
-            SrtSeg {
-                start_ms: base.start_ms,
-                end_ms: base.end_ms,
-                dst: base.dst.clone(),
-                text: base.text.clone(),
-                actual_start: Some(t.actual_start),
-                actual_end: Some(t.actual_end),
-            }
-        })
-        .collect();
-    write_srt(&segs, sub_path, false).map_err(|e| anyhow!("写字幕 SRT 失败: {e}"))
+    let data = MixAudioOutputTimings::read(mix_audio_timings_path)
+        .map_err(|e| anyhow!("读取 timings 失败: {e}"))?;
+    // 时序 → 字幕的映射收在 `From<MixAudioOutputTimings> for SubtitleSegments`：
+    // 时间轴取 actual_*（跟配音对齐），文本取 dst、空则回退 text（等价于旧的
+    // `write_srt(.., use_source = false)`）。
+    let segs: SubtitleSegments = data.into();
+    segs.write_srt(sub_path)
+        .map_err(|e| anyhow!("写字幕 SRT 失败: {e}"))
 }
 
 /// 读取已有 SRT 文件为 SrtSeg 列表 (subtitle 分支 noTranslate 路径 / generate_meta 复用)。
@@ -556,50 +464,6 @@ mod tests {
         if !cfg!(windows) {
             assert_eq!(filter_sub_path("/unix/path.srt"), "/unix/path.srt");
         }
-    }
-
-    #[test]
-    fn extract_segs_from_value_handles_translate_like_source() {
-        // translate 结果来源 (含 dst)
-        let data = serde_json::json!({
-            "segments": [
-                {"start_ms": 1000, "end_ms": 2000, "text": "hello", "dst": "你好"},
-                {"start_ms": 3000, "end_ms": 4000, "text": "world", "dst": "世界"}
-            ]
-        });
-        let segs = extract_segs_from_value(&data).unwrap();
-        assert_eq!(segs.len(), 2);
-        assert_eq!(segs[0].start_ms, 1000);
-        assert_eq!(segs[0].end_ms, 2000);
-        assert_eq!(segs[0].text, "hello");
-        assert_eq!(segs[0].dst, "你好");
-        assert_eq!(segs[1].dst, "世界");
-    }
-
-    #[test]
-    fn extract_segs_from_value_handles_split_audio_source() {
-        // split_audio.json (vadAlign) 来源: 字段一致, dst 可为空
-        let data = serde_json::json!({
-            "segments": [
-                {"seg_idx": 0, "start_ms": 500, "end_ms": 1500, "text": "原文", "dst": ""},
-                {"seg_idx": 1, "start_ms": 1600, "end_ms": 2500, "text": "原文2", "dst": ""}
-            ]
-        });
-        let segs = extract_segs_from_value(&data).unwrap();
-        assert_eq!(segs.len(), 2);
-        assert_eq!(segs[0].start_ms, 500);
-        assert_eq!(segs[1].end_ms, 2500);
-        assert_eq!(segs[0].dst, "");
-    }
-
-    #[test]
-    fn extract_segs_from_value_tolerates_missing_fields() {
-        let data = serde_json::json!({ "segments": [{"start_ms": 100, "end_ms": 200}] });
-        let segs = extract_segs_from_value(&data).unwrap();
-        assert_eq!(segs.len(), 1);
-        assert_eq!(segs[0].start_ms, 100);
-        assert_eq!(segs[0].text, "");
-        assert_eq!(segs[0].dst, "");
     }
 
     #[test]

@@ -2,6 +2,9 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::steps::utils::paths::{mix_audio, separate_after, split_audio, VideoSourcePath};
+use crate::workflows::args::OutputMode;
+
 /// 字幕对齐位置 (镜像 TS `packages/core/steps/mix_video/args.ts` alignmentList)
 ///
 /// 顺序即 ffmpeg ass `Alignment` 数值 (1..9), 见 [`alignment_to_ffmpeg`]。
@@ -134,31 +137,75 @@ fn default_dub_gain() -> f64 {
     3.0
 }
 
+/// dub 分支的背景音来源。
+///
+/// | 变体 | 谁用 |
+/// | --- | --- |
+/// | [`Separate`](Self::Separate) | 默认：`separate_after/target_bgm.wav`（demucs 分离产物） |
+/// | [`Custom`](Self::Custom) | `mix_video.bgmPath` 调试覆盖指定的任意路径 |
+pub enum BgmPath {
+    Separate(separate_after::TargetBgmPath),
+    Custom(PathBuf),
+}
+
+impl BgmPath {
+    pub fn as_path(&self) -> &std::path::Path {
+        match self {
+            Self::Separate(p) => p.as_path(),
+            Self::Custom(p) => p.as_path(),
+        }
+    }
+}
+
 pub enum MixVideoInput {
     Dub {
-        video_source_path: String,
-        mix_audio_timings_path: PathBuf,
-        dubbing_path: PathBuf,
-        bgm_path: PathBuf,
+        video_source_path: VideoSourcePath,
+        mix_audio_timings_path: mix_audio::TimingsPath,
+        dubbing_path: mix_audio::DubbingPath,
+        bgm_path: BgmPath,
     },
+
     Subtitle {
-        video_source_path: String,
-        translation_path: PathBuf,
+        video_source_path: VideoSourcePath,
+        split_audio_timings_path: split_audio::TimingsPath,
     },
-    SubtitleAsrNoTranslate {
-        video_source_path: String,
-        asr_fix_path: PathBuf,
-    },
-    SubtitleSfOcrNoTranslateLlmFix {
-        video_source_path: String,
-        sf_ocr_segment_filter_llm_fix: PathBuf,
-    },
-    SubtitleSfOcrNoTranslate {
-        video_source_path: String,
-        sf_ocr_segment_filter: PathBuf,
-    },
-    SubtitleVadAlign {
-        video_source_path: String,
-        split_audio_path: PathBuf,
-    },
+}
+
+impl MixVideoInput {
+    /// 从工作流状态解析本步输入契约。
+    ///
+    /// 分支由 `OutputMode` 决定，两条分支**需要的输入不同**：
+    /// Dub 要配音轨 + BGM + mix_audio 对齐时序；Subtitle 只要 split_audio 意图时序。
+    ///
+    /// 与 `MixAudioInput::from_state` 同款：路径全部交给 `paths` 里各类型的
+    /// 构造函数，本函数不自己拼字符串；`video_source_path` 走
+    /// [`VideoSourcePath::from_state`] 读 ctx 里的事实，缺失即报错。
+    ///
+    /// 分支用 [`OutputMode::from_input`]（读**输入契约**），与 `mix_video/mod.rs`
+    /// 同源——两者必须是同一个判断，否则契约选的分支和实际执行的分叉。
+    ///
+    /// BGM 默认取 `separate_after/target_bgm.wav`，`mix_video.bgmPath` 有值时
+    /// 变成 [`BgmPath::Custom`]（调试覆盖）。
+    pub fn from_state(state: &crate::context::WorkflowState) -> anyhow::Result<Self> {
+        let video_dir = &state.workflow.video_dir;
+        let video_source_path = VideoSourcePath::from_state(state)?;
+        Ok(match OutputMode::from_input(&state.input) {
+            OutputMode::Dub => {
+                let bgm_path = match MixVideoArgs::from_input(&state.input).bgm_path {
+                    Some(p) => BgmPath::Custom(PathBuf::from(p)),
+                    None => BgmPath::Separate(separate_after::TargetBgmPath::new(video_dir)),
+                };
+                Self::Dub {
+                    video_source_path,
+                    mix_audio_timings_path: mix_audio::TimingsPath::new(video_dir),
+                    dubbing_path: mix_audio::DubbingPath::new(video_dir),
+                    bgm_path,
+                }
+            }
+            OutputMode::Subtitle => Self::Subtitle {
+                video_source_path,
+                split_audio_timings_path: split_audio::TimingsPath::new(video_dir),
+            },
+        })
+    }
 }

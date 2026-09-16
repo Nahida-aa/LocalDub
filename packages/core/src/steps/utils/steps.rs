@@ -116,7 +116,7 @@ pub fn get_steps(ctx: &WorkflowState) -> anyhow::Result<Vec<StepName>> {
     let is_subtitle = ctx.output_mode == "subtitle";
     let source = SubtitleSource::from_state(ctx)?;
 
-    let mut steps: Vec<&'static str> = if is_subtitle {
+    let steps: Vec<&'static str> = if is_subtitle {
         // subtitle 模式: 按 subtitleSource 切换字幕提取策略, 但始终只到 mix_video
         // (不配音 → 无 tts / mix_audio)。subtitleSource 语义是"字幕怎么提取",
         // 不是"是否配音"; dub 序列常量含 tts/mix_audio, 不能复用。
