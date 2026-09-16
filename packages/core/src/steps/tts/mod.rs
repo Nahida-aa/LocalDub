@@ -48,11 +48,9 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
     // 输入契约一次性构建：本步只读 split_audio 的两个产物，路径全由 `paths` 里的
     // 类型给出，本函数不再自己拼字符串。
     let input = TtsInput::from_video_dir(&video_dir);
-    let tts_wav_dir = Path::new(&video_dir).join("tts").join("wavs");
-    let doubled_dir = Path::new(&video_dir).join("tts").join("ref_doubled");
-    ensure_dir(&tts_wav_dir)?;
+    ensure_dir(input.tts_wavs_dir.as_path())?;
     if args.ref_audio_x2 {
-        ensure_dir(&doubled_dir)?;
+        ensure_dir(input.ref_doubled_dir.as_path())?;
     }
 
     // 意图时序**带类型**读入：字段缺失/类型不对在这里就失败，不再被 `unwrap_or(0)`
@@ -150,7 +148,7 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
         pb.inc(1);
         let seg_idx = (i + 1) as u32;
         let idx = format!("{:04}", seg_idx);
-        let out_path = tts_wav_dir.join(format!("{idx}.wav"));
+        let out_path = input.tts_wavs_dir.segment_path(i);
         let out_path = out_path.to_string_lossy().into_owned();
 
         // regenIndices 语义 (continue 模式精准重跑):
@@ -308,10 +306,10 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
         if args.ref_audio_x2 {
             let ref_ms = probe_duration_ms(&ref_wav);
             if ref_ms > 0 && ref_ms < MIN_REF_DURATION_MS {
-                let doubled = doubled_dir.join(format!("ref_{idx}_x2.wav"));
+                let doubled = input.ref_doubled_dir.x2_path(i);
                 let doubled = doubled.to_string_lossy().into_owned();
                 if !Path::new(&doubled).exists() {
-                    let list_path = doubled_dir.join(format!("ref_{idx}_list.txt"));
+                    let list_path = input.ref_doubled_dir.list_path(i);
                     fs::write(&list_path, format!("file '{ref_wav}'\nfile '{ref_wav}'"))
                         .map_err(|e| anyhow::anyhow!("写 ref list 失败: {e}"))?;
                     ffmpeg(&[

@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::steps::utils::paths::split_audio;
+use crate::steps::utils::paths::{split_audio, tts};
 
 /// TTS 运行时后端 (镜像 TS `packages/core/steps/07_tts/args.ts` TtsStepArgsSchema.runtime)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
@@ -92,6 +92,10 @@ fn default_device() -> TtsDevice {
 pub struct TtsInput {
     pub split_audio_vocals_dir: split_audio::VocalsDir,
     pub split_audio_timings_path: split_audio::TimingsPath,
+    /// 本步产出：逐段配音 wav。
+    pub tts_wavs_dir: tts::WavsDir,
+    /// 本步中间态：短参考音翻倍产物（仅 `refAudioX2` 时用到）。
+    pub ref_doubled_dir: tts::RefDoubledDir,
 }
 
 impl TtsInput {
@@ -99,6 +103,8 @@ impl TtsInput {
         Self {
             split_audio_vocals_dir: split_audio::VocalsDir::new(&video_dir),
             split_audio_timings_path: split_audio::TimingsPath::new(&video_dir),
+            tts_wavs_dir: tts::WavsDir::new(&video_dir),
+            ref_doubled_dir: tts::RefDoubledDir::new(&video_dir),
         }
     }
 }

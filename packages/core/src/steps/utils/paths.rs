@@ -481,6 +481,32 @@ pub mod tts {
             self.0.join(format!("{:04}.wav", idx + 1))
         }
     }
+
+    // tts/ref_doubled/ref_{:04}_x2.wav + ref_{:04}_list.txt
+    #[derive(Debug, Clone, PartialEq, Eq, Deref, DerefMut, From, Into)]
+    pub struct RefDoubledDir(PathBuf);
+
+    impl RefDoubledDir {
+        /// 唯一拼法来源：`{video_dir}/tts/ref_doubled`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(Path::new(video_dir.as_ref()).join("tts").join("ref_doubled"))
+        }
+
+        /// 本类型承诺的路径访问器（与 `SrtPath` / `Target3VocalsPath` 同签名）。
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+
+        /// 第 `idx` 段翻倍后的参考音：`ref_{:04}_x2.wav`（1-based）。
+        pub fn x2_path(&self, idx: usize) -> PathBuf {
+            self.0.join(format!("ref_{:04}_x2.wav", idx + 1))
+        }
+
+        /// 第 `idx` 段翻倍用的 ffmpeg concat 列表：`ref_{:04}_list.txt`（1-based）。
+        pub fn list_path(&self, idx: usize) -> PathBuf {
+            self.0.join(format!("ref_{:04}_list.txt", idx + 1))
+        }
+    }
 }
 pub mod mix_audio {
     use super::*;
