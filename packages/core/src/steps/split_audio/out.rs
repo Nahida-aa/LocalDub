@@ -64,8 +64,7 @@ impl From<SplitAudioTimingResult> for SubtitleSegments {
     /// [`crate::steps::mix_audio::out::MixAudioOutputTimings`] 的转换同款。
     ///
     /// 固定取 `dst`（空则回退 `text`）**已经覆盖不翻译模式**：translate 在
-    /// `enabled=false` 时走直通，把原文写进 `dst`，所以此时 `dst` 就是原文——
-    /// 不需要 `write_srt(.., use_source = true)` 那样的第二个入口。
+    /// `enabled=false` 时走直通，把原文写进 `dst`，所以此时 `dst` 就是原文。
     fn from(v: SplitAudioTimingResult) -> Self {
         v.segments
             .into_iter()
@@ -113,7 +112,7 @@ mod tests {
         assert_eq!(segs.0[0].end_ms, 980);
     }
 
-    /// 文本取译文 dst；dst 为空回退原文 text（与 WriteSrt use_source=false 同款）。
+    /// 文本取译文 dst；dst 为空回退原文 text。
     #[test]
     fn into_subtitle_segments_prefers_dst_then_text() {
         let v = SplitAudioTimingResult {

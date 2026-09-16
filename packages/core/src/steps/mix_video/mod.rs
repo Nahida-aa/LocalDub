@@ -287,8 +287,7 @@ fn build_subtitle_srt_dub_branch(
     let data = MixAudioOutputTimings::read(mix_audio_timings_path)
         .map_err(|e| anyhow!("读取 timings 失败: {e}"))?;
     // 时序 → 字幕的映射收在 `From<MixAudioOutputTimings> for SubtitleSegments`：
-    // 时间轴取 actual_*（跟配音对齐），文本取 dst、空则回退 text（等价于旧的
-    // `write_srt(.., use_source = false)`）。
+    // 时间轴取 actual_*（跟配音对齐），文本取 dst、空则回退 text。
     let segs: SubtitleSegments = data.into();
     segs.write_srt(sub_path)
         .map_err(|e| anyhow!("写字幕 SRT 失败: {e}"))

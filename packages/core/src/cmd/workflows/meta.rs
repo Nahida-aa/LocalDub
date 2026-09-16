@@ -169,7 +169,7 @@ fn read_ytdlp_info(video_dir: &str) -> Option<YtDlpInfo> {
 /// 构造 LLM 用户 prompt: 视频标题 (供翻译) + 按时间戳排的字幕。
 ///
 /// 文本直接用 [`SubtitleSegments`] 的 `text`：SRT 文件里没有原文/译文之分，
-/// 不需要 `SrtSeg` 那种「dst 为空回退 text」的选择逻辑。
+/// 不需要「dst 为空回退 text」那类的选择逻辑。
 fn build_meta_prompt(segs: &SubtitleSegments, title: Option<&str>) -> String {
     let mut p = String::new();
     if let Some(t) = title {

@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::steps::split_audio::out::SplitAudioTiming;
-use crate::steps::utils::paths::mix_audio::TimingsPath;
+use crate::steps::utils::paths::mix_audio::{self, TimingsPath};
 use crate::steps::utils::srt::SubtitleSegments;
 use subtitle::SubtitleSegment;
 
@@ -54,7 +54,7 @@ impl MixAudioOutputTimings {
     /// 写出到 [`TimingsPath`]（pretty json，自动建父目录）。
     ///
     /// 与读对称：序列化和落盘只在「这里」一处，此前 `mix_audio/mod.rs` 各拼一遍。
-    pub fn write(&self, path: &TimingsPath) -> anyhow::Result<()> {
+    pub fn write(&self, path: &mix_audio::TimingsPath) -> anyhow::Result<()> {
         let p = path.as_path();
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| anyhow::anyhow!("序列化 mix_audio timings 失败: {e}"))?;
@@ -72,9 +72,7 @@ impl From<MixAudioOutputTimings> for SubtitleSegments {
     /// `actual_start` / `actual_end`（mix_audio 拉伸、借间隙后的实际位置），
     /// 而不是 `Timing.timing` 里的原始时间槽。
     ///
-    /// 文本取译文 `dst`，`dst` 为空时回退原文 `text`——与 dub 分支
-    /// `write_srt(&segs, .., use_source = false)` 的选择一致
-    /// （见 [`crate::steps::utils::srt::write_srt`]）。
+    /// 文本取译文 `dst`，`dst` 为空时回退原文 `text`。
     fn from(v: MixAudioOutputTimings) -> Self {
         v.segments
             .into_iter()
@@ -101,7 +99,14 @@ mod tests {
     use super::*;
     use crate::steps::translate::out::TranslateSegment;
 
-    fn timing(text: &str, dst: &str, start_ms: u32, end_ms: u32, a_start: u32, a_end: u32) -> Timing {
+    fn timing(
+        text: &str,
+        dst: &str,
+        start_ms: u32,
+        end_ms: u32,
+        a_start: u32,
+        a_end: u32,
+    ) -> Timing {
         Timing {
             timing: TranslateSegment {
                 idx: 1,
@@ -129,7 +134,7 @@ mod tests {
         assert_eq!(segs.0[0].end_ms, 980);
     }
 
-    /// 文本取译文 dst；dst 为空回退原文 text（与 write_srt(use_source=false) 同款）。
+    /// 文本取译文 dst；dst 为空回退原文 text。
     #[test]
     fn into_subtitle_segments_prefers_dst_then_text() {
         let v = MixAudioOutputTimings {

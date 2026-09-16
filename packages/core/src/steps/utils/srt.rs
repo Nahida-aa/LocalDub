@@ -12,20 +12,6 @@ use subtitle::SubtitleSegment;
 
 use super::ensure_dir;
 
-/// 单条 SRT 输入 (调用方负责从各 step 结果映射到该结构)。
-#[derive(Debug, Clone)]
-pub struct SrtSeg {
-    pub start_ms: u32,
-    pub end_ms: u32,
-    /// 翻译后文本 (优先); use_source=true 时改用 source
-    pub dst: String,
-    /// 原文 (use_source 时使用)
-    pub text: String,
-    /// 实际开始/结束时间 (Timing 携带, 覆盖 start_ms/end_ms)
-    pub actual_start: Option<u32>,
-    pub actual_end: Option<u32>,
-}
-
 /// 规范化字幕段集合（镜像 TS `SubtitleSegment[]`，内容类型）。
 ///
 /// 与 `TranslateResult` / `SplitAudioTimingResult` 同款：解析只在 [`read`](Self::read)、
@@ -136,10 +122,11 @@ impl SubtitleSegments {
 
     /// 写出可读 SRT 文本文件（`.srt`，时间轴 `HH:MM:SS,mmm --> HH:MM:SS,mmm`）。
     ///
-    /// 内容来自本集合的 `SubtitleSegment`（`text` / `start_ms` / `end_ms`）。
-    /// 与自由函数 [`write_srt`](write_srt)（消费 `SrtSeg`）的差异：`SubtitleSegment`
-    /// 只有 `text`（无 `dst` / `actual_start` / `actual_end`），故不做 `use_source`
-    /// 选择、也不做 actual 时间覆盖，直接用段自身的起止与文本。
+    /// 内容来自本集合的 `SubtitleSegment`（`text` / `start_ms` / `end_ms`）：
+    /// `SubtitleSegment` 只有一个 `text`，没有原文/译文之分，也不带
+    /// `actual_start` / `actual_end` 覆盖——「用哪种文本」在构造本集合时
+    /// 就已定好（如 `MixAudioOutputTimings` / `SplitAudioTimingResult` 的
+    /// `From` 转换取译文；translate 直通时译文即原文）。
     ///
     /// 空文本段会被跳过（不占序号）；写盘前经 [`validate_srt_content`] 预检，
     /// 避免交给 ffmpeg 时报含糊的 "Unable to open"。
@@ -176,42 +163,6 @@ fn srt_time(ms: u32) -> String {
     let ss = total_secs % 60;
     let mmm = ms % 1000;
     format!("{hh:02}:{mm:02}:{ss:02},{mmm:03}")
-}
-
-/// 写 SRT 文件 (镜像 TS `writeSrt`)。
-///
-/// - `use_source=true` 用 `text` (原文), 否则用 `dst` (翻译)
-/// - 写盘前做 [`validate_srt_content`] 预检, 避免 ffmpeg 报含糊的 "Unable to open"
-pub fn write_srt(segments: &[SrtSeg], output: &Path, use_source: bool) -> anyhow::Result<()> {
-    let mut lines: Vec<String> = Vec::new();
-    let mut idx: u32 = 1;
-    for item in segments {
-        let start = item.actual_start.unwrap_or(item.start_ms);
-        let end = item.actual_end.unwrap_or(item.end_ms);
-        let text = if use_source {
-            item.text.trim().to_string()
-        } else {
-            let t = item.dst.trim();
-            if t.is_empty() {
-                item.text.trim().to_string()
-            } else {
-                t.to_string()
-            }
-        };
-        if text.is_empty() {
-            continue;
-        }
-        lines.push(idx.to_string());
-        lines.push(format!("{} --> {}", srt_time(start), srt_time(end)));
-        lines.push(text);
-        lines.push(String::new());
-        idx += 1;
-    }
-    let content = lines.join("\n");
-    validate_srt_content(&content, output)?;
-    std::fs::write(output, content)
-        .map_err(|e| anyhow::anyhow!("写入 SRT {} 失败: {e}", output.display()))?;
-    Ok(())
 }
 
 /// SRT 预检 (镜像 TS `validateSrtContent`): 在交给 ffmpeg 前拦截内容问题。
@@ -322,17 +273,6 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    fn seg(start: u32, end: u32, dst: &str, text: &str) -> SrtSeg {
-        SrtSeg {
-            start_ms: start,
-            end_ms: end,
-            dst: dst.to_string(),
-            text: text.to_string(),
-            actual_start: None,
-            actual_end: None,
-        }
-    }
-
     #[test]
     fn subtitle_segments_write_srt() {
         // 写到 crate 下的 tmp/（gitignore: */tmp/*），不用系统 /tmp（AGENTS.md 规则）
@@ -396,51 +336,6 @@ mod tests {
         assert_eq!(back.0[1].text, "世界");
         assert_eq!(back.0[1].start_ms, 1000);
         assert_eq!(back.0[1].end_ms, 2500);
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn write_srt_roundtrip() {
-        let dir = std::env::temp_dir()
-            .join(format!("ld_srt_{}", std::process::id()))
-            .to_string_lossy()
-            .to_string();
-        std::fs::create_dir_all(&dir).unwrap();
-        let p = std::path::Path::new(&dir).join("out.srt");
-        let segs = vec![
-            seg(0, 1000, "你好", "hello"),
-            seg(1000, 2500, "世界", "world"),
-        ];
-        write_srt(&segs, &p, false).unwrap();
-        let content = std::fs::read_to_string(&p).unwrap();
-        assert!(content.contains("你好"));
-        assert!(content.contains("世界"));
-        assert!(content.contains("00:00:00,000 --> 00:00:01,000"));
-        assert!(content.contains("00:00:01,000 --> 00:00:02,500"));
-        // 块号自增
-        assert!(content.starts_with("1\n"));
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn write_srt_use_source() {
-        let dir = std::env::temp_dir()
-            .join(format!("ld_srt_src_{}", std::process::id()))
-            .to_string_lossy()
-            .to_string();
-        std::fs::create_dir_all(&dir).unwrap();
-        let p = std::path::Path::new(&dir).join("out.srt");
-        // dst 空 → 回退 text
-        let segs = vec![seg(0, 1000, "", "原文")];
-        write_srt(&segs, &p, false).unwrap();
-        let content = std::fs::read_to_string(&p).unwrap();
-        assert!(content.contains("原文"));
-        // use_source=true → 用 text
-        let segs2 = vec![seg(0, 1000, "译文", "原文")];
-        write_srt(&segs2, &p, true).unwrap();
-        let content2 = std::fs::read_to_string(&p).unwrap();
-        assert!(content2.contains("原文"));
-        assert!(!content2.contains("译文"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
