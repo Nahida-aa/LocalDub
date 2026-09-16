@@ -483,51 +483,12 @@ pub fn ensure_dir(path: &std::path::Path) -> anyhow::Result<()> {
 /// **`start == end` 也算错**（零长段）：它同样会在下游变成空产物，且没有任何
 /// 合法场景需要「零长度的字幕段」。
 pub fn write_srt_json(path: &std::path::Path, segments: &[SubtitleSegment]) -> anyhow::Result<()> {
-    if let Some((i, s)) = segments
-        .iter()
-        .enumerate()
-        .find(|(_, s)| s.start_ms >= s.end_ms)
-    {
-        // 从路径反推产出方步骤名（`{video_dir}/{step}/srt.json`），
-        // 让错误直接指向**哪个步骤**产出了坏数据。
-        let step = path
-            .parent()
-            .and_then(|p| p.file_name())
-            .and_then(|n| n.to_str())
-            .unwrap_or("?");
-        return Err(anyhow::anyhow!(
-            "{step}: 第 {} 段时间轴非法 (start_ms={} >= end_ms={}); \
-             请检查该步骤的输入数据（段必须满足 start_ms < end_ms）",
-            i + 1,
-            s.start_ms,
-            s.end_ms
-        ));
-    }
-
-    let out = serde_json::json!({ "result": { "segments": segments } });
-    if let Some(parent) = path.parent() {
-        ensure_dir(parent)?;
-    }
-    let json = serde_json::to_string_pretty(&out)
-        .map_err(|e| anyhow::anyhow!("序列化 srt.json 失败: {e}"))?;
-    fs::write(path, json)
-        .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", path.display(), e))?;
-    Ok(())
+    crate::steps::utils::srt::SubtitleSegments(segments.to_vec()).write(path)
 }
 
 /// 读 [`write_srt_json`] 产出的规范化字幕。
 pub fn read_srt_json(path: &std::path::Path) -> anyhow::Result<Vec<SubtitleSegment>> {
-    let raw = fs::read_to_string(path)
-        .map_err(|e| anyhow::anyhow!("读取 {} 失败: {e}", path.display()))?;
-    let v: serde_json::Value =
-        serde_json::from_str(&raw).map_err(|e| anyhow::anyhow!("解析 {} 失败: {e}", path.display()))?;
-    serde_json::from_value(
-        v.get("result")
-            .and_then(|r| r.get("segments"))
-            .cloned()
-            .unwrap_or(serde_json::Value::Null),
-    )
-    .map_err(|e| anyhow::anyhow!("解析 {} 的 segments 失败: {e}", path.display()))
+    Ok(crate::steps::utils::srt::SubtitleSegments::read(path)?.into())
 }
 
 /// 定位 workspace 构建的二进制: 优先 `target/release/<name>`, 回退 `target/debug/<name>`

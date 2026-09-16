@@ -3,7 +3,14 @@
 //! 仅实现「基础分支」: 每段输出一条 SRT (TS 的 `splitSubtitle` 多 fragment 切分逻辑未移植,
 //! 因当前 Rust 流程的 segments 已是合适粒度, 与一致行为足够)。
 
+use std::fs;
 use std::path::Path;
+
+use derive_more::{Deref, DerefMut, From, Into};
+use serde::{Deserialize, Serialize};
+use subtitle::SubtitleSegment;
+
+use super::ensure_dir;
 
 /// 单条 SRT 输入 (调用方负责从各 step 结果映射到该结构)。
 #[derive(Debug, Clone)]
@@ -17,6 +24,103 @@ pub struct SrtSeg {
     /// 实际开始/结束时间 (Timing 携带, 覆盖 start_ms/end_ms)
     pub actual_start: Option<u32>,
     pub actual_end: Option<u32>,
+}
+
+/// 规范化字幕段集合（镜像 TS `SubtitleSegment[]`，内容类型）。
+///
+/// 与 `TranslateResult` / `SplitAudioTimingResult` 同款：解析只在 [`read`](Self::read)、
+/// 写出只在 [`write`](Self::write) 一处，字段缺失 / 时间轴非法（含零长段）直接失败，
+/// 而不是被静默吞。`read_srt_json` / `write_srt_json` 经由此类型，逻辑只在这一处。
+///
+/// `srt.json` 形状：`{"result": {"segments": [SubtitleSegment]}}`（外层 `result` 信封由
+/// [`write`](Self::write) 手动套上，与旧 `write_srt_json` 同款落点）。
+#[derive(Debug, Clone, Default, Deref, DerefMut, From, Into, Serialize, Deserialize)]
+pub struct SubtitleSegments(pub Vec<SubtitleSegment>);
+
+impl SubtitleSegments {
+    /// 读取规范化字幕 `srt.json`（`{"result": {"segments": [...]}}`）。
+    pub fn read(path: &Path) -> anyhow::Result<Self> {
+        let raw = fs::read_to_string(path)
+            .map_err(|e| anyhow::anyhow!("读取 {} 失败: {e}", path.display()))?;
+        let v: serde_json::Value = serde_json::from_str(&raw)
+            .map_err(|e| anyhow::anyhow!("解析 {} 失败: {e}", path.display()))?;
+        let segments: Vec<SubtitleSegment> = serde_json::from_value(
+            v.get("result")
+                .and_then(|r| r.get("segments"))
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
+        )
+        .map_err(|e| anyhow::anyhow!("解析 {} 的 segments 失败: {e}", path.display()))?;
+        Ok(Self(segments))
+    }
+
+    /// 写出规范化字幕 `srt.json`（`{"result": {"segments": [...]}}`）。
+    ///
+    /// fail-fast：时间轴必须 `start_ms < end_ms`（含零长段）；从路径反推产出方步骤名，
+    /// 让错误直接指向哪个步骤产出了坏数据（与旧 `write_srt_json` 同款语义）。
+    pub fn write(&self, path: &Path) -> anyhow::Result<()> {
+        if let Some((i, s)) = self
+            .0
+            .iter()
+            .enumerate()
+            .find(|(_, s)| s.start_ms >= s.end_ms)
+        {
+            let step = path
+                .parent()
+                .and_then(|p| p.file_name())
+                .and_then(|n| n.to_str())
+                .unwrap_or("?");
+            return Err(anyhow::anyhow!(
+                "{step}: 第 {} 段时间轴非法 (start_ms={} >= end_ms={}); \
+                 请检查该步骤的输入数据（段必须满足 start_ms < end_ms）",
+                i + 1,
+                s.start_ms,
+                s.end_ms
+            ));
+        }
+        let out = serde_json::json!({ "result": { "segments": self.0 } });
+        if let Some(parent) = path.parent() {
+            ensure_dir(parent)?;
+        }
+        let json = serde_json::to_string_pretty(&out)
+            .map_err(|e| anyhow::anyhow!("序列化 srt.json 失败: {e}"))?;
+        fs::write(path, json)
+            .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", path.display(), e))?;
+        Ok(())
+    }
+
+    /// 写出可读 SRT 文本文件（`.srt`，时间轴 `HH:MM:SS,mmm --> HH:MM:SS,mmm`）。
+    ///
+    /// 内容来自本集合的 `SubtitleSegment`（`text` / `start_ms` / `end_ms`）。
+    /// 与自由函数 [`write_srt`](write_srt)（消费 `SrtSeg`）的差异：`SubtitleSegment`
+    /// 只有 `text`（无 `dst` / `actual_start` / `actual_end`），故不做 `use_source`
+    /// 选择、也不做 actual 时间覆盖，直接用段自身的起止与文本。
+    ///
+    /// 空文本段会被跳过（不占序号）；写盘前经 [`validate_srt_content`] 预检，
+    /// 避免交给 ffmpeg 时报含糊的 "Unable to open"。
+    pub fn write_srt(&self, output: &Path) -> anyhow::Result<()> {
+        let mut lines: Vec<String> = Vec::new();
+        let mut idx: u32 = 1;
+        for seg in &self.0 {
+            if seg.text.trim().is_empty() {
+                continue;
+            }
+            lines.push(idx.to_string());
+            lines.push(format!(
+                "{} --> {}",
+                srt_time(seg.start_ms),
+                srt_time(seg.end_ms)
+            ));
+            lines.push(seg.text.trim().to_string());
+            lines.push(String::new());
+            idx += 1;
+        }
+        let content = lines.join("\n");
+        validate_srt_content(&content, output)?;
+        fs::write(output, content)
+            .map_err(|e| anyhow::anyhow!("写入 SRT {} 失败: {}", output.display(), e))?;
+        Ok(())
+    }
 }
 
 /// 毫秒 → SRT 时间 `HH:MM:SS,mmm` (镜像 TS `srtTime`)。
@@ -182,6 +286,37 @@ mod tests {
             actual_start: None,
             actual_end: None,
         }
+    }
+
+    #[test]
+    fn subtitle_segments_write_srt() {
+        // 写到 crate 下的 tmp/（gitignore: */tmp/*），不用系统 /tmp（AGENTS.md 规则）
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tmp")
+            .join(format!("ld_ss_srt_{}", std::process::id()))
+            .to_string_lossy()
+            .to_string();
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = std::path::Path::new(&dir).join("out.srt");
+        let segs = SubtitleSegments(vec![
+            SubtitleSegment {
+                text: "你好".into(),
+                start_ms: 0,
+                end_ms: 1000,
+            },
+            SubtitleSegment {
+                text: "世界".into(),
+                start_ms: 1000,
+                end_ms: 2500,
+            },
+        ]);
+        segs.write_srt(&p).unwrap();
+        let content = std::fs::read_to_string(&p).unwrap();
+        assert!(content.contains("你好"));
+        assert!(content.contains("世界"));
+        assert!(content.contains("00:00:00,000 --> 00:00:01,000"));
+        assert!(content.starts_with("1\n"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
