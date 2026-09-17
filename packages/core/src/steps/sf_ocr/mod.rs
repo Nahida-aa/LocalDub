@@ -9,6 +9,7 @@ pub mod fix_args;
 pub mod ocr;
 pub mod ocr_fix;
 pub mod ocr_pre;
+pub mod pre_args;
 
 pub use ocr::step_sf_ocr;
 pub use ocr_fix::step_sf_ocr_fix;
