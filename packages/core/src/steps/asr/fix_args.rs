@@ -11,7 +11,7 @@ use std::path::Path;
 use llm::LlmFixArgs;
 use serde::{Deserialize, Serialize};
 
-use crate::steps::utils::paths::asr::AsrJsonPath;
+use crate::steps::utils::paths::asr::AsrPath;
 
 /// asr 阶段修正参数。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -52,13 +52,13 @@ impl Default for AsrFixArgs {
 /// [`from_video_dir`](Self::from_video_dir)（同 `SfOcrFixInput::from_video_dir`）。
 pub struct AsrFixInput {
     /// 来自 asr 步骤的识别结果 `asr/asr.json`。
-    pub asr_json_path: AsrJsonPath,
+    pub asr_path: AsrPath,
 }
 
 impl AsrFixInput {
     pub fn from_video_dir(video_dir: impl AsRef<Path>) -> Self {
         Self {
-            asr_json_path: AsrJsonPath::new(&video_dir),
+            asr_path: AsrPath::new(&video_dir),
         }
     }
 }

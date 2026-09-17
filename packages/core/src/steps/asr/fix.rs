@@ -27,13 +27,10 @@ pub fn step_asr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
     // 与权威字幕路径 (utils::subtitle_path 的 videoDir/asr_fix) 保持一致。
     let asr_fix_dir = std::path::Path::new(&video_dir).join("asr_fix");
     let input = AsrFixInput::from_video_dir(&video_dir);
-    let asr_file = args.asr_file_path.clone().unwrap_or_else(|| {
-        input
-            .asr_json_path
-            .as_path()
-            .to_string_lossy()
-            .to_string()
-    });
+    let asr_file = args
+        .asr_file_path
+        .clone()
+        .unwrap_or_else(|| input.asr_path.as_path().to_string_lossy().to_string());
     // 源语言独立解析（三级回退），与目标语言无关——本步骤只用它做 LLM 提示词标签。
     let src_lang = crate::steps::utils::src_language(ctx).code().to_string();
 
@@ -43,10 +40,7 @@ pub fn step_asr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
         ));
     }
 
-    let raw =
-        std::fs::read_to_string(&asr_file).with_context(|| format!("读取 {asr_file} 失败"))?;
-    let data: AsrResult =
-        serde_json::from_str(&raw).with_context(|| format!("解析 {asr_file} 失败"))?;
+    let data = AsrResult::read(&asr_file)?;
 
     let mut segments = data
         .result

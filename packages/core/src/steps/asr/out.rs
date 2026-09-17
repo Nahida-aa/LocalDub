@@ -1,6 +1,11 @@
 //! asr 阶段输出类型 (镜像 TS `packages/subtitle-asr/types.ts` + `whisper_types.ts`)。
 
+use std::path::Path;
+
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+
+use crate::steps::utils::paths::asr::AsrPath;
 
 /// 词级时间戳 (镜像 TS `AsrWord`)。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -74,6 +79,24 @@ pub struct AsrResultMeta {
     pub input_audio: String,
     /// 实时率 RTF
     pub rtf: f64,
+}
+
+impl AsrResult {
+    /// 读取 asr 步骤产出的 `asr/asr.json` 并反序列化。
+    ///
+    /// 消费方（asr_fix / asr_ocr*）统一走这里，避免每处重复
+    /// `read_to_string` + `from_str`；路径约定由调用方经 [`AsrPath`] 提供。
+    pub fn read(path: impl AsRef<Path>) -> Result<Self> {
+        let path = path.as_ref();
+        let raw = std::fs::read_to_string(path)
+            .with_context(|| format!("读取 {} 失败", path.display()))?;
+        serde_json::from_str(&raw).with_context(|| format!("解析 {} 失败", path.display()))
+    }
+
+    /// 从 `video_dir` 解析 `asr/asr.json` 路径（拼法走 [`AsrPath`] 单一来源）后读取。
+    pub fn read_from_video_dir(video_dir: impl AsRef<Path>) -> Result<Self> {
+        Self::read(AsrPath::new(&video_dir).as_path())
+    }
 }
 
 // ---------------------------------------------------------------------------
