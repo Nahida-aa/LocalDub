@@ -4,6 +4,7 @@
 //! → spawn 二进制 → 流式解析 `(xx%)` 进度 → 标记 step 完成。
 
 pub mod after;
+pub mod after_args;
 pub mod args;
 
 use std::path::PathBuf;
@@ -15,6 +16,7 @@ use crate::steps::utils::{
 };
 
 pub use after::step_separate_after;
+pub use after_args::SeparateAfterInput;
 pub use args::{SeparateArgs, SeparateInput};
 
 /// 根据 runtime + device 选择 demucs-burn 后端 (镜像 TS `separateBurn` 的 backend 派生)。

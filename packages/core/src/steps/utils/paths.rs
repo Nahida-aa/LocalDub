@@ -139,6 +139,26 @@ pub mod separate {
             &self.0
         }
     }
+
+    /// separate 步骤输出的 stems 目录 `<videoDir>/separate`（drums/bass/other/vocals 四路）。
+    ///
+    /// 产出方是 `separate` 步骤 (`step_separate`)，消费方是 `separate_after` 步骤
+    /// (`SeparateAfterInput.stems_dir`)。归属产出方模块，与 `sf_ocr::FramesPath` 被各自
+    /// 消费方引用的 provenance 模式同款：跨步骤路径类型归属产出方，消费方只引用。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct StemsDir(PathBuf);
+
+    impl StemsDir {
+        /// `{video_dir}/separate`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(Path::new(video_dir.as_ref()).join("separate"))
+        }
+
+        /// 本类型承诺的路径访问器（与 `SrtPath` / `Target3VocalsPath` 同签名）。
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
 }
 
 pub mod separate_after {

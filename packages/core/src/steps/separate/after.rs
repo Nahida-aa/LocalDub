@@ -5,9 +5,10 @@
 
 use crate::state::WorkflowState;
 use crate::steps::asr::args::AsrArgs;
+use crate::steps::separate::after_args::SeparateAfterInput;
 use crate::steps::utils::paths::separate_after::{GatedVocalsPath, Target3VocalsMixedPath};
 use crate::steps::utils::{
-    ffmpeg, now_iso, separate_after_dir, separate_dir, set_step_anyhow, StepPatch, StepStatus,
+    ffmpeg, now_iso, separate_after_dir, set_step_anyhow, StepPatch, StepStatus,
 };
 
 /// 读取 asr 阶段配置 (缺省用 AsrArgs::default, 对齐 TS `?? 默认值`)。
@@ -30,16 +31,18 @@ pub fn step_separate_after(ctx: &WorkflowState) -> anyhow::Result<()> {
         },
     )?;
 
-    let sep_dir = separate_dir(&video_dir);
+    let input = SeparateAfterInput::from_video_dir(&video_dir);
     let out_dir = separate_after_dir(&video_dir);
     std::fs::create_dir_all(&out_dir)
         .map_err(|e| anyhow::anyhow!("创建 separate_after 目录失败: {e}"))?;
 
+    // stems 来自 separate 步骤的输出目录(见 `SeparateAfterInput`)。
+    let sep_dir = input.stems_dir.as_path().to_path_buf();
     let stems = [
         ("drums", sep_dir.join("target_0_drums.wav")),
         ("bass", sep_dir.join("target_1_bass.wav")),
         ("other", sep_dir.join("target_2_other.wav")),
-        ("vocals", sep_dir.join("target_3_vocals.wav")),
+        ("vocals", input.vocals_path.as_path().to_path_buf()),
     ];
     let vocals_path = stems[3].1.clone();
     let bgm_dst = out_dir.join("target_bgm.wav");
@@ -178,6 +181,7 @@ pub fn step_separate_after(ctx: &WorkflowState) -> anyhow::Result<()> {
 mod tests {
     use super::*;
     use crate::state::read_ctx_from_value;
+    use crate::steps::utils::separate_dir;
     use serde_json::json;
 
     fn ffmpeg_available() -> bool {
