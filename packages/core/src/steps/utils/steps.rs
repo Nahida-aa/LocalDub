@@ -100,8 +100,37 @@ pub const SUBTITLE_ASR_OCR_STEPS: &[&str] = &[
     "mix_video",
 ];
 
-/// 根据 output_mode 与 subtitleSource / 开关过滤, 返回本次要执行的 step 序列
-/// (镜像 TS `getSteps`)。
+/// 两维度(OutputMode × SubtitleSource)→ step 序列常量。**单一真源**:
+/// 运行时 `get_steps` 与 import 期 `download::get_steps` 都走这里,
+/// 避免 `subtitle + sf_ocr / asr_ocr` 这类组合在两份实现间分叉
+/// (曾有一次: import 副本无条件把 tts/mix_audio 塞进序列, 而运行时序列不含)。
+///
+/// `is_subtitle` 直接传布尔, 以匹配 `get_steps` 原先用 `ctx.output_mode == "subtitle"`
+/// 的宽松语义——`OutputMode::from_state` 对未知值 fail-fast, 这里不引入该差异。
+///
+/// `translate` / `split_audio` **恒在序列**(不再按开关剔除), 见 `get_steps` 下方说明;
+/// 非必要开销由步骤内部自行跳过(如 `is_dub == false` 不切人声块), 不在序列层面裁剪。
+pub fn steps_for(is_subtitle: bool, source: SubtitleSource) -> &'static [&'static str] {
+    if is_subtitle {
+        // subtitle 模式: 按 subtitleSource 切换字幕提取策略, 但始终只到 mix_video
+        // (不配音 → 无 tts / mix_audio)。subtitleSource 语义是"字幕怎么提取",
+        // 不是"是否配音"; dub 序列常量含 tts/mix_audio, 不能复用。
+        match source {
+            SubtitleSource::SfOcr => SUBTITLE_SF_OCR_STEPS,
+            SubtitleSource::AsrOcr => SUBTITLE_ASR_OCR_STEPS,
+            SubtitleSource::Asr => SUBTITLE_STEPS,
+        }
+    } else {
+        // dub 模式下按 subtitleSource 选基础序列
+        match source {
+            SubtitleSource::SfOcr => DUB_SF_OCR_STEPS,
+            SubtitleSource::AsrOcr => DUB_ASR_OCR_STEPS,
+            SubtitleSource::Asr => DUB_STEPS,
+        }
+    }
+}
+
+/// 根据 output_mode 与 subtitleSource 过滤, 返回本次要执行的 step 序列 (镜像 TS `getSteps`)。
 ///
 /// 返回**已解析的 [`StepName`]**：序列常量仍是字符串（便于和 TS 逐字对照），
 /// 但在这里立刻解析——**写错名字会 panic**，而不是流到后面被静默跳过。
@@ -112,42 +141,21 @@ pub const SUBTITLE_ASR_OCR_STEPS: &[&str] = &[
 /// 同源。此前这里是独立的一份字符串解析、未知值静默默认 asr，与 translate 的
 /// fail-fast 相矛盾——同一个非法值在两条路径上表现不同（一个报错、一个悄悄降级）。
 /// 现在未知值统一在入口报错。
+///
+/// `translate` **恒在序列**（不再按 enabled 剔除）：`enabled=false` 时它以
+/// **直通模式**执行（原文作为译文写 translation.json），下游步骤从此只认
+/// 一种字幕来源。`translate_enabled` 仍由 step 内部读取决定走 LLM 还是直通。
+/// `split_audio` **恒在序列**（不再按 `vad_align` 剔除）：它是「意图时序」
+/// `split_audio/timings.json` 的唯一写入方，而下游（含 subtitle 的字幕轨）
+/// 只认这一个字幕来源——剔掉它就没有时序可读。
 pub fn get_steps(ctx: &WorkflowState) -> anyhow::Result<Vec<StepName>> {
     let is_subtitle = ctx.output_mode == "subtitle";
     let source = SubtitleSource::from_state(ctx)?;
-
-    let steps: Vec<&'static str> = if is_subtitle {
-        // subtitle 模式: 按 subtitleSource 切换字幕提取策略, 但始终只到 mix_video
-        // (不配音 → 无 tts / mix_audio)。subtitleSource 语义是"字幕怎么提取",
-        // 不是"是否配音"; dub 序列常量含 tts/mix_audio, 不能复用。
-        match source {
-            SubtitleSource::SfOcr => SUBTITLE_SF_OCR_STEPS.to_vec(),
-            SubtitleSource::AsrOcr => SUBTITLE_ASR_OCR_STEPS.to_vec(),
-            SubtitleSource::Asr => SUBTITLE_STEPS.to_vec(),
-        }
-    } else {
-        // dub 模式下按 subtitleSource 选基础序列
-        match source {
-            SubtitleSource::SfOcr => DUB_SF_OCR_STEPS.to_vec(),
-            SubtitleSource::AsrOcr => DUB_ASR_OCR_STEPS.to_vec(),
-            SubtitleSource::Asr => DUB_STEPS.to_vec(),
-        }
-    };
-
-    // translate **恒在序列**（不再按 enabled 剔除）：`enabled=false` 时它以
-    // **直通模式**执行（原文作为译文写 translation.json），下游步骤从此只认
-    // 一种字幕来源。`translate_enabled` 仍由 step 内部读取决定走 LLM 还是直通。
-    // split_audio **恒在序列**（不再按 `vad_align` 剔除）：它是「意图时序」
-    // `split_audio/timings.json` 的唯一写入方，而下游（含 subtitle 的字幕轨）
-    // 只认这一个字幕来源——剔掉它就没有时序可读。
-    //
-    // 非必要开销由步骤内部自行跳过，不需要在序列层面裁剪：
-    // `step_split_audio` 里 `is_dub == false` 就不切人声块、`vad_align == false`
-    // 就不做 VAD 修正，剩下的只是 pad + 写两个 json。
+    let steps = steps_for(is_subtitle, source);
 
     // 解析成枚举——序列常量与 `StepName` 必须一致，不一致说明有一处改名漏了。
     Ok(steps
-        .into_iter()
+        .iter()
         .map(|s| {
             s.parse::<StepName>().unwrap_or_else(|e| {
                 panic!("序列里的 step \"{s}\" 不是合法的 StepName（{e}；改名时漏了某处？）")

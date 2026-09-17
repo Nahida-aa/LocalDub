@@ -429,12 +429,12 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | **读** | `separate_after/target_bgm.wav` 或 `mix_video.bgmPath` 覆盖（**仅 dub**） |
 | **写** | `mix_video/{dub,subtitle,dub_ntl}/{id}.mp4`（最终产物）、中间 SRT |
 
-**字幕轨来源（按 pipeline 分，代码 `mix_video/mod.rs:97`）**：
+**字幕轨来源（按 pipeline 分，代码 `mix_video/mod.rs:88` 的 `match input` 按 `OutputMode` 派发）**：
 
 | pipeline | 来源 | 说明 |
 | --- | --- | --- |
-| **dub** | `mix_audio/timings.json`（`mix_video/mod.rs:366`） | 用 `actual_start/actual_end`（mix_audio 修正后的**实际**音频位置）生成 SRT——烧进去的字幕才能和配音对齐 |
-| **subtitle** | 两选一（`mix_video/mod.rs:295`）：`split_audio/split_audio.json`（`vadAlign: true`）／`translate/{lang}.json`（默认；`mix_video.srtPath` 可覆盖为外部 SRT 文本文件） | 无配音，直接按字幕时序烧 |
+| **dub** | `mix_audio/timings.json`（`mix_video/mod.rs:278` `build_subtitle_srt_dub_branch`） | 用 `actual_start/actual_end`（mix_audio 修正后的**实际**音频位置）生成 SRT——烧进去的字幕才能和配音对齐 |
+| **subtitle** | `split_audio/timings.json`（`mix_video/mod.rs:92`） | 字幕时间轴**统一**取 `split_audio` 的意图时序（`vad_align` 打开时 timings.json 本身已含 VAD 修正，无需再分支）；无配音，直接按字幕时序烧进原音轨视频 |
 
 > 曾把 subtitle 分支的三选一误当成 mix_video 的全部来源，漏了 dub 模式这条
 > 最关键的边：**mix_audio 的 timings 产物是 mix_video 的字幕轨输入**。

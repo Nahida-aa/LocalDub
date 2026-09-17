@@ -25,69 +25,20 @@ pub struct Downloaded {
     pub audio_path: String,
 }
 
-/// 构建 output_mode 对应的 step 列表 (镜像 TS `getSteps`)。
+/// import 期构建 step 进度清单 (镜像 TS `getSteps`)。
 ///
-/// 与 TS 不同: 不读磁盘 input.json, 直接从传入的 output_mode / subtitle_source 计算,
-/// 使 import 自包含。translate / split_audio 的开关依赖 step 配置, 这里保持默认
-/// 全量 (与 TS 无 config 时的 fallback 一致)。
+/// 直接委托给 [`crate::steps::steps_for`]——运行时 `get_steps` 也走同一逻辑,
+/// 保证两份实现不会分叉 (此前这份副本对 `subtitle + sf_ocr / asr_ocr` 错误地
+/// 塞入 tts/mix_audio, 与运行时序列不符)。
 pub fn get_steps(
     output_mode: OutputMode,
     subtitle_source: crate::workflows::args::SubtitleSource,
 ) -> Vec<String> {
-    let mut steps: Vec<&str> = match subtitle_source {
-        crate::workflows::args::SubtitleSource::SfOcr => vec![
-            "separate",
-            "separate_after",
-            "sf_ocr_pre",
-            "sf_ocr",
-            "sf_ocr_fix",
-            "translate",
-            "split_audio",
-            "tts",
-            "mix_audio",
-            "mix_video",
-        ],
-        crate::workflows::args::SubtitleSource::AsrOcr => vec![
-            "separate",
-            "separate_after",
-            "asr",
-            "asr_ocr_pre",
-            "asr_ocr",
-            "asr_ocr_fix",
-            "translate",
-            "split_audio",
-            "tts",
-            "mix_audio",
-            "mix_video",
-        ],
-        crate::workflows::args::SubtitleSource::Asr => {
-            if matches!(output_mode, OutputMode::Subtitle) {
-                vec![
-                    "separate",
-                    "separate_after",
-                    "asr",
-                    "asr_fix",
-                    "translate",
-                    "split_audio",
-                    "mix_video",
-                ]
-            } else {
-                vec![
-                    "separate",
-                    "separate_after",
-                    "asr",
-                    "asr_fix",
-                    "translate",
-                    "split_audio",
-                    "tts",
-                    "mix_audio",
-                    "mix_video",
-                ]
-            }
-        }
-    };
-    steps.retain(|s| *s != "translate" || true); // 默认保留 translate
-    steps.into_iter().map(|s| s.to_string()).collect()
+    let is_subtitle = matches!(output_mode, OutputMode::Subtitle);
+    crate::steps::utils::steps::steps_for(is_subtitle, subtitle_source)
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
 }
 
 /// 顶层导入入口 (镜像 TS `importVideo`)。
