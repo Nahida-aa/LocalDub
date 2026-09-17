@@ -5,6 +5,7 @@
 
 use crate::cmd::env::ensure_bin;
 use crate::context::WorkflowState;
+use crate::steps::utils::paths::sf_ocr_pre;
 use crate::steps::utils::{
     ensure_dir, now_iso, set_step_anyhow, sf_ocr_pre_dir, video_source_path, StepPatch, StepStatus,
 };
@@ -53,11 +54,11 @@ pub fn step_sf_ocr_pre(ctx: &WorkflowState) -> anyhow::Result<()> {
         ));
     }
 
-    let frame_dir = out_dir.join("frames");
-    if !frame_dir.exists() {
+    let frame_dir = sf_ocr_pre::KeyframesDir::new(&video_dir);
+    if !frame_dir.as_path().exists() {
         return Err(anyhow::anyhow!(
             "sf-cli 未产出关键帧目录: {}",
-            frame_dir.display()
+            frame_dir.as_path().display()
         ));
     }
     let kf_json = out_dir.join("keyframes.json");

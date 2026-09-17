@@ -6,9 +6,9 @@
 
 use crate::cmd::env::ensure_bin;
 use crate::context::WorkflowState;
-use crate::steps::sf_ocr::args::SfOcrArgs;
+use crate::steps::sf_ocr::args::{SfOcrArgs, SfOcrInput};
 use crate::steps::utils::paths::sf_ocr;
-use crate::steps::utils::{now_iso, set_step_anyhow, sf_ocr_pre_dir, StepPatch, StepStatus};
+use crate::steps::utils::{now_iso, set_step_anyhow, StepPatch, StepStatus};
 use std::process::Command;
 
 /// 入口 (镜像 TS `stepSfOcr`)。
@@ -28,7 +28,8 @@ pub fn step_sf_ocr(ctx: &WorkflowState) -> anyhow::Result<()> {
 
     let cfg = SfOcrArgs::from_input(&ctx.input);
 
-    let frame_dir = sf_ocr_pre_dir(&video_dir).join("frames");
+    let input = SfOcrInput::from_video_dir(&video_dir);
+    let frame_dir = input.keyframes_dir.as_path();
     if !frame_dir.exists() {
         return Err(anyhow::anyhow!(
             "Keyframe dir not found: {} — run sf_ocr_pre first",

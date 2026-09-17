@@ -237,6 +237,36 @@ pub mod asr_fix {
     }
 }
 
+pub mod sf_ocr_pre {
+    use super::*;
+
+    /// sf_ocr_pre 步骤产出的关键帧目录 `<videoDir>/sf_ocr_pre/frames`（PNG 帧）。
+    ///
+    /// 产出方是 `sf_ocr_pre` 步骤 (`step_sf_ocr_pre`)，消费方是 `sf_ocr` 步骤
+    /// (`SfOcrInput.keyframes_dir`)。放在产出方模块下，与 `sf_ocr::FramesPath` 被
+    /// `sf_ocr_fix` 消费的 provenance 模式同款：跨步骤路径类型归属产出方。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct KeyframesDir(PathBuf);
+
+    impl KeyframesDir {
+        /// `{video_dir}/sf_ocr_pre/frames`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(Self::dir(video_dir))
+        }
+
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+
+        /// 所属目录 `sf_ocr_pre/frames`（生产者需先 ensure 父目录 `sf_ocr_pre/`）。
+        pub fn dir(video_dir: impl AsRef<Path>) -> PathBuf {
+            Path::new(video_dir.as_ref())
+                .join("sf_ocr_pre")
+                .join("frames")
+        }
+    }
+}
+
 pub mod sf_ocr {
     use super::*;
 
@@ -735,6 +765,13 @@ mod tests {
                 .display()
                 .to_string(),
             "/w/sf_ocr_fix/segment_filter_llm_fix.json"
+        );
+        assert_eq!(
+            sf_ocr_pre::KeyframesDir::new("/w")
+                .as_path()
+                .display()
+                .to_string(),
+            "/w/sf_ocr_pre/frames"
         );
     }
 

@@ -1,6 +1,10 @@
 //! sf_ocr 阶段参数 (镜像 TS `packages/core/steps/sf_ocr/args.ts`)。
 
+use std::path::Path;
+
 use serde::{Deserialize, Serialize};
+
+use crate::steps::utils::paths::sf_ocr_pre;
 
 /// OCR 推理运行时。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
@@ -89,4 +93,25 @@ fn default_text_confidence_threshold() -> f64 {
 
 fn default_true() -> bool {
     true
+}
+
+/// sf_ocr 步骤的输入契约（**依赖清单**）：本步**消费**的路径。
+///
+/// 只装依赖——来自 `sf_ocr_pre` 的关键帧目录。本步产出 `frames.json`
+/// （`sf_ocr::FramesPath`）属于「产出」而非「依赖」，不在此清单内。与
+/// `SfOcrFixInput` / `TtsInput` 同款：`StepInput` 是依赖清单，不是路径袋。
+///
+/// 路径是 `{video_dir}/...` 的**约定拼法**，不读 ctx 里落定的事实，故入口是
+/// [`from_video_dir`](Self::from_video_dir)。
+pub struct SfOcrInput {
+    /// 来自 sf_ocr_pre 的关键帧目录 `<video_dir>/sf_ocr_pre/frames`。
+    pub keyframes_dir: sf_ocr_pre::KeyframesDir,
+}
+
+impl SfOcrInput {
+    pub fn from_video_dir(video_dir: impl AsRef<Path>) -> Self {
+        Self {
+            keyframes_dir: sf_ocr_pre::KeyframesDir::new(&video_dir),
+        }
+    }
 }
