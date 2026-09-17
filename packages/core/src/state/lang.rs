@@ -3,10 +3,12 @@
 //! 把"从 state 取语言"这件事从各 step 内联逻辑提升为显式 in-edge，契合代码即 DAG：
 //! step 声明它要从 state 解析哪个语言，而不是在 step 内部去戳 `asr_language` 等字段。
 //!
-//! 纯解析逻辑放在 `const::lang`（`resolve_source_language` / `resolve_target_language`），
-//! 本模块只负责把 `WorkflowState` 的事实喂进去——保持 `const::lang` 仍是叶子模块。
+//! 解析策略（`resolve_source_language` / `resolve_target_language`）就放在本模块、紧贴使用
+//! 它们的对象——"语言如何从 state 推导"的故事在一个文件里讲完。纯类型模型
+//! （[`LangCode`] / [`Language`] 枚举、`infer_target_lang`、`default_lang`）留在
+//! `const::lang`（叶子模块，不依赖 state）。
 
-use crate::r#const::lang::{resolve_source_language, resolve_target_language, Language, LangCode};
+use crate::r#const::lang::{default_lang, infer_target_lang, Language, LangCode};
 use crate::state::WorkflowState;
 
 /// 源语言（解析后的投影对象）。
@@ -66,4 +68,22 @@ impl TargetLang {
     pub fn into_inner(self) -> Language {
         self.0
     }
+}
+
+/// 解析**源语言**（状态投影策略）：ASR 实测优先，回落到配置 `source_lang`，
+/// 再回落到 [`default_lang`]。紧贴 [`SourceLang`] 放在本模块，使"源语言如何从 state
+/// 推导"的故事集中在一处。
+pub(crate) fn resolve_source_language(
+    asr: Option<&LangCode>,
+    source: Option<&LangCode>,
+) -> LangCode {
+    asr.cloned()
+        .or_else(|| source.cloned())
+        .unwrap_or_else(default_lang)
+}
+
+/// 解析**目标语言**（状态投影策略）：显式目标优先，否则按源语言 [`infer_target_lang`]
+/// auto 推断。紧贴 [`TargetLang`] 放在本模块。
+pub(crate) fn resolve_target_language(src: &LangCode, explicit: Option<Language>) -> Language {
+    explicit.unwrap_or_else(|| infer_target_lang(src))
 }

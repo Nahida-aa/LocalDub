@@ -122,27 +122,13 @@ pub fn default_lang() -> LangCode {
 
 /// auto 推断目标语言: 源 zh -> en, 其它 -> zh（只看"是否 zh"）。
 /// 源语言是开放事实, 不受翻译目标列表约束。
+///
+/// 纯领域规则（只依赖语言本身），放在这里；而"从 state 的事实中解析出目标语言"
+/// 的策略（显式目标 > auto 推断）见 `state::lang::resolve_target_language`。
 pub fn infer_target_lang(src: &LangCode) -> Language {
     if src.code() == "zh" {
         Language::En
     } else {
         Language::Zh
     }
-}
-
-/// 纯函数解析**源语言**（不依赖 `WorkflowState`）：ASR 实测优先，回落到配置
-/// `source_lang`，再回落到 [`default_lang`]。供 `state::lang::SourceLang::from_state` 调用。
-pub fn resolve_source_language(
-    asr: Option<&LangCode>,
-    source: Option<&LangCode>,
-) -> LangCode {
-    asr.cloned()
-        .or_else(|| source.cloned())
-        .unwrap_or_else(default_lang)
-}
-
-/// 纯函数解析**目标语言**（不依赖 `WorkflowState`）：显式目标优先，否则按源语言
-/// auto 推断。供 `state::lang::TargetLang::from_state` 调用。
-pub fn resolve_target_language(src: &LangCode, explicit: Option<Language>) -> Language {
-    explicit.unwrap_or_else(|| infer_target_lang(src))
 }
