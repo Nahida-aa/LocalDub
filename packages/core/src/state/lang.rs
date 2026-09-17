@@ -3,12 +3,12 @@
 //! 把"从 state 取语言"这件事从各 step 内联逻辑提升为显式 in-edge，契合代码即 DAG：
 //! step 声明它要从 state 解析哪个语言，而不是在 step 内部去戳 `asr_language` 等字段。
 //!
-//! 解析策略（`resolve_source_language` / `resolve_target_language`）就放在本模块、紧贴使用
-//! 它们的对象——"语言如何从 state 推导"的故事在一个文件里讲完。纯类型模型
-//! （[`LangCode`] / [`Language`] 枚举、`infer_target_lang`、`default_lang`）留在
-//! `const::lang`（叶子模块，不依赖 state）。
+//! 解析策略（`resolve_source_language` / `resolve_target_language`）与兜底/推断逻辑
+//! （`default_lang` / `infer_target_lang`）就放在本模块、紧贴使用它们的对象——"语言如何
+//! 从 state 推导"的故事在一个文件里讲完。纯类型模型（[`LangCode`] / [`Language`] 枚举）
+//! 留在 `const::lang`（叶子模块，不依赖 state）。
 
-use crate::r#const::lang::{default_lang, infer_target_lang, Language, LangCode};
+use crate::r#const::lang::{Language, LangCode};
 use crate::state::WorkflowState;
 
 /// 源语言（解析后的投影对象）。
@@ -86,4 +86,26 @@ pub(crate) fn resolve_source_language(
 /// auto 推断。紧贴 [`TargetLang`] 放在本模块。
 pub(crate) fn resolve_target_language(src: &LangCode, explicit: Option<Language>) -> Language {
     explicit.unwrap_or_else(|| infer_target_lang(src))
+}
+
+/// 兜底源语言（源语言未知时）。返回 [`LangCode::unknown`]（空串）；下游透传语言码，
+/// 切勿臆测成 zh。此前的 "默认 zh" 注释是误导：强制 zh 会把外语原文误修正为中文。
+///
+/// 与 [`infer_target_lang`] 同属状态投影的兜底/推断逻辑，故放在本模块而非
+/// `const::lang`（纯类型模型）。
+pub(crate) fn default_lang() -> LangCode {
+    LangCode::unknown()
+}
+
+/// auto 推断目标语言: 源 zh -> en, 其它 -> zh（只看"是否 zh"）。
+/// 源语言是开放事实, 不受翻译目标列表约束。
+///
+/// 与 [`default_lang`] 同属状态投影的兜底/推断逻辑，紧贴 [`resolve_target_language`]
+/// 放在本模块；纯类型模型留在 `const::lang`。
+pub(crate) fn infer_target_lang(src: &LangCode) -> Language {
+    if src.code() == "zh" {
+        Language::En
+    } else {
+        Language::Zh
+    }
 }

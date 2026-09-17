@@ -113,22 +113,3 @@ impl std::fmt::Display for LangCode {
         f.write_str(&self.0)
     }
 }
-
-/// 兜底源语言（源语言未知时）。返回 [`LangCode::unknown`]（空串）；下游透传语言码，
-/// 切勿臆测成 zh。此前的 "默认 zh" 注释是误导：强制 zh 会把外语原文误修正为中文。
-pub fn default_lang() -> LangCode {
-    LangCode::unknown()
-}
-
-/// auto 推断目标语言: 源 zh -> en, 其它 -> zh（只看"是否 zh"）。
-/// 源语言是开放事实, 不受翻译目标列表约束。
-///
-/// 纯领域规则（只依赖语言本身），放在这里；而"从 state 的事实中解析出目标语言"
-/// 的策略（显式目标 > auto 推断）见 `state::lang::resolve_target_language`。
-pub fn infer_target_lang(src: &LangCode) -> Language {
-    if src.code() == "zh" {
-        Language::En
-    } else {
-        Language::Zh
-    }
-}
