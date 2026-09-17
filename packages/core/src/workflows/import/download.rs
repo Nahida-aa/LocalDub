@@ -8,7 +8,7 @@ use anyhow::Context;
 use chrono::Utc;
 use tracing::{info, warn};
 
-use crate::context::{
+use crate::state::{
     read_ctx_from_value, write_ctx, VideoSource, Workflow, WorkflowState, WorkflowStep,
 };
 use crate::input::Input;
@@ -137,7 +137,7 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowState> {
         .map(|name| WorkflowStep {
             name: name.clone(),
             label: name.clone(),
-            status: crate::context::StepStatus::Pending,
+            status: crate::state::StepStatus::Pending,
             progress: None,
             started_at: None,
             completed_at: None,
@@ -320,7 +320,7 @@ fn download_youtube_subtitles(
 
 /// 从 ctx.json 读回 (方便下游阶段复用, 镜像 TS `readCtx`)。
 pub fn read_ctx(video_dir: &str) -> anyhow::Result<WorkflowState> {
-    let raw = std::fs::read_to_string(crate::context::ctx_path(video_dir))
+    let raw = std::fs::read_to_string(crate::state::ctx_path(video_dir))
         .with_context(|| format!("读 ctx.json 失败: {video_dir}"))?;
     let v: serde_json::Value = serde_json::from_str(&raw)?;
     read_ctx_from_value(v).map_err(anyhow::Error::msg)

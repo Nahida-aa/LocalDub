@@ -22,7 +22,7 @@ use std::sync::Arc;
 
 use workflow_core::{run_workflow_sync, RunOptions, RunStatus, StepCtx, Workflow, WorkflowCtx};
 
-use crate::context::read_ctx;
+use crate::state::read_ctx;
 use crate::steps::get_steps;
 use crate::steps::utils::{
     now_iso, set_step_anyhow, set_workflow_anyhow, video_id, StepPatch, StepStatus, WorkflowPatch,
@@ -63,12 +63,12 @@ impl EngineOptions {
 /// (`StepFinished.result`, 对齐 TanStack STEP_FINISHED 的 value 语义)。
 /// 返回 `None` 表示无产物 / 无法读取 (不使 step 失败)。
 fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
+    use crate::steps::utils::paths::tts::TtsPath;
     use crate::steps::utils::{
         asr_dir, asr_ocr_dir, asr_ocr_fix_dir, asr_ocr_pre_dir, dubbing_path, final_video_dir,
         gated_vocals_path, mix_audio_timings_path, mixed_vocals_path, separate_dir, sf_ocr_dir,
         sf_ocr_fix_dir, sf_ocr_pre_dir, split_audio_path, split_audio_timings_path, video_id,
     };
-    use crate::steps::utils::paths::tts::TtsPath;
     let wf = video_dir;
     let p = |pb: std::path::PathBuf| pb.to_string_lossy().into_owned();
     let artifacts: Vec<String> = match step {
@@ -81,7 +81,7 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
             vec![p(asr_fix::SrtPath::new(wf).as_path().to_path_buf())]
         }
         "translate" => {
-            let ctx = crate::context::read_ctx(wf).ok()?;
+            let ctx = crate::state::read_ctx(wf).ok()?;
             // 读已落定的事实（translation 步骤写的），不现算。
             let p_lang = crate::steps::utils::paths::translate::LangPath::from_state(&ctx).ok()?;
             vec![p(p_lang.as_path().to_path_buf())]
@@ -90,7 +90,7 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
         "tts" => vec![p(TtsPath::new(wf).into())],
         "mix_audio" => vec![p(dubbing_path(wf)), p(mix_audio_timings_path(wf))],
         "mix_video" => {
-            let ctx = crate::context::read_ctx(wf).ok()?;
+            let ctx = crate::state::read_ctx(wf).ok()?;
             let no_translate = !ctx.input.steps.translate.enabled;
             let sub_src = ctx
                 .input
@@ -357,7 +357,7 @@ fn store_wait_desc(video_dir: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::{read_ctx, read_ctx_from_value, write_ctx, StepStatus};
+    use crate::state::{read_ctx, read_ctx_from_value, write_ctx, StepStatus};
     use serde_json::json;
     use workflow_core::RunStore;
 

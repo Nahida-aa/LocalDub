@@ -9,8 +9,8 @@
 //!
 //! 与 [`crate::cmd::workflows::start`] 的区别: continue 不重新 import, 直接沿用既有任务目录。
 
-use crate::context::{read_ctx, write_ctx};
 use crate::input::Input;
+use crate::state::{read_ctx, write_ctx};
 use crate::workflows::continue_pipeline;
 use anyhow::Context;
 
@@ -24,10 +24,7 @@ pub fn continue_workflow(input: &Input) -> anyhow::Result<()> {
             anyhow::anyhow!("continue 模式需要 input.workflow.videoDir 指定已有任务目录")
         })?;
 
-    if !std::path::Path::new(&video_dir)
-        .join("ctx.json")
-        .exists()
-    {
+    if !std::path::Path::new(&video_dir).join("ctx.json").exists() {
         return Err(anyhow::anyhow!(
             "continue 模式找不到 {}/ctx.json, 确认 videoDir 正确",
             video_dir

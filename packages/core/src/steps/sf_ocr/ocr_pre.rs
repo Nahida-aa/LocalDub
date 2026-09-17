@@ -4,7 +4,7 @@
 //! 落盘 `<videoDir>/sf_ocr_pre/`: frames/(PNG) / mask/ / timeline.txt / keyframes.json。
 
 use crate::cmd::env::ensure_bin;
-use crate::context::WorkflowState;
+use crate::state::WorkflowState;
 use crate::steps::sf_ocr::pre_args::SfOcrPreInput;
 use crate::steps::utils::paths::sf_ocr_pre;
 use crate::steps::utils::{
@@ -99,7 +99,7 @@ pub fn step_sf_ocr_pre(ctx: &WorkflowState) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::read_ctx_from_value;
+    use crate::state::read_ctx_from_value;
     use serde_json::json;
 
     fn ctx_at(dir: &str) -> WorkflowState {
@@ -124,7 +124,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let mut ctx = ctx_at(&dir);
         ctx.video_source_path = Some(format!("{dir}/nope.mp4"));
-        crate::context::write_ctx(&dir, &ctx).unwrap();
+        crate::state::write_ctx(&dir, &ctx).unwrap();
         let res = step_sf_ocr_pre(&ctx);
         assert!(res.is_err());
         assert!(
@@ -172,7 +172,7 @@ mod tests {
 
         let mut ctx = ctx_at(&dir);
         ctx.video_source_path = Some(video);
-        crate::context::write_ctx(&dir, &ctx).unwrap();
+        crate::state::write_ctx(&dir, &ctx).unwrap();
         let res = step_sf_ocr_pre(&ctx);
 
         // 清理假二进制, 恢复现场

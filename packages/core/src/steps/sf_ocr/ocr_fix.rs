@@ -7,15 +7,15 @@
 //! 失败时 warn 并保留原文 (不中断 step)。
 
 use crate::cmd::env::ensure_bin;
-use crate::context::WorkflowState;
+use crate::state::WorkflowState;
 use crate::steps::sf_ocr::fix_args::{OcrFixArgs, SfOcrFixInput};
 use crate::steps::utils::paths::{sf_ocr_fix, SrtJsonPath};
 use crate::steps::utils::{now_iso, set_step_anyhow, StepPatch, StepStatus};
 use std::process::Command;
 
 /// 入口 (镜像 TS `stepSfOcrFix`)。
-pub fn step_sf_ocr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = ctx.workflow.video_dir.clone();
+pub fn step_sf_ocr_fix(state: &WorkflowState) -> anyhow::Result<()> {
+    let video_dir = state.workflow.video_dir.clone();
     let input = SfOcrFixInput::from_video_dir(&video_dir);
     tracing::info!(target: "sf_ocr", "start");
 
@@ -33,7 +33,7 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
     std::fs::create_dir_all(out_dir.as_path())
         .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", out_dir.as_path().display(), e))?;
 
-    let args = OcrFixArgs::from_input(&ctx.input);
+    let args = OcrFixArgs::from_input(&state.input);
 
     let bin = ensure_bin("subtitle_ocr_post_bin").map_err(|e| {
         anyhow::anyhow!(
@@ -89,18 +89,9 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
             .iter()
             .filter_map(|s| s.get("text").and_then(|t| t.as_str()).map(String::from))
             .collect();
-        // 源语言: ASR 实测 (ctx.asr_language) > input.workflow.sourceLang > 默认 zh。
-        // (step 级 sf_ocr_fix.sourceLang 已移除, 统一到任务级)
-        let src_lang: crate::r#const::lang::Language = ctx
-            .asr_language
-            .clone()
-            .or_else(|| {
-                ctx.input
-                    .workflow
-                    .as_ref()
-                    .and_then(|w| w.source_lang.clone())
-            })
-            .unwrap_or_else(crate::r#const::lang::default_lang);
+        // 源语言走统一的 `SourceLang::from_state`（ASR 实测 > 配置 sourceLang > 兜底空串）。
+        // 不在这里内联回退链——否则与 `src_language` 各算各的，容易分叉。
+        let src_lang = crate::state::lang::SourceLang::from_state(state);
         let lang_label = llm::lang_label(src_lang.code());
         tracing::info!(target: "sf_ocr",
             "sf_ocr_fix: LLM 修正 {} segs (model={})",
@@ -134,8 +125,9 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
         });
         let s = serde_json::to_string_pretty(&out)
             .map_err(|e| anyhow::anyhow!("序列化 llm_fix 结果失败: {e}"))?;
-        std::fs::write(llm_fix_file.as_path(), s)
-            .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", llm_fix_file.as_path().display(), e))?;
+        std::fs::write(llm_fix_file.as_path(), s).map_err(|e| {
+            anyhow::anyhow!("写入 {} 失败: {}", llm_fix_file.as_path().display(), e)
+        })?;
     }
 
     // 规范化字幕产物（下游 translate/split_audio/mix_video 的唯一契约）——
@@ -174,7 +166,7 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::read_ctx_from_value;
+    use crate::state::read_ctx_from_value;
     use serde_json::json;
 
     fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowState {
@@ -233,7 +225,7 @@ mod tests {
                 "input": {}
             }),
         );
-        crate::context::write_ctx(&dir, &ctx).unwrap();
+        crate::state::write_ctx(&dir, &ctx).unwrap();
         let res = step_sf_ocr_fix(&ctx);
         assert!(res.is_err());
         assert!(

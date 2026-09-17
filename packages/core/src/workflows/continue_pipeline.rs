@@ -9,7 +9,7 @@
 //! 那份 ctx (例如 cli 从 `input.jsonc` 解析后写入的 ctx), 而不是可能陈旧的持久化 ctx。
 //! 不调用 `import_video` (TS `continuePipeline` 也不调), caller 应已保证 workflow 目录存在。
 
-use crate::context::WorkflowState;
+use crate::state::WorkflowState;
 use crate::steps::utils::{now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
 use crate::workflows::pipeline::run_step;
 

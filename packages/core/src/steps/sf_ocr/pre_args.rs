@@ -1,6 +1,6 @@
 //! sf_ocr_pre 阶段输入契约。
 
-use crate::context::WorkflowState;
+use crate::state::WorkflowState;
 use crate::steps::utils::paths::VideoSourcePath;
 
 /// sf_ocr_pre 步骤的输入契约（**依赖清单**）：本步**消费**的路径。

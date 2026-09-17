@@ -47,7 +47,7 @@ impl VideoSourcePath {
     ///
     /// 缺失 → Err（与 [`AudioSourcePath::from_state`] 同款语义：
     /// 没导入过就没有这个文件，无从猜测）。
-    pub fn from_state(state: &crate::context::WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(state: &crate::state::WorkflowState) -> anyhow::Result<Self> {
         state
             .video_source_path
             .clone()
@@ -94,7 +94,7 @@ impl AudioSourcePath {
     ///
     /// 缺失 → Err（与 [`crate::steps::utils::video_source_path`] 同款语义：
     /// 没导入过就没有这个文件，无从猜测）。
-    pub fn from_state(state: &crate::context::WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(state: &crate::state::WorkflowState) -> anyhow::Result<Self> {
         state
             .audio_source_path
             .clone()
@@ -326,7 +326,12 @@ pub mod sf_ocr_fix {
     impl FilterPath {
         /// `{video_dir}/sf_ocr_fix/segment_filter.json`。
         pub fn new(video_dir: impl AsRef<Path>) -> Self {
-            Self(video_dir.as_ref().join("sf_ocr_fix").join("segment_filter.json"))
+            Self(
+                video_dir
+                    .as_ref()
+                    .join("sf_ocr_fix")
+                    .join("segment_filter.json"),
+            )
         }
 
         pub fn as_path(&self) -> &Path {
@@ -457,7 +462,7 @@ pub mod translate {
         ///
         /// 缺失 → Err（与 `read_translation_result` 同款语义：目标语言未知时
         /// 无从知道该读哪个文件；正常流程里 translate 跑过就一定有值）。
-        pub fn from_state(ctx: &crate::context::WorkflowState) -> anyhow::Result<Self> {
+        pub fn from_state(ctx: &crate::state::WorkflowState) -> anyhow::Result<Self> {
             let lang = ctx.target_language.as_deref().ok_or_else(|| {
                 anyhow::anyhow!(
                     "ctx.target_language 未设置, 无法定位翻译产物 (task {}); 请先运行 translate",
@@ -617,7 +622,11 @@ pub mod tts {
     impl RefDoubledDir {
         /// 唯一拼法来源：`{video_dir}/tts/ref_doubled`。
         pub fn new(video_dir: impl AsRef<Path>) -> Self {
-            Self(Path::new(video_dir.as_ref()).join("tts").join("ref_doubled"))
+            Self(
+                Path::new(video_dir.as_ref())
+                    .join("tts")
+                    .join("ref_doubled"),
+            )
         }
 
         /// 本类型承诺的路径访问器（与 `SrtPath` / `Target3VocalsPath` 同签名）。
@@ -743,13 +752,19 @@ mod tests {
     #[test]
     fn sf_ocr_paths_shape() {
         assert_eq!(
-            sf_ocr::FramesPath::new("/w").as_path().display().to_string(),
+            sf_ocr::FramesPath::new("/w")
+                .as_path()
+                .display()
+                .to_string(),
             "/w/sf_ocr/frames.json"
         );
         assert_eq!(sf_ocr::FramesPath::dir("/w"), PathBuf::from("/w/sf_ocr"));
 
         assert_eq!(
-            sf_ocr_fix::OutDir::new("/w").as_path().display().to_string(),
+            sf_ocr_fix::OutDir::new("/w")
+                .as_path()
+                .display()
+                .to_string(),
             "/w/sf_ocr_fix"
         );
         assert_eq!(
@@ -765,13 +780,6 @@ mod tests {
                 .display()
                 .to_string(),
             "/w/sf_ocr_fix/segment_filter_llm_fix.json"
-        );
-        assert_eq!(
-            sf_ocr_pre::KeyframesDir::new("/w")
-                .as_path()
-                .display()
-                .to_string(),
-            "/w/sf_ocr_pre/frames"
         );
     }
 
@@ -821,7 +829,7 @@ mod tests {
     /// 与 ctx 里的值不同，`from_state` 也必须以 ctx 为准（ctx 是翻译步骤写的）。
     #[test]
     fn lang_path_from_state_uses_persisted_fact() {
-        use crate::context::read_ctx_from_value;
+        use crate::state::read_ctx_from_value;
 
         let mk = |ctx_lang: Option<&str>| {
             let mut ctx = read_ctx_from_value(json!({

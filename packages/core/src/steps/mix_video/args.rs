@@ -186,7 +186,7 @@ impl MixVideoInput {
     ///
     /// BGM 默认取 `separate_after/target_bgm.wav`，`mix_video.bgmPath` 有值时
     /// 变成 [`BgmPath::Custom`]（调试覆盖）。
-    pub fn from_state(state: &crate::context::WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(state: &crate::state::WorkflowState) -> anyhow::Result<Self> {
         let video_dir = &state.workflow.video_dir;
         let video_source_path = VideoSourcePath::from_state(state)?;
         Ok(match OutputMode::from_input(&state.input) {

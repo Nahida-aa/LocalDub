@@ -18,8 +18,8 @@ use std::{
 use chrono::Utc;
 use serde::Serialize;
 
-use crate::context::{read_ctx, write_ctx, WorkflowStep};
-use crate::r#const::lang::{default_lang, infer_target_lang, Language, TargetLang};
+use crate::r#const::lang::LangCode;
+use crate::state::{read_ctx, write_ctx, WorkflowStep};
 use subtitle::SubtitleSegment;
 
 /// RFC3339 时间戳, 去毫秒 (镜像 TS `nowISO`, 形如 `2024-01-01T00:00:00Z`)。
@@ -44,7 +44,7 @@ pub fn video_id(video_dir: &str) -> Option<String> {
 #[derive(Default, Clone)]
 pub struct StepPatch {
     pub label: Option<String>,
-    pub status: Option<crate::context::StepStatus>,
+    pub status: Option<crate::state::StepStatus>,
     pub progress: Option<f64>,
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
@@ -77,7 +77,7 @@ impl StepPatch {
             base.error_message = Some(v);
         }
         // 标记 success 时清空 error_message (镜像 TS)
-        if matches!(base.status, crate::context::StepStatus::Success) {
+        if matches!(base.status, crate::state::StepStatus::Success) {
             base.error_message = None;
         }
         base
@@ -117,7 +117,7 @@ pub struct WorkflowPatch {
 }
 
 impl WorkflowPatch {
-    fn apply(self, mut t: crate::context::Workflow) -> crate::context::Workflow {
+    fn apply(self, mut t: crate::state::Workflow) -> crate::state::Workflow {
         if let Some(v) = self.status {
             t.status = v;
         }
@@ -425,7 +425,7 @@ pub fn asr_fix_dir(video_dir: &str) -> PathBuf {
 }
 
 /// 取 video_source_path (缺则报错, 与 TS `video_source_path` 一致)。
-pub fn video_source_path(ctx: &crate::context::WorkflowState) -> anyhow::Result<String> {
+pub fn video_source_path(ctx: &crate::state::WorkflowState) -> anyhow::Result<String> {
     ctx.video_source_path.clone().ok_or_else(|| {
         anyhow::anyhow!(
             "video_source_path 未设置 (session {})",
@@ -608,15 +608,9 @@ pub fn split_audio_timings_path(video_dir: &str) -> PathBuf {
 ///
 /// **本函数是纯函数**（无副作用）。落盘由
 /// [`persist_target_language`] 完成，且只由 translate 调一次。
-pub fn resolve_language(ctx: &crate::context::WorkflowState) -> anyhow::Result<(String, String)> {
-    let input_target = ctx
-        .input
-        .workflow
-        .as_ref()
-        .and_then(|w| w.target_lang.as_ref())
-        .map(|t| t.as_str().to_string());
-    let src_lang = src_language(ctx);
-    let src_code = src_lang.code().to_string();
+pub fn resolve_language(ctx: &crate::state::WorkflowState) -> anyhow::Result<(String, String)> {
+    let src = crate::state::lang::SourceLang::from_state(ctx);
+    let src_code = src.code().to_string();
 
     // ① 直通：目标 = 源。不查配置、不推断——没有翻译就没有"目标"这个概念。
     if !translate_enabled(ctx) {
@@ -624,43 +618,34 @@ pub fn resolve_language(ctx: &crate::context::WorkflowState) -> anyhow::Result<(
     }
 
     // ②③ 目标语言: input.workflow.targetLang > auto 推断 (源 zh -> en, 其它 -> zh)。
-    // 目标必须是支持的翻译语言: 显式值经 TargetLang 校验 (非法回落 auto)。
-    let resolved: TargetLang = input_target
-        .as_deref()
-        .and_then(TargetLang::from_code)
-        .unwrap_or_else(|| infer_target_lang(&src_lang));
-    Ok((src_code, resolved.as_str().to_string()))
+    // 目标必须是支持的翻译语言: 显式值经 `Language` 枚举校验 (非法回落 auto)。
+    // 解析委托给 `TargetLang::from_state`，与各 step 共用同一套解析，避免各自内联。
+    let target = crate::state::lang::TargetLang::from_state(ctx);
+    Ok((src_code, target.code().to_string()))
 }
 
 /// 解析**源语言**（与目标语言无关，故独立成函数）。
 ///
-/// 回退链：`ctx.asr_language`（ASR 实测）> `input.workflow.sourceLang` > 兜底。
+/// 委托给 [`crate::state::lang::SourceLang::from_state`]——单一解析来源，
+/// 各 step（`asr_fix` 的 LLM 提示词、`split_audio` 写 meta、`sf_ocr_fix` /
+/// `asr_ocr_fix` 的 LLM 修正）拿到的必然一致。
+///
+/// 回退链：`ctx.asr_language`（ASR 实测）> `input.workflow.sourceLang` > 兜底（未知/空串）。
 ///
 /// **为什么纯 OCR / subtitle 路径依赖后两级**：那些路径没有 ASR，
 /// `ctx.asr_language` 是 `None`——必须回落到配置的 `sourceLang`，否则非中文任务
 /// 被当成 zh，进而把目标语言错误推断成 en。
 ///
-/// 源语言是开放事实（`Language`），不做枚举截断——列表外语言如实透传。
-///
-/// 纯函数、无副作用：`asr_fix`（LLM 提示词的源语言标签）与 `split_audio`
-/// （写 meta）都调它，各自拿到的必然一致。
-pub fn src_language(ctx: &crate::context::WorkflowState) -> Language {
-    ctx.asr_language
-        .clone()
-        .or_else(|| {
-            ctx.input
-                .workflow
-                .as_ref()
-                .and_then(|w| w.source_lang.clone())
-        })
-        .unwrap_or_else(default_lang)
+/// 源语言是开放事实（`LangCode`），不做枚举截断——列表外语言如实透传。
+pub fn src_language(ctx: &crate::state::WorkflowState) -> LangCode {
+    crate::state::lang::SourceLang::from_state(ctx).into_inner()
 }
 
 /// `steps.translate.enabled`，缺省 `true`（与 `TranslateArgs` 的 serde 默认一致）。
 ///
 /// 直读结构化字段而非构造 `TranslateArgs`：本函数在 `utils` 层，不该依赖 translate
 /// 的 args 类型（那会形成 utils → steps::translate 的循环依赖）。
-fn translate_enabled(ctx: &crate::context::WorkflowState) -> bool {
+fn translate_enabled(ctx: &crate::state::WorkflowState) -> bool {
     ctx.input.steps.translate.enabled
 }
 
@@ -697,7 +682,7 @@ pub fn to_json<T: Serialize>(v: &T) -> Result<String, String> {
 }
 
 /// re-export 以便 step 模块直接 `use crate::steps::utils::*;`
-pub use crate::context::StepStatus;
+pub use crate::state::StepStatus;
 
 #[allow(unused_imports)]
 use std::io::Write as _;
@@ -705,7 +690,7 @@ use std::io::Write as _;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::{read_ctx_from_value, WorkflowState};
+    use crate::state::{read_ctx_from_value, WorkflowState};
     use serde_json::json;
 
     fn ctx_at(video_dir: &str, input: serde_json::Value) -> WorkflowState {

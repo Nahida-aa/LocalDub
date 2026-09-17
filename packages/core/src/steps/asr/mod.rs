@@ -14,7 +14,7 @@ use std::process::Command;
 use anyhow::{anyhow, Context};
 use config_rs::path::models::whisper_model_path;
 
-use crate::context::{write_ctx, WorkflowState};
+use crate::state::{write_ctx, WorkflowState};
 use crate::steps::asr::args::{AsrArgs, VadModel};
 use crate::steps::asr::out::*;
 use crate::steps::utils::{
@@ -356,12 +356,12 @@ pub fn step_asr(ctx: &WorkflowState) -> anyhow::Result<()> {
 
 /// 把检测语言写回 ctx.json (镜像 TS `setCtx(videoDir, { asr_language })`)。
 fn set_asr_language(video_dir: &str, lang: &str) -> anyhow::Result<()> {
-    let mut ctx = crate::context::read_ctx(video_dir).map_err(anyhow::Error::msg)?;
-    ctx.asr_language = Some(crate::r#const::lang::Language::new(lang));
+    let mut ctx = crate::state::read_ctx(video_dir).map_err(anyhow::Error::msg)?;
+    ctx.asr_language = Some(crate::r#const::lang::LangCode::new(lang));
     write_ctx(video_dir, &ctx).map_err(anyhow::Error::msg)
 }
 
-/// 把可选 f64 参数以 `--kebab` 形式追加 (数值等于默认值时也追加, 与 TS 行为一致)。
+/// 把可选 f64 参数以 `--kebab`state数值等于默认值时也追加, 与 TS 行为一致)。
 fn push_opt_f64(args: &mut Vec<String>, flag: &str, v: f64) {
     args.push(format!("--{flag}"));
     args.push(v.to_string());
@@ -513,7 +513,7 @@ fn ffmpeg_bin() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::{read_ctx_from_value, write_ctx};
+    use crate::state::{read_ctx_from_value, write_ctx};
     use crate::steps::asr::args::MixMode;
     use crate::steps::asr::fix_args::AsrFixArgs;
     use serde_json::json;

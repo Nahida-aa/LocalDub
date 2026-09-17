@@ -15,7 +15,7 @@ use ld_core::{
         enqueue_dir::{DirScanOutput, scan_dir_videos},
         get_workflow::{EnqueueDirResult, GroupInfo},
     },
-    context::{
+    state::{
         self,
         WorkflowState,
         // Workflow
@@ -41,7 +41,7 @@ pub async fn get_group_list() -> Result<Vec<GroupInfo>, String> {
 #[fnrpc::rpc_query]
 pub async fn get_workflow_ctx(video_dir: String) -> Result<WorkflowState, String> {
     let path = repo_root().join(&video_dir);
-    context::read_ctx(
+    state::read_ctx(
         &path
             .to_str()
             .ok_or_else(|| format!("Invalid video_dir: {}", video_dir))?,

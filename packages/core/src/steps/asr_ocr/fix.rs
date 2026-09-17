@@ -8,7 +8,7 @@
 //!   5. Optional LLM fix (step 8)
 
 use crate::cmd::env::ensure_bin;
-use crate::context::WorkflowState;
+use crate::state::WorkflowState;
 use crate::steps::asr::out::AsrResult;
 use crate::steps::asr_ocr::fix_args::AsrOcrFixArgs;
 use crate::steps::utils::paths::{asr_ocr_fix, SrtJsonPath};
@@ -21,20 +21,20 @@ use anyhow::Result;
 // edit_distance）已迁到 subtitle-ocr-types；纯字幕领域 SubtitleSegment 的权威来源是
 // subtitle crate。注意：asr_ocr::pre 另有本地 SubtitleSegment（ASR 域），与本处 OCR 域
 // 的不是同一类型，不要混用。
-use subtitle::SubtitleSegment;
-use subtitle_ocr_types::{
-    compute_box_x_stats, compute_box_y_stats, edit_distance, FrameResult, OcrFramesResult,
-    OcrSegment,
-};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use subtitle::SubtitleSegment;
 use subtitle_ocr_post::{
     merge_frames, ocr_frames_adjust_box, ocr_frames_filter_box, ocr_segment_adjust,
     ocr_segment_filter_with_meta, BoxAdjustedArgs, MergeFramesArgs, OcrSegmentAdjustArgs,
     OcrSegmentWithAdjust,
+};
+use subtitle_ocr_types::{
+    compute_box_x_stats, compute_box_y_stats, edit_distance, FrameResult, OcrFramesResult,
+    OcrSegment,
 };
 use tracing::info;
 mod merge_util;
@@ -468,16 +468,10 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowState) -> Result<()> {
     // === Step 8 (optional): LLM fix ===
     let mut final_segments = fused_result.result.segments.clone();
     if args.ocr_fix.llm_fix.llm_fix {
-        let src_texts: Vec<String> = final_segments
-            .iter()
-            .map(|s| s.base.text.clone())
-            .collect();
-        // Source language: ASR detected > workflow.sourceLang > default zh
-        let src_lang = ctx
-            .asr_language
-            .clone()
-            .or_else(|| ctx.input.workflow.as_ref().and_then(|w| w.source_lang.clone()))
-            .unwrap_or_else(crate::r#const::lang::default_lang);
+        let src_texts: Vec<String> = final_segments.iter().map(|s| s.base.text.clone()).collect();
+        // 源语言走统一的 `SourceLang::from_state`（ASR 实测 > 配置 sourceLang > 兜底空串）。
+        // 不在这里内联回退链——否则与 `src_language` 各算各的，容易分叉。
+        let src_lang = crate::state::lang::SourceLang::from_state(ctx);
         let lang_label = llm::lang_label(src_lang.code());
         info!(target: "asr_ocr",
             "asr_ocr_fix: LLM fix {} segs (model={})", src_texts.len(), args.ocr_fix.llm_fix.llm_model
@@ -510,7 +504,10 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowState) -> Result<()> {
     // llmFix 与否已由上面消化，这里统一落最终结果。
     let srt_segs: Vec<subtitle::SubtitleSegment> =
         final_segments.iter().map(|s| s.base.clone()).collect();
-    crate::steps::utils::write_srt_json(asr_ocr_fix::SrtPath::new(&video_dir).as_path(), &srt_segs)?;
+    crate::steps::utils::write_srt_json(
+        asr_ocr_fix::SrtPath::new(&video_dir).as_path(),
+        &srt_segs,
+    )?;
 
     info!(target: "asr_ocr",
         "filter-segment done (threshold={}) → {} ASR → {} split → {} merged, {} fused",

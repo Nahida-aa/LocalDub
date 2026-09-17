@@ -17,7 +17,7 @@ pub mod vad_align;
 use std::fs;
 use std::path::Path;
 
-use crate::context::WorkflowState;
+use crate::state::WorkflowState;
 use crate::steps::split_audio::out::{
     SplitAudioResult, SplitAudioSegment, SplitAudioTimingResult, TranslateResultMeta,
 };
@@ -251,7 +251,7 @@ mod tests {
     use serde_json::json;
 
     fn ctx_with_input(input: serde_json::Value) -> WorkflowState {
-        crate::context::read_ctx_from_value(input).unwrap()
+        crate::state::read_ctx_from_value(input).unwrap()
     }
 
     #[test]

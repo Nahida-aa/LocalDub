@@ -9,7 +9,7 @@ pub mod args;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use crate::context::WorkflowState;
+use crate::state::WorkflowState;
 use crate::steps::utils::{
     now_iso, separate_dir, set_step, set_step_anyhow, StepPatch, StepStatus,
 };
@@ -373,7 +373,7 @@ mod tests {
         assert_eq!(parse_progress_pct("(abc%)"), None);
     }
     use super::*;
-    use crate::context::read_ctx_from_value;
+    use crate::state::read_ctx_from_value;
     use serde_json::json;
 
     fn ctx_with(input: serde_json::Value, pipeline: &str) -> WorkflowState {
@@ -459,10 +459,10 @@ mod tests {
         );
         ctx.workflow.video_dir = dir.clone();
         ctx.output_mode = "subtitle".to_string();
-        crate::context::write_ctx(&dir, &ctx).unwrap();
+        crate::state::write_ctx(&dir, &ctx).unwrap();
         let res = step_separate(&ctx);
         assert!(res.is_ok(), "subtitle skip 不应失败: {:?}", res.err());
-        let reread = crate::context::read_ctx(&dir).unwrap();
+        let reread = crate::state::read_ctx(&dir).unwrap();
         let st = reread.steps.unwrap();
         assert_eq!(st[0].name, "separate");
         assert_eq!(st[0].status, StepStatus::Success);

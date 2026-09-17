@@ -8,7 +8,7 @@ pub mod args;
 
 use anyhow::anyhow;
 
-use crate::context::WorkflowState;
+use crate::state::WorkflowState;
 use crate::steps::mix_audio::out::MixAudioOutputTimings;
 use crate::steps::mix_video::args::{Alignment, MixVideoArgs, MixVideoInput};
 use crate::steps::split_audio::out::SplitAudioTimingResult;
@@ -283,7 +283,8 @@ fn build_subtitle_srt_dub_branch(
     let data = MixAudioOutputTimings::read(mix_audio_timings_path)
         .map_err(|e| anyhow!("读取 timings 失败: {e}"))?;
     // 时序 → 字幕的映射收在 `From<MixAudioOutputTimings> for SubtitleSegments`：
-    // 时间轴取 actual_*（跟配音对齐），文本取 dst、空则回退 text。
+    // 时间轴取 actual_*（跟配音对齐），文本取 dst、空则回退 text（等价于旧的
+    // `write_srt(.., use_source = false)`）。
     let segs: SubtitleSegments = data.into();
     segs.write_srt(sub_path)
         .map_err(|e| anyhow!("写字幕 SRT 失败: {e}"))
@@ -303,7 +304,7 @@ mod tests {
     /// 构造「配置说 vi、事实是 zh」的错配，断言以**事实**为准。
     #[test]
     fn target_lang_comes_from_persisted_fact_not_config() {
-        use crate::context::read_ctx_from_value;
+        use crate::state::read_ctx_from_value;
         use crate::steps::utils::paths::translate::LangPath;
 
         let mut ctx = read_ctx_from_value(serde_json::json!({

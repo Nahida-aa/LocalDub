@@ -16,7 +16,7 @@ use anyhow::{anyhow, Context};
 use indicatif::{ProgressBar, ProgressStyle};
 use tracing::{info, warn};
 
-use crate::context::VideoSource;
+use crate::state::VideoSource;
 
 /// 判定结果: groupId / workflowId / source / yt-dlp 扩展参数 / 标题。
 #[derive(Debug, Clone)]

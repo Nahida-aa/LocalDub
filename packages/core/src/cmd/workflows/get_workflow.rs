@@ -1,4 +1,4 @@
-use crate::context::{self, WorkflowBrief};
+use crate::state::{self, WorkflowBrief};
 use crate::utils::time::system_time_to_iso;
 use serde::Serialize;
 use specta::Type;
@@ -63,7 +63,7 @@ pub fn get_group_list() -> Result<Vec<GroupInfo>, String> {
                 continue;
             }
 
-            match context::read_workflow(_workflow_path.to_str().unwrap_or_default()) {
+            match state::read_workflow(_workflow_path.to_str().unwrap_or_default()) {
                 Ok(workflow) => {
                     let brief: WorkflowBrief = workflow.into();
 

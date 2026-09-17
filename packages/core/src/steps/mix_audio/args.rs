@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::context::WorkflowState;
+use crate::state::WorkflowState;
 use crate::steps::split_audio::out::SplitAudioTimingResult;
 use crate::steps::utils::paths::{split_audio, tts};
 

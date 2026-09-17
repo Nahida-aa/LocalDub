@@ -11,8 +11,8 @@
 
 use crate::cmd::workflows::get_workflow::get_group_list;
 use crate::cmd::workflows::{continue_workflow, start_workflow};
-use crate::context::read_ctx;
 use crate::input::Input;
+use crate::state::read_ctx;
 use crate::workflows::args::WorkflowAction;
 use anyhow::Context;
 
@@ -92,8 +92,7 @@ pub fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
                 .video_dir
                 .clone()
                 .ok_or_else(|| anyhow::anyhow!("generate_meta 需要 input.workflow.videoDir"))?;
-            crate::cmd::workflows::meta::generate_meta(&video_dir)
-                .context("generate_meta 失败")?;
+            crate::cmd::workflows::meta::generate_meta(&video_dir).context("generate_meta 失败")?;
         }
         None => {
             // TS: 缺省走 start 分支

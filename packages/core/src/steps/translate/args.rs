@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use config_rs::env::{openai_base_url, openai_model};
 
-use crate::context::WorkflowState;
+use crate::state::WorkflowState;
 use crate::steps::utils::paths::{asr_fix, asr_ocr_fix, sf_ocr_fix, SrtJsonPath};
 use crate::workflows::args::SubtitleSource;
 

@@ -5,7 +5,7 @@
 //! 段合并 / 时间调整 / LLM 修正由下游 sf_ocr_fix 负责。
 
 use crate::cmd::env::ensure_bin;
-use crate::context::WorkflowState;
+use crate::state::WorkflowState;
 use crate::steps::sf_ocr::args::{SfOcrArgs, SfOcrInput};
 use crate::steps::utils::paths::sf_ocr;
 use crate::steps::utils::{now_iso, set_step_anyhow, StepPatch, StepStatus};
@@ -44,14 +44,13 @@ pub fn step_sf_ocr(ctx: &WorkflowState) -> anyhow::Result<()> {
     })?;
 
     let frames_file = sf_ocr::FramesPath::new(&video_dir);
-    std::fs::create_dir_all(sf_ocr::FramesPath::dir(&video_dir))
-        .map_err(|e| {
-            anyhow::anyhow!(
-                "创建 {} 失败: {}",
-                sf_ocr::FramesPath::dir(&video_dir).display(),
-                e
-            )
-        })?;
+    std::fs::create_dir_all(sf_ocr::FramesPath::dir(&video_dir)).map_err(|e| {
+        anyhow::anyhow!(
+            "创建 {} 失败: {}",
+            sf_ocr::FramesPath::dir(&video_dir).display(),
+            e
+        )
+    })?;
 
     let mut cmd = Command::new(&bin);
     cmd.arg("--dir").arg(&frame_dir);
@@ -126,7 +125,7 @@ pub fn step_sf_ocr(ctx: &WorkflowState) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::read_ctx_from_value;
+    use crate::state::read_ctx_from_value;
     use serde_json::json;
 
     fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowState {
@@ -188,7 +187,7 @@ mod tests {
                 "input": {}
             }),
         );
-        crate::context::write_ctx(&dir, &ctx).unwrap();
+        crate::state::write_ctx(&dir, &ctx).unwrap();
         let res = step_sf_ocr(&ctx);
         assert!(res.is_err());
         assert!(

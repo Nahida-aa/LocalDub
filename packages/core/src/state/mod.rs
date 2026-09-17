@@ -3,6 +3,7 @@ use specta::Type;
 use std::fs;
 use std::path::PathBuf;
 use time::FrameRate;
+pub mod lang;
 pub mod types;
 pub use types::{StepStatus, WorkflowStep};
 use crate::input::Input;
@@ -83,7 +84,7 @@ pub struct WorkflowState {
     pub run_info: Option<RunInfo>,
     pub video_source_path: Option<String>,
     pub audio_source_path: Option<String>,
-    pub asr_language: Option<crate::r#const::lang::Language>,
+    pub asr_language: Option<crate::r#const::lang::LangCode>,
     pub target_language: Option<String>,
 }
 
@@ -156,7 +157,7 @@ pub fn read_ctx_from_value(json: serde_json::Value) -> Result<WorkflowState, Str
         asr_language: json
             .get("asr_language")
             .and_then(|v| v.as_str())
-            .map(crate::r#const::lang::Language::from),
+            .map(crate::r#const::lang::LangCode::from),
         target_language: json
             .get("target_language")
             .and_then(|v| v.as_str())

@@ -4,7 +4,7 @@
 //! split_audio.vadAlign; Rust 侧没有该全局 singleton, 改为从 [`crate::context::WorkflowState`]
 //! 的 `input` (已是 JSON Value) 解析相同字段。
 
-use crate::context::WorkflowState;
+use crate::state::WorkflowState;
 use crate::workflows::args::{StepName, SubtitleSource};
 
 /// 所有合法 step 名 (镜像 TS `stepsList`)
@@ -159,9 +159,9 @@ pub fn get_steps(ctx: &WorkflowState) -> anyhow::Result<Vec<StepName>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::read_ctx_from_value;
-    use strum::IntoEnumIterator;
+    use crate::state::read_ctx_from_value;
     use serde_json::json;
+    use strum::IntoEnumIterator;
 
     fn ctx(pipeline: &str, input: serde_json::Value) -> WorkflowState {
         let mut ctx = read_ctx_from_value(input).unwrap();
@@ -246,7 +246,8 @@ mod tests {
         got.sort();
 
         assert_eq!(
-            got, expected,
+            got,
+            expected,
             "DEPENDENCIES.md 的 step 小节与 ALL_STEPS 不一致：\n\
              缺文档 = {missing:?}\n\
              多余文档 = {extra:?}",
@@ -376,10 +377,7 @@ mod tests {
             }))
             .expect_err(&format!("\"{bad}\" 应被 Input 反序列化拒绝"));
             let msg = err.to_string();
-            assert!(
-                msg.contains(bad),
-                "错误信息应点名非法值 {bad}: {msg}"
-            );
+            assert!(msg.contains(bad), "错误信息应点名非法值 {bad}: {msg}");
             assert!(
                 msg.contains("asr") && msg.contains("sf_ocr") && msg.contains("asr_ocr"),
                 "错误信息应列出全部合法值（从 VARIANTS 生成）: {msg}"

@@ -19,14 +19,15 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use crate::context::WorkflowState;
+use crate::state::WorkflowState;
 use crate::steps::translate::out::{TranslateResult, TranslateResultMeta, TranslateSegment};
 use crate::steps::translate::prompts::{build_preprocess_prompt, build_translate_system, MetaView};
 use crate::steps::utils::{
-    lang_name,     now_iso, resolve_language, set_step_anyhow, translation_partial_path, StepPatch, StepStatus,
+    lang_name, now_iso, resolve_language, set_step_anyhow, translation_partial_path, StepPatch,
+    StepStatus,
 };
-use config_rs::env::openai_api_key;
 use crate::utils::file_ops::write_json_pretty;
+use config_rs::env::openai_api_key;
 
 /// 读视频元信息 → [`MetaView`]。
 ///
@@ -213,8 +214,7 @@ pub fn step_translate(ctx: &WorkflowState) -> anyhow::Result<()> {
             input.srt_path().display()
         ));
     }
-    let srt_segments: Vec<Value> =
-        serde_json::from_value(serde_json::to_value(&srt_segs)?)?;
+    let srt_segments: Vec<Value> = serde_json::from_value(serde_json::to_value(&srt_segs)?)?;
     let texts: Vec<String> = srt_segs.iter().map(|s| s.text.trim().to_string()).collect();
 
     let dsts: Vec<Option<String>> = if !args.enabled {
@@ -268,8 +268,7 @@ pub fn step_translate(ctx: &WorkflowState) -> anyhow::Result<()> {
         // 把 partial 中已完成 batch 的已译句回填到 dsts (缺失句 dst=None 仍待翻)
         let mut dsts: Vec<Option<String>> = vec![None; texts.len()];
         {
-            let mut by_batch:
-                std::collections::HashMap<usize, Vec<&out::TranslatePartialSegment>> =
+            let mut by_batch: std::collections::HashMap<usize, Vec<&out::TranslatePartialSegment>> =
                 std::collections::HashMap::new();
             for ps in partial_segs.iter() {
                 by_batch.entry(ps.batch_index).or_default().push(ps);
@@ -411,14 +410,14 @@ pub fn step_translate(ctx: &WorkflowState) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::read_ctx_from_value;
+    use crate::state::read_ctx_from_value;
     use serde_json::json;
 
     fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowState {
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.workflow.video_dir = dir.to_string();
         ctx.output_mode = "dub".to_string();
-        ctx.asr_language = Some(crate::r#const::lang::Language::from("zh"));
+        ctx.asr_language = Some(crate::r#const::lang::LangCode::from("zh"));
         ctx
     }
 
@@ -497,7 +496,7 @@ mod tests {
                 "input": {}
             }),
         );
-        crate::context::write_ctx(&dir, &ctx).unwrap();
+        crate::state::write_ctx(&dir, &ctx).unwrap();
         let res = step_translate(&ctx);
         let err = res.expect_err("缺 srt.json 必须报错");
         let msg = err.to_string();
@@ -545,7 +544,9 @@ mod tests {
             // 先落 srt.json（from_state 对缺失文件 fail-fast）。
             std::fs::create_dir_all(std::path::Path::new(&dir).join(producer_dir)).unwrap();
             crate::steps::utils::write_srt_json(
-                &std::path::Path::new(&dir).join(producer_dir).join("srt.json"),
+                &std::path::Path::new(&dir)
+                    .join(producer_dir)
+                    .join("srt.json"),
                 &[subtitle::SubtitleSegment {
                     text: "t".into(),
                     start_ms: 0,
@@ -562,8 +563,8 @@ mod tests {
                     "input": {"workflow": {"subtitleSource": source}}
                 }),
             );
-            let input = args::TranslateInput::from_state(&ctx)
-                .unwrap_or_else(|e| panic!("{source}: {e}"));
+            let input =
+                args::TranslateInput::from_state(&ctx).unwrap_or_else(|e| panic!("{source}: {e}"));
             assert!(
                 input.srt_path().to_string_lossy().ends_with(expected),
                 "{source} 应解析到 {expected}, 实际 {:?}",
@@ -682,8 +683,8 @@ mod tests {
     fn translate_segment_requires_idx() {
         let missing = r#"{"segments":[{"text":"a","dst":"b","start_ms":0,"end_ms":1}],
                           "meta":{"src_lang":"zh","target_lang":"vi"}}"#;
-        let err = serde_json::from_str::<TranslateResult>(missing)
-            .expect_err("缺 idx 应反序列化失败");
+        let err =
+            serde_json::from_str::<TranslateResult>(missing).expect_err("缺 idx 应反序列化失败");
         assert!(
             err.to_string().contains("idx"),
             "错误应点明缺的是 idx, 实际: {err}"
@@ -828,7 +829,7 @@ mod tests {
         );
         // ctx.json 落盘，内容为 zh
         ctx.target_language = Some("zh".to_string());
-        crate::context::write_ctx(&dir, &ctx).unwrap();
+        crate::state::write_ctx(&dir, &ctx).unwrap();
 
         let input = args::TranslateInput::from_state(&ctx).expect("from_state 不该失败");
 
@@ -840,7 +841,7 @@ mod tests {
         // ② **关键**：调 resolve_language 之后，磁盘上的 ctx.json 必须**没变**。
         //    这是「纯函数」的实质保障——若有人把写回塞回 resolve_language，
         //    这条会红。分叉之所以不再有害，全靠这一步不写盘。
-        let after = crate::context::read_ctx(&dir).unwrap();
+        let after = crate::state::read_ctx(&dir).unwrap();
         assert_eq!(
             after.target_language.as_deref(),
             Some("zh"),
@@ -849,7 +850,7 @@ mod tests {
 
         // ③ 显式落盘才改（这是 translate 唯一的写点）
         crate::steps::utils::persist_target_language(&dir, &resolved).unwrap();
-        let persisted = crate::context::read_ctx(&dir).unwrap();
+        let persisted = crate::state::read_ctx(&dir).unwrap();
         assert_eq!(persisted.target_language.as_deref(), Some("vi"));
 
         let _ = std::fs::remove_dir_all(&dir);

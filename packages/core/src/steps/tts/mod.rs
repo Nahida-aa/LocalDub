@@ -17,7 +17,7 @@ use std::path::Path;
 
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::context::WorkflowState;
+use crate::state::WorkflowState;
 use crate::steps::split_audio::out::SplitAudioTimingResult;
 use crate::steps::tts::args::{TtsArgs, TtsInput, TtsRuntime};
 use crate::steps::tts::out::{TtsSegment, TtsSegmentsResult};
@@ -436,8 +436,7 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
     }
     pb.finish();
 
-    ensure_parent_dir(tts_path.as_path())
-        .map_err(|e| anyhow::anyhow!("创建目录失败: {e}"))?;
+    ensure_parent_dir(tts_path.as_path()).map_err(|e| anyhow::anyhow!("创建目录失败: {e}"))?;
     let result = TtsSegmentsResult {
         segments: tts_segments,
     };
@@ -464,7 +463,7 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::read_ctx_from_value;
+    use crate::state::read_ctx_from_value;
     use serde_json::json;
 
     fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowState {
@@ -519,7 +518,7 @@ mod tests {
                 "input": {}
             }),
         );
-        crate::context::write_ctx(&dir, &ctx).unwrap();
+        crate::state::write_ctx(&dir, &ctx).unwrap();
         let res = step_tts(&ctx);
         assert!(res.is_err());
         assert!(

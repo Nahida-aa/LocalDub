@@ -3,7 +3,7 @@
 //!
 //! 镜像 TS `packages/core/steps/separate/after.ts` (stepSeparateAfter), 纯 ffmpeg 编排。
 
-use crate::context::WorkflowState;
+use crate::state::WorkflowState;
 use crate::steps::asr::args::AsrArgs;
 use crate::steps::utils::{
     ffmpeg, now_iso, separate_after_dir, separate_dir, set_step_anyhow, StepPatch, StepStatus,
@@ -175,7 +175,7 @@ pub fn step_separate_after(ctx: &WorkflowState) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::read_ctx_from_value;
+    use crate::state::read_ctx_from_value;
     use serde_json::json;
 
     fn ffmpeg_available() -> bool {
@@ -234,7 +234,7 @@ mod tests {
                                             "reduceBgm": -12, "useGate": true}}}
             }),
         );
-        crate::context::write_ctx(&dir, &ctx).unwrap();
+        crate::state::write_ctx(&dir, &ctx).unwrap();
 
         let res = step_separate_after(&ctx);
         assert!(res.is_ok(), "separate_after 失败: {:?}", res.err());
@@ -256,7 +256,7 @@ mod tests {
             "useGate=true 时 target_3_vocals_gated.wav 应生成"
         );
 
-        let reread = crate::context::read_ctx(&dir).unwrap();
+        let reread = crate::state::read_ctx(&dir).unwrap();
         let st = reread.steps.unwrap();
         assert_eq!(st[0].name, "separate_after");
         assert_eq!(st[0].status, StepStatus::Success);

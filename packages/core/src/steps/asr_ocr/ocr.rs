@@ -4,7 +4,7 @@
 //! Writes `<videoDir>/asr_ocr/frames.json` (OcrFramesResult).
 
 use crate::cmd::env::ensure_bin;
-use crate::context::WorkflowState;
+use crate::state::WorkflowState;
 use crate::steps::asr_ocr::args::AsrOcrArgs;
 use crate::steps::utils::{
     asr_ocr_dir, asr_ocr_pre_dir, now_iso, set_step_anyhow, StepPatch, StepStatus,
@@ -115,7 +115,7 @@ pub fn step_asr_ocr(ctx: &WorkflowState) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::read_ctx_from_value;
+    use crate::state::read_ctx_from_value;
     use serde_json::json;
 
     fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowState {
@@ -141,7 +141,7 @@ mod tests {
                 "input": {}
             }),
         );
-        crate::context::write_ctx(&dir, &ctx).unwrap();
+        crate::state::write_ctx(&dir, &ctx).unwrap();
         let res = step_asr_ocr(&ctx);
         assert!(res.is_err());
         assert!(

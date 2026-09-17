@@ -9,7 +9,7 @@ pub mod out;
 
 use std::path::Path;
 
-use crate::context::WorkflowState;
+use crate::state::WorkflowState;
 use crate::steps::mix_audio::out::{MixAudioOutputTimings, Timing};
 use crate::steps::split_audio::out::SplitAudioTimingResult;
 use crate::steps::utils::paths::mix_audio::TimingsPath;
@@ -278,7 +278,7 @@ pub fn step_mix_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::read_ctx_from_value;
+    use crate::state::read_ctx_from_value;
     use serde_json::json;
 
     fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowState {

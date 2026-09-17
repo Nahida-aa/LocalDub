@@ -9,7 +9,7 @@
 //! 目前 `run_step` 已注册 separate / separate_after / sf_ocr* / translate / split_audio /
 //! asr / asr_fix / tts / mix_audio / mix_video; 后续阶段 (asr_ocr*) 移植后在此登记即可。
 
-use crate::context::read_ctx;
+use crate::state::read_ctx;
 use crate::steps::asr::fix::step_asr_fix;
 use crate::steps::asr::step_asr;
 use crate::steps::asr_ocr::{fix::step_asr_ocr_fix, ocr::step_asr_ocr, pre::step_asr_ocr_pre};
@@ -170,7 +170,7 @@ pub fn run_step(step: StepName, video_dir: &str) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::read_ctx_from_value;
+    use crate::state::read_ctx_from_value;
     use serde_json::json;
 
     /// 构造一个写好 ctx.json 的临时 workflow 目录
@@ -178,7 +178,7 @@ mod tests {
         dir: &str,
         input: serde_json::Value,
         output_mode: &str,
-    ) -> crate::context::WorkflowState {
+    ) -> crate::state::WorkflowState {
         std::fs::create_dir_all(dir).unwrap();
         let mut ctx = read_ctx_from_value(input).unwrap();
         ctx.workflow.video_dir = dir.to_string();
@@ -187,7 +187,7 @@ mod tests {
         // 模拟 import 已跑过：subtitle 序列现恒含 split_audio，无 vocals stem 时它
         // 回退到 audio_source.wav，缺失即报错（文件本身不必存在，probe 失败按 0 处理）。
         ctx.audio_source_path = Some(format!("{dir}/audio_source.wav"));
-        crate::context::write_ctx(dir, &ctx).unwrap();
+        crate::state::write_ctx(dir, &ctx).unwrap();
         // split_audio 会读 translate 产物；本测试禁用了 asr/asr_fix，translate 直通
         // 无内容可搬会写出空产物，split_audio 随即 fail-fast。故给 translate 的
         // **输入**（subtitleSource=asr → asr_fix/srt.json）造假数据，直通原样带出。
@@ -238,11 +238,11 @@ mod tests {
         let res = run_pipeline(&dir);
         assert!(res.is_ok(), "run_pipeline 不应失败: {:?}", res.err());
 
-        let reread = crate::context::read_ctx(&dir).unwrap();
+        let reread = crate::state::read_ctx(&dir).unwrap();
         assert_eq!(reread.workflow.status, "success");
         let st = reread.steps.unwrap();
         // subtitle 默认序列里 separate / separate_after 已注册 handler, 其余跳过
-        let by_name: std::collections::HashMap<&str, &crate::context::WorkflowStep> =
+        let by_name: std::collections::HashMap<&str, &crate::state::WorkflowStep> =
             st.iter().map(|s| (s.name.as_str(), s)).collect();
         assert_eq!(by_name["separate"].status, StepStatus::Success);
         assert_eq!(by_name["separate_after"].status, StepStatus::Success);
@@ -270,7 +270,7 @@ mod tests {
         );
         let res = run_pipeline(&dir);
         assert!(res.is_ok(), "run_pipeline 不应失败: {:?}", res.err());
-        let reread = crate::context::read_ctx(&dir).unwrap();
+        let reread = crate::state::read_ctx(&dir).unwrap();
         // 仅一个 step (subtitle 默认 omit split_audio), targetStep=separate 命中即停
         assert_eq!(reread.workflow.status, "success");
         let _ = std::fs::remove_dir_all(&dir);

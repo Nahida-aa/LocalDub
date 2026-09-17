@@ -1,7 +1,7 @@
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 
-use crate::r#const::lang::TargetLang;
+use crate::r#const::lang::Language;
 
 /// 任务操作 (serde 与 clap 参数值统一为 snake_case)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type, ValueEnum)]
@@ -131,7 +131,7 @@ impl OutputMode {
     ///
     /// 空串按 `#[default]`（Dub）兜底（与 `read_ctx_from_value` / `WorkflowArgs` 默认一致）；
     /// 未知值报错（fail-fast，期望列表由 `VARIANTS` 生成，加变体自动更新）。
-    pub fn from_state(state: &crate::context::WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(state: &crate::state::WorkflowState) -> anyhow::Result<Self> {
         use strum::VariantNames;
         let s = state.output_mode.trim();
         if s.is_empty() {
@@ -209,7 +209,7 @@ impl SubtitleSource {
     /// `subtitle_source` 为枚举值，不可能出现「未知来源」——该 fail-fast 已上移到
     /// `Input` 反序列化阶段（CLI/RPC 请求解析）。此处仅在 `workflow` 缺失时回退
     /// 默认 `Asr`（`#[default]`），保持与原 `unwrap_or("asr")` 一致。
-    pub fn from_state(ctx: &crate::context::WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(ctx: &crate::state::WorkflowState) -> anyhow::Result<Self> {
         Ok(ctx
             .input
             .workflow
@@ -227,8 +227,8 @@ pub struct WorkflowArgs {
     pub action: Option<WorkflowAction>,
     /// 本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl
     pub url: Option<String>,
-    pub source_lang: Option<crate::r#const::lang::Language>,
-    pub target_lang: Option<TargetLang>,
+    pub source_lang: Option<crate::r#const::lang::LangCode>,
+    pub target_lang: Option<Language>,
     /// 继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始
     pub continue_from: Option<StepName>,
     /// 目标步骤, output_mode 跑到此步骤后自动停止, 不指定则跑完所有步骤
@@ -335,7 +335,7 @@ mod strum_sync_tests {
 
     #[test]
     fn output_mode_from_state_reads_fact() {
-        use crate::context::read_ctx_from_value;
+        use crate::state::read_ctx_from_value;
         use serde_json::json;
 
         let mk = |output_mode: Option<&str>| {
@@ -365,7 +365,7 @@ mod strum_sync_tests {
 
     #[test]
     fn output_mode_from_input_reads_typed_field() {
-        use crate::context::read_ctx_from_value;
+        use crate::state::read_ctx_from_value;
         use serde_json::json;
 
         let mk = |output_mode: Option<&str>| {
