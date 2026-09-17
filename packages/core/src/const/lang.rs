@@ -24,13 +24,6 @@ pub enum Language {
     Lo, Mn, Ne, Ur, Bn,
 }
 
-impl Language {
-    /// 语言码（与 serde 名一致: "zh" / "en" / "ja" ...）。
-    pub fn as_str(self) -> &'static str {
-        self.into()
-    }
-}
-
 /// 兜底目标语言（目标语言 auto 推断失败 / 未配置时用 zh）。
 pub const DEFAULT_LANG: Language = Language::Zh;
 
@@ -65,7 +58,7 @@ impl LangCode {
 
 impl From<Language> for LangCode {
     fn from(t: Language) -> Self {
-        Self(t.as_str().to_string())
+        Self(Into::<&'static str>::into(t).to_string())
     }
 }
 

@@ -62,7 +62,7 @@ impl TargetLang {
     }
 
     pub fn code(self) -> &'static str {
-        self.0.as_str()
+        self.0.into()
     }
 
     pub fn into_inner(self) -> Language {

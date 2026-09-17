@@ -171,7 +171,7 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowState> {
         video_source_path: Some(downloaded.video_path.clone()),
         audio_source_path: Some(downloaded.audio_path.clone()),
         asr_language: args.source_lang.clone(),
-        target_language: args.target_lang.map(|l| l.as_str().to_string()),
+        target_language: args.target_lang.map(|l| Into::<&'static str>::into(l).to_string()),
     };
 
     write_ctx(&video_dir.to_string_lossy(), &ctx).map_err(anyhow::Error::msg)?;
