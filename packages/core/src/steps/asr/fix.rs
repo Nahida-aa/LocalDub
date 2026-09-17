@@ -3,11 +3,11 @@
 use anyhow::{anyhow, Context};
 
 use crate::state::WorkflowState;
-use crate::steps::asr::fix_args::AsrFixArgs;
+use crate::steps::asr::fix_args::{AsrFixArgs, AsrFixInput};
 use crate::steps::asr::out::AsrResult;
 use crate::steps::utils::paths::{asr_fix, SrtJsonPath};
 use crate::steps::utils::{
-    asr_dir, ensure_dir, now_iso, resolve_language, set_step_anyhow, StepPatch, StepStatus,
+    ensure_dir, now_iso, resolve_language, set_step_anyhow, StepPatch, StepStatus,
 };
 
 /// 读取 asr_fix 配置 (缺省用 AsrFixArgs::default)。
@@ -26,9 +26,11 @@ pub fn step_asr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
     // asr_fix 目录平级于 video_dir (镜像 TS `join(videoDir, "asr_fix")`),
     // 与权威字幕路径 (utils::subtitle_path 的 videoDir/asr_fix) 保持一致。
     let asr_fix_dir = std::path::Path::new(&video_dir).join("asr_fix");
+    let input = AsrFixInput::from_video_dir(&video_dir);
     let asr_file = args.asr_file_path.clone().unwrap_or_else(|| {
-        asr_dir(&video_dir)
-            .join("asr.json")
+        input
+            .asr_json_path
+            .as_path()
             .to_string_lossy()
             .to_string()
     });

@@ -167,10 +167,27 @@ pub mod separate_after {
     pub type Target3VocalsMixedPath = PathBuf;
 }
 
-mod asr {
+/// asr 步骤产出的识别结果 `asr/asr.json`（asr_fix 的跨步骤输入）。
+///
+/// 字段私有：路径只能经 [`AsrJsonPath::new`] 构造，拼法只有一个来源，
+/// 与 `sf_ocr::FramesPath` / `asr_fix::SrtPath` 同款 provenance 设计。
+/// 产出方 (`step_asr`) 与消费者 (`AsrFixInput`) 共用同一 `new`，避免拼法分叉。
+pub mod asr {
     use super::*;
-    // asr/asr.json
-    pub type AsrPath = PathBuf;
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct AsrJsonPath(PathBuf);
+
+    impl AsrJsonPath {
+        /// `{video_dir}/asr/asr.json`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(Path::new(video_dir.as_ref()).join("asr").join("asr.json"))
+        }
+
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
 }
 
 /// 规范化字幕产物的共同契约 `{step}/srt.json`。

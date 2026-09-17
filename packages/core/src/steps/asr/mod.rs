@@ -17,6 +17,7 @@ use config_rs::path::models::whisper_model_path;
 use crate::state::{write_ctx, WorkflowState};
 use crate::steps::asr::args::{AsrArgs, VadModel};
 use crate::steps::asr::out::*;
+use crate::steps::utils::paths::asr::AsrJsonPath;
 use crate::steps::utils::{
     asr_dir, ensure_dir, ffmpeg, gated_vocals_path, mixed_vocals_path, now_iso, set_step_anyhow,
     video_source_path, vocals_path, StepPatch, StepStatus,
@@ -322,8 +323,8 @@ pub fn step_asr(ctx: &WorkflowState) -> anyhow::Result<()> {
         },
     };
 
-    // 写回 asr/asr.json
-    let asr_file = audio_dir.join("asr.json");
+    // 写回 asr/asr.json（与 AsrFixInput 共用 AsrJsonPath::new，拼法单一来源）
+    let asr_file = AsrJsonPath::new(&video_dir).as_path().to_path_buf();
     let json = serde_json::to_string_pretty(&asr_output)
         .map_err(|e| anyhow!("序列化 asr 结果失败: {e}"))?;
     std::fs::write(&asr_file, json).with_context(|| format!("写入 {} 失败", asr_file.display()))?;
