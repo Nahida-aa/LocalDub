@@ -164,7 +164,43 @@ pub mod separate_after {
         }
     }
     // separate_after/target_3_vocals_mixed.wav
-    pub type Target3VocalsMixedPath = PathBuf;
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Target3VocalsMixedPath(PathBuf);
+
+    impl Target3VocalsMixedPath {
+        /// 唯一拼法来源：`{video_dir}/separate_after/target_3_vocals_mixed.wav`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(
+                Path::new(video_dir.as_ref())
+                    .join("separate_after")
+                    .join("target_3_vocals_mixed.wav"),
+            )
+        }
+
+        /// 本类型承诺的路径访问器（与 `SrtPath` / `Target3VocalsPath` 同签名）。
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
+    // separate_after/target_3_vocals_gated.wav
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct GatedVocalsPath(PathBuf);
+
+    impl GatedVocalsPath {
+        /// 唯一拼法来源：`{video_dir}/separate_after/target_3_vocals_gated.wav`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(
+                Path::new(video_dir.as_ref())
+                    .join("separate_after")
+                    .join("target_3_vocals_gated.wav"),
+            )
+        }
+
+        /// 本类型承诺的路径访问器（与 `SrtPath` / `Target3VocalsPath` 同签名）。
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
 }
 
 /// asr 步骤产出的识别结果 `asr/asr.json`（asr_fix 的跨步骤输入）。

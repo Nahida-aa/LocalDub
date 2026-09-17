@@ -4,6 +4,8 @@
 //! `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`
 //! 以保证两种路径下默认值一致 (与 `input::steps::Asr` 同款处理)。
 
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 
 /// asr 推理运行时。
@@ -220,4 +222,65 @@ fn default_temperature() -> f64 {
 
 fn default_max_len() -> u32 {
     0
+}
+
+use crate::state::WorkflowState;
+use crate::steps::utils::paths::{separate, separate_after, VideoSourcePath};
+use anyhow::Result;
+
+/// asr 实际只转写**一路**音源, 但具体取哪路由 `cfg`
+/// (`useSeparated` / `vocalAudioPath`) 决定。把「可能的跨步骤音源」穷举成枚举,
+/// 既如实反映 DAG 读集(import / separate / separate_after), 又让 step 体内只做一次
+/// 存在性仲裁(见 `step_asr`)。
+#[derive(Debug)]
+pub enum AsrSourceAudioPath {
+    /// 调试覆盖路径(`cfg.vocalAudioPath`), 非跨步骤产物, 手工指定。
+    Custom(PathBuf),
+    /// `useSeparated=true`: 来自 separate / separate_after 的人声。
+    /// 具体取 vocals / mixed / gated 由 step 按存在性仲裁(与 TS `stepAsr` 一致)。
+    Separated {
+        /// separate/target_3_vocals.wav(纯人声, 兜底)。
+        vocals: separate::Target3VocalsPath,
+        /// separate_after/target_3_vocals_mixed.wav(混音人声, 优先)。
+        mixed: separate_after::Target3VocalsMixedPath,
+        /// separate_after/target_3_vocals_gated.wav(gate 人声, 优先于 mixed)。
+        gated: separate_after::GatedVocalsPath,
+    },
+    /// `useSeparated=false`: 来自 import 的原视频音源 `video_source.mp4`
+    /// (TS 侧 `stepAsr` 直接拿 video_source 当音频源转写)。
+    Raw(VideoSourcePath),
+}
+
+/// asr 步骤的跨步骤依赖清单(代码即 DAG 视角)。
+///
+/// 与 `AsrOcrPreInput` 等兄弟 `*Input` 同款定位: 只声明**被消费的跨步骤产物**,
+/// 自身的输出(`asr/asr.json`)、`*Args::from_input`、以及 `VideoSourcePath::from_state`
+/// 另行获取。此处因音源是「多选一」, 用枚举而非扁平字段表达读集。
+pub struct AsrInput {
+    pub audio_path: AsrSourceAudioPath,
+}
+
+impl AsrInput {
+    /// 纯声明: 仅依据 `cfg` 选枚举分支, 不触碰磁盘(存在性仲裁留给 step 体)。
+    ///
+    /// `vocalAudioPath` 仅在 `useSeparated=true` 时生效(覆盖 separate 的人声),
+    /// 与 `stepAsr` 原逻辑一致; `useSeparated=false` 时忽略它、走 `video_source`。
+    pub fn from_state(state: &WorkflowState) -> Result<Self> {
+        let cfg = AsrArgs::from_input(&state.input);
+        let video_dir = &state.workflow.video_dir;
+        let audio_path = if cfg.use_separated {
+            if let Some(p) = cfg.vocal_audio_path.clone() {
+                AsrSourceAudioPath::Custom(PathBuf::from(p))
+            } else {
+                AsrSourceAudioPath::Separated {
+                    vocals: separate::Target3VocalsPath::new(video_dir),
+                    mixed: separate_after::Target3VocalsMixedPath::new(video_dir),
+                    gated: separate_after::GatedVocalsPath::new(video_dir),
+                }
+            }
+        } else {
+            AsrSourceAudioPath::Raw(VideoSourcePath::from_state(state)?)
+        };
+        Ok(Self { audio_path })
+    }
 }

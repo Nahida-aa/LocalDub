@@ -8,28 +8,18 @@ pub mod fix;
 pub mod fix_args;
 pub mod out;
 
-use std::path::PathBuf;
 use std::process::Command;
 
 use anyhow::{anyhow, Context};
 use config_rs::path::models::whisper_model_path;
 
 use crate::state::{write_ctx, WorkflowState};
-use crate::steps::asr::args::{AsrArgs, VadModel};
+use crate::steps::asr::args::{AsrArgs, AsrInput, AsrSourceAudioPath, VadModel};
 use crate::steps::asr::out::*;
 use crate::steps::utils::paths::asr;
 use crate::steps::utils::{
-    asr_dir, ensure_dir, ffmpeg, gated_vocals_path, mixed_vocals_path, now_iso, set_step_anyhow,
-    video_source_path, vocals_path, StepPatch, StepStatus,
+    asr_dir, ensure_dir, ffmpeg, now_iso, set_step_anyhow, StepPatch, StepStatus,
 };
-
-/// 解析 ASR 人声基线路径 (镜像 TS asr.ts:30: vocalAudioPath 覆盖默认 vocals 路径)。
-fn resolve_audio_vocal(cfg: &AsrArgs, video_dir: &str) -> PathBuf {
-    cfg.vocal_audio_path
-        .clone()
-        .map(PathBuf::from)
-        .unwrap_or_else(|| vocals_path(video_dir))
-}
 
 /// 入口 (镜像 TS `stepAsr`)。
 pub fn step_asr(ctx: &WorkflowState) -> anyhow::Result<()> {
@@ -54,36 +44,33 @@ pub fn step_asr(ctx: &WorkflowState) -> anyhow::Result<()> {
     }
 
     // —— 解析输入音频 (镜像 TS stepAsr 的 useSeparated / mixed / gated 逻辑) ——
-    let audio_vocal = resolve_audio_vocal(&cfg, &video_dir);
-    let video_source = video_source_path(ctx)?;
+    // 跨步骤音源清单见 `AsrInput`：非分离走 import 的 video_source，分离走
+    // separate / separate_after 的人声（gated > mixed > vocals 按存在性仲裁）。
+    let input = AsrInput::from_state(ctx)?;
 
-    let mut audio_path: String = if cfg.use_separated {
-        audio_vocal.to_string_lossy().to_string()
-    } else {
-        video_source.clone()
+    let (audio_path, using_premixed): (String, bool) = match &input.audio_path {
+        AsrSourceAudioPath::Custom(p) => (p.to_string_lossy().to_string(), false),
+        AsrSourceAudioPath::Raw(v) => (v.as_path().to_string_lossy().to_string(), false),
+        AsrSourceAudioPath::Separated { vocals, mixed, gated } => {
+            // 优先取 separate_after 的 gate / 混音产物，都没有则退回 separate 的纯人声。
+            if gated.as_path().exists() {
+                (gated.as_path().to_string_lossy().to_string(), true)
+            } else if mixed.as_path().exists() {
+                (mixed.as_path().to_string_lossy().to_string(), true)
+            } else {
+                (vocals.as_path().to_string_lossy().to_string(), false)
+            }
+        }
     };
     if !std::path::Path::new(&audio_path).exists() {
         return Err(anyhow!(
-            "ASR input not found: {audio_path}; 如果 asr.useSeparated=true, 请确保 target_3_vocals.wav 存在；如果 asr.useSeparated=false, 请确保 video_source 存在"
+            "ASR input not found: {audio_path}; 如果 asr.useSeparated=true, 请确保 target_3_vocals.wav 存在；如果 asr.useSeparated=false, 请确保 audio_source 存在"
         ));
     }
-
-    if cfg.use_separated {
-        let mixed = mixed_vocals_path(&video_dir);
-        let gated = gated_vocals_path(&video_dir);
-        let mixed_or_gated = if gated.exists() {
-            Some(gated)
-        } else if mixed.exists() {
-            Some(mixed)
-        } else {
-            None
-        };
-        if let Some(p) = mixed_or_gated {
-            audio_path = p.to_string_lossy().to_string();
-            tracing::info!(target: "asr", "Using pre-mixed audio: {audio_path}");
-        } else {
-            tracing::info!(target: "asr", "No mixed audio found, using vocals-only");
-        }
+    if using_premixed {
+        tracing::info!(target: "asr", "Using pre-mixed audio: {audio_path}");
+    } else if matches!(&input.audio_path, AsrSourceAudioPath::Separated { .. }) {
+        tracing::info!(target: "asr", "No mixed audio found, using vocals-only");
     }
 
     let runtime = "ggml";
@@ -577,7 +564,7 @@ mod tests {
         let ctx = test_ctx(json!({
             "workflow": {"id":"t","video_dir":"/nonexistent_video_dir","url":"http://e","source":"remote",
                      "status":"running","created_at":"2024-01-01T00:00:00Z"},
-            "video_source_path": "/nonexistent_video.mp4",
+            "video_source_path": "/nonexistent_video.mp3",
             "input": {"steps": {"asr": {"enabled": true, "useSeparated": false}}}
         }));
         let r = step_asr(&ctx);
@@ -586,15 +573,45 @@ mod tests {
     }
 
     #[test]
-    fn resolve_audio_vocal_uses_vocal_audio_path_when_set() {
-        // 镜像 TS asr.ts:30: vocalAudioPath 覆盖默认 vocals 路径 (调试用途)
-        let mut cfg = AsrArgs::default();
-        cfg.vocal_audio_path = Some("/custom/vocals.wav".into());
-        let p = resolve_audio_vocal(&cfg, "/taskdir");
-        assert_eq!(p, PathBuf::from("/custom/vocals.wav"));
+    fn asr_input_resolves_audio_source_by_cfg() {
+        // 镜像 TS asr.ts:30: vocalAudioPath 仅在 useSeparated=true 时覆盖 separate 人声;
+        // useSeparated=false 时忽略它、走 import 的 video_source。
+        let base_wf = json!({
+            "workflow": {"id":"t","video_dir":"/nonexistent_video_dir","url":"http://e","source":"remote",
+                     "status":"running","created_at":"2024-01-01T00:00:00Z"}
+        });
+        let ctx_sep_custom = test_ctx(json!({
+            "workflow": base_wf["workflow"],
+            "video_source_path": "/nonexistent.mp4",
+            "input": {"steps": {"asr": {"useSeparated": true, "vocalAudioPath": "/custom/vocals.wav"}}}
+        }));
+        match AsrInput::from_state(&ctx_sep_custom).unwrap().audio_path {
+            AsrSourceAudioPath::Custom(p) => {
+                assert_eq!(p, std::path::PathBuf::from("/custom/vocals.wav"))
+            }
+            other => panic!("useSeparated+custom 应产出 Custom, 实际 {other:?}"),
+        }
 
-        let cfg = AsrArgs::default();
-        let p = resolve_audio_vocal(&cfg, "/taskdir");
-        assert_eq!(p, vocals_path("/taskdir"));
+        let ctx_sep = test_ctx(json!({
+            "workflow": base_wf["workflow"],
+            "video_source_path": "/nonexistent.mp4",
+            "input": {"steps": {"asr": {"useSeparated": true}}}
+        }));
+        match AsrInput::from_state(&ctx_sep).unwrap().audio_path {
+            AsrSourceAudioPath::Separated { .. } => {}
+            other => panic!("useSeparated 应产出 Separated, 实际 {other:?}"),
+        }
+
+        let ctx_raw = test_ctx(json!({
+            "workflow": base_wf["workflow"],
+            "video_source_path": "/nonexistent.mp4",
+            "input": {"steps": {"asr": {"useSeparated": false}}}
+        }));
+        match AsrInput::from_state(&ctx_raw).unwrap().audio_path {
+            AsrSourceAudioPath::Raw(p) => {
+                assert_eq!(p.as_path(), std::path::Path::new("/nonexistent.mp4"))
+            }
+            other => panic!("useSeparated=false 应产出 Raw, 实际 {other:?}"),
+        }
     }
 }
