@@ -7,9 +7,8 @@
 use crate::cmd::env::ensure_bin;
 use crate::context::WorkflowState;
 use crate::steps::sf_ocr::args::SfOcrArgs;
-use crate::steps::utils::{
-    now_iso, set_step_anyhow, sf_ocr_dir, sf_ocr_pre_dir, StepPatch, StepStatus,
-};
+use crate::steps::utils::paths::sf_ocr;
+use crate::steps::utils::{now_iso, set_step_anyhow, sf_ocr_pre_dir, StepPatch, StepStatus};
 use std::process::Command;
 
 /// 入口 (镜像 TS `stepSfOcr`)。
@@ -43,14 +42,19 @@ pub fn step_sf_ocr(ctx: &WorkflowState) -> anyhow::Result<()> {
         )
     })?;
 
-    let out_dir = sf_ocr_dir(&video_dir);
-    std::fs::create_dir_all(&out_dir)
-        .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", out_dir.display(), e))?;
-    let out_file = out_dir.join("frames.json");
+    let frames_file = sf_ocr::FramesPath::new(&video_dir);
+    std::fs::create_dir_all(sf_ocr::FramesPath::dir(&video_dir))
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "创建 {} 失败: {}",
+                sf_ocr::FramesPath::dir(&video_dir).display(),
+                e
+            )
+        })?;
 
     let mut cmd = Command::new(&bin);
     cmd.arg("--dir").arg(&frame_dir);
-    cmd.arg("--out").arg(&out_file);
+    cmd.arg("--out").arg(frames_file.as_path());
     cmd.arg("--text-confidence-threshold");
     cmd.arg(cfg.text_confidence_threshold.to_string());
     if cfg.subtitle_only {
@@ -60,7 +64,7 @@ pub fn step_sf_ocr(ctx: &WorkflowState) -> anyhow::Result<()> {
     tracing::info!(target: "sf_ocr",
         "subtitle-ocr --dir {} --out {} --text-confidence-threshold {} {}",
         frame_dir.display(),
-        out_file.display(),
+        frames_file.as_path().display(),
         cfg.text_confidence_threshold,
         if cfg.subtitle_only {
             "--subtitle-only"
@@ -79,10 +83,10 @@ pub fn step_sf_ocr(ctx: &WorkflowState) -> anyhow::Result<()> {
     }
 
     let data: serde_json::Value = {
-        let raw = std::fs::read_to_string(&out_file)
-            .map_err(|e| anyhow::anyhow!("读取 {} 失败: {}", out_file.display(), e))?;
+        let raw = std::fs::read_to_string(frames_file.as_path())
+            .map_err(|e| anyhow::anyhow!("读取 {} 失败: {}", frames_file.as_path().display(), e))?;
         serde_json::from_str(&raw)
-            .map_err(|e| anyhow::anyhow!("解析 {} 失败: {}", out_file.display(), e))?
+            .map_err(|e| anyhow::anyhow!("解析 {} 失败: {}", frames_file.as_path().display(), e))?
     };
     let frames = data
         .get("frames")
@@ -95,7 +99,7 @@ pub fn step_sf_ocr(ctx: &WorkflowState) -> anyhow::Result<()> {
     tracing::info!(target: "sf_ocr",
         "{} frame results -> {}",
         frames.len(),
-        out_file.display()
+        frames_file.as_path().display()
     );
 
     if cfg.cleanup_frames {

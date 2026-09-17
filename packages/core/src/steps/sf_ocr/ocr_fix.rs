@@ -8,19 +8,18 @@
 
 use crate::cmd::env::ensure_bin;
 use crate::context::WorkflowState;
-use crate::steps::sf_ocr::fix_args::OcrFixArgs;
+use crate::steps::sf_ocr::fix_args::{OcrFixArgs, SfOcrFixInput};
 use crate::steps::utils::paths::{sf_ocr_fix, SrtJsonPath};
-use crate::steps::utils::{
-    now_iso, set_step_anyhow, sf_ocr_dir, sf_ocr_fix_dir, StepPatch, StepStatus,
-};
+use crate::steps::utils::{now_iso, set_step_anyhow, StepPatch, StepStatus};
 use std::process::Command;
 
 /// 入口 (镜像 TS `stepSfOcrFix`)。
 pub fn step_sf_ocr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
     let video_dir = ctx.workflow.video_dir.clone();
+    let input = SfOcrFixInput::from_video_dir(&video_dir);
     tracing::info!(target: "sf_ocr", "start");
 
-    let frames_file = sf_ocr_dir(&video_dir).join("frames.json");
+    let frames_file = input.frames_path.as_path();
     if !frames_file.exists() {
         return Err(anyhow::anyhow!(
             "frames.json not found: {}; run sf_ocr first",
@@ -30,9 +29,9 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
     // 画面高度由 `subtitle-ocr-post` 自己从 frames.json 的 meta.video_height 读
     // (v0.1.1 起 subtitle-ocr 识别侧写入), 这里不再传 --video-height, 也不再为拿
     // 分辨率去碰 video_source_path。
-    let out_dir = sf_ocr_fix_dir(&video_dir);
-    std::fs::create_dir_all(&out_dir)
-        .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", out_dir.display(), e))?;
+    let out_dir = sf_ocr_fix::OutDir::new(&video_dir);
+    std::fs::create_dir_all(out_dir.as_path())
+        .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", out_dir.as_path().display(), e))?;
 
     let args = OcrFixArgs::from_input(&ctx.input);
 
@@ -42,11 +41,11 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
         )
     })?;
 
-    let mut post_args = vec![
+    let post_args = vec![
         "--frames".to_string(),
         frames_file.to_string_lossy().into_owned(),
         "--out".to_string(),
-        out_dir.to_string_lossy().into_owned(),
+        out_dir.as_path().to_string_lossy().into_owned(),
         "--threshold".to_string(),
         args.adjusted_confidence_threshold.to_string(),
         "--stop-at".to_string(),
@@ -64,12 +63,12 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
         ));
     }
 
-    let filter_file = out_dir.join("segment_filter.json");
+    let filter_file = sf_ocr_fix::FilterPath::new(&video_dir);
     let filtered: serde_json::Value = {
-        let raw = std::fs::read_to_string(&filter_file)
-            .map_err(|e| anyhow::anyhow!("读取 {} 失败: {}", filter_file.display(), e))?;
+        let raw = std::fs::read_to_string(filter_file.as_path())
+            .map_err(|e| anyhow::anyhow!("读取 {} 失败: {}", filter_file.as_path().display(), e))?;
         serde_json::from_str(&raw)
-            .map_err(|e| anyhow::anyhow!("解析 {} 失败: {}", filter_file.display(), e))?
+            .map_err(|e| anyhow::anyhow!("解析 {} 失败: {}", filter_file.as_path().display(), e))?
     };
     let segments = filtered
         .get("result")
@@ -83,7 +82,7 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
     );
 
     // === LLM 修正 (最后一层修复) ===
-    let llm_fix_file = out_dir.join("segment_filter_llm_fix.json");
+    let llm_fix_file = sf_ocr_fix::LlmFixPath::new(&video_dir);
     let mut final_segments = segments.clone();
     if args.llm_fix.llm_fix {
         let src_texts: Vec<String> = segments
@@ -95,7 +94,12 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
         let src_lang: crate::r#const::lang::Language = ctx
             .asr_language
             .clone()
-            .or_else(|| ctx.input.workflow.as_ref().and_then(|w| w.source_lang.clone()))
+            .or_else(|| {
+                ctx.input
+                    .workflow
+                    .as_ref()
+                    .and_then(|w| w.source_lang.clone())
+            })
             .unwrap_or_else(crate::r#const::lang::default_lang);
         let lang_label = llm::lang_label(src_lang.code());
         tracing::info!(target: "sf_ocr",
@@ -130,8 +134,8 @@ pub fn step_sf_ocr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
         });
         let s = serde_json::to_string_pretty(&out)
             .map_err(|e| anyhow::anyhow!("序列化 llm_fix 结果失败: {e}"))?;
-        std::fs::write(&llm_fix_file, s)
-            .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", llm_fix_file.display(), e))?;
+        std::fs::write(llm_fix_file.as_path(), s)
+            .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", llm_fix_file.as_path().display(), e))?;
     }
 
     // 规范化字幕产物（下游 translate/split_audio/mix_video 的唯一契约）——

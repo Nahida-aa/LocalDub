@@ -237,8 +237,92 @@ pub mod asr_fix {
     }
 }
 
+pub mod sf_ocr {
+    use super::*;
+
+    /// sf_ocr 步骤产出的逐帧 OCR 结果 `<videoDir>/sf_ocr/frames.json`。
+    ///
+    /// 产出方是 `sf_ocr` 步骤 (`step_sf_ocr`)，消费方是 `sf_ocr_fix` 步骤
+    /// (`SfOcrFixInput.frames_path`)。放在产出方模块下，与
+    /// `split_audio::VocalsDir` 被 `tts` 消费同款 provenance：跨步骤的路径类型
+    /// 归属产出方，消费方只引用。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct FramesPath(PathBuf);
+
+    impl FramesPath {
+        /// `{video_dir}/sf_ocr/frames.json`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(video_dir.as_ref().join("sf_ocr").join("frames.json"))
+        }
+
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+
+        /// 所属目录 `sf_ocr/`（产出方需先 ensure_dir）。
+        pub fn dir(video_dir: impl AsRef<Path>) -> PathBuf {
+            video_dir.as_ref().join("sf_ocr")
+        }
+    }
+}
+
 pub mod sf_ocr_fix {
     use super::*;
+
+    /// sf_ocr_fix 输出目录 `<videoDir>/sf_ocr_fix`。
+    ///
+    /// 既用于 `ensure_dir`，也作为 `--out` 传给 `subtitle-ocr-post` 二进制。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct OutDir(PathBuf);
+
+    impl OutDir {
+        /// `{video_dir}/sf_ocr_fix`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(video_dir.as_ref().join("sf_ocr_fix"))
+        }
+
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    /// `subtitle-ocr-post` 写出的中间产物 `sf_ocr_fix/segment_filter.json`。
+    ///
+    /// 这是 Rust 与二进制的交接点：二进制按自身约定命名，Rust 侧必须硬编码同名
+    /// 才能读回，故在此单源化（拼法只有一个来源，二进制改名时只改这里）。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct FilterPath(PathBuf);
+
+    impl FilterPath {
+        /// `{video_dir}/sf_ocr_fix/segment_filter.json`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(video_dir.as_ref().join("sf_ocr_fix").join("segment_filter.json"))
+        }
+
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    /// LLM 修正产物 `sf_ocr_fix/segment_filter_llm_fix.json`（仅 llmFix 时写出，无人读）。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct LlmFixPath(PathBuf);
+
+    impl LlmFixPath {
+        /// `{video_dir}/sf_ocr_fix/segment_filter_llm_fix.json`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(
+                video_dir
+                    .as_ref()
+                    .join("sf_ocr_fix")
+                    .join("segment_filter_llm_fix.json"),
+            )
+        }
+
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
 
     /// 规范化字幕产物 `sf_ocr_fix/srt.json`。
     ///
@@ -619,6 +703,39 @@ mod tests {
         ] {
             assert_eq!(actual, expected);
         }
+    }
+
+    /// sf_ocr / sf_ocr_fix 各路径的拼写：构造函数是**全仓唯一拼法**。
+    ///
+    /// 字面钉死——`segment_filter.json` / `segment_filter_llm_fix.json` 是 Rust 与
+    /// `subtitle-ocr-post` 二进制的交接点（二进制按自身约定命名，Rust 必须硬编码同名），
+    /// 单源化后改名只动这里。
+    #[test]
+    fn sf_ocr_paths_shape() {
+        assert_eq!(
+            sf_ocr::FramesPath::new("/w").as_path().display().to_string(),
+            "/w/sf_ocr/frames.json"
+        );
+        assert_eq!(sf_ocr::FramesPath::dir("/w"), PathBuf::from("/w/sf_ocr"));
+
+        assert_eq!(
+            sf_ocr_fix::OutDir::new("/w").as_path().display().to_string(),
+            "/w/sf_ocr_fix"
+        );
+        assert_eq!(
+            sf_ocr_fix::FilterPath::new("/w")
+                .as_path()
+                .display()
+                .to_string(),
+            "/w/sf_ocr_fix/segment_filter.json"
+        );
+        assert_eq!(
+            sf_ocr_fix::LlmFixPath::new("/w")
+                .as_path()
+                .display()
+                .to_string(),
+            "/w/sf_ocr_fix/segment_filter_llm_fix.json"
+        );
     }
 
     /// `dir()` 必须是 `srt.json` 的父目录——产出方先用它 `ensure_dir` 再写。
