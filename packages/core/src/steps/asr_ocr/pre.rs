@@ -3,16 +3,16 @@
 
 use crate::state::WorkflowState;
 use crate::steps::asr::out::{AsrResult, AsrSegment};
+use crate::steps::asr_ocr::pre_args::AsrOcrPreInput;
 use crate::steps::utils::ffmpeg;
 use crate::steps::utils::{
-    asr_dir, asr_ocr_pre_dir, now_iso, set_step_anyhow, video_source_path, StepPatch, StepStatus,
+    asr_ocr_pre_dir, now_iso, set_step_anyhow, StepPatch, StepStatus,
 };
 use crate::steps::utils::paths::asr_ocr_pre;
 use crate::steps::asr_ocr::pre_out::{AsrSplitResult, AsrSplitResultBody, AsrSplitResultMeta};
 use anyhow::Result;
 use std::collections::HashSet;
 use std::fs;
-use std::path::Path;
 use subtitle::SubtitleSegment;
 use tracing::info;
 
@@ -148,12 +148,15 @@ pub fn step_asr_ocr_pre(ctx: &WorkflowState) -> Result<()> {
         },
     )?;
 
-    let video_path = video_source_path(ctx)?;
-    if !Path::new(&video_path).exists() {
-        return Err(anyhow::anyhow!("Video not found: {}", video_path));
+    // 跨步骤输入清单（依赖见 `AsrOcrPreInput`）。
+    let input = AsrOcrPreInput::from_state(ctx)?;
+    let video_source = input.video_source_path.as_path();
+    if !video_source.exists() {
+        return Err(anyhow::anyhow!("Video not found: {}", video_source.display()));
     }
+    let video_path = video_source.to_string_lossy().into_owned();
 
-    let asr_file = asr_dir(&video_dir).join("asr.json");
+    let asr_file = input.asr_path.as_path().to_path_buf();
     if !asr_file.exists() {
         return Err(anyhow::anyhow!(
             "asr.json not found: {}",
