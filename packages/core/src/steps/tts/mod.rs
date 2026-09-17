@@ -48,9 +48,13 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
     // 输入契约一次性构建：本步只读 split_audio 的两个产物，路径全由 `paths` 里的
     // 类型给出，本函数不再自己拼字符串。
     let input = TtsInput::from_video_dir(&video_dir);
-    ensure_dir(input.tts_wavs_dir.as_path())?;
+    // 本步产出不在 StepInput 依赖清单内，步骤体自行构造。
+    let tts_wavs_dir = crate::steps::utils::paths::tts::WavsDir::new(&video_dir);
+    let ref_doubled_dir = crate::steps::utils::paths::tts::RefDoubledDir::new(&video_dir);
+    let tts_path = crate::steps::utils::paths::tts::TtsPath::new(&video_dir);
+    ensure_dir(tts_wavs_dir.as_path())?;
     if args.ref_audio_x2 {
-        ensure_dir(input.ref_doubled_dir.as_path())?;
+        ensure_dir(ref_doubled_dir.as_path())?;
     }
 
     // 意图时序**带类型**读入：字段缺失/类型不对在这里就失败，不再被 `unwrap_or(0)`
@@ -114,7 +118,7 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
     // graceful 退化（缺失/损坏→空 map, 损坏时留 warn）封装在
     // [`TtsSegmentsResult::read_existing_segments`]。
     let existing_segments: std::collections::HashMap<u32, TtsSegment> = if regen_active {
-        TtsSegmentsResult::read_existing_segments(&input.tts_path)
+        TtsSegmentsResult::read_existing_segments(&tts_path)
     } else {
         std::collections::HashMap::new()
     };
@@ -136,7 +140,7 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
         pb.inc(1);
         let seg_idx = (i + 1) as u32;
         let idx = format!("{:04}", seg_idx);
-        let out_path = input.tts_wavs_dir.segment_path(i);
+        let out_path = tts_wavs_dir.segment_path(i);
         let out_path = out_path.to_string_lossy().into_owned();
 
         // regenIndices 语义 (continue 模式精准重跑):
@@ -294,10 +298,10 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
         if args.ref_audio_x2 {
             let ref_ms = probe_duration_ms(&ref_wav);
             if ref_ms > 0 && ref_ms < MIN_REF_DURATION_MS {
-                let doubled = input.ref_doubled_dir.x2_path(i);
+                let doubled = ref_doubled_dir.x2_path(i);
                 let doubled = doubled.to_string_lossy().into_owned();
                 if !Path::new(&doubled).exists() {
-                    let list_path = input.ref_doubled_dir.list_path(i);
+                    let list_path = ref_doubled_dir.list_path(i);
                     fs::write(&list_path, format!("file '{ref_wav}'\nfile '{ref_wav}'"))
                         .map_err(|e| anyhow::anyhow!("写 ref list 失败: {e}"))?;
                     ffmpeg(&[
@@ -432,12 +436,12 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
     }
     pb.finish();
 
-    ensure_parent_dir(input.tts_path.as_path())
+    ensure_parent_dir(tts_path.as_path())
         .map_err(|e| anyhow::anyhow!("创建目录失败: {e}"))?;
     let result = TtsSegmentsResult {
         segments: tts_segments,
     };
-    write_json_pretty(input.tts_path.as_path(), &result)?;
+    write_json_pretty(tts_path.as_path(), &result)?;
 
     // tts.json 已落盘, 这里只做终局判定。
     ensure_no_failed_segments(&result)?;

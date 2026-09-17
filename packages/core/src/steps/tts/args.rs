@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::steps::utils::paths::{split_audio, tts};
+use crate::steps::utils::paths::split_audio;
 
 /// TTS 运行时后端 (镜像 TS `packages/core/steps/07_tts/args.ts` TtsStepArgsSchema.runtime)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, specta::Type)]
@@ -82,7 +82,11 @@ fn default_device() -> TtsDevice {
     TtsDevice::Cuda
 }
 
-/// tts 步骤的输入契约：本步要读/写的全部路径。
+/// tts 步骤的输入契约（**依赖清单**）：本步**消费**的路径。
+///
+/// 只装依赖——来自 `split_audio` 的两个产物。本步的**产出**（逐段配音 wav /
+/// 翻倍参考音 / `tts.json`）属于「产出」而非「依赖」，不在此清单内，由步骤体自行
+/// 构造。这与 `SfOcrFixInput` 同款：`StepInput` 是依赖清单，不是路径袋。
 ///
 /// 两个字段都是 `{video_dir}/split_audio/...` 的**约定拼法**，不读 ctx 里落定的
 /// 事实（不像 `VideoSourcePath` / `LangPath` 那种），故入口是
@@ -90,14 +94,10 @@ fn default_device() -> TtsDevice {
 /// [`crate::steps::utils::paths::AudioSourcePath::from_video_dir`] 同款区分：
 /// 名字本身就在说明「这是约定，不是事实」。
 pub struct TtsInput {
+    /// 来自 split_audio 的人声目录 `{video_dir}/split_audio/vocals`（参考音来源）。
     pub split_audio_vocals_dir: split_audio::VocalsDir,
+    /// 来自 split_audio 的意图时序 `{video_dir}/split_audio/timings.json`（带类型读入）。
     pub split_audio_timings_path: split_audio::TimingsPath,
-    /// 本步产出：逐段配音 wav。
-    pub tts_wavs_dir: tts::WavsDir,
-    /// 本步中间态：短参考音翻倍产物（仅 `refAudioX2` 时用到）。
-    pub ref_doubled_dir: tts::RefDoubledDir,
-    /// 本步产物清单 `tts/tts.json`（regen 时也要读回）。
-    pub tts_path: tts::TtsPath,
 }
 
 impl TtsInput {
@@ -105,9 +105,6 @@ impl TtsInput {
         Self {
             split_audio_vocals_dir: split_audio::VocalsDir::new(&video_dir),
             split_audio_timings_path: split_audio::TimingsPath::new(&video_dir),
-            tts_wavs_dir: tts::WavsDir::new(&video_dir),
-            ref_doubled_dir: tts::RefDoubledDir::new(&video_dir),
-            tts_path: tts::TtsPath::new(&video_dir),
         }
     }
 }
