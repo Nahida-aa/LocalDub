@@ -5,9 +5,10 @@
 
 use crate::cmd::env::ensure_bin;
 use crate::context::WorkflowState;
+use crate::steps::sf_ocr::pre_args::SfOcrPreInput;
 use crate::steps::utils::paths::sf_ocr_pre;
 use crate::steps::utils::{
-    ensure_dir, now_iso, set_step_anyhow, sf_ocr_pre_dir, video_source_path, StepPatch, StepStatus,
+    ensure_dir, now_iso, set_step_anyhow, sf_ocr_pre_dir, StepPatch, StepStatus,
 };
 use std::process::Command;
 
@@ -26,9 +27,13 @@ pub fn step_sf_ocr_pre(ctx: &WorkflowState) -> anyhow::Result<()> {
         },
     )?;
 
-    let video_path = video_source_path(ctx)?;
-    if !std::path::Path::new(&video_path).exists() {
-        return Err(anyhow::anyhow!("OCR input not found: {video_path}"));
+    let input = SfOcrPreInput::from_state(ctx)?;
+    let video_path = input.video_source_path.as_path();
+    if !video_path.exists() {
+        return Err(anyhow::anyhow!(
+            "OCR input not found: {}",
+            video_path.display()
+        ));
     }
 
     let bin = ensure_bin("subtitle_finder_bin").map_err(|e| {
@@ -40,7 +45,7 @@ pub fn step_sf_ocr_pre(ctx: &WorkflowState) -> anyhow::Result<()> {
     let out_dir = sf_ocr_pre_dir(&video_dir);
     ensure_dir(&out_dir)?;
 
-    tracing::info!(target: "sf_ocr", "subtitle-finder {video_path} --out {}", out_dir.display());
+    tracing::info!(target: "sf_ocr", "subtitle-finder {} --out {}", video_path.display(), out_dir.display());
     let status = Command::new(&bin)
         .arg(&video_path)
         .arg("--out")
