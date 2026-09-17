@@ -9,7 +9,6 @@
 
 use crate::cmd::env::ensure_bin;
 use crate::state::WorkflowState;
-use crate::steps::asr::out::AsrResult;
 use crate::steps::asr_ocr::fix_args::{AsrOcrFixArgs, AsrOcrFixInput};
 use crate::steps::utils::paths::{asr_ocr_fix, SrtJsonPath};
 use crate::steps::utils::{
@@ -260,28 +259,21 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowState) -> Result<()> {
     // 跨步骤输入清单（依赖见 `AsrOcrFixInput`）。
     let input = AsrOcrFixInput::from_video_dir(&video_dir);
 
-    if !input.asr_path.as_path().exists() {
-        return Err(anyhow::anyhow!(
-            "asr.json not found: {}",
-            input.asr_path.as_path().display()
-        ));
-    }
-    if !input.asr_split_path.as_path().exists() {
+    if !input.asr_ocr_pre_asr_split_path.as_path().exists() {
         return Err(anyhow::anyhow!(
             "asr_split.json not found, run asr_ocr_pre first"
         ));
     }
     if !input.ocr_frames_path.as_path().exists() {
-        return Err(anyhow::anyhow!(
-            "frames.json not found, run asr_ocr first"
-        ));
+        return Err(anyhow::anyhow!("frames.json not found, run asr_ocr first"));
     }
 
-    let asr_data: AsrResult = read_json_file(input.asr_path.as_path())?;
-    let asr_split_data: AsrSplitResult = read_json_file(input.asr_split_path.as_path())?;
+    let asr_split_data: AsrSplitResult =
+        read_json_file(input.asr_ocr_pre_asr_split_path.as_path())?;
     let ocr_frames_data: OcrFramesResult = read_json_file(input.ocr_frames_path.as_path())?;
 
-    let asr_raw_len = asr_data.result.segments.len();
+    // 原始 ASR 段数由 asr_ocr_pre 顺手记进了 split 的 meta，无需回读 `asr/asr.json`。
+    let asr_raw_len = asr_split_data.meta.original_segments_count;
     let asr_segs = asr_split_data.result.segments.clone();
 
     // Step 1: Optional resample
