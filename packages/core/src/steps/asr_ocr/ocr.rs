@@ -9,6 +9,7 @@ use crate::steps::asr_ocr::args::AsrOcrArgs;
 use crate::steps::utils::{
     asr_ocr_dir, asr_ocr_pre_dir, now_iso, set_step_anyhow, StepPatch, StepStatus,
 };
+use crate::steps::utils::paths::asr_ocr;
 use anyhow::Result;
 use std::fs;
 use std::process::Command;
@@ -47,11 +48,11 @@ pub fn step_asr_ocr(ctx: &WorkflowState) -> Result<()> {
     let out_dir = asr_ocr_dir(&video_dir);
     fs::create_dir_all(&out_dir)
         .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", out_dir.display(), e))?;
-    let out_file = out_dir.join("frames.json");
+    let out_file = asr_ocr::FramesPath::new(&video_dir);
 
     let mut cmd = Command::new(&bin);
     cmd.arg("--dir").arg(&frame_dir);
-    cmd.arg("--out").arg(&out_file);
+    cmd.arg("--out").arg(out_file.as_path());
     cmd.arg("--text-confidence-threshold");
     cmd.arg(cfg.ocr.text_confidence_threshold.to_string());
     if cfg.ocr.subtitle_only {
@@ -61,7 +62,7 @@ pub fn step_asr_ocr(ctx: &WorkflowState) -> Result<()> {
     tracing::info!(target: "asr_ocr",
         "subtitle-ocr --dir {} --out {} --text-confidence-threshold {} {}",
         frame_dir.display(),
-        out_file.display(),
+        out_file.as_path().display(),
         cfg.ocr.text_confidence_threshold,
         if cfg.ocr.subtitle_only { "--subtitle-only" } else { "" }
     );
@@ -76,10 +77,10 @@ pub fn step_asr_ocr(ctx: &WorkflowState) -> Result<()> {
     }
 
     let data: serde_json::Value = {
-        let raw = fs::read_to_string(&out_file)
-            .map_err(|e| anyhow::anyhow!("读取 {} 失败: {}", out_file.display(), e))?;
+        let raw = fs::read_to_string(out_file.as_path())
+            .map_err(|e| anyhow::anyhow!("读取 {} 失败: {}", out_file.as_path().display(), e))?;
         serde_json::from_str(&raw)
-            .map_err(|e| anyhow::anyhow!("解析 {} 失败: {}", out_file.display(), e))?
+            .map_err(|e| anyhow::anyhow!("解析 {} 失败: {}", out_file.as_path().display(), e))?
     };
     let frames = data
         .get("frames")
@@ -90,7 +91,7 @@ pub fn step_asr_ocr(ctx: &WorkflowState) -> Result<()> {
         return Err(anyhow::anyhow!("asr_ocr: no OCR results from frames"));
     }
     tracing::info!(target: "asr_ocr",
-        "{} frame results -> {}", frames.len(), out_file.display()
+        "{} frame results -> {}", frames.len(), out_file.as_path().display()
     );
 
     if cfg.ocr.cleanup_frames {

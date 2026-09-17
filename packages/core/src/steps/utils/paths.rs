@@ -423,6 +423,57 @@ pub mod asr_ocr_fix {
     }
 }
 
+pub mod asr_ocr_pre {
+    use super::*;
+
+    /// asr_ocr_pre 步骤产出的 ASR 切分结果 `<videoDir>/asr_ocr_pre/asr_split.json`。
+    ///
+    /// 产出方是 `asr_ocr_pre` 步骤 (`step_asr_ocr_pre`)，消费方是 `asr_ocr_fix` 步骤
+    /// (`AsrOcrFixInput.asr_split_path`)。归属产出方，与 `sf_ocr::FramesPath` /
+    /// `asr::AsrPath` 同款 provenance：跨步骤路径类型归属产出方，消费方只引用。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct AsrSplitPath(PathBuf);
+
+    impl AsrSplitPath {
+        /// `{video_dir}/asr_ocr_pre/asr_split.json`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(
+                video_dir
+                    .as_ref()
+                    .join("asr_ocr_pre")
+                    .join("asr_split.json"),
+            )
+        }
+
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
+}
+
+pub mod asr_ocr {
+    use super::*;
+
+    /// asr_ocr 步骤产出的逐帧 OCR 结果 `<videoDir>/asr_ocr/frames.json`。
+    ///
+    /// 与 `sf_ocr::FramesPath` **形似但不同目录**（`sf_ocr/` vs `asr_ocr/`）——两者
+    /// 类型不同、不可互换，provenance 由类型系统保证。产出方是 `asr_ocr` 步骤
+    /// (`step_asr_ocr`)，消费方是 `asr_ocr_fix` 步骤 (`AsrOcrFixInput.ocr_frames_path`)。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct FramesPath(PathBuf);
+
+    impl FramesPath {
+        /// `{video_dir}/asr_ocr/frames.json`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(video_dir.as_ref().join("asr_ocr").join("frames.json"))
+        }
+
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
+}
+
 // 动态 dynamical dynamic
 pub mod translate {
     use super::*;

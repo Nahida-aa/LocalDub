@@ -10,11 +10,11 @@
 use crate::cmd::env::ensure_bin;
 use crate::state::WorkflowState;
 use crate::steps::asr::out::AsrResult;
-use crate::steps::asr_ocr::fix_args::AsrOcrFixArgs;
+use crate::steps::asr_ocr::fix_args::{AsrOcrFixArgs, AsrOcrFixInput};
 use crate::steps::utils::paths::{asr_ocr_fix, SrtJsonPath};
 use crate::steps::utils::{
-    asr_dir, asr_ocr_dir, asr_ocr_fix_dir, asr_ocr_pre_dir, now_iso, probe_video_resolution,
-    set_step_anyhow, video_source_path, StepPatch, StepStatus,
+    asr_ocr_fix_dir, now_iso, probe_video_resolution, set_step_anyhow, video_source_path,
+    StepPatch, StepStatus,
 };
 use anyhow::Result;
 // 字幕 OCR 产物/管线类型（FrameResult / OcrSegment / OcrFramesResult / compute_box_* /
@@ -257,29 +257,29 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowState) -> Result<()> {
     let out_dir = asr_ocr_fix_dir(&video_dir);
     fs::create_dir_all(&out_dir)?;
 
-    // Read upstream artifacts
-    let asr_file = asr_dir(&video_dir).join("asr.json");
-    let asr_split_file = asr_ocr_pre_dir(&video_dir).join("asr_split.json");
-    let ocr_frames_file = asr_ocr_dir(&video_dir).join("frames.json");
+    // 跨步骤输入清单（依赖见 `AsrOcrFixInput`）。
+    let input = AsrOcrFixInput::from_video_dir(&video_dir);
 
-    if !asr_file.exists() {
+    if !input.asr_path.as_path().exists() {
         return Err(anyhow::anyhow!(
             "asr.json not found: {}",
-            asr_file.display()
+            input.asr_path.as_path().display()
         ));
     }
-    if !asr_split_file.exists() {
+    if !input.asr_split_path.as_path().exists() {
         return Err(anyhow::anyhow!(
             "asr_split.json not found, run asr_ocr_pre first"
         ));
     }
-    if !ocr_frames_file.exists() {
-        return Err(anyhow::anyhow!("frames.json not found, run asr_ocr first"));
+    if !input.ocr_frames_path.as_path().exists() {
+        return Err(anyhow::anyhow!(
+            "frames.json not found, run asr_ocr first"
+        ));
     }
 
-    let asr_data: AsrResult = read_json_file(&asr_file)?;
-    let asr_split_data: AsrSplitResult = read_json_file(&asr_split_file)?;
-    let ocr_frames_data: OcrFramesResult = read_json_file(&ocr_frames_file)?;
+    let asr_data: AsrResult = read_json_file(input.asr_path.as_path())?;
+    let asr_split_data: AsrSplitResult = read_json_file(input.asr_split_path.as_path())?;
+    let ocr_frames_data: OcrFramesResult = read_json_file(input.ocr_frames_path.as_path())?;
 
     let asr_raw_len = asr_data.result.segments.len();
     let asr_segs = asr_split_data.result.segments.clone();

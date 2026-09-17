@@ -7,6 +7,7 @@ use crate::steps::utils::ffmpeg;
 use crate::steps::utils::{
     asr_dir, asr_ocr_pre_dir, now_iso, set_step_anyhow, video_source_path, StepPatch, StepStatus,
 };
+use crate::steps::utils::paths::asr_ocr_pre;
 use anyhow::Result;
 use std::collections::HashSet;
 use std::fs;
@@ -212,11 +213,11 @@ pub fn step_asr_ocr_pre(ctx: &WorkflowState) -> Result<()> {
         },
     };
     // Write asr_split.json
-    let asr_split_path = pre_dir.join("asr_split.json");
+    let asr_split_path = asr_ocr_pre::AsrSplitPath::new(&video_dir);
     let json = serde_json::to_string_pretty(&asr_split_result)
         .map_err(|e| anyhow::anyhow!("序列化 asr_split.json 失败: {e}"))?;
-    fs::write(&asr_split_path, json)
-        .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", asr_split_path.display(), e))?;
+    fs::write(asr_split_path.as_path(), json)
+        .map_err(|e| anyhow::anyhow!("写入 {} 失败: {}", asr_split_path.as_path().display(), e))?;
 
     info!(target: "asr_ocr",
         "{} ASR segs → {} split segs", asr_segs_raw.len(), asr_segs.len()
