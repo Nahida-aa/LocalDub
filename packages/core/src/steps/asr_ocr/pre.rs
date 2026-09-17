@@ -8,6 +8,7 @@ use crate::steps::utils::{
     asr_dir, asr_ocr_pre_dir, now_iso, set_step_anyhow, video_source_path, StepPatch, StepStatus,
 };
 use crate::steps::utils::paths::asr_ocr_pre;
+use crate::steps::asr_ocr::pre_out::{AsrSplitResult, AsrSplitResultBody, AsrSplitResultMeta};
 use anyhow::Result;
 use std::collections::HashSet;
 use std::fs;
@@ -45,24 +46,6 @@ fn find_space_splits(text: &str, words: &[crate::steps::asr::out::AsrWord]) -> V
 
 static SPLIT_RE: std::sync::LazyLock<regex::Regex> =
     std::sync::LazyLock::new(|| regex::Regex::new(SPLIT_PAT).expect("Invalid SPLIT_PAT regex"));
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-struct AsrSplitResult {
-    result: AsrSplitResultBody,
-    meta: AsrSplitResultMeta,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-struct AsrSplitResultBody {
-    text: String,
-    segments: Vec<SubtitleSegment>,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-struct AsrSplitResultMeta {
-    original_segments_count: usize,
-    segments_count: usize,
-}
 
 // #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 // pub struct SubtitleSegment {

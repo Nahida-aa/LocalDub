@@ -6,3 +6,4 @@ pub mod fix_args;
 pub mod ocr;
 pub mod pre;
 pub mod pre_args;
+pub mod pre_out;

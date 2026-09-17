@@ -10,6 +10,7 @@
 use crate::cmd::env::ensure_bin;
 use crate::state::WorkflowState;
 use crate::steps::asr_ocr::fix_args::{AsrOcrFixArgs, AsrOcrFixInput};
+use crate::steps::asr_ocr::pre_out::AsrSplitResult;
 use crate::steps::utils::paths::{asr_ocr_fix, SrtJsonPath};
 use crate::steps::utils::{
     asr_ocr_fix_dir, now_iso, probe_video_resolution, set_step_anyhow, video_source_path,
@@ -50,23 +51,6 @@ fn write_json_file<T: Serialize>(path: &Path, value: &T) -> Result<()> {
     let json = serde_json::to_string_pretty(value)?;
     fs::write(path, json)?;
     Ok(())
-}
-
-/// ASR split result (from asr_ocr_pre/asr_split.json).
-#[derive(Debug, Clone, Deserialize, Serialize)]
-struct AsrSplitResult {
-    result: AsrSplitResultBody,
-    meta: AsrSplitResultMeta,
-}
-#[derive(Debug, Clone, Deserialize, Serialize)]
-struct AsrSplitResultBody {
-    text: String,
-    segments: Vec<SubtitleSegment>,
-}
-#[derive(Debug, Clone, Deserialize, Serialize)]
-struct AsrSplitResultMeta {
-    original_segments_count: usize,
-    segments_count: usize,
 }
 
 /// Step 6: ASR boundary alignment result.
@@ -269,7 +253,7 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowState) -> Result<()> {
     }
 
     let asr_split_data: AsrSplitResult =
-        read_json_file(input.asr_ocr_pre_asr_split_path.as_path())?;
+        AsrSplitResult::read(input.asr_ocr_pre_asr_split_path.as_path())?;
     let ocr_frames_data: OcrFramesResult = read_json_file(input.ocr_frames_path.as_path())?;
 
     // 原始 ASR 段数由 asr_ocr_pre 顺手记进了 split 的 meta，无需回读 `asr/asr.json`。
