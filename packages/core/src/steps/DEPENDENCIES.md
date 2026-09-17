@@ -2,10 +2,14 @@
 
 > **这份文档回答一个问题：改某个 step 时，我怎么知道会不会弄坏别处？**
 >
-> 依赖**不是声明出来的**，而是体现在**文件系统**上：一个 step 读的文件，是另一个
-> step 写的。所以本文只记两件事——**每个 step 读什么、写什么**。
+> 每个 step 现在都用一个 `StepInput` 结构体**显式声明**自己的跨步骤读集（见「StepInput
+> 依赖清单」节）。这个结构体是机器可读的依赖清单——它把「谁依赖谁」从散落在代码里的
+> 路径 helper 收口成一处类型，是「代码即 DAG」的内核。`StepInput` 只装**消费**的跨步骤
+> 产物路径，不装本步产出、`video_dir` 或参数——它是一份「依赖清单」，不是「路径袋」。
 >
-> 有了这两列，「谁依赖谁」是可以推导的：**A 依赖 B ⟺ A 读的某个路径落在 B 的产出里**。
+> 本文是它的**人读版**：用路径（而非箭头）把每个 `StepInput` 反查回「谁写的」，方便
+> 快速判断改某处会不会弄坏别处。有了「读 / 写」两列，「谁依赖谁」是可以推导的：
+> **A 依赖 B ⟺ A 读的某个路径落在 B 的产出里**。
 
 ## step 名单的唯一真源
 
@@ -41,6 +45,13 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 ## 输入（不属于任何 step 产出）
 
+> **`import` 是一个独立的 action，不属于工作流 DAG。**
+>
+> 它不产生 `StepInput`（没有跨步骤上游），只把外部文件落盘为两条**事实**写进 ctx：
+> `video_source_path` / `audio_source_path`。其余所有 step 都从 ctx 或 `video_dir` 约定
+> 拼法取这两根，因此它是所有链的起点（DAG 根）。`import` 不在 `StepName` 枚举里，
+> 也没有对应的 `*Input` 结构——本文的「各 step 契约」列表亦不含它。
+
 | 路径 | 谁写的 | 说明 |
 | --- | --- | --- |
 | `video_source.mp4` | import 阶段 / `ctx.video_source_path` | 原视频（所有链的根） |
@@ -52,25 +63,75 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 ---
 
+## StepInput 依赖清单（代码即 DAG）
+
+每个 step 用**一个** `StepInput` 结构体声明自己**消费**的跨步骤产物（即本步的读集）。
+这是机器可读的依赖清单，`step_*` 主体开头统一 `XxxInput::from_state(ctx)?` 或
+`XxxInput::from_video_dir(&video_dir)` 取出，之后只读这份结构、不再散落拼路径。
+
+两种入口的区分是有意的：
+
+| 入口 | 含义 | 何时用 |
+| --- | --- | --- |
+| `from_state` | 路径是 **ctx 落定的事实**（如 `video_source_path` / `LangPath`），缺失即报错 | 依赖来自 `import` 结果或引擎状态投影 |
+| `from_video_dir` | 路径是 `{video_dir}/...` 的**约定拼法**（非 ctx 事实） | 依赖是「上游步骤产出在固定位置」，拼法由 `paths` 类型唯一产生 |
+
+> 同一事实两种取法不该并存：`from_state` 读 ctx（缺失即报错），`from_video_dir` 按约定
+> 拼（不查证存在性，交由 step 主体 `exists()` 判断）。`AsrInput` / `MixVideoInput` 这类
+> 同时需要「ctx 事实 + 约定产物」的结构，用 `from_state` 取 ctx 事实、内部再
+> `::new(video_dir)` 拼约定产物，不混用两套读法。
+
+### `from_state`（读 ctx 事实，缺失即报错）
+
+| step | `StepInput` | 消费的跨步骤产物（字段） |
+| --- | --- | --- |
+| `separate` | `SeparateInput` | `audio_source_path: AudioSourcePath` |
+| `asr` | `AsrInput` | `audio_path: AsrSourceAudioPath`（枚举：Custom / Separated{vocals, mixed, gated} / Raw） |
+| `sf_ocr_pre` | `SfOcrPreInput` | `video_source_path: VideoSourcePath` |
+| `asr_ocr_pre` | `AsrOcrPreInput` | `asr_path: AsrPath`、`video_source_path: VideoSourcePath` |
+| `translate` | `TranslateInput` | `source_path: SubtitleSourcePath`、`video_dir`、`target_lang: Option<String>` |
+| `split_audio` | `SplitAudioInput` | `audio_path: SplitAudioSourcePath`、`translate_path: LangPath` |
+| `mix_audio` | `MixAudioInput` | `split_audio_timings_path: TimingsPath`、`tts_wavs_dir: WavsDir` |
+| `mix_video` | `MixVideoInput`（枚举） | `Dub{video_source_path, mix_audio_timings_path, dubbing_path, bgm_path}` / `Subtitle{video_source_path, split_audio_timings_path}` |
+
+### `from_video_dir`（约定拼法，非 ctx 事实）
+
+| step | `StepInput` | 消费的跨步骤产物（字段） |
+| --- | --- | --- |
+| `separate_after` | `SeparateAfterInput` | `vocals_path: Target3VocalsPath`、`stems_dir: StemsDir` |
+| `asr_fix` | `AsrFixInput` | `asr_path: AsrPath` |
+| `sf_ocr` | `SfOcrInput` | `keyframes_dir: KeyframesDir` |
+| `sf_ocr_fix` | `SfOcrFixInput` | `frames_path: FramesPath` |
+| `asr_ocr` | `AsrOcrInput` | `frames_dir: FramesDir` |
+| `asr_ocr_fix` | `AsrOcrFixInput` | `asr_ocr_pre_asr_split_path: AsrSplitPath`、`ocr_frames_path: FramesPath` |
+| `tts` | `TtsInput` | `split_audio_vocals_dir: VocalsDir`、`split_audio_timings_path: TimingsPath` |
+
+> **`import` 不在上表**：它是独立的 action（见「输入」节），没有跨步骤上游，故无
+> `StepInput`；它产出的 `video_source_path` / `audio_source_path` 是上面所有 `from_state`
+> 读集的根。
+
+> **`StepInput` 只装「消费」，不装「产出」**：本步自己的写路径、`video_dir` 约定拼法下的
+> 中间目录，由 step 内部 `::new(video_dir)` 构造（拼法只在 `paths` 模块一处产生），不进
+> 依赖清单。这让「谁读我」与「我读谁」可独立演进，也不会把本步产出误当成上游依赖
+> （避免 back-edge）。
+
+---
+
 ## 各 step 契约
 
 ### `separate`
 
 | | 路径 |
 | --- | --- |
-| **读** ⚠️ | `ctx.audio_source_path`（**真正喂给 demucs 的输入**） |
-| **检查存在** | `ctx.video_source_path`（**只 `exists()` 一次，之后不使用**） |
+| **读** ⚠️ | `ctx.audio_source_path`（`AudioSourcePath`，**真正喂给 demucs 的输入**） |
 | **读** | `data/bin/demucs-burn-*`、`data/models/demucs/htdemucs_ft.safetensors`（缺则下载） |
 | **写** | `separate/target_{0_drums,1_bass,2_other,3_vocals}.wav`、进度流 |
 
-> ⚠️ **`separate` 不消费视频**。`separate/mod.rs:280-286` 拿到 `video_path` 后
-> 只做 `exists()` 检查，随后全程使用 `audio_source_path`；`run_demucs` 的 argv 是
-> `demucs-burn-* <audio> <outdir>`，**没有视频**。
->
-> 也就是说 `separate` 对 `video_source.mp4` 的依赖是**纯附加的**：
-> 视频丢了但音频还在时，它会报 "video_source.mp4 not found" 而不是照常工作。
-> 如果这不是有意的（比如 TS 侧的遗留习惯），这行检查可以去掉，
-> `separate` 的真实上游就只剩 `audio_source.wav`。
+> **依赖只声明 `audio_source_path`。** `SeparateInput::from_state` 只取
+> `AudioSourcePath::from_state`（读 ctx 事实，缺失即报错）；`separate` 已**不再**读取或
+> `exists()` 检查 `video_source_path`。早先「`separate` 不消费视频、那行视频检查可以去掉」
+> 的说明现已落地：`separate` 的真实上游只剩 `audio_source.wav`，与
+> `SeparateInput` 的声明一致。
 
 ### `separate_after`
 
@@ -88,11 +149,16 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 | | 路径 |
 | --- | --- |
-| **读** ⚠️ | `ctx.video_source_path` |
-| **读** | **仅当 `useSeparated: true`**：`separate_after/target_3_vocals_gated.wav` → 没有则 `..._mixed.wav` → 都没有则回退 |
-| **读** | `separate/target_3_vocals.wav`（`vocalAudioPath` 可覆盖；上面都不命中时的最终音源） |
+| **读** ⚠️ | **`useSeparated: false`（默认）**：`ctx.video_source_path`（`AsrSourceAudioPath::Raw`） |
+| **读** ⚠️ | **`useSeparated: true`**：`separate_after/target_3_vocals_gated.wav` → 没有则 `..._mixed.wav` → 都没有则回退 `separate/target_3_vocals.wav`（`AsrSourceAudioPath::Separated`） |
+| **读** | **`vocalAudioPath` 显式指定时**：该路径（`AsrSourceAudioPath::Custom`）覆盖上面二者 |
 | **读** | `data/models/whisper/*`（缺则下载） |
 | **写** | `asr/asr.json` |
+
+> **音源是「三选一」**，由 `AsrInput::from_state` 按 `AsrArgs` 一次性解析：
+> `Custom`（调试覆盖）> `Separated`（`useSeparated=true`，gated→mixed→vocals 回退链）>
+> `Raw`（否则用 `video_source.mp4`）。`AsrSourceAudioPath` 枚举把这条读集收口，避免把
+> 多个候选音源散落在 step 主体里。
 
 ### `asr_fix`
 
@@ -201,7 +267,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 | | 路径 |
 | --- | --- |
-| **读** ⚠️ | 规范化字幕 `srt.json`（按 `subtitleSource` 选目录，见「规范化字幕」节；类型化契约 `TranslateInput::from_ctx`，未知来源**报错**） |
+| **读** ⚠️ | 规范化字幕 `srt.json`（按 `subtitleSource` 选目录，见「规范化字幕」节；类型化契约 `TranslateInput::from_state`，未知来源**报错**） |
 | **读** | `data/bin/yt-dlp` 产物（可选元信息） |
 | **写** | `translate/{lang}.json`（类型化契约 `TranslateOutput::for_lang`）、中间态 `{lang}.partial.json`（仅 LLM 路径，私有状态） |
 | **写** | `ctx.json` 的 `target_language`——**全仓唯一写点**（`persist_target_language`），见下 |
@@ -262,9 +328,9 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 > | 调用点 | 原来 | 现在 |
 > | --- | --- | --- |
 > | `translate/mod.rs:190` | `resolve_language` | **保留**（它就是决策者） |
-> | `split_audio/mod.rs` | `resolve_language` | `LangPath::from_ctx`（路径+语言）；源语言用 `src_language` |
-> | `mix_video/mod.rs:63` | `resolve_language` | `LangPath::from_ctx(...).lang()` |
-> | `workflows/engine.rs:89` | `resolve_language` | `LangPath::from_ctx` |
+> | `split_audio/mod.rs` | `resolve_language` | `LangPath::from_state`（路径+语言）；源语言用 `src_language` |
+> | `mix_video/mod.rs:63` | `resolve_language` | `LangPath::from_state(...).lang()` |
+> | `workflows/engine.rs:89` | `resolve_language` | `LangPath::from_state` |
 > | `asr/fix.rs:39` | `resolve_language` | `src_language(ctx)`（它只要源语言） |
 >
 > 为什么必须改：`resolve_language` 是**现算**，`ctx.target_language` 是**已落定
@@ -276,7 +342,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 >
 > 现在两条路各有明确用途：
 > - **`LangPath::new(dir, lang)`** —— 翻译步骤专用（它有权决定 `lang`）
-> - **`LangPath::from_ctx(ctx)`** —— 后续步骤专用（读事实，缺失即报错）
+> - **`LangPath::from_state(ctx)`** —— 后续步骤专用（读事实，缺失即报错）
 >
 > 由 `target_lang_comes_from_persisted_fact_not_config` 守护：构造
 > 「配置说 vi、事实是 zh」的错配，断言 `mix_video` 取 **zh**，并连带验证
@@ -286,7 +352,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 > `input.workflow.sourceLang` > 兜底。纯 OCR / subtitle 路径没有 ASR，
 > 必须靠后两级回退——所以它**不能**简化成读 `ctx.asr_language`。
 >
-> 相关：`TranslateOutput::from_ctx` 只取 `ctx.target_language`、不调
+> 相关：`TranslateOutput::from_state` 只取 `ctx.target_language`、不调
 > `resolve_language`——保证「读的」与「报的」是同一路径。多语言共存是合法状态
 > （真实数据里已有任务同时存在 `vi.json` 与 `zh.json`），
 > 所以不能用「扫产物目录」来判定当前语言，必须靠这个单一写入点。
@@ -300,7 +366,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | **读** | `audio_source.wav`（没有人声 stem 时回退；类型化 `AudioSourcePath`） |
 | **写** | `split_audio/split_audio.json`、`timings.json`、`vocals/*.wav` |
 
-> **输入契约 `SplitAudioInput::from_ctx`**（`split_audio/args.rs`）：
+> **输入契约 `SplitAudioInput::from_state`**（`split_audio/args.rs`）：
 >
 > ```rust
 > pub struct SplitAudioInput {
@@ -314,7 +380,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 > 2. `Vocals` —— `separate/target_3_vocals.wav` **存在**时用它
 > 3. `SourceAudio` —— 否则 `audio_source.wav`
 >
-> 存在性检查留在 `from_ctx` 里（不进类型）：subtitle 模式不做 separate，
+> 存在性检查留在 `from_state` 里（不进类型）：subtitle 模式不做 separate，
 > 没有 vocals 是**正常路径**而非错误。
 >
 > **注意 `Vocals` 指向 `separate/`，不是 `separate_after/`**——用**原始**人声，
@@ -395,9 +461,9 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
   字段私有，故 `"srt.json"` 与各自目录名**在全仓只拼一次**——此前散在 6 处
   （3 个产出方 `out_dir.join("srt.json")` + 消费者手拼 + engine 事件登记）。
   三者共同实现 `paths::SrtJsonPath`（`new` / `as_path` / `dir`）。
-- 三种 `SrtPath` 是不同类型、不可互换，`from_ctx` 的 match 必须逐支写
+- 三种 `SrtPath` 是不同类型、不可互换，`from_state` 的 match 必须逐支写
   （or-pattern 会因类型不同而编译失败——这是刻意的）。
-- 消费方由类型保证：`TranslateInput::from_ctx`（`translate/mod.rs`）按
+- 消费方由类型保证：`TranslateInput::from_state`（`translate/mod.rs`）按
   `subtitleSource` 解析到 `TranslateInput::Asr / SfOcr / AsrOcr` 三变体，
   未知来源报错；srt.json 缺失的存在性语义由 `translate.enabled` 决定
   （见 `translate` 节）。
