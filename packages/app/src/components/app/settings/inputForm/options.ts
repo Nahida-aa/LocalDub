@@ -81,7 +81,7 @@ const SERVER_NAMES = [
   } satisfies Record<ServerType_Serialize, string>),
 ];
 
-// 语言码: 与 Rust `const::lang::LANGS` (bindings TargetLang) 同步。
+// 语言码: 与 Rust `const::lang::Language` 枚举 (lowercase 变体名即码) 同步, 手工维护。
 // sourceLang 值域开放 (whisper ~99 种), 这里只列可翻译的 23 种已知语言,
 // 列表外语言码 (it/uk/nl...) 需在 input.jsonc 文本页直接填。
 const LANGS = keysOf({

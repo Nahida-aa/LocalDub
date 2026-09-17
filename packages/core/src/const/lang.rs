@@ -3,52 +3,31 @@
 
 use serde::{Deserialize, Serialize};
 
-/// 语言码与变体的**单一事实来源**。闭环的 [`Language`] 枚举、`as_str`、`from_code`、
-/// 以及 [`LANGS`] 常量都从这里展开，避免同一份 23 语言被列三遍（枚举、as_str、
-/// from_code 各一遍）导致加语言时要改三处。
-macro_rules! lang_variants {
-    ($($variant:ident => $code:literal),+ $(,)?) => {
-        /// 目标语言（支持翻译的封闭集合，与 TS 侧 langList 保持同步）。
-        ///
-        /// 与源语言 [`LangCode`] 不同：目标是"承诺"——必须落在支持翻译的语言内，
-        /// 故用封闭枚举建模；列表外语言不是可用的翻译目标。
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-        #[serde(rename_all = "lowercase")]
-        pub enum Language {
-            $($variant),+
-        }
-
-        impl Language {
-            /// 语言码（与 serde 名一致: "zh" / "en" / "ja" ...）。
-            pub fn as_str(self) -> &'static str {
-                match self {
-                    $(Language::$variant => $code),+
-                }
-            }
-            /// 从语言码解析（未知码返回 None，供 ASR 输出等运行时字符串容错）。
-            pub fn from_code(code: &str) -> Option<Self> {
-                match code {
-                    $($code => Some(Language::$variant)),+,
-                    _ => None,
-                }
-            }
-        }
-
-        /// 支持翻译的语言码列表，与 TS 侧 langList 保持同步。
-        pub const LANGS: &[&str] = &[$($code),+];
-    };
+/// 目标语言（支持翻译的封闭集合，与 TS 侧 langList 保持同步）。
+///
+/// 与源语言 [`LangCode`] 不同：目标是"承诺"——必须落在支持翻译的语言内，
+/// 故用封闭枚举建模；列表外语言不是可用的翻译目标。
+///
+/// 变体名即语言码的小写形式（`En`→`"en"`）。serde 的 `rename_all` 与 strum 的
+/// `serialize_all` 都按 "lowercase" 从变体名导出码，单一事实来源仍是变体列表本身——
+/// 加语言只改这一处。
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type,
+    strum::IntoStaticStr, strum::Display,
+)]
+#[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
+pub enum Language {
+    En, Zh, Vi, Ja, Ko, Fr,
+    De, Es, Pt, Ru, Ar, Hi,
+    Th, Id, Ms, Tl, My, Km,
+    Lo, Mn, Ne, Ur, Bn,
 }
 
-lang_variants! {
-    En => "en", Zh => "zh", Vi => "vi", Ja => "ja", Ko => "ko", Fr => "fr",
-    De => "de", Es => "es", Pt => "pt", Ru => "ru", Ar => "ar", Hi => "hi",
-    Th => "th", Id => "id", Ms => "ms", Tl => "tl", My => "my", Km => "km",
-    Lo => "lo", Mn => "mn", Ne => "ne", Ur => "ur", Bn => "bn",
-}
-
-impl std::fmt::Display for Language {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.as_str())
+impl Language {
+    /// 语言码（与 serde 名一致: "zh" / "en" / "ja" ...）。
+    pub fn as_str(self) -> &'static str {
+        self.into()
     }
 }
 
@@ -61,8 +40,8 @@ pub const DEFAULT_LANG: Language = Language::Zh;
 /// 超出支持翻译的 [`Language`] 列表；若用封闭枚举建模，列表外语言
 /// (it/uk/nl/...) 会被截断丢信息。用 newtype 包字符串:
 /// - serde 透明（序列化为 "it" 这样的字符串），任何语言码原样进出
-/// - [`LangCode::as_known`] 提供封闭 [`Language`] 视图（目标语言是
-///   "承诺"，必须落在支持翻译的语言内，保持封闭）
+/// - 封闭视图: 需要"支持翻译的目标语言"时改用 [`Language`] 枚举（"承诺"，必须落在
+///   支持翻译的语言内；列表外语言不是可用的翻译目标）
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, specta::Type, derive_more::Display)]
 pub struct LangCode(String);
 
@@ -74,12 +53,6 @@ impl LangCode {
     /// 语言码（与 serde 名一致: "zh" / "en" / "ja" / 列表外的 "it" ...）
     pub fn code(&self) -> &str {
         &self.0
-    }
-
-    /// 已知语言视图: 语言码在支持翻译的列表内时给出 [`Language`]。
-    /// 列表外语言返回 None——事实原样保留，但它不是可用的翻译目标。
-    pub fn as_known(&self) -> Option<Language> {
-        Language::from_code(&self.0)
     }
 
     /// 未知源语言（未设置）。序列化出去是空串，调用方应据此**透传**语言码，
