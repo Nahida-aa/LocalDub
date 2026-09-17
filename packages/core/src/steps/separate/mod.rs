@@ -15,7 +15,7 @@ use crate::steps::utils::{
 };
 
 pub use after::step_separate_after;
-pub use args::SeparateArgs;
+pub use args::{SeparateArgs, SeparateInput};
 
 /// 根据 runtime + device 选择 demucs-burn 后端 (镜像 TS `separateBurn` 的 backend 派生)。
 /// `burn-tch` → tch (device 无关); `burn` → 按 device (Cpu/Mps→cpu, Cuda→cuda,
@@ -268,17 +268,20 @@ pub fn step_separate(ctx: &WorkflowState) -> anyhow::Result<()> {
         },
     )?;
 
-    let video_path = ctx
+    let input = SeparateInput::from_state(ctx)?;
+    let video_path = input
         .video_source_path
-        .clone()
-        .ok_or_else(|| anyhow::anyhow!("video_source_path 未设置"))?;
+        .as_path()
+        .to_string_lossy()
+        .into_owned();
     if !std::path::Path::new(&video_path).exists() {
         return Err(anyhow::anyhow!("video_source.mp4 not found"));
     }
-    let audio_path = ctx
+    let audio_path = input
         .audio_source_path
-        .clone()
-        .ok_or_else(|| anyhow::anyhow!("audio_source_path 未设置"))?;
+        .as_path()
+        .to_string_lossy()
+        .into_owned();
     if !std::path::Path::new(&audio_path).exists() {
         return Err(anyhow::anyhow!("audio_source.wav not found"));
     }
