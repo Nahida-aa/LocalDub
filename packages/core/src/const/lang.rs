@@ -63,7 +63,7 @@ pub const DEFAULT_LANG: Language = Language::Zh;
 /// - serde 透明（序列化为 "it" 这样的字符串），任何语言码原样进出
 /// - [`LangCode::as_known`] 提供封闭 [`Language`] 视图（目标语言是
 ///   "承诺"，必须落在支持翻译的语言内，保持封闭）
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, specta::Type, derive_more::Display)]
 pub struct LangCode(String);
 
 impl LangCode {
@@ -105,11 +105,5 @@ impl From<&str> for LangCode {
 impl From<String> for LangCode {
     fn from(s: String) -> Self {
         Self(s)
-    }
-}
-
-impl std::fmt::Display for LangCode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
     }
 }
