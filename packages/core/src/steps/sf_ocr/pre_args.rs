@@ -15,7 +15,7 @@ use crate::steps::utils::paths::VideoSourcePath;
 /// [`VideoSourcePath::from_state`] 同款：缺失即报错（没导入过就没有这个文件）。
 /// 这也是 `MixVideoInput` 的取法（见 `mix_video/args.rs`）。
 pub struct SfOcrPreInput {
-    /// 原视频文件（任务级输入，由 import 产出）。
+    /// 原视频文件（工作流级输入，由 import 产出）。
     pub video_source_path: VideoSourcePath,
 }
 

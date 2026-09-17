@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::state::WorkflowState;
-use crate::steps::utils::paths::{AudioSourcePath, VideoSourcePath};
+use crate::steps::utils::paths::AudioSourcePath;
 use anyhow::Result;
 
 /// separate 推理运行时
@@ -76,19 +76,17 @@ fn default_stems() -> Vec<Stem> {
 ///
 /// 与 `AsrOcrPreInput` 等兄弟 `*Input` 同款定位: 只声明**被消费的跨步骤产物**,
 /// 自身输出(stems)、`*Args::from_input` 另行获取。separate 直接对 import 落地的
-/// 音视频做分轨, 两条输入都是 import 写进 ctx 的事实:
-/// - `video_source_path`: 原视频 `video_source.mp4`(import 产出);
+/// 音频做分轨(原视频 `video_source.mp4` 仅作来源、demucs 实际只吃 `audio_source.wav`,
+/// 故此处不把 video_source 列为依赖):
 /// - `audio_source_path`: 原音频 `audio_source.wav`(import 产出), demucs 实际分轨的输入。
 pub struct SeparateInput {
-    pub video_source_path: VideoSourcePath,
     pub audio_source_path: AudioSourcePath,
 }
 
 impl SeparateInput {
-    /// 两条输入均为 import 写进 ctx 的事实, 故走 `from_state`(与 `AsrOcrPreInput` 同款)。
+    /// 输入为 import 写进 ctx 的事实, 故走 `from_state`(与 `AsrOcrPreInput` 同款)。
     pub fn from_state(state: &WorkflowState) -> Result<Self> {
         Ok(Self {
-            video_source_path: VideoSourcePath::from_state(state)?,
             audio_source_path: AudioSourcePath::from_state(state)?,
         })
     }

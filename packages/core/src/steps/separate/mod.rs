@@ -41,13 +41,7 @@ fn demucs_bin_path(backend: &str) -> Option<PathBuf> {
     if downloaded.exists() {
         return Some(downloaded);
     }
-    let repo = config_rs::root::repo_root();
-    for profile in ["release", "debug"] {
-        let p = repo.join("target").join(profile).join(&name);
-        if p.exists() {
-            return Some(p);
-        }
-    }
+
     None
 }
 
@@ -269,14 +263,7 @@ pub fn step_separate(ctx: &WorkflowState) -> anyhow::Result<()> {
     )?;
 
     let input = SeparateInput::from_state(ctx)?;
-    let video_path = input
-        .video_source_path
-        .as_path()
-        .to_string_lossy()
-        .into_owned();
-    if !std::path::Path::new(&video_path).exists() {
-        return Err(anyhow::anyhow!("video_source.mp4 not found"));
-    }
+
     let audio_path = input
         .audio_source_path
         .as_path()
