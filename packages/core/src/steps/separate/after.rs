@@ -5,6 +5,7 @@
 
 use crate::state::WorkflowState;
 use crate::steps::asr::args::AsrArgs;
+use crate::steps::utils::paths::separate_after::{GatedVocalsPath, Target3VocalsMixedPath};
 use crate::steps::utils::{
     ffmpeg, now_iso, separate_after_dir, separate_dir, set_step_anyhow, StepPatch, StepStatus,
 };
@@ -42,7 +43,8 @@ pub fn step_separate_after(ctx: &WorkflowState) -> anyhow::Result<()> {
     ];
     let vocals_path = stems[3].1.clone();
     let bgm_dst = out_dir.join("target_bgm.wav");
-    let mixed_dst = out_dir.join("target_3_vocals_mixed.wav");
+    // 产出路径走 separate_after 的 newtype, 拼法单一来源 (消费者 AsrInput 同款)。
+    let mixed_dst = Target3VocalsMixedPath::new(&video_dir);
 
     // 1. 由 stems 重建 target_bgm.wav (修复 amix normalize bug)
     let all_stems_exist = stems[..3].iter().all(|(_, p)| p.exists());
@@ -104,7 +106,7 @@ pub fn step_separate_after(ctx: &WorkflowState) -> anyhow::Result<()> {
                     ),
                     "-map".into(),
                     "[out]".into(),
-                    mixed_dst.to_string_lossy().into_owned(),
+                    mixed_dst.as_path().to_string_lossy().into_owned(),
                 ])?;
             }
             crate::steps::asr::args::MixMode::Sidechain => {
@@ -137,7 +139,7 @@ pub fn step_separate_after(ctx: &WorkflowState) -> anyhow::Result<()> {
                     filter,
                     "-map".into(),
                     "[out]".into(),
-                    mixed_dst.to_string_lossy().into_owned(),
+                    mixed_dst.as_path().to_string_lossy().into_owned(),
                 ])?;
             }
             crate::steps::asr::args::MixMode::Vocals => unreachable!(),
@@ -145,15 +147,15 @@ pub fn step_separate_after(ctx: &WorkflowState) -> anyhow::Result<()> {
     }
 
     // 3. 可选 silence gate
-    if use_gate && mixed_dst.exists() {
-        let gated_path = out_dir.join("target_3_vocals_gated.wav");
+    if use_gate && mixed_dst.as_path().exists() {
+        let gated_path = GatedVocalsPath::new(&video_dir);
         tracing::info!(target: "separate", "Applying silence gate...");
         ffmpeg(&[
             "-i".into(),
-            mixed_dst.to_string_lossy().into_owned(),
+            mixed_dst.as_path().to_string_lossy().into_owned(),
             "-af".into(),
             "agate=threshold=0.02:ratio=20:attack=10:release=100".into(),
-            gated_path.to_string_lossy().into_owned(),
+            gated_path.as_path().to_string_lossy().into_owned(),
         ])?;
     }
 
@@ -244,15 +246,11 @@ mod tests {
             "target_bgm.wav 应生成"
         );
         assert!(
-            separate_after_dir(&dir)
-                .join("target_3_vocals_mixed.wav")
-                .exists(),
+            Target3VocalsMixedPath::new(&dir).as_path().exists(),
             "target_3_vocals_mixed.wav 应生成"
         );
         assert!(
-            separate_after_dir(&dir)
-                .join("target_3_vocals_gated.wav")
-                .exists(),
+            GatedVocalsPath::new(&dir).as_path().exists(),
             "useGate=true 时 target_3_vocals_gated.wav 应生成"
         );
 
