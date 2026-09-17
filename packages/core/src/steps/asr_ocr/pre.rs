@@ -254,13 +254,13 @@ pub fn step_asr_ocr_pre(ctx: &WorkflowState) -> Result<()> {
     info!(target: "asr_ocr", "{} split segs → {} frame positions", asr_segs.len(), sorted_ts.len());
 
     // Step 3: Extract frames via ffmpeg
-    let frame_dir = pre_dir.join("frames");
-    fs::create_dir_all(&frame_dir)
-        .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", frame_dir.display(), e))?;
+    let frame_dir = asr_ocr_pre::FramesDir::new(&video_dir);
+    fs::create_dir_all(frame_dir.as_path())
+        .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", frame_dir.as_path().display(), e))?;
 
     let mut extract_count = 0;
     for (idx, ms) in sorted_ts.iter().enumerate() {
-        let frame_path = frame_dir.join(format!("{:07}.jpg", ms));
+        let frame_path = frame_dir.as_path().join(format!("{:07}.jpg", ms));
         let args = vec![
             "-ss".into(),
             format!("{:.3}", *ms as f64 / 1000.0),
@@ -284,7 +284,7 @@ pub fn step_asr_ocr_pre(ctx: &WorkflowState) -> Result<()> {
         return Err(anyhow::anyhow!("No frames extracted"));
     }
 
-    info!(target: "asr_ocr", "{} frames extracted to {}", extract_count, frame_dir.display());
+    info!(target: "asr_ocr", "{} frames extracted to {}", extract_count, frame_dir.as_path().display());
 
     set_step_anyhow(
         &video_dir,

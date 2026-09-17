@@ -449,6 +449,26 @@ pub mod asr_ocr_pre {
             &self.0
         }
     }
+
+    /// asr_ocr_pre 步骤抽出的帧目录 `<videoDir>/asr_ocr_pre/frames`（PNG 帧）。
+    ///
+    /// 产出方是 `asr_ocr_pre` 步骤 (`step_asr_ocr_pre`)，消费方是 `asr_ocr` 步骤
+    /// (`AsrOcrInput.frames_dir`)。放在产出方模块下，与 `sf_ocr_pre::KeyframesDir` /
+    /// `sf_ocr::FramesPath` 被各自消费方引用的 provenance 模式同款——跨步骤路径类型
+    /// 归属产出方，消费方只引用。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct FramesDir(PathBuf);
+
+    impl FramesDir {
+        /// `{video_dir}/asr_ocr_pre/frames`。
+        pub fn new(video_dir: impl AsRef<Path>) -> Self {
+            Self(video_dir.as_ref().join("asr_ocr_pre").join("frames"))
+        }
+
+        pub fn as_path(&self) -> &Path {
+            &self.0
+        }
+    }
 }
 
 pub mod asr_ocr {

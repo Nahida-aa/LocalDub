@@ -5,9 +5,9 @@
 
 use crate::cmd::env::ensure_bin;
 use crate::state::WorkflowState;
-use crate::steps::asr_ocr::args::AsrOcrArgs;
+use crate::steps::asr_ocr::args::{AsrOcrArgs, AsrOcrInput};
 use crate::steps::utils::{
-    asr_ocr_dir, asr_ocr_pre_dir, now_iso, set_step_anyhow, StepPatch, StepStatus,
+    asr_ocr_dir, now_iso, set_step_anyhow, StepPatch, StepStatus,
 };
 use crate::steps::utils::paths::asr_ocr;
 use anyhow::Result;
@@ -31,7 +31,9 @@ pub fn step_asr_ocr(ctx: &WorkflowState) -> Result<()> {
 
     let cfg = AsrOcrArgs::from_input(&ctx.input);
 
-    let frame_dir = asr_ocr_pre_dir(&video_dir).join("frames");
+    // 跨步骤输入清单（依赖见 `AsrOcrInput`）。
+    let input = AsrOcrInput::from_video_dir(&video_dir);
+    let frame_dir = input.frames_dir.as_path();
     if !frame_dir.exists() {
         return Err(anyhow::anyhow!(
             "Frame directory not found: {} — run asr_ocr_pre first",
