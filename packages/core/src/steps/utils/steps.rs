@@ -375,7 +375,7 @@ mod tests {
     /// `SubtitleSource::from_state`（那些路径只会一致地回退默认 `Asr`，不会出现测试注释里
     /// 担心的「跑哪些 step」与「读哪个字幕文件」来源错乱——两者会一起回退）。fail-fast
     /// 已上移到 `Input` 解析（CLI/RPC 请求阶段，见 `SubtitleSource::from_state` 文档），
-    /// 且 `read_ctx_from_value` 对该错误是 lenient 兜底（保证旧/TS ctx.json 不崩）。
+    /// 且 `read_ctx_from_value` 对该错误是 lenient 兜底（保证旧/TS state.json 不崩）。
     /// 故此处断言**类型契约**：`Input` 反序列化直接拒绝非法值。注意混合写法 `sf-OCR` 也须被拒。
     #[test]
     fn unknown_subtitle_source_is_rejected() {

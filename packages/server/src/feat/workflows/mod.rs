@@ -60,17 +60,17 @@ pub async fn continue_workflow(video_dir: String, from_step: String) -> Result<(
         repo_root().display()
     );
 
-    // 读 ctx.json 的 input 字段作为续跑基准配置 (仅改写 workflow 相关字段, 其余原样保留)。
-    let ctx_path = abs_video_dir.join("ctx.json");
+    // 读 state.json 的 input 字段作为续跑基准配置 (仅改写 workflow 相关字段, 其余原样保留)。
+    let state_path = abs_video_dir.join("state.json");
     let ctx_raw =
-        std::fs::read_to_string(&ctx_path).map_err(|e| format!("read ctx.json failed: {}", e))?;
+        std::fs::read_to_string(&state_path).map_err(|e| format!("read state.json failed: {}", e))?;
     let mut ctx: serde_json::Value =
-        serde_json::from_str(&ctx_raw).map_err(|e| format!("parse ctx.json failed: {}", e))?;
+        serde_json::from_str(&ctx_raw).map_err(|e| format!("parse state.json failed: {}", e))?;
 
     let mut input_value = ctx
         .get_mut("input")
         .map(|v| v.take())
-        .ok_or_else(|| "ctx.json 缺少 input 字段".to_string())?;
+        .ok_or_else(|| "state.json 缺少 input 字段".to_string())?;
     let workflow = input_value
         .get_mut("workflow")
         .ok_or_else(|| "input 缺少 workflow 字段".to_string())?;
@@ -120,17 +120,17 @@ pub async fn regen_tts(
         .ok_or_else(|| "invalid video_dir".to_string())?
         .to_string();
 
-    // 读 ctx.json 的 input 字段作为续跑基准配置 (仅改写 workflow / steps.tts, 其余保留)。
-    let ctx_path = abs_video_dir.join("ctx.json");
+    // 读 state.json 的 input 字段作为续跑基准配置 (仅改写 workflow / steps.tts, 其余保留)。
+    let state_path = abs_video_dir.join("state.json");
     let ctx_raw =
-        std::fs::read_to_string(&ctx_path).map_err(|e| format!("read ctx.json failed: {}", e))?;
+        std::fs::read_to_string(&state_path).map_err(|e| format!("read state.json failed: {}", e))?;
     let mut ctx: serde_json::Value =
-        serde_json::from_str(&ctx_raw).map_err(|e| format!("parse ctx.json failed: {}", e))?;
+        serde_json::from_str(&ctx_raw).map_err(|e| format!("parse state.json failed: {}", e))?;
 
     let mut input_value = ctx
         .get_mut("input")
         .map(|v| v.take())
-        .ok_or_else(|| "ctx.json 缺少 input 字段".to_string())?;
+        .ok_or_else(|| "state.json 缺少 input 字段".to_string())?;
     let workflow = input_value
         .get_mut("workflow")
         .ok_or_else(|| "input 缺少 workflow 字段".to_string())?;
@@ -216,7 +216,7 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
     let input: Input =
         serde_json::from_value(base).map_err(|e| format!("parse input failed: {}", e))?;
 
-    // 只跑导入 (拷贝/下载 + 探测 + 写 ctx.json), 拿到 video_dir 立即返回;
+    // 只跑导入 (拷贝/下载 + 探测 + 写 state.json), 拿到 video_dir 立即返回;
     // 完整 pipeline 在后台跑, 前端跳转任务页后由 ctx watcher 实时刷新 step 徽章。
     let ctx = tokio::task::spawn_blocking(move || {
         ld_core::workflows::import::download::import_video(&input)

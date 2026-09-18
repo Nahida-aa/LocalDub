@@ -17,24 +17,24 @@ use crate::workflows::pipeline::run_step;
 ///
 /// `ctx` 必须由调用者先 `read_ctx(video_dir)` (或自行构造) 后传入; 内部不再读磁盘,
 /// 避免续跑基于陈旧 ctx。
-pub fn continue_pipeline(ctx: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = ctx.workflow.video_dir.as_str();
+pub fn continue_pipeline(state: &WorkflowState) -> anyhow::Result<()> {
+    let video_dir = state.workflow.video_dir.as_str();
     // 进入 workflow span: 携带 video_dir 供 WorkflowFileLayer 落盘。
     let _workflow_guard = tracing::info_span!("workflow", video_dir = video_dir).entered();
     tracing::info!(target: "output_mode", "continue_pipeline: start");
 
-    let output_mode = ctx.output_mode.clone();
-    let video_id = ctx.workflow.id.clone();
-    let steps = crate::steps::get_steps(ctx)?;
+    let output_mode = state.output_mode.clone();
+    let video_id = state.workflow.id.clone();
+    let steps = crate::steps::get_steps(state)?;
 
     // continueFrom / targetStep 从 ctx.input.workflow 读取 (镜像 TS ctx.input?.workflow)
-    let continue_from = ctx
+    let continue_from = state
         .input
         .workflow
         .as_ref()
         .and_then(|w| w.continue_from.as_ref())
         .map(|s| s.as_str().to_string());
-    let target_step = ctx
+    let target_step = state
         .input
         .workflow
         .as_ref()
@@ -76,7 +76,7 @@ pub fn continue_pipeline(ctx: &WorkflowState) -> anyhow::Result<()> {
         );
     } else {
         // 无 continueFrom → 跳过已完成前缀, 从第一个未完成 step 续跑
-        let existing: std::collections::HashMap<String, StepStatus> = ctx
+        let existing: std::collections::HashMap<String, StepStatus> = state
             .steps
             .clone()
             .unwrap_or_default()

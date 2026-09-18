@@ -1228,7 +1228,7 @@
         },
         {
           "const": "import",
-          "description": " 只导入: 下载/拷贝视频 + 探测 + 写 ctx.json, 不跑 output_mode。\n 批量场景可先批量导入, 之后用 continue 逐个续跑重活。"
+          "description": " 只导入: 下载/拷贝视频 + 探测 + 写 state.json, 不跑 output_mode。\n 批量场景可先批量导入, 之后用 continue 逐个续跑重活。"
         },
         {
           "const": "enqueue_start"
@@ -1526,7 +1526,7 @@
         },
         "output_mode": {
           "$ref": "#/$defs/OutputMode",
-          "description": " 任务模式, dub 配音, subtitle 仅字幕\n\n **显式 `rename` 覆盖 `rename_all = \"camelCase\"`**：本字段的 wire 名沿用\n snake_case（`\"output_mode\"`），与其余 camelCase 字段不一致——这是刻意的，\n 因为 ctx.json 侧的 `output_mode` 字段也已是 snake_case。"
+          "description": " 任务模式, dub 配音, subtitle 仅字幕\n\n **显式 `rename` 覆盖 `rename_all = \"camelCase\"`**：本字段的 wire 名沿用\n snake_case（`\"output_mode\"`），与其余 camelCase 字段不一致——这是刻意的，\n 因为 state.json 侧的 `output_mode` 字段也已是 snake_case。"
         },
         "subtitleSource": {
           "$ref": "#/$defs/SubtitleSource",
@@ -1576,7 +1576,7 @@
       "anyOf": [
         {
           "const": "main",
-          "description": " LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。\n\n alias \"server\": 历史任务 ctx.json 里持久化的 input.servers.name 是旧值,\n 反序列化需兼容 (序列化输出统一 \"main\")。"
+          "description": " LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。\n\n alias \"server\": 历史任务 state.json 里持久化的 input.servers.name 是旧值,\n 反序列化需兼容 (序列化输出统一 \"main\")。"
         },
         {
           "const": "voxcpm_torch_gradio"
@@ -1676,7 +1676,7 @@
         "stems"
       ],
       "title": "SeparateArgs_Serialize",
-      "description": " separate 阶段参数 (镜像 TS `packages/core/steps/separate/args.ts` SeparateArgsSchema)\n\n 枚举/数组默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})`), 这里只需处理\n 「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
+      "description": " separate 阶段参数 (镜像 TS `packages/core/steps/separate/args.ts` SeparateArgsSchema)\n\n 枚举/数组默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})`), 这里只需处理\n 「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
     },
     "SfOcrArgs_Serialize": {
       "type": "object",
@@ -1734,7 +1734,7 @@
         "enabled"
       ],
       "title": "TranslateArgs_Serialize",
-      "description": " translate 阶段参数 (镜像 TS `packages/core/steps/05_translate/args.ts` TranslateArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 目标语言统一在 `input.workflow.targetLang` 配置 (任务级概念: 一个任务只有一个翻译\n 阶段, 不需要 step 级覆盖)。旧的 `steps.translate.targetLang` 已移除,\n deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。"
+      "description": " translate 阶段参数 (镜像 TS `packages/core/steps/05_translate/args.ts` TranslateArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 目标语言统一在 `input.workflow.targetLang` 配置 (任务级概念: 一个任务只有一个翻译\n 阶段, 不需要 step 级覆盖)。旧的 `steps.translate.targetLang` 已移除,\n deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。"
     },
     "SplitAudioArgs_Serialize": {
       "type": "object",
@@ -1786,7 +1786,7 @@
         "sourceFilePath"
       ],
       "title": "SplitAudioArgs_Serialize",
-      "description": " split_audio 阶段参数 (镜像 TS `packages/core/steps/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 ctx.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。"
+      "description": " split_audio 阶段参数 (镜像 TS `packages/core/steps/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 state.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。"
     },
     "TtsRuntime": {
       "anyOf": [
@@ -1868,7 +1868,7 @@
         "refAudioX2"
       ],
       "title": "TtsArgs_Serialize",
-      "description": " tts 阶段参数 (镜像 TS `packages/core/steps/07_tts/args.ts` TtsStepArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
+      "description": " tts 阶段参数 (镜像 TS `packages/core/steps/07_tts/args.ts` TtsStepArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
     },
     "MixAudioArgs_Serialize": {
       "type": "object",
@@ -1892,7 +1892,7 @@
         "maxDelayMs"
       ],
       "title": "MixAudioArgs_Serialize",
-      "description": " mix_audio 阶段参数 (镜像 TS `packages/core/steps/mix_audio/args.ts` MixAudioArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::steps::Asr` 同款处理)。"
+      "description": " mix_audio 阶段参数 (镜像 TS `packages/core/steps/mix_audio/args.ts` MixAudioArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::steps::Asr` 同款处理)。"
     },
     "MixVideoArgs_Serialize": {
       "type": "object",
@@ -1998,7 +1998,7 @@
         "enabled"
       ],
       "title": "MixVideoArgs_Serialize",
-      "description": " mix_video 阶段参数 (镜像 TS `packages/core/steps/mix_video/args.ts` MixVideoArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::steps::Asr` 同款处理)。"
+      "description": " mix_video 阶段参数 (镜像 TS `packages/core/steps/mix_video/args.ts` MixVideoArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::steps::Asr` 同款处理)。"
     },
     "Steps_Serialize": {
       "type": "object",
@@ -2242,7 +2242,7 @@
         },
         "output_mode": {
           "$ref": "#/$defs/OutputMode",
-          "description": " 任务模式, dub 配音, subtitle 仅字幕\n\n **显式 `rename` 覆盖 `rename_all = \"camelCase\"`**：本字段的 wire 名沿用\n snake_case（`\"output_mode\"`），与其余 camelCase 字段不一致——这是刻意的，\n 因为 ctx.json 侧的 `output_mode` 字段也已是 snake_case。"
+          "description": " 任务模式, dub 配音, subtitle 仅字幕\n\n **显式 `rename` 覆盖 `rename_all = \"camelCase\"`**：本字段的 wire 名沿用\n snake_case（`\"output_mode\"`），与其余 camelCase 字段不一致——这是刻意的，\n 因为 state.json 侧的 `output_mode` 字段也已是 snake_case。"
         },
         "subtitleSource": {
           "$ref": "#/$defs/SubtitleSource",
@@ -2260,11 +2260,11 @@
       "anyOf": [
         {
           "const": "main",
-          "description": " LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。\n\n alias \"server\": 历史任务 ctx.json 里持久化的 input.servers.name 是旧值,\n 反序列化需兼容 (序列化输出统一 \"main\")。"
+          "description": " LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。\n\n alias \"server\": 历史任务 state.json 里持久化的 input.servers.name 是旧值,\n 反序列化需兼容 (序列化输出统一 \"main\")。"
         },
         {
           "const": "server",
-          "description": " LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。\n\n alias \"server\": 历史任务 ctx.json 里持久化的 input.servers.name 是旧值,\n 反序列化需兼容 (序列化输出统一 \"main\")。"
+          "description": " LocalDub 主服务器 (packages/server, fnrpc 端点, 端口 19110)。\n\n alias \"server\": 历史任务 state.json 里持久化的 input.servers.name 是旧值,\n 反序列化需兼容 (序列化输出统一 \"main\")。"
         },
         {
           "const": "voxcpm_torch_gradio"
@@ -2323,7 +2323,7 @@
         }
       },
       "title": "SeparateArgs_Deserialize",
-      "description": " separate 阶段参数 (镜像 TS `packages/core/steps/separate/args.ts` SeparateArgsSchema)\n\n 枚举/数组默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})`), 这里只需处理\n 「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
+      "description": " separate 阶段参数 (镜像 TS `packages/core/steps/separate/args.ts` SeparateArgsSchema)\n\n 枚举/数组默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})`), 这里只需处理\n 「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
     },
     "SfOcrArgs_Deserialize": {
       "type": "object",
@@ -2369,7 +2369,7 @@
         }
       },
       "title": "TranslateArgs_Deserialize",
-      "description": " translate 阶段参数 (镜像 TS `packages/core/steps/05_translate/args.ts` TranslateArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 目标语言统一在 `input.workflow.targetLang` 配置 (任务级概念: 一个任务只有一个翻译\n 阶段, 不需要 step 级覆盖)。旧的 `steps.translate.targetLang` 已移除,\n deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。"
+      "description": " translate 阶段参数 (镜像 TS `packages/core/steps/05_translate/args.ts` TranslateArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 目标语言统一在 `input.workflow.targetLang` 配置 (任务级概念: 一个任务只有一个翻译\n 阶段, 不需要 step 级覆盖)。旧的 `steps.translate.targetLang` 已移除,\n deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。"
     },
     "SplitAudioArgs_Deserialize": {
       "type": "object",
@@ -2414,7 +2414,7 @@
         }
       },
       "title": "SplitAudioArgs_Deserialize",
-      "description": " split_audio 阶段参数 (镜像 TS `packages/core/steps/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 ctx.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。"
+      "description": " split_audio 阶段参数 (镜像 TS `packages/core/steps/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 state.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。"
     },
     "TtsArgs_Deserialize": {
       "type": "object",
@@ -2453,7 +2453,7 @@
         }
       },
       "title": "TtsArgs_Deserialize",
-      "description": " tts 阶段参数 (镜像 TS `packages/core/steps/07_tts/args.ts` TtsStepArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
+      "description": " tts 阶段参数 (镜像 TS `packages/core/steps/07_tts/args.ts` TtsStepArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
     },
     "MixAudioArgs_Deserialize": {
       "type": "object",
@@ -2472,7 +2472,7 @@
         }
       },
       "title": "MixAudioArgs_Deserialize",
-      "description": " mix_audio 阶段参数 (镜像 TS `packages/core/steps/mix_audio/args.ts` MixAudioArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::steps::Asr` 同款处理)。"
+      "description": " mix_audio 阶段参数 (镜像 TS `packages/core/steps/mix_audio/args.ts` MixAudioArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::steps::Asr` 同款处理)。"
     },
     "MixVideoArgs_Deserialize": {
       "type": "object",
@@ -2565,7 +2565,7 @@
         }
       },
       "title": "MixVideoArgs_Deserialize",
-      "description": " mix_video 阶段参数 (镜像 TS `packages/core/steps/mix_video/args.ts` MixVideoArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::steps::Asr` 同款处理)。"
+      "description": " mix_video 阶段参数 (镜像 TS `packages/core/steps/mix_video/args.ts` MixVideoArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::steps::Asr` 同款处理)。"
     },
     "Steps_Deserialize": {
       "type": "object",
@@ -2836,7 +2836,7 @@
         }
       ],
       "title": "MixAudioArgs",
-      "description": " mix_audio 阶段参数 (镜像 TS `packages/core/steps/mix_audio/args.ts` MixAudioArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::steps::Asr` 同款处理)。"
+      "description": " mix_audio 阶段参数 (镜像 TS `packages/core/steps/mix_audio/args.ts` MixAudioArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::steps::Asr` 同款处理)。"
     },
     "MixVideoArgs": {
       "anyOf": [
@@ -2866,7 +2866,7 @@
         }
       ],
       "title": "MixVideoArgs",
-      "description": " mix_video 阶段参数 (镜像 TS `packages/core/steps/mix_video/args.ts` MixVideoArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::steps::Asr` 同款处理)。"
+      "description": " mix_video 阶段参数 (镜像 TS `packages/core/steps/mix_video/args.ts` MixVideoArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::steps::Asr` 同款处理)。"
     },
     "OcrFixArgs": {
       "anyOf": [
@@ -2926,7 +2926,7 @@
         }
       ],
       "title": "SeparateArgs",
-      "description": " separate 阶段参数 (镜像 TS `packages/core/steps/separate/args.ts` SeparateArgsSchema)\n\n 枚举/数组默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})`), 这里只需处理\n 「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
+      "description": " separate 阶段参数 (镜像 TS `packages/core/steps/separate/args.ts` SeparateArgsSchema)\n\n 枚举/数组默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})`), 这里只需处理\n 「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
     },
     "ServerType": {
       "anyOf": [
@@ -3076,7 +3076,7 @@
         }
       ],
       "title": "SplitAudioArgs",
-      "description": " split_audio 阶段参数 (镜像 TS `packages/core/steps/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 ctx.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。"
+      "description": " split_audio 阶段参数 (镜像 TS `packages/core/steps/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 state.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。"
     },
     "Steps": {
       "anyOf": [
@@ -3136,7 +3136,7 @@
         }
       ],
       "title": "TranslateArgs",
-      "description": " translate 阶段参数 (镜像 TS `packages/core/steps/05_translate/args.ts` TranslateArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 目标语言统一在 `input.workflow.targetLang` 配置 (任务级概念: 一个任务只有一个翻译\n 阶段, 不需要 step 级覆盖)。旧的 `steps.translate.targetLang` 已移除,\n deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。"
+      "description": " translate 阶段参数 (镜像 TS `packages/core/steps/05_translate/args.ts` TranslateArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。\n\n 目标语言统一在 `input.workflow.targetLang` 配置 (任务级概念: 一个任务只有一个翻译\n 阶段, 不需要 step 级覆盖)。旧的 `steps.translate.targetLang` 已移除,\n deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。"
     },
     "TtsArgs": {
       "anyOf": [
@@ -3166,7 +3166,7 @@
         }
       ],
       "title": "TtsArgs",
-      "description": " tts 阶段参数 (镜像 TS `packages/core/steps/07_tts/args.ts` TtsStepArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
+      "description": " tts 阶段参数 (镜像 TS `packages/core/steps/07_tts/args.ts` TtsStepArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
     },
     "WorkflowArgs": {
       "anyOf": [

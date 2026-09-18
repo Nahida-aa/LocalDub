@@ -10,7 +10,7 @@ use crate::workflows::args::SubtitleSource;
 
 /// translate 阶段参数 (镜像 TS `packages/core/steps/05_translate/args.ts` TranslateArgsSchema)
 ///
-/// 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),
+/// 枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),
 /// 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。
 ///
 /// 目标语言统一在 `input.workflow.targetLang` 配置 (任务级概念: 一个任务只有一个翻译
@@ -79,13 +79,13 @@ pub enum SubtitleSourcePath {
 /// 设计要点：
 /// - **llmFix 不出现在这里**——跑没跑 LLM 修正由产出方消化（fix 步骤最后统一
 ///   落 srt.json），消费者只认规范化产物。旧的 3×2 焦点文件矩阵由此消失。
-/// - **provenance 在类型里**：`source_path` 的每个变体是 `paths` 命名空间的
+/// - **provenance 在类型里**：`srt_json_path` 的每个变体是 `paths` 命名空间的
 ///   类型化路径，不是裸 `PathBuf`。
 /// - 未知 `subtitleSource` → 报错而非静默回退（fail-fast）。
 #[derive(Debug, Clone)]
 pub struct TranslateInput {
     /// 本次要读的字幕来源（三选一，各带自己的类型化路径）。
-    pub source_path: SubtitleSourcePath,
+    pub srt_json_path: SubtitleSourcePath,
     /// 任务目录。**与 [`TranslateOutput`] 必须同源**——两边都存是为了让契约
     /// 自包含（消费者不必再拿 ctx），但构造时都由 `from_state` 从同一处取，
     /// 避免「读的目录」与「写的目录」分叉。
@@ -107,25 +107,25 @@ impl TranslateInput {
     /// srt.json 的存在性**不在这里检查**——它是否必须存在由
     /// `translate.enabled` 决定（见 `step_translate`：enabled 时缺失报错，
     /// disabled 时缺失走空直通）。
-    pub fn from_state(ctx: &WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(state: &WorkflowState) -> anyhow::Result<Self> {
         // **顺序有讲究**：先解析 subtitleSource，再取 target_language。
         // 反过来的话，配置里同时有非法 subtitleSource 与缺失 target_language 时，
         // 报的是后者——而用户真正写错的是前者，报错会指向错的地方。
-        let source_path = match SubtitleSource::from_state(ctx)? {
+        let srt_json_path = match SubtitleSource::from_state(state)? {
             SubtitleSource::Asr => {
-                SubtitleSourcePath::Asr(asr_fix::SrtPath::new(&ctx.workflow.video_dir))
+                SubtitleSourcePath::Asr(asr_fix::SrtPath::new(&state.workflow.video_dir))
             }
             SubtitleSource::SfOcr => {
-                SubtitleSourcePath::SfOcr(sf_ocr_fix::SrtPath::new(&ctx.workflow.video_dir))
+                SubtitleSourcePath::SfOcr(sf_ocr_fix::SrtPath::new(&state.workflow.video_dir))
             }
             SubtitleSource::AsrOcr => {
-                SubtitleSourcePath::AsrOcr(asr_ocr_fix::SrtPath::new(&ctx.workflow.video_dir))
+                SubtitleSourcePath::AsrOcr(asr_ocr_fix::SrtPath::new(&state.workflow.video_dir))
             }
         };
         Ok(Self {
-            source_path,
-            video_dir: ctx.workflow.video_dir.clone(),
-            target_lang: ctx.target_language.clone(),
+            srt_json_path,
+            video_dir: state.workflow.video_dir.clone(),
+            target_lang: state.target_language.clone(),
         })
     }
 
@@ -135,7 +135,7 @@ impl TranslateInput {
     /// 这正是 provenance 的代价与收益——类型系统会挡住「把 sf_ocr 的路径塞给
     /// asr 变量」。
     pub fn srt_path(&self) -> &Path {
-        match &self.source_path {
+        match &self.srt_json_path {
             SubtitleSourcePath::Asr(p) => p.as_path(),
             SubtitleSourcePath::SfOcr(p) => p.as_path(),
             SubtitleSourcePath::AsrOcr(p) => p.as_path(),
@@ -144,7 +144,7 @@ impl TranslateInput {
 
     /// 产出方 step 名（报错提示用）。
     pub fn producer(&self) -> &'static str {
-        match self.source_path {
+        match self.srt_json_path {
             SubtitleSourcePath::Asr(_) => "asr_fix",
             SubtitleSourcePath::SfOcr(_) => "sf_ocr_fix",
             SubtitleSourcePath::AsrOcr(_) => "asr_ocr_fix",

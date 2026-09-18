@@ -1,19 +1,19 @@
 //! 用 workflow-core 引擎 (aa-workflow) 驱动 output_mode (Phase 1: 串行等价)。
 //!
 //! 目标: 与 [`crate::workflows::pipeline::run_pipeline`] 对同样的 step 序列、同样的
-//! ctx.json 副作用达成一致, 但"成败真相"从 ctx.json 转移为
+//! state.json 副作用达成一致, 但"成败真相"从 state.json 转移为
 //! `<video_dir>/workflow-engine/events.jsonl` (见 [`engine_store::FsRunStore`])。
 //!
 //! 建立方式: 内核是 async handler-replay (代码即 DAG)——handler 闭包按 `get_steps`
 //! 顺序逐个 `ctx.step(...).await`, 重放时已 success 的 step 短路到缓存结果、
 //! 已失败的直接 rethrow。串行即 `for` 循环, 后续要并行再上 `tokio::try_join!`。
-//! step 闭包内部复用 [`crate::workflows::pipeline::run_step`], 前后照旧写 ctx.json
+//! step 闭包内部复用 [`crate::workflows::pipeline::run_step`], 前后照旧写 state.json
 //! (UI 投影)。
 //!
 //! 与 run_pipeline 的差异点 (引擎天然语义):
 //! - **resume**: 同 run_id 重跑时跳过事件日志中已 `success` 的 step。
 //! - **continue_from**: 事件日志在 store 层截断到目标 step 的最新终态 checkpoint,
-//!   前缀短路、后缀重跑 (镜像 `continue_pipeline` 在 ctx.json 上的重置)。
+//!   前缀短路、后缀重跑 (镜像 `continue_pipeline` 在 state.json 上的重置)。
 //! - **target_step**: 命中即停, 标记成功 (镜像 run_pipeline 的 targetStep)。
 //! - 阶段错误 → 事件日志记 StepFailed, engine 停, workflow 置 failed (失败即终局,
 //!   重试靠 continue_from / 新 run)。
@@ -152,7 +152,7 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
     )?;
 
     // continue_from 由 store 层截断事件日志承载: 重放时前缀短路、后缀重跑,
-    // 不需要像 run_pipeline 那样提前把 ctx.json 后缀标 pending。
+    // 不需要像 run_pipeline 那样提前把 state.json 后缀标 pending。
 
     // handler-replay authoring 面: 串行 = 按 get_steps 顺序逐个 ctx.step.await。
     let run_id =
@@ -370,7 +370,7 @@ mod tests {
         dir
     }
 
-    /// 构造写好 ctx.json 的 subtitle 临时 workflow 目录 (只触发 separate / separate_after).
+    /// 构造写好 state.json 的 subtitle 临时 workflow 目录 (只触发 separate / separate_after).
     fn setup_subtitle(dir: &str) {
         std::fs::create_dir_all(dir).unwrap();
         let input = json!({
@@ -503,7 +503,7 @@ mod tests {
         let ctx = read_ctx(&dir).unwrap();
         assert_eq!(ctx.workflow.status, "success");
         assert_eq!(status_of(&dir, "separate"), StepStatus::Success);
-        // separate_after 未跑 → ctx.json 无对应 step 条目 (或非 success)
+        // separate_after 未跑 → state.json 无对应 step 条目 (或非 success)
         let after = ctx
             .steps
             .as_ref()

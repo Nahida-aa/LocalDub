@@ -20,10 +20,10 @@ use crate::steps::utils::{
 use crate::workflows::args::OutputMode;
 
 /// 入口 (镜像 TS `stepMixVideo`)。
-pub fn step_mix_video(ctx: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = ctx.workflow.video_dir.clone();
-    let video_id = ctx.workflow.id.clone();
-    let cfg = MixVideoArgs::from_input(&ctx.input);
+pub fn step_mix_video(state: &WorkflowState) -> anyhow::Result<()> {
+    let video_dir = state.workflow.video_dir.clone();
+    let video_id = state.workflow.id.clone();
+    let cfg = MixVideoArgs::from_input(&state.input);
 
     if !cfg.enabled {
         tracing::info!(target: "mix_video", "disabled (mix_video.enabled=false), skipping");
@@ -41,7 +41,7 @@ pub fn step_mix_video(ctx: &WorkflowState) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let input = MixVideoInput::from_state(ctx)?;
+    let input = MixVideoInput::from_state(state)?;
     let video_file_path = match &input {
         MixVideoInput::Dub {
             video_source_path, ..
@@ -57,16 +57,16 @@ pub fn step_mix_video(ctx: &WorkflowState) -> anyhow::Result<()> {
         return Err(anyhow!("video_source.mp4 not found: {video_file_path}"));
     }
 
-    let output_mode = OutputMode::from_input(&ctx.input);
+    let output_mode = OutputMode::from_input(&state.input);
     // 目标语言读**已落定的事实**（翻译步骤写的唯一写入点），不再现算：
     // `resolve_language` 是现算，推断逻辑一变就会与产物不一致。
-    let target_lang = crate::steps::utils::paths::translate::LangPath::from_state(ctx)?
+    let target_lang = crate::steps::utils::paths::translate::LangPath::from_state(state)?
         .lang()
         .to_string();
 
-    let no_translate = !ctx.input.steps.translate.enabled;
+    let no_translate = !state.input.steps.translate.enabled;
 
-    let subtitle_source = ctx
+    let subtitle_source = state
         .input
         .workflow
         .as_ref()

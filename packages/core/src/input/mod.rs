@@ -114,7 +114,7 @@ mod tests {
     }
 
     /// **wire 键名双向钉住**：`WorkflowArgs` 是 `rename_all = "camelCase"`，
-    /// 但 `output_mode` 用显式 `rename` 覆盖成 snake_case（ctx.json 侧同名）。
+    /// 但 `output_mode` 用显式 `rename` 覆盖成 snake_case（state.json 侧同名）。
     /// 若有人删掉那个 rename，这里会红——否则键名会静默变成 `outputMode`。
     #[test]
     fn output_mode_wire_key_is_snake_case_both_ways() {

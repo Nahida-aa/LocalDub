@@ -342,7 +342,7 @@ pub fn step_asr(ctx: &WorkflowState) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// 把检测语言写回 ctx.json (镜像 TS `setCtx(videoDir, { asr_language })`)。
+/// 把检测语言写回 state.json (镜像 TS `setCtx(videoDir, { asr_language })`)。
 fn set_asr_language(video_dir: &str, lang: &str) -> anyhow::Result<()> {
     let mut ctx = crate::state::read_ctx(video_dir).map_err(anyhow::Error::msg)?;
     ctx.asr_language = Some(crate::r#const::lang::LangCode::new(lang));
@@ -508,7 +508,7 @@ mod tests {
 
     fn test_ctx(input: serde_json::Value) -> WorkflowState {
         // 每个测试实例独立目录: 同进程测试并行运行, 共享目录会互相覆盖
-        // ctx.json (读到半写状态导致偶发断言失败)。
+        // state.json (读到半写状态导致偶发断言失败)。
         static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let dir = std::env::temp_dir()
             .join(format!(

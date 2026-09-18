@@ -1,3 +1,29 @@
+//! workflow 状态：`state.json` 的读写与类型。
+//!
+//! # `state.json` 是什么、不是什么
+//!
+//! **是**：每个任务目录下的一份**实时状态投影**（`<video_dir>/state.json`）。
+//! 每次 `set_step` / `set_workflow` 都立刻 read-modify-write 落盘，所以它反映的是
+//! *当下的* 状态，不是某个定期快照。用途有二：
+//!
+//! 1. **给人 / 给 UI 看**——任务进度、每个 step 的状态与消息、错误信息；
+//!     前端靠监听这个文件的变更来刷新区块（见 `VideoDetailPage.tsx`）。
+//! 2. **步骤间传参**——`import` 落盘的 `video_source_path` / `audio_source_path`，
+//!     以及各 step 读取的任务级配置，都从这里取。
+//!
+//! **不是**：**引擎的「成败真相」**。真正的真源是 append-only 事件日志
+//! `<video_dir>/workflow-engine/events.jsonl`（配合 `run.json`）——见
+//! [`crate::integration::workflow::engine_store::FsRunStore`]。引擎的 resume /
+//! continue_from / target_step 全都依据那份日志，而不是本文件。
+//!
+//! 两者的关系：**`state.json` 是投影，事件日志是真源**。这也意味着它是**可丢弃、
+//! 可重建**的（Phase 3 计划把它改造成严格的「由日志派生的确定性投影」，
+//! 见 `engine_store.rs` 的模块文档）。
+//!
+//! > ⚠️ 别把它和 aa-workflow 引擎里的 `ctx.state` 混为一谈。`ctx.state` 是
+//! > handler 的执行期内存（**不落盘**、靠 replay 重建）；本文件是 LocalDub 自己的
+//! > 任务状态文件。两者除了名字像，没有任何关系。
+
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::fs;
@@ -88,12 +114,12 @@ pub struct WorkflowState {
     pub target_language: Option<String>,
 }
 
-pub fn ctx_path(video_dir: &str) -> PathBuf {
-    PathBuf::from(video_dir).join("ctx.json")
+pub fn state_path(video_dir: &str) -> PathBuf {
+    PathBuf::from(video_dir).join("state.json")
 }
 
 pub fn read_ctx(video_dir: &str) -> Result<WorkflowState, String> {
-    let path = ctx_path(video_dir);
+    let path = state_path(video_dir);
     let raw = fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
     let json: serde_json::Value = serde_json::from_str(&raw)
@@ -101,11 +127,11 @@ pub fn read_ctx(video_dir: &str) -> Result<WorkflowState, String> {
     read_ctx_from_value(json)
 }
 
-/// 从 ctx.json 的 JSON Value 解析 WorkflowState (不读写文件, 供测试/透传直接构造)
+/// 从 state.json 的 JSON Value 解析 WorkflowState (不读写文件, 供测试/透传直接构造)
 pub fn read_ctx_from_value(json: serde_json::Value) -> Result<WorkflowState, String> {
     let workflow: Workflow = json
         .get("workflow")
-        .ok_or_else(|| "Missing 'workflow' in ctx".to_string())
+        .ok_or_else(|| "Missing 'workflow' in state".to_string())
         .and_then(|v| {
             serde_json::from_value(v.clone())
                 .map_err(|e| format!("Failed to parse workflow: {}", e))
@@ -130,7 +156,7 @@ pub fn read_ctx_from_value(json: serde_json::Value) -> Result<WorkflowState, Str
             .and_then(|v| v.as_str())
             .map(String::from),
         // 宽松加载：input 由 import 以 `Input` 序列化写入；旧版 / TS 产出的
-        // ctx.json 若含非法字段（如 TranslateArgs::deny_unknown_fields 拦下的），
+        // state.json 若含非法字段（如 TranslateArgs::deny_unknown_fields 拦下的），
         // 这里不崩溃，回退默认 Input 并告警。写回路径仍用严格类型（见 `write_ctx`）。
         input: json
             .get("input")
@@ -169,9 +195,9 @@ pub fn read_ctx_from_value(json: serde_json::Value) -> Result<WorkflowState, Str
     })
 }
 
-/// 把 [`WorkflowState`] 序列化写回 `ctx.json` (镜像 TS `writeCtx`)。
+/// 把 [`WorkflowState`] 序列化写回 `state.json` (镜像 TS `writeCtx`)。
 pub fn write_ctx(video_dir: &str, ctx: &WorkflowState) -> Result<(), String> {
-    let path = ctx_path(video_dir);
+    let path = state_path(video_dir);
     let json = serde_json::to_string_pretty(ctx)
         .map_err(|e| format!("Failed to serialize ctx for {}: {}", video_dir, e))?;
     fs::write(&path, json).map_err(|e| format!("Failed to write {}: {}", path.display(), e))?;
@@ -179,7 +205,7 @@ pub fn write_ctx(video_dir: &str, ctx: &WorkflowState) -> Result<(), String> {
 }
 
 pub fn read_workflow(video_dir: &str) -> Result<Workflow, String> {
-    let path = ctx_path(video_dir);
+    let path = state_path(video_dir);
     let raw = fs::read_to_string(&path)
         .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
     let json: serde_json::Value = serde_json::from_str(&raw)

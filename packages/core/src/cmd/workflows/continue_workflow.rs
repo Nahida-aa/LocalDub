@@ -2,7 +2,7 @@
 //!
 //! 语义 (对齐 TS):
 //! 1. 要求 `input.workflow.videoDir` 指定已有任务目录, 否则报错;
-//! 2. `setCtx` — 把当前 `input` 合并写回 `ctx.json` 的 `input` 字段
+//! 2. `setCtx` — 把当前 `input` 合并写回 `state.json` 的 `input` 字段
 //!    (TS `setCtx(videoDir, { input })`), 这样 `continueFrom` / `regenIndices` 等
 //!    以当前 `input.jsonc` 为准, 而非沿用陈旧的持久化 ctx;
 //! 3. 读出合并后的 ctx, 交给 [`crate::workflows::continue_pipeline`] 续跑。
@@ -24,19 +24,19 @@ pub fn continue_workflow(input: &Input) -> anyhow::Result<()> {
             anyhow::anyhow!("continue 模式需要 input.workflow.videoDir 指定已有任务目录")
         })?;
 
-    if !std::path::Path::new(&video_dir).join("ctx.json").exists() {
+    if !std::path::Path::new(&video_dir).join("state.json").exists() {
         return Err(anyhow::anyhow!(
-            "continue 模式找不到 {}/ctx.json, 确认 videoDir 正确",
+            "continue 模式找不到 {}/state.json, 确认 videoDir 正确",
             video_dir
         ));
     }
 
-    // setCtx: 把当前 input 合并进 ctx.json 的 input 字段 (镜像 TS setCtx(videoDir, { input }))
+    // setCtx: 把当前 input 合并进 state.json 的 input 字段 (镜像 TS setCtx(videoDir, { input }))
     let mut ctx = read_ctx(&video_dir)
-        .map_err(|e| anyhow::anyhow!("读取 {}/ctx.json 失败: {e}", video_dir))?;
+        .map_err(|e| anyhow::anyhow!("读取 {}/state.json 失败: {e}", video_dir))?;
     ctx.input = input.clone();
     write_ctx(&video_dir, &ctx)
-        .map_err(|e| anyhow::anyhow!("写回 {}/ctx.json 失败: {e}", video_dir))?;
+        .map_err(|e| anyhow::anyhow!("写回 {}/state.json 失败: {e}", video_dir))?;
 
     let continue_from = input
         .workflow

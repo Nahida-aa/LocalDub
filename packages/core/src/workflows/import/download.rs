@@ -8,10 +8,10 @@ use anyhow::Context;
 use chrono::Utc;
 use tracing::{info, warn};
 
+use crate::input::Input;
 use crate::state::{
     read_ctx_from_value, write_ctx, VideoSource, Workflow, WorkflowState, WorkflowStep,
 };
-use crate::input::Input;
 use crate::workflows::args::OutputMode;
 use crate::workflows::import::util::{
     auto_group_id_and_video_id, copy_file_to_path, download_remote_video, encode_to_mp4,
@@ -97,7 +97,7 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowState> {
         })
         .collect();
 
-    let ctx = WorkflowState {
+    let state = WorkflowState {
         workflow: Workflow {
             id: video_id.clone(),
             source,
@@ -122,11 +122,13 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowState> {
         video_source_path: Some(downloaded.video_path.clone()),
         audio_source_path: Some(downloaded.audio_path.clone()),
         asr_language: args.source_lang.clone(),
-        target_language: args.target_lang.map(|l| Into::<&'static str>::into(l).to_string()),
+        target_language: args
+            .target_lang
+            .map(|l| Into::<&'static str>::into(l).to_string()),
     };
 
-    write_ctx(&video_dir.to_string_lossy(), &ctx).map_err(anyhow::Error::msg)?;
-    Ok(ctx)
+    write_ctx(&video_dir.to_string_lossy(), &state).map_err(anyhow::Error::msg)?;
+    Ok(state)
 }
 
 /// 下载/复制视频并转码 + 抽音频 (镜像 TS `downloadVideo`)。
@@ -269,10 +271,10 @@ fn download_youtube_subtitles(
     Ok(())
 }
 
-/// 从 ctx.json 读回 (方便下游阶段复用, 镜像 TS `readCtx`)。
+/// 从 state.json 读回 (方便下游阶段复用, 镜像 TS `readCtx`)。
 pub fn read_ctx(video_dir: &str) -> anyhow::Result<WorkflowState> {
-    let raw = std::fs::read_to_string(crate::state::ctx_path(video_dir))
-        .with_context(|| format!("读 ctx.json 失败: {video_dir}"))?;
+    let raw = std::fs::read_to_string(crate::state::state_path(video_dir))
+        .with_context(|| format!("读 state.json 失败: {video_dir}"))?;
     let v: serde_json::Value = serde_json::from_str(&raw)?;
     read_ctx_from_value(v).map_err(anyhow::Error::msg)
 }

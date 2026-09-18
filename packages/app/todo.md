@@ -11,7 +11,7 @@
   - `f09321d` refactor(ui): remove @repo/ui dependency
   - `e5e5d4a` refactor(split_audio): timings 从 translation.json 读
   - 联动删除（曾临时移植可复现 bug）已撤销，未提交。
-- 探索：`get_task_ctx` 直接读 ctx.json，写文件不会 invalidate 它 → task_ctx 失效塌缩理论已排除。
+- 探索：`get_task_ctx` 直接读 state.json，写文件不会 invalidate 它 → task_ctx 失效塌缩理论已排除。
 - 机制候选（纯静态读不出，需运行时判定）：容器重挂(scrollLeft 天然 0) / 宽度塌缩(totalPx=duration*pxPerMs)clamp 回 0 / scrollTop 垂直复位。
 - 关键观察：`TimelineTracks.tsx:63` 滚动容器是外层 overflow-auto（不在 `<For>` 内）；`TaskDetailPage.tsx:130 tracks()` 每次新建对象，任何信号变化都会按新引用重建 `<For>` 轨道组件。
 

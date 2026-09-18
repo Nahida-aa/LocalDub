@@ -12,8 +12,8 @@ use crate::steps::utils::{now_iso, set_step_anyhow, StepPatch, StepStatus};
 use std::process::Command;
 
 /// 入口 (镜像 TS `stepSfOcr`)。
-pub fn step_sf_ocr(ctx: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = ctx.workflow.video_dir.clone();
+pub fn step_sf_ocr(state: &WorkflowState) -> anyhow::Result<()> {
+    let video_dir = state.workflow.video_dir.clone();
     tracing::info!(target: "sf_ocr", "start");
 
     set_step_anyhow(
@@ -26,7 +26,7 @@ pub fn step_sf_ocr(ctx: &WorkflowState) -> anyhow::Result<()> {
         },
     )?;
 
-    let cfg = SfOcrArgs::from_input(&ctx.input);
+    let cfg = SfOcrArgs::from_input(&state.input);
 
     let input = SfOcrInput::from_video_dir(&video_dir);
     let frame_dir = input.keyframes_dir.as_path();

@@ -9,7 +9,7 @@
 ## 0. TL;DR(裁决先行)
 
 - LocalDub 核心的本质不是"pipeline",而是**可恢复的「文件产物构建图」(file-artifact DAG)**:
-  - `ctx.json` 只是状态索引;真正处于中心位置的是被外部工具(ffmpeg / whisper.cpp / subtitle-finder / subtitle-ocr)直接读写**的产物文件**(`asr.json`、`timings.json`、srt、`tts/wavs/*.wav`)。
+  - `state.json` 只是状态索引;真正处于中心位置的是被外部工具(ffmpeg / whisper.cpp / subtitle-finder / subtitle-ocr)直接读写**的产物文件**(`asr.json`、`timings.json`、srt、`tts/wavs/*.wav`)。
   - 阶段的有序数组(`DUB_STEPS` 等)是**隐式 DAG**;`separate` / `asr` / `sf_ocr*` 三路在 `translate` 汇合,是真实存在的 fan-out。
 - 调研过的三个候选库(dagflowjs / @octabits-io/flow / TanStack Workflow)分属另外两大家族(declarative DAG 与 durable replay),与「文件产物=状态」模型是**两本账**,都没有 Checkpoint 落盘到文件、被外部工具消费的建模。
 - **裁决:不采纳第三方库,自研 ~150 行调度器(方案 C),吸收 octaflow/TanStack 的 gate / retry 分级 / observer 设计。** 概念与语言无关,不阻碍 ld-core Rust 迁移。
@@ -23,7 +23,7 @@
 
 | 层         | 内容                                                                                                                | 角色                                                    |
 | ---------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `ctx.json` | task 元数据 + 每 step 的 `status/started_at/completed_at/progress/last_message/error_message`                       | **状态索引**(四态:pending / running / success / failed) |
+| `state.json` | task 元数据 + 每 step 的 `status/started_at/completed_at/progress/last_message/error_message`                       | **状态索引**(四态:pending / running / success / failed) |
 | 产物文件   | `asr.json`、`translate.[dstLang].json`、`split_audio.json`、`timings.json`、`tts/wavs/NNNN.wav`、分隔后的 vocals 等 | **真正的状态与交付物**,被外部工具读写                   |
 
 关键文件:
@@ -97,7 +97,7 @@ video_source
   - ✅ 形状最接近:**"依赖就绪即并行 + translate 汇合"** 分毫不差对应你的 DAG。
   - ❌ durability 只由 **Postgres store** 提供;in-memory store 不落盘。你的核心没有、也不该有常驻 DB。
   - ❌ 状态是 DB 行,不是文件;产物由 handler 内部自写,引擎不知道文件的存在——你的 mtime/artifact-exists 模型无法被表达。
-- 中间解:它留了 `WorkflowStore` 接口,可自写一个 **ctx.json 文件后端**——但等于给 pre-1.0 库当白嫖并行调度器的代价是电平加深 TS 依赖、锁 API。
+- 中间解:它留了 `WorkflowStore` 接口,可自写一个 **state.json 文件后端**——但等于给 pre-1.0 库当白嫖并行调度器的代价是电平加深 TS 依赖、锁 API。
 - 结论:**不采纳**;按其设计吸收(尤其 `StepGate` 与 isRetryableError 分级)。
 
 ### 3.3 TanStack Workflow(`/home/aa/repos/lib_ls/learn_ls/workflow`,学习克隆)
@@ -127,13 +127,13 @@ video_source
 
 ### 4.1 为什么三个库都不合适(共同根因)
 
-三个库都是 **"frame your code"** 型:要求把步骤关进各自的 ctx / log / node 结构里换持久化。而 LocalDub 的核心是**文件产物 = 状态中枢**,外部工具直接读写文件,ctx.json 只是索引。"此步是否完成"由文件的存在与 mtime 决定,不是由某本 log/某张表决定。硬套任一库都要同时维护两本账,且 dossié 里各自有硬伤(见表)。
+三个库都是 **"frame your code"** 型:要求把步骤关进各自的 ctx / log / node 结构里换持久化。而 LocalDub 的核心是**文件产物 = 状态中枢**,外部工具直接读写文件,state.json 只是索引。"此步是否完成"由文件的存在与 mtime 决定,不是由某本 log/某张表决定。硬套任一库都要同时维护两本账,且 dossié 里各自有硬伤(见表)。
 
 ### 4.2 候选方案
 
 | 方案  | 内容                                               | 优点                                            | 代价                                            |
 | ----- | -------------------------------------------------- | ----------------------------------------------- | ----------------------------------------------- |
-| **A** | 采用 octaflow,自写 ctx.json-backed `WorkflowStore` | 白嫖 auto-parallel + gate + observer            | pre-1.0 依赖(4 下载/周)、加深 TS 占比、API 锁定 |
+| **A** | 采用 octaflow,自写 state.json-backed `WorkflowStore` | 白嫖 auto-parallel + gate + observer            | pre-1.0 依赖(4 下载/周)、加深 TS 占比、API 锁定 |
 | **B** | 纯自研并行调度器                                   | 零依赖、完全可控、不冲突 Rust 迁移              | 全自己扛                                        |
 | **C** | **吸收设计自研**(推荐)                             | 兼得 A 的 gate/retry/observer 设计 + B 的零依赖 | 需要实现纪律                                    |
 
@@ -160,7 +160,7 @@ C 的实现要素(自研调度器候选清单):
 1. 按顺序精读 `learn_ls/workflow/research/`(TanStack 设计笔记,比营销 README 诚实):
    1. `research/README.md` — 索引与各文档定位
    2. `RESEARCH.md` — 竞争格局落位(Temporal/DBOS/Inngest/Trigger.dev/Hatchet/Cloudflare Workflows/LangGraph)
-   3. `WORKFLOW_STORE_RUNTIME_CONTRACT.md` — engine/store 边界,可直接迁移到 ctx.json 关切
+   3. `WORKFLOW_STORE_RUNTIME_CONTRACT.md` — engine/store 边界,可直接迁移到 state.json 关切
    4. `COMPETITOR_GAP_ANALYSIS_2026-05-25.md` — 生产级盲点清单(泄密/定时/版本 drain/队列),当 checklist
    5. `API_CANDIDATES.md` — 三种 API 设计之争,理解"为什么长这样"
    6. 概念文档:`docs/concepts/replay-and-resume.md`(事件日志+重放短路)、`docs/concepts/scheduling.md`、`docs/concepts/primitives.md`
@@ -199,7 +199,7 @@ ld-core 现有依赖已经完备:**tokio**(rt/sync/time,已精简)、**tracing**
 - **定位**:2026-02 起源,v1.0.0 stable(MIT,71★,~2700 downloads)。Rust core + Python/Node/CF Workers bindings。`sayiir-core` + `sayiir-runtime` + `sayiir-persistence` + `sayiir-macros`。
 - **核心卖点**:`No replay, no determinism constraints`——步骤就是 async fn,无 DSL/无 `ctx.step` 包装,continuation-based:checkpoint 是 snapshot,进程重启后从最后 checkpoint 恢复,不重放整个执行历史。
 - **`PersistentBackend` trait**(`sayiir-persistence`):`SnapshotStore`(5 方法:save/load/delete/list/get_status) + `SignalStore`(3 required + 3 default 方法),合计仅需实现 **8 个方法**。`InMemoryBackend` 已提供;Postgres 后端 stable。
-- **FileBackend 可行性**:把 `WorkflowSnapshot` 序列化写到 `<task_dir>/.sayiir-snapshot.json`(JSON/serde_json,与现有 ctx.json 同风格);`SignalStore` 的 cancel/pause 映射到现有 `TaskStep` 的 `status` 字段。实现量约 100 行 Rust。
+- **FileBackend 可行性**:把 `WorkflowSnapshot` 序列化写到 `<task_dir>/.sayiir-snapshot.json`(JSON/serde_json,与现有 state.json 同风格);`SignalStore` 的 cancel/pause 映射到现有 `TaskStep` 的 `status` 字段。实现量约 100 行 Rust。
 - **与 LocalDub 匹配度**:
   - ✅ 步骤 = async fn,ffmpeg/whisper 子进程调用、文件读写、随机数均无须包装 → 与 TS 模型完全一致
   - ✅ 嵌入式,无 server/无 sidecar
@@ -245,7 +245,7 @@ ld-core 现有依赖已经完备:**tokio**(rt/sync/time,已精简)、**tracing**
 - **显式边表**:每 step 声明 `needs: Vec<StepName>`(或按 pipeline 变体的静态边表),用 petgraph 构建有向图 → `toposort()` 得到拓扑序
 - **就绪队列**:petgraph `Graph::neighbors_directed(Incoming)` + in-degree 计数器,完成一步后递减;in-degree=0 入队
 - **资源互斥门控**:按参数解析后的 `runtime`/`device` 生成资源占用描述符,同物理资源互斥 → `tokio::sync::Semaphore`(已由 ld-core 引入 tokio)
-- **checkpoint 文件**:`<task_dir>/.pipeline-checkpoint.json` → serde_json,记录每 step 的 `status/started_at/completed_at/error_message`,与现有 ctx.json 同格式
+- **checkpoint 文件**:`<task_dir>/.pipeline-checkpoint.json` → serde_json,记录每 step 的 `status/started_at/completed_at/error_message`,与现有 state.json 同格式
 - **continue 语义**:失败节点 + 其传递闭包(petgraph reachable)重置为 pending;`continueFrom`/`targetStep` 同理
 - **observer**:`tracing::info!`(ld-core 已有 tracing 依赖 + tracing-subscriber),每个 step 的开始/完成/失败 emit span
 - **从 TS 渐进迁移**:先在 TS 侧验证 DAG 边表 + resume 语义,再用 Rust 实现同规格的调度器并替换 `runPipeline`/`continuePipeline`

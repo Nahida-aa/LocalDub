@@ -8,7 +8,7 @@
 
 ### Phase 1 — 后端基础设施
 - [ ] Axum 加 `/media/{group_id}/{task_id}/*` 路由，serve session 目录文件
-- [ ] fnrpc: `get_session_detail` — 聚合 ctx.json + asr_fix + translation.*.json
+- [ ] fnrpc: `get_session_detail` — 聚合 state.json + asr_fix + translation.*.json
 - [ ] fnrpc: `update_subtitle_segment` — 写回编辑（timing / 文本）
 
 ### Phase 2 — 前端骨架

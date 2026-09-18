@@ -231,14 +231,14 @@ fn run_demucs(
 }
 
 /// 入口 (镜像 TS `stepSeparate`)。
-pub fn step_separate(ctx: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = ctx.workflow.video_dir.clone();
+pub fn step_separate(state: &WorkflowState) -> anyhow::Result<()> {
+    let video_dir = state.workflow.video_dir.clone();
     tracing::info!(target: "separate", "start");
 
-    let cfg = SeparateArgs::from_input(&ctx.input);
+    let cfg = SeparateArgs::from_input(&state.input);
 
     // subtitle 模式且未配置 always → 跳过分离
-    if ctx.output_mode == "subtitle" && !cfg.always {
+    if state.output_mode == "subtitle" && !cfg.always {
         tracing::info!(target: "separate", "Skipped (subtitle pipeline, set separate.always=true to force)");
         set_step_anyhow(
             &video_dir,
@@ -264,7 +264,7 @@ pub fn step_separate(ctx: &WorkflowState) -> anyhow::Result<()> {
         },
     )?;
 
-    let input = SeparateInput::from_state(ctx)?;
+    let input = SeparateInput::from_state(state)?;
 
     let audio_path = input
         .audio_source_path
@@ -434,7 +434,7 @@ mod tests {
 
     #[test]
     fn subtitle_skips_when_not_always() {
-        // 用一个 fake ctx.json, 验证 subtitle + !always 走 skip 分支
+        // 用一个 fake state.json, 验证 subtitle + !always 走 skip 分支
         let dir = std::env::temp_dir()
             .join(format!("ld_sep_skip_{}", std::process::id()))
             .to_string_lossy()

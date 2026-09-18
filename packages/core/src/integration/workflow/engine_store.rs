@@ -5,8 +5,13 @@
 //! - `events.jsonl` — append-only 事件日志 (每行一个 JSON [`workflow_core::WorkflowEvent`],
 //!   append 走 CAS expected_index, 冲突报 [`StoreError::Conflict`])
 //!
-//! 与 ctx.json 的关系: ctx.json 是 UI 读取的投影/缓存; 引擎的"成败真相"在本目录的日志。
-//! (Phase 3 再把 ctx.json 改造成由日志派生的确定性投影。)
+//! 与 `state.json` 的关系：**`state.json` 是投影，本目录的日志是真源。**
+//!
+//! - 引擎的 resume / continue_from / target_step **全部**依据 `events.jsonl`，
+//!   不读 `state.json`；
+//! - `state.json` 是给 UI / 人看的实时投影（见 [`crate::state`] 的模块文档），
+//!   因此**可丢弃、可重建**；
+//! - (Phase 3 再把 `state.json` 改造成严格的「由日志派生的确定性投影」。)
 
 use std::fs;
 use std::path::{Path, PathBuf};

@@ -2,7 +2,7 @@
 //!
 //! 提供:
 //! - [`now_iso`] — RFC3339 无毫秒时间戳
-//! - [`set_step`] / [`set_workflow`] — 对 `ctx.json` 中 steps / workflow 的 upsert 合并
+//! - [`set_step`] / [`set_workflow`] — 对 `state.json` 中 steps / workflow 的 upsert 合并
 //! - 各 step 输出目录 helper ([`separate_dir`] / [`asr_dir`] / [`separate_after_dir`] ...)
 //! - [`steps`] 模块: output_mode 阶段序列 ([`steps::get_steps`])
 
@@ -84,7 +84,7 @@ impl StepPatch {
     }
 }
 
-/// 对 `ctx.json` 中指定 step 做 upsert 合并 (镜像 TS `setStep`)。
+/// 对 `state.json` 中指定 step 做 upsert 合并 (镜像 TS `setStep`)。
 pub fn set_step(video_dir: &str, name: &str, patch: StepPatch) -> Result<(), String> {
     let mut ctx = read_ctx(video_dir)?;
     let steps = ctx.steps.get_or_insert_with(Vec::new);
@@ -144,7 +144,7 @@ impl WorkflowPatch {
     }
 }
 
-/// 对 `ctx.json` 中 workflow 做 upsert 合并 (镜像 TS `setTask`)。
+/// 对 `state.json` 中 workflow 做 upsert 合并 (镜像 TS `setTask`)。
 pub fn set_workflow(video_dir: &str, patch: WorkflowPatch) -> Result<(), String> {
     let mut ctx = read_ctx(video_dir)?;
     ctx.workflow = patch.apply(ctx.workflow);
@@ -649,7 +649,7 @@ fn translate_enabled(ctx: &crate::state::WorkflowState) -> bool {
     ctx.input.steps.translate.enabled
 }
 
-/// 把本次的目标语言**落盘**（ctx.json 的 `target_language`）。
+/// 把本次的目标语言**落盘**（state.json 的 `target_language`）。
 ///
 /// **只能由 [`crate::steps::translate::step_translate`] 调用一次。**
 /// 这是刻意的写入权限约束：
@@ -657,7 +657,7 @@ fn translate_enabled(ctx: &crate::state::WorkflowState) -> bool {
 /// 此前这一步藏在 `resolve_language` 内部（「算出来变了就顺手写回」），于是
 /// 一个**看起来纯读**的函数带着隐形写副作用。后果是产生顺序依赖——
 /// `split_audio` 先调 `read_translation_result(ctx)`（读 ctx 里的旧值）**再**调
-/// `resolve_language(ctx)`（顺带改写 ctx.json），读在写之前，读到的文件名与
+/// `resolve_language(ctx)`（顺带改写 state.json），读在写之前，读到的文件名与
 /// 该步骤认定的语言就不是同一个。
 ///
 /// 现在拆开：`resolve_language` 纯函数（可随便调、幂等、无副作用），写盘只此一处。

@@ -11,7 +11,7 @@ pub enum WorkflowAction {
     Start,
     #[serde(rename = "continue")]
     Continue,
-    /// 只导入: 下载/拷贝视频 + 探测 + 写 ctx.json, 不跑 output_mode。
+    /// 只导入: 下载/拷贝视频 + 探测 + 写 state.json, 不跑 output_mode。
     /// 批量场景可先批量导入, 之后用 continue 逐个续跑重活。
     #[serde(rename = "import")]
     Import,
@@ -88,7 +88,7 @@ pub enum StepName {
 }
 
 impl StepName {
-    /// snake_case 名（与 serde 表示、\`ctx.json\` 里的 \`steps[].name\` 一致）。
+    /// snake_case 名（与 serde 表示、\`state.json\` 里的 \`steps[].name\` 一致）。
     /// 一行委托到 strum 派生的 \`AsRef<str>\`——名字承载契约语义，保留专属方法。
     pub fn as_str(self) -> &'static str {
         self.into()
@@ -242,7 +242,7 @@ pub struct WorkflowArgs {
     ///
     /// **显式 `rename` 覆盖 `rename_all = "camelCase"`**：本字段的 wire 名沿用
     /// snake_case（`"output_mode"`），与其余 camelCase 字段不一致——这是刻意的，
-    /// 因为 ctx.json 侧的 `output_mode` 字段也已是 snake_case。
+    /// 因为 state.json 侧的 `output_mode` 字段也已是 snake_case。
     #[serde(default, rename = "output_mode")]
     pub output_mode: OutputMode,
     /// 字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)

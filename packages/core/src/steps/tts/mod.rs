@@ -40,11 +40,11 @@ const MIN_REF_DURATION_MS: u64 = 2500;
 const MIN_TTS_DURATION_MS: u64 = 100;
 
 /// 入口 (镜像 TS `stepTts`)。
-pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = ctx.workflow.video_dir.clone();
+pub fn step_tts(state: &WorkflowState) -> anyhow::Result<()> {
+    let video_dir = state.workflow.video_dir.clone();
     tracing::info!(target: "tts", "start");
 
-    let args = TtsArgs::from_input(&ctx.input);
+    let args = TtsArgs::from_input(&state.input);
     // 输入契约一次性构建：本步只读 split_audio 的两个产物，路径全由 `paths` 里的
     // 类型给出，本函数不再自己拼字符串。
     let input = TtsInput::from_video_dir(&video_dir);
@@ -96,7 +96,7 @@ pub fn step_tts(ctx: &WorkflowState) -> anyhow::Result<()> {
     // - 首次 start 时强制忽略, 全量跑; 仅 continue 重跑时用。
     // - 列表内的段: 无视 skipExisting, 强制重新合成 (先删旧 wav 再生成)。
     // - 列表外的段: 保留旧结果 —— 优先复用 tts.json 已有记录, 无旧记录才写合法静音占位。
-    let is_start = ctx.input.workflow.as_ref().and_then(|w| w.action)
+    let is_start = state.input.workflow.as_ref().and_then(|w| w.action)
         == Some(crate::workflows::args::WorkflowAction::Start);
     let regen_indices: Option<Vec<u32>> = if is_start {
         None

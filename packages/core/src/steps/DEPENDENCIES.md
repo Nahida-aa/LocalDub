@@ -56,10 +56,19 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | --- | --- | --- |
 | `video_source.mp4` | import 阶段 / `ctx.video_source_path` | 原视频（所有链的根） |
 | `audio_source.wav` | import 阶段 / `ctx.audio_source_path` | 原音频 |
-| `ctx.json` | 引擎（`set_step` / `set_workflow`） | 状态投影，**所有 step 都读写它** |
+| `state.json` | 引擎（`set_step` / `set_workflow`） | **状态投影**，所有 step 都读写它（旧名 `ctx.json`） |
 
-> `ctx.json` 是全局共享的：每个 step 进来 `read_ctx`、改自己的状态、写回。
+> `state.json` 是全局共享的：每个 step 进来 `read_ctx`、改自己的状态、写回。
 > **两个 step 并行会互相覆盖**——这是并行化的前置障碍（见文末）。
+
+> ⚠️ **它是投影，不是真源。** 每次 `set_step` 立刻 read-modify-write 落盘（所以是
+> **实时**的），但引擎的「成败真相」在 `<video_dir>/workflow-engine/events.jsonl`
+> ——resume / continue_from / target_step 全依据那份 append-only 日志，**不读
+> `state.json`**。因此这个文件**可丢弃、可重建**。权威说明见
+> `packages/core/src/state/mod.rs` 的模块文档。
+>
+> 别与 aa-workflow 引擎的 `ctx.state` 混淆：那是 handler 的执行期内存（不落盘、
+> 靠 replay 重建），与此文件无关。
 
 ---
 
@@ -89,7 +98,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | `asr` | `AsrInput` | `audio_path: AsrSourceAudioPath`（枚举：Custom / Separated{vocals, mixed, gated} / Raw） |
 | `sf_ocr_pre` | `SfOcrPreInput` | `video_source_path: VideoSourcePath` |
 | `asr_ocr_pre` | `AsrOcrPreInput` | `asr_path: AsrPath`、`video_source_path: VideoSourcePath` |
-| `translate` | `TranslateInput` | `source_path: SubtitleSourcePath`、`video_dir`、`target_lang: Option<String>` |
+| `translate` | `TranslateInput` | `srt_json_path: SubtitleSourcePath`、`video_dir`、`target_lang: Option<String>` |
 | `split_audio` | `SplitAudioInput` | `audio_path: SplitAudioSourcePath`、`translate_path: LangPath` |
 | `mix_audio` | `MixAudioInput` | `split_audio_timings_path: TimingsPath`、`tts_wavs_dir: WavsDir` |
 | `mix_video` | `MixVideoInput`（枚举） | `Dub{video_source_path, mix_audio_timings_path, dubbing_path, bgm_path}` / `Subtitle{video_source_path, split_audio_timings_path}` |
@@ -270,7 +279,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | **读** ⚠️ | 规范化字幕 `srt.json`（按 `subtitleSource` 选目录，见「规范化字幕」节；类型化契约 `TranslateInput::from_state`，未知来源**报错**） |
 | **读** | `data/bin/yt-dlp` 产物（可选元信息） |
 | **写** | `translate/{lang}.json`（类型化契约 `TranslateOutput::for_lang`）、中间态 `{lang}.partial.json`（仅 LLM 路径，私有状态） |
-| **写** | `ctx.json` 的 `target_language`——**全仓唯一写点**（`persist_target_language`），见下 |
+| **写** | `state.json` 的 `target_language`——**全仓唯一写点**（`persist_target_language`），见下 |
 
 > **`{lang}.json` 的 `segments[].idx` 是 1-based 且必填。**
 >
@@ -309,7 +318,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 > 这是刻意的**写入权限约束**。此前写回藏在 `resolve_language` 内部
 > （「算出来变了就顺手写回」），于是一个**看起来纯读**的函数带着隐形写副作用，
 > 产生顺序依赖：`split_audio` 先 `read_translation_result(ctx)`（读 ctx 里的旧值）
-> **再** `resolve_language(ctx)`（顺带改写 ctx.json）——读在写之前，读到的文件名
+> **再** `resolve_language(ctx)`（顺带改写 state.json）——读在写之前，读到的文件名
 > 与它认定的语言可以不是同一个。症状是报「文件不存在」，但文件在，只是名字不同。
 >
 > 现在拆开：
@@ -318,7 +327,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 >   **只由 `step_translate` 调用一次**；失败返回 `Err`（原先只 `warn`）
 >
 > 由 `resolve_language_is_pure_and_does_not_persist` 守护：它调完
-> `resolve_language` 后断言磁盘上的 ctx.json **没被改动**。把写回塞回去这条会红
+> `resolve_language` 后断言磁盘上的 state.json **没被改动**。把写回塞回去这条会红
 > （已实测）。
 >
 > #### 已完成：下游改为「读事实」
@@ -544,13 +553,13 @@ subtitle pipeline 的 mix_video 不吃 mix_audio 产物，
 2. **`subtitleSource` 相关吗？** 涉及 `subtitle_file_path` 就得同时考虑三种取值。
 3. **我加的读是「缺失即失败」还是「有则用」？** 前者会改变失败面。
 4. **有没有破坏性副作用？**（如 `sf_ocr` 的 `cleanup_frames` 可删帧）
-5. **`ctx.json` 的并发假设还成立吗？**（见下）
+5. **`state.json` 的并发假设还成立吗？**（见下）
 6. **改 step 名单时改 `StepName` 枚举**——漏登记会在编译期报错，别去改
    `STEPS_LIST` / `*_STEPS` 那几处字符串（它们有测试钉住）。
 
 ## 已知限制
 
-- **`ctx.json` 是全局共享可变状态**：每个 step 读写它，**并行 step 会互相覆盖**。
+- **`state.json` 是全局共享可变状态**：每个 step 读写它，**并行 step 会互相覆盖**。
   任何并行化都要先解决这个（进程内锁 or 改用 core 的 state 模型）。
 - **路径来源**：本文先扫代码（`read_to_string` / `_path()` / `_dir()` 等），
   再对照 `workfolder/师尊带我炸修真/2/` 的**真实产出目录**核对过，两者一致。

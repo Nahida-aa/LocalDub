@@ -23,13 +23,13 @@ use args::MixAudioInput;
 pub use args::MixAudioArgs;
 
 /// 入口 (镜像 TS `stepMixAudio`)。
-pub fn step_mix_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = ctx.workflow.video_dir.clone();
+pub fn step_mix_audio(state: &WorkflowState) -> anyhow::Result<()> {
+    let video_dir = state.workflow.video_dir.clone();
     tracing::info!(target: "mix_audio", "start");
 
-    let args = MixAudioArgs::from_input(&ctx.input);
+    let args = MixAudioArgs::from_input(&state.input);
 
-    let input = MixAudioInput::from_state(ctx)?;
+    let input = MixAudioInput::from_state(state)?;
     let segments = SplitAudioTimingResult::read(&input.split_audio_timings_path)?.segments;
 
     let mix_audio_dir = Path::new(&video_dir).join("mix_audio");

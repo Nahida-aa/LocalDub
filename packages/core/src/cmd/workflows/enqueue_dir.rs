@@ -2,7 +2,7 @@
 //!
 //! 扫描本地目录**顶层**视频文件, 每个并行:
 //! - 用 `auto_group_id_and_video_id` 派生 group/video_id;
-//! - 若 `workfolder/<group>/<video_id>/ctx.json` 已存在 → 跳过 (幂等);
+//! - 若 `workfolder/<group>/<video_id>/state.json` 已存在 → 跳过 (幂等);
 //! - 否则基于 base_input 生成一条 action=start 的 Input (覆盖 url=绝对路径)。
 //!
 //! 返回准备好的 Input 列表 + 摘要。队列入队动作由调用方 (server RPC) 执行。
@@ -63,7 +63,7 @@ pub fn scan_dir_videos(dir: &Path, wf_root: &Path, base_input: &Input) -> DirSca
 
         match auto_group_id_and_video_id(&abs) {
             Ok(info) => {
-                if wf_root.join(&info.group_id).join(&info.video_id).join("ctx.json").exists() {
+                if wf_root.join(&info.group_id).join(&info.video_id).join("state.json").exists() {
                     skipped += 1;
                     skipped_videos.push(info.video_id);
                     continue;
@@ -143,7 +143,7 @@ mod tests {
         let dir_stem = dir.file_name().unwrap().to_str().unwrap();
         let ctx_dir = wf.join(dir_stem).join("ep01");
         std::fs::create_dir_all(&ctx_dir).unwrap();
-        std::fs::write(ctx_dir.join("ctx.json"), "{}").unwrap();
+        std::fs::write(ctx_dir.join("state.json"), "{}").unwrap();
 
         let out = scan_dir_videos(&dir, &wf, &Input::default());
         assert_eq!(out.result.scanned, 1);

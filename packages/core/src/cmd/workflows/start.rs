@@ -13,14 +13,11 @@ use anyhow::Context;
 ///
 /// 返回新任务的绝对 video_dir (供 RPC/CLI 层用于跳转/提示)。
 pub fn start_workflow(input: &Input) -> anyhow::Result<String> {
-    let ctx =
+    let state =
         crate::workflows::import::download::import_video(input).context("import_video 失败")?;
-    println!(
-        "[cli] 导入完成, video_dir = {}",
-        ctx.workflow.video_dir
-    );
-    crate::workflows::pipeline::run_pipeline(&ctx.workflow.video_dir)
+    println!("[cli] 导入完成, video_dir = {}", state.workflow.video_dir);
+    crate::workflows::pipeline::run_pipeline(&state.workflow.video_dir)
         .context("run_pipeline 失败")?;
-    println!("[cli] 完成: {}", ctx.workflow.video_dir);
-    Ok(ctx.workflow.video_dir)
+    println!("[cli] 完成: {}", state.workflow.video_dir);
+    Ok(state.workflow.video_dir)
 }

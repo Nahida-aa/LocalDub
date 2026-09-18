@@ -175,12 +175,12 @@ pub fn parse_json_reply(raw: &str) -> anyhow::Result<Value> {
 }
 
 /// 入口 (镜像 TS `stepTranslate`)。
-pub fn step_translate(ctx: &WorkflowState) -> anyhow::Result<()> {
+pub fn step_translate(state: &WorkflowState) -> anyhow::Result<()> {
     tracing::info!(target: "translate", "start");
 
-    let input = args::TranslateInput::from_state(ctx)?;
-    let args = args::TranslateArgs::from_input(&ctx.input);
-    let (src_lang, target_lang) = resolve_language(ctx)?;
+    let input = args::TranslateInput::from_state(state)?;
+    let args = args::TranslateArgs::from_input(&state.input);
+    let (src_lang, target_lang) = resolve_language(state)?;
     let video_dir = input.video_dir.clone();
 
     // **本文件是全仓唯一把 target_language 落盘的地方**（见
@@ -761,7 +761,7 @@ mod tests {
     /// `from_state` 只认 `ctx.target_language`：未设置 → 报错（不臆测语言）。
     ///
     /// 这一条钉的是**单源**承诺：读文件与报错必须指向同一路径。若改回
-    /// 「现算 `resolve_language`」，当 ctx.json 快照与现算结果不同时，
+    /// 「现算 `resolve_language`」，当 state.json 快照与现算结果不同时，
     /// 报错会指向一个没被尝试读取的文件。
     #[test]
     fn translate_output_from_state_requires_target_language() {
@@ -799,12 +799,12 @@ mod tests {
     /// `ctx.target_language` 与 `resolve_language()` 仍可能给出不同的值——
     /// 但这**不再会写出错的文件**，因为：
     ///
-    /// 1. `resolve_language` 已是**纯函数**，不再顺手改写 ctx.json；
+    /// 1. `resolve_language` 已是**纯函数**，不再顺手改写 state.json；
     /// 2. 落盘只由 `step_translate` 显式调 `persist_target_language` 一次。
     ///
     /// 约束前的问题形状：`resolve_language` 内部「算出来变了就写回」，于是
     /// `split_audio` 先 `read_translation_result(ctx)`（读旧值）**再**
-    /// `resolve_language(ctx)`（顺带改写 ctx.json）——读在写之前，读到的文件名
+    /// `resolve_language(ctx)`（顺带改写 state.json）——读在写之前，读到的文件名
     /// 与该步骤认定的语言不是同一个。症状：报「文件不存在」，但文件在，只是名字不同。
     ///
     /// 本测试断言**两个来源仍可不同**（这是事实：调用者手里的 ctx 可能是陈旧的），
@@ -827,7 +827,7 @@ mod tests {
                 "input": {"workflow": {"targetLang": "vi"}}
             }),
         );
-        // ctx.json 落盘，内容为 zh
+        // state.json 落盘，内容为 zh
         ctx.target_language = Some("zh".to_string());
         crate::state::write_ctx(&dir, &ctx).unwrap();
 
@@ -838,14 +838,14 @@ mod tests {
         assert_eq!(input.target_lang.as_deref(), Some("zh"));
         assert_eq!(resolved, "vi");
 
-        // ② **关键**：调 resolve_language 之后，磁盘上的 ctx.json 必须**没变**。
+        // ② **关键**：调 resolve_language 之后，磁盘上的 state.json 必须**没变**。
         //    这是「纯函数」的实质保障——若有人把写回塞回 resolve_language，
         //    这条会红。分叉之所以不再有害，全靠这一步不写盘。
         let after = crate::state::read_ctx(&dir).unwrap();
         assert_eq!(
             after.target_language.as_deref(),
             Some("zh"),
-            "resolve_language 不该有副作用；ctx.json 被改说明写回又回到了它里面"
+            "resolve_language 不该有副作用；state.json 被改说明写回又回到了它里面"
         );
 
         // ③ 显式落盘才改（这是 translate 唯一的写点）

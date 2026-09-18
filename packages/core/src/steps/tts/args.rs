@@ -28,7 +28,7 @@ pub enum TtsDevice {
 
 /// tts 阶段参数 (镜像 TS `packages/core/steps/07_tts/args.ts` TtsStepArgsSchema)
 ///
-/// 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),
+/// 枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),
 /// 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

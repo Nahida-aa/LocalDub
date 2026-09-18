@@ -1,6 +1,6 @@
 //! output_mode 串行派发器 (镜像 TS `packages/core/workflows/start.ts` 的 `runPipeline`)。
 //!
-//! 流程: 读 ctx → `get_steps` 得到阶段序列 → 逐个调用 `run_step` (handler 读 ctx.json
+//! 流程: 读 ctx → `get_steps` 得到阶段序列 → 逐个调用 `run_step` (handler 读 state.json
 //! 跑完写回) → 每阶段前后用 `set_step` / `set_workflow` 标状态, 失败即中断。
 //!
 //! 本文件原位于 `steps/output_mode.rs`, 后迁移到 `workflows/` (与 start / continue 派发器同层),
@@ -30,13 +30,13 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
     let _workflow_guard = tracing::info_span!("workflow", video_dir = video_dir).entered();
     tracing::info!(target: "output_mode", "run_pipeline: start");
 
-    let ctx = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
-    let output_mode = ctx.output_mode.clone();
-    let video_id = ctx.workflow.id.clone();
-    let steps = get_steps(&ctx)?;
+    let state = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
+    let output_mode = state.output_mode.clone();
+    let video_id = state.workflow.id.clone();
+    let steps = get_steps(&state)?;
 
     // targetStep 不在序列中则告警忽略 (镜像 TS)
-    if let Some(ts) = ctx
+    if let Some(ts) = state
         .input
         .workflow
         .as_ref()
@@ -86,7 +86,7 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
         match run_step(*step, video_dir) {
             Ok(()) => {
                 // 达到 targetStep 即停止 (镜像 TS)
-                if let Some(ts) = ctx
+                if let Some(ts) = state
                     .input
                     .workflow
                     .as_ref()
@@ -140,30 +140,30 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
 
 /// 按 step 名分派到具体 handler (镜像 TS `STEP_HANDLERS`)。
 ///
-/// 每个 handler 自行 `read_ctx` 获取最新 ctx (与 TS `readCtx(sp)` 一致)。
+/// 每个 handler 自行 `read_ctx` 获取最新 state (与 TS `readCtx(sp)` 一致)。
 ///
 /// **入参是 [`StepName`] 而非 `&str`**：`match` 因此是穷尽的——将来给枚举加
 /// 变体却不在这里登记 handler，会**编译失败**，而不是静默跳过。
 pub fn run_step(step: StepName, video_dir: &str) -> anyhow::Result<()> {
     // 进入 step span: 携带 step 名供 WorkflowFileLayer 作为 [step] 前缀。
     let _step_guard = tracing::info_span!("step", step = step.as_str()).entered();
-    let ctx = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
+    let state = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
     match step {
-        StepName::Separate => step_separate(&ctx),
-        StepName::SeparateAfter => step_separate_after(&ctx),
-        StepName::SfOcrPre => step_sf_ocr_pre(&ctx),
-        StepName::SfOcr => step_sf_ocr(&ctx),
-        StepName::SfOcrFix => step_sf_ocr_fix(&ctx),
-        StepName::Translate => step_translate(&ctx),
-        StepName::SplitAudio => step_split_audio(&ctx),
-        StepName::Asr => step_asr(&ctx),
-        StepName::AsrFix => step_asr_fix(&ctx),
-        StepName::AsrOcrPre => step_asr_ocr_pre(&ctx),
-        StepName::AsrOcr => step_asr_ocr(&ctx),
-        StepName::AsrOcrFix => step_asr_ocr_fix(&ctx),
-        StepName::Tts => step_tts(&ctx),
-        StepName::MixAudio => step_mix_audio(&ctx),
-        StepName::MixVideo => step_mix_video(&ctx),
+        StepName::Separate => step_separate(&state),
+        StepName::SeparateAfter => step_separate_after(&state),
+        StepName::SfOcrPre => step_sf_ocr_pre(&state),
+        StepName::SfOcr => step_sf_ocr(&state),
+        StepName::SfOcrFix => step_sf_ocr_fix(&state),
+        StepName::Translate => step_translate(&state),
+        StepName::SplitAudio => step_split_audio(&state),
+        StepName::Asr => step_asr(&state),
+        StepName::AsrFix => step_asr_fix(&state),
+        StepName::AsrOcrPre => step_asr_ocr_pre(&state),
+        StepName::AsrOcr => step_asr_ocr(&state),
+        StepName::AsrOcrFix => step_asr_ocr_fix(&state),
+        StepName::Tts => step_tts(&state),
+        StepName::MixAudio => step_mix_audio(&state),
+        StepName::MixVideo => step_mix_video(&state),
     }
 }
 
@@ -173,7 +173,7 @@ mod tests {
     use crate::state::read_ctx_from_value;
     use serde_json::json;
 
-    /// 构造一个写好 ctx.json 的临时 workflow 目录
+    /// 构造一个写好 state.json 的临时 workflow 目录
     fn setup_ctx(
         dir: &str,
         input: serde_json::Value,

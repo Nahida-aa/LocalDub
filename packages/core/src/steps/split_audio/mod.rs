@@ -43,11 +43,11 @@ impl SegmentBounds for TranslateSegment {
 
 /// 入口 (镜像 TS `stepSplitAudio`)。
 /// 本步骤耗时在 0~2s, 对于流程中的步骤来说没有必要考虑 如何设计成 与 某些步骤并行
-pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = ctx.workflow.video_dir.clone();
+pub fn step_split_audio(state: &WorkflowState) -> anyhow::Result<()> {
+    let video_dir = state.workflow.video_dir.clone();
     tracing::info!(target: "split_audio", "start");
 
-    let args = SplitAudioArgs::from_input(&ctx.input);
+    let args = SplitAudioArgs::from_input(&state.input);
 
     // 输入契约一次性构建：切块音频源 + 翻译产物路径，后续只读它，
     // 不再各自 `LangPath::from_state` / `audio_from_state` 拼两次。
@@ -56,14 +56,14 @@ pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
     let args::SplitAudioInput {
         audio_path,
         translate_path,
-    } = args::SplitAudioInput::from_state(ctx)?;
+    } = args::SplitAudioInput::from_state(state)?;
 
     // 字幕时间轴 + 文本：**统一来自 translate 的产物**（translate 恒执行；
     // enabled=false 时 dst=原文直通）。焦点文件不再是下游输入。
     //
     // 目标语言读**已落定的事实**（翻译步骤写的），不现算；
     // 源语言独立解析（它有自己的三级回退，与目标语言无关）。
-    let src_lang = crate::steps::utils::src_language(ctx).code().to_string();
+    let src_lang = crate::steps::utils::src_language(state).code().to_string();
     let trans = TranslateResult::read(&translate_path).map_err(|e| {
         anyhow::anyhow!("{e}; 请先运行 translate（或从该步骤 continue 以重新生成）")
     })?;
@@ -81,7 +81,7 @@ pub fn step_split_audio(ctx: &WorkflowState) -> anyhow::Result<()> {
     // 是否 dub 流程由 **output_mode 输入契约**决定，不再靠「源文件是否碰巧存在」
     // 推断——后者把「有没有 separate 产物」当成了流程模式，是个副作用推断
     // （subtitle 模式若残留了旧的 vocals stem，就会误判成 dub）。
-    let is_dub = crate::workflows::args::OutputMode::from_input(&ctx.input)
+    let is_dub = crate::workflows::args::OutputMode::from_input(&state.input)
         == crate::workflows::args::OutputMode::Dub;
 
     // 意图时序 =  translate 的 segments **原样搬运**。

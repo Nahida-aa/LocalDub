@@ -23,6 +23,23 @@ Before editing files for a substantial task:
 - 先查清楚问题再讨论如何解决, 不要一开始就想着使错误不发生, 错误是不需要规避的事情
 - .agents/learn.local.md
 
+## `state.json` 是投影，不是真源
+
+每个任务目录下的 `<video_dir>/state.json`（**旧名 `ctx.json`**，2026-09-18 改名）是：
+
+- **实时**状态投影——每次 `set_step` / `set_workflow` 立刻 read-modify-write 落盘；
+- 用途：**给 UI / 人看**（前端监听它的变更刷新区块）+ **步骤间传参**
+  （`import` 落盘的 `video_source_path` 等）；
+- **不是**引擎的「成败真相」。真源是 append-only 事件日志
+  `<video_dir>/workflow-engine/events.jsonl`（`FsRunStore`）。引擎的
+  resume / continue_from / target_step 全依据日志，**不读 state.json**。
+
+所以 `state.json` **可丢弃、可重建**（Phase 3 计划让它严格由日志派生）。
+定位说明的权威出处是 `packages/core/src/state/mod.rs` 的模块文档。
+
+> ⚠️ 别和 aa-workflow 引擎的 `ctx.state` 混为一谈：那是 handler 的执行期内存
+> （**不落盘**、靠 replay 重建），与这个文件无关。详见 `lib_ls/aa-workflow/AGENTS.md`。
+
 ## Key directories
 
 - `packages/cli/` — 入口 `run-task.ts`（派发器），`src/feat/` 为 pipeline 流程实现

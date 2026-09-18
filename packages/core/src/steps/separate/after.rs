@@ -12,13 +12,13 @@ use crate::steps::utils::{
 };
 
 /// 读取 asr 阶段配置 (缺省用 AsrArgs::default, 对齐 TS `?? 默认值`)。
-fn read_asr_cfg(ctx: &WorkflowState) -> AsrArgs {
-    ctx.input.steps.asr.clone()
+fn read_asr_cfg(state: &WorkflowState) -> AsrArgs {
+    state.input.steps.asr.clone()
 }
 
 /// 入口 (镜像 TS `stepSeparateAfter`)。
-pub fn step_separate_after(ctx: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = ctx.workflow.video_dir.clone();
+pub fn step_separate_after(state: &WorkflowState) -> anyhow::Result<()> {
+    let video_dir = state.workflow.video_dir.clone();
     tracing::info!(target: "separate", "start");
 
     set_step_anyhow(
@@ -73,7 +73,7 @@ pub fn step_separate_after(ctx: &WorkflowState) -> anyhow::Result<()> {
     }
 
     // 2. 按 asr 配置生成 sidechain 混音人声
-    let asr_cfg = read_asr_cfg(ctx);
+    let asr_cfg = read_asr_cfg(state);
     let use_separated = asr_cfg.use_separated;
     let mix_mode = asr_cfg.mix_mode;
     let reduce_bgm = asr_cfg.reduce_bgm;

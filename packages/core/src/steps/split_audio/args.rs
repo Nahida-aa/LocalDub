@@ -7,7 +7,7 @@ use crate::steps::utils::paths::{separate, translate};
 /// split_audio 阶段参数 (镜像 TS `packages/core/steps/06_split_audio/args.ts` SplitAudioArgsSchema)
 ///
 /// 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`
-/// 在写入 ctx.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:
+/// 在写入 state.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:
 /// 用 `#[serde(default = "…")]` 兜底。
 ///
 /// 注意: `#[serde(default = "fn")]` 仅在字段级反序列化时生效; 当父结构用

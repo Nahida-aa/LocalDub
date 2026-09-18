@@ -4,8 +4,8 @@
 //! - `start`          → [`crate::cmd::workflows::start_workflow`] (重新 import + 跑全 pipeline)
 //! - `continue`       → [`crate::cmd::workflows::continue_workflow`] (合并 input 续跑)
 //! - `get_group_list`→ [`crate::cmd::workflows::get_workflow::get_group_list`]
-//! - `get_workflow_ctx`   → 读 ctx.json 并打印
-//! - `status`         → 读 ctx.json 并打印各 step 状态
+//! - `get_workflow_ctx`   → 读 state.json 并打印
+//! - `status`         → 读 state.json 并打印各 step 状态
 //!
 //! 这是 `cmd/workflows` 的总入口, 对应 TS `run-workflow.ts` 里对 `cmdTask` 的调用。
 
@@ -66,7 +66,7 @@ pub fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
                 .clone()
                 .ok_or_else(|| anyhow::anyhow!("get_workflow_ctx 需要 input.workflow.videoDir"))?;
             let ctx = read_ctx(&video_dir)
-                .map_err(|e| anyhow::anyhow!("读取 {}/ctx.json 失败: {e}", video_dir))?;
+                .map_err(|e| anyhow::anyhow!("读取 {}/state.json 失败: {e}", video_dir))?;
             let json = serde_json::to_string_pretty(&ctx)
                 .map_err(|e| anyhow::anyhow!("序列化 ctx 失败: {e}"))?;
             println!("{json}");
@@ -77,7 +77,7 @@ pub fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
                 .clone()
                 .ok_or_else(|| anyhow::anyhow!("status 需要 input.workflow.videoDir"))?;
             let ctx = read_ctx(&video_dir)
-                .map_err(|e| anyhow::anyhow!("读取 {}/ctx.json 失败: {e}", video_dir))?;
+                .map_err(|e| anyhow::anyhow!("读取 {}/state.json 失败: {e}", video_dir))?;
             println!("workflow.status = {}", ctx.workflow.status);
             if let Some(steps) = &ctx.steps {
                 for s in steps {

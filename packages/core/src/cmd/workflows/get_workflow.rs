@@ -59,7 +59,7 @@ pub fn get_group_list() -> Result<Vec<GroupInfo>, String> {
                 continue;
             }
 
-            if !_workflow_path.join("ctx.json").exists() {
+            if !_workflow_path.join("state.json").exists() {
                 continue;
             }
 

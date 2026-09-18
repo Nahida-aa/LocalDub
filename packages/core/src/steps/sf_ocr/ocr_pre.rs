@@ -13,8 +13,8 @@ use crate::steps::utils::{
 use std::process::Command;
 
 /// 入口 (镜像 TS `stepSfOcrPre`)。
-pub fn step_sf_ocr_pre(ctx: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = ctx.workflow.video_dir.clone();
+pub fn step_sf_ocr_pre(state: &WorkflowState) -> anyhow::Result<()> {
+    let video_dir = state.workflow.video_dir.clone();
     tracing::info!(target: "sf_ocr", "start");
 
     set_step_anyhow(
@@ -27,7 +27,7 @@ pub fn step_sf_ocr_pre(ctx: &WorkflowState) -> anyhow::Result<()> {
         },
     )?;
 
-    let input = SfOcrPreInput::from_state(ctx)?;
+    let input = SfOcrPreInput::from_state(state)?;
     let video_path = input.video_source_path.as_path();
     if !video_path.exists() {
         return Err(anyhow::anyhow!(

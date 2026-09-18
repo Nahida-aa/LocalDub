@@ -41,7 +41,7 @@ pub enum Stem {
 
 /// separate 阶段参数 (镜像 TS `packages/core/steps/separate/args.ts` SeparateArgsSchema)
 ///
-/// 枚举/数组默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})`), 这里只需处理
+/// 枚举/数组默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})`), 这里只需处理
 /// 「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

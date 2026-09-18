@@ -40,7 +40,7 @@ pub fn alignment_to_ffmpeg(alignment: Alignment) -> u8 {
 
 /// mix_video 阶段参数 (镜像 TS `packages/core/steps/mix_video/args.ts` MixVideoArgsSchema)
 ///
-/// 枚举/字符串默认值 TS 在写入 ctx.json 前已落定 (zod `.prefault({})` / `.default(...)`),
+/// 枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),
 /// 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。
 ///
 /// 注意: `#[serde(default = "fn")]` 仅在字段级反序列化时生效; 当父结构用
