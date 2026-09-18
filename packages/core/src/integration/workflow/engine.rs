@@ -20,7 +20,9 @@
 
 use std::sync::Arc;
 
-use workflow_core::{run_workflow_sync, RunOptions, RunStatus, StepCtx, Workflow, WorkflowCtx};
+use workflow_core::{
+    RunStatus, RunWorkflowOptions, StepCtx, Workflow, WorkflowCtx, run_workflow_sync,
+};
 
 use crate::state::read_ctx;
 use crate::steps::get_steps;
@@ -230,9 +232,12 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
         }
     });
 
-    let store = FsRunStore::new(video_dir);
-    let mut r_opts = RunOptions::new(serde_json::to_value(&ctx.input).map_err(anyhow::Error::msg)?)
-        .run_id(run_id.clone());
+    let mut r_opts = RunWorkflowOptions::new(
+        Arc::new(wf.clone()),
+        Arc::new(FsRunStore::new(video_dir)),
+    )
+    .input(serde_json::to_value(&ctx.input).map_err(anyhow::Error::msg)?)
+    .run_id(run_id.clone());
     if let Some(cf) = &continue_from {
         r_opts = r_opts.continue_from(cf.clone());
     }
@@ -240,7 +245,7 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
         r_opts = r_opts.target_step(ts.clone());
     }
 
-    let outcome = run_workflow_sync(&wf, Arc::new(store), &r_opts, None)
+    let outcome = run_workflow_sync(&r_opts)
         .map_err(|e| anyhow::anyhow!("workflow engine error: {e}"))?;
 
     apply_outcome(video_dir, &run_id, outcome)
@@ -643,10 +648,9 @@ mod tests {
         });
         let store = FsRunStore::new(&dir);
         let outcome = workflow_core::run_workflow_sync(
-            &wf,
-            Arc::new(store),
-            &RunOptions::new(serde_json::json!({})).run_id("t"),
-            None,
+            &RunWorkflowOptions::new(Arc::new(wf.clone()), Arc::new(store))
+                .input(serde_json::json!({}))
+                .run_id("t"),
         )
         .unwrap();
         assert_eq!(outcome.status, RunStatus::Paused, "core 侧应挂起即返回");

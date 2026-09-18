@@ -139,7 +139,7 @@ impl RunStore for FsRunStore {
         self.read_events().map(|(v, _)| v)
     }
 
-    fn truncate_runs(&self, _run_id: &str, step_id: &str) -> Result<(), StoreError> {
+    fn truncate_log_at_step(&self, _run_id: &str, step_id: &str) -> Result<(), StoreError> {
         let _guard = self
             .lock
             .lock()
@@ -247,7 +247,7 @@ mod tests {
     }
 
     #[test]
-    fn truncate_runs_keeps_prefix_through_terminal() {
+    fn truncate_log_at_step_keeps_prefix_through_terminal() {
         let dir = temp_dir("trunc");
         let store = FsRunStore::new(&dir);
         store.append_event("r1", 0, &event("r1", "a")).unwrap();
@@ -255,13 +255,13 @@ mod tests {
         store.append_event("r1", 2, &event("r1", "c")).unwrap();
 
         // 裁到 b → 日志应只剩 a
-        store.truncate_runs("r1", "b").unwrap();
+        store.truncate_log_at_step("r1", "b").unwrap();
         let evs = store.get_events("r1").unwrap();
         assert_eq!(evs.len(), 1);
         assert_eq!(evs[0].step_id(), Some("a"));
 
         // 找不到终态 checkpoint → 日志保持原样
-        store.truncate_runs("r1", "zzz").unwrap();
+        store.truncate_log_at_step("r1", "zzz").unwrap();
         let evs = store.get_events("r1").unwrap();
         assert_eq!(evs.len(), 1);
 
