@@ -20,7 +20,7 @@
 
 use std::sync::Arc;
 
-use workflow_core::{
+use aa_workflow_core::{
     RunStatus, RunWorkflowOptions, StepCtx, Workflow, WorkflowCtx, run_workflow_sync,
 };
 
@@ -258,7 +258,7 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
 fn apply_outcome(
     video_dir: &str,
     run_id: &str,
-    outcome: workflow_core::RunOutcome,
+    outcome: aa_workflow_core::RunOutcome,
 ) -> anyhow::Result<()> {
     match outcome.status {
         RunStatus::Finished => {
@@ -346,7 +346,7 @@ fn store_wait_desc(video_dir: &str) -> String {
     let Ok(raw) = std::fs::read_to_string(&path) else {
         return String::new();
     };
-    let Ok(st) = serde_json::from_str::<workflow_core::RunState>(&raw) else {
+    let Ok(st) = serde_json::from_str::<aa_workflow_core::RunState>(&raw) else {
         return String::new();
     };
     if let Some(w) = st.waiting_for {
@@ -364,7 +364,7 @@ mod tests {
     use super::*;
     use crate::state::{read_ctx, read_ctx_from_value, write_ctx, StepStatus};
     use serde_json::json;
-    use workflow_core::RunStore;
+    use aa_workflow_core::RunStore;
 
     fn temp_dir(name: &str) -> String {
         let dir = std::env::temp_dir()
@@ -469,7 +469,7 @@ mod tests {
         let n_finished = |step: &str| {
             events
                 .iter()
-                .filter(|e| matches!(e, workflow_core::WorkflowEvent::StepFinished { step_id, .. } if step_id == step))
+                .filter(|e| matches!(e, aa_workflow_core::WorkflowEvent::StepFinished { step_id, .. } if step_id == step))
                 .count()
         };
         assert_eq!(n_finished("separate"), 1);
@@ -481,7 +481,7 @@ mod tests {
         assert_eq!(
             events
                 .iter()
-                .filter(|e| matches!(e, workflow_core::WorkflowEvent::StepFinished { step_id, .. } if step_id == "separate"))
+                .filter(|e| matches!(e, aa_workflow_core::WorkflowEvent::StepFinished { step_id, .. } if step_id == "separate"))
                 .count(),
             1
         );
@@ -523,7 +523,7 @@ mod tests {
         assert!(
             events
                 .iter()
-                .filter(|e| matches!(e, workflow_core::WorkflowEvent::StepFinished { .. }))
+                .filter(|e| matches!(e, aa_workflow_core::WorkflowEvent::StepFinished { .. }))
                 .all(|e| e.step_id() != Some("separate_after")),
             "separate_after 不应被引擎执行"
         );
@@ -543,7 +543,7 @@ mod tests {
         let separate_res = events
             .iter()
             .find_map(|e| match e {
-                workflow_core::WorkflowEvent::StepFinished {
+                aa_workflow_core::WorkflowEvent::StepFinished {
                     step_id, result, ..
                 } if step_id == "separate" => result.clone(),
                 _ => None,
@@ -570,11 +570,11 @@ mod tests {
         run_workflow_engine(&dir, &EngineOptions::default()).unwrap();
 
         let store = FsRunStore::new(&dir);
-        let get_sf_ts = |events: &[workflow_core::WorkflowEvent], step: &str| -> i64 {
+        let get_sf_ts = |events: &[aa_workflow_core::WorkflowEvent], step: &str| -> i64 {
             events
                 .iter()
                 .find_map(|e| match e {
-                    workflow_core::WorkflowEvent::StepFinished { step_id, ts, .. }
+                    aa_workflow_core::WorkflowEvent::StepFinished { step_id, ts, .. }
                         if step_id == step =>
                     {
                         Some(*ts)
@@ -617,7 +617,7 @@ mod tests {
         assert_eq!(
             events_2
                 .iter()
-                .filter(|e| matches!(e, workflow_core::WorkflowEvent::StepFinished { step_id, .. } if step_id == "separate_after"))
+                .filter(|e| matches!(e, aa_workflow_core::WorkflowEvent::StepFinished { step_id, .. } if step_id == "separate_after"))
                 .count(),
             1
         );
@@ -647,7 +647,7 @@ mod tests {
             Ok(serde_json::Value::Null)
         });
         let store = FsRunStore::new(&dir);
-        let outcome = workflow_core::run_workflow_sync(
+        let outcome = aa_workflow_core::run_workflow_sync(
             &RunWorkflowOptions::new(Arc::new(wf.clone()), Arc::new(store))
                 .input(serde_json::json!({}))
                 .run_id("t"),
@@ -673,8 +673,8 @@ mod tests {
         assert!(
             !events.iter().any(|e| matches!(
                 e,
-                workflow_core::WorkflowEvent::RunFinished { .. }
-                    | workflow_core::WorkflowEvent::RunErrored { .. }
+                aa_workflow_core::WorkflowEvent::RunFinished { .. }
+                    | aa_workflow_core::WorkflowEvent::RunErrored { .. }
             )),
             "挂起不得写终态事件"
         );

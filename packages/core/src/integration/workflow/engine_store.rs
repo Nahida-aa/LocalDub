@@ -1,8 +1,8 @@
 //! workflow-core 的文件系统 [`RunStore`] 实现: 引擎持久化落盘到
 //! `<video_dir>/workflow-engine/`。
 //!
-//! - `run.json` — 运行元数据信封 ([`workflow_core::RunState`])
-//! - `events.jsonl` — append-only 事件日志 (每行一个 JSON [`workflow_core::WorkflowEvent`],
+//! - `run.json` — 运行元数据信封 ([`aa_workflow_core::RunState`])
+//! - `events.jsonl` — append-only 事件日志 (每行一个 JSON [`aa_workflow_core::WorkflowEvent`],
 //!   append 走 CAS expected_index, 冲突报 [`StoreError::Conflict`])
 //!
 //! 与 `state.json` 的关系：**`state.json` 是投影，本目录的日志是真源。**
@@ -17,7 +17,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use workflow_core::{DeleteReason, RunState, RunStore, StoreError, WorkflowEvent};
+use aa_workflow_core::{DeleteReason, RunState, RunStore, StoreError, WorkflowEvent};
 
 fn map_io(e: std::io::Error) -> StoreError {
     StoreError::Io(e.to_string())
@@ -201,7 +201,7 @@ mod tests {
             run_id: "r1".into(),
             workflow_id: "w".into(),
             workflow_version: Some("v1".into()),
-            status: workflow_core::RunStatus::Finished,
+            status: aa_workflow_core::RunStatus::Finished,
             input: serde_json::json!({"x": 1}),
             output: None,
             error: None,
@@ -213,7 +213,7 @@ mod tests {
         store.set_run_state("r1", &st).unwrap();
         let reloaded = store.get_run_state("r1").unwrap().unwrap();
         assert_eq!(reloaded.run_id, "r1");
-        assert_eq!(reloaded.status, workflow_core::RunStatus::Finished);
+        assert_eq!(reloaded.status, aa_workflow_core::RunStatus::Finished);
 
         store.append_event("r1", 0, &event("r1", "a")).unwrap();
         store.append_event("r1", 1, &event("r1", "b")).unwrap();
