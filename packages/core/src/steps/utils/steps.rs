@@ -4,7 +4,7 @@
 //! split_audio.vadAlign; Rust 侧没有该全局 singleton, 改为从 [`crate::context::WorkflowState`]
 //! 的 `input` (已是 JSON Value) 解析相同字段。
 
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::workflows::args::{StepName, SubtitleSource};
 
 /// 所有合法 step 名 (镜像 TS `stepsList`)
@@ -105,7 +105,7 @@ pub const SUBTITLE_ASR_OCR_STEPS: &[&str] = &[
 /// 避免 `subtitle + sf_ocr / asr_ocr` 这类组合在两份实现间分叉
 /// (曾有一次: import 副本无条件把 tts/mix_audio 塞进序列, 而运行时序列不含)。
 ///
-/// `is_subtitle` 直接传布尔, 以匹配 `get_steps` 原先用 `ctx.output_mode == "subtitle"`
+/// `is_subtitle` 直接传布尔, 以匹配 `get_steps` 原先用 `ctx.init.output_mode == "subtitle"`
 /// 的宽松语义——`OutputMode::from_state` 对未知值 fail-fast, 这里不引入该差异。
 ///
 /// `translate` / `split_audio` **恒在序列**(不再按开关剔除), 见 `get_steps` 下方说明;
@@ -148,8 +148,8 @@ pub fn steps_for(is_subtitle: bool, source: SubtitleSource) -> &'static [&'stati
 /// `split_audio` **恒在序列**（不再按 `vad_align` 剔除）：它是「意图时序」
 /// `split_audio/timings.json` 的唯一写入方，而下游（含 subtitle 的字幕轨）
 /// 只认这一个字幕来源——剔掉它就没有时序可读。
-pub fn get_steps(ctx: &WorkflowState) -> anyhow::Result<Vec<StepName>> {
-    let is_subtitle = ctx.output_mode == "subtitle";
+pub fn get_steps(ctx: &State) -> anyhow::Result<Vec<StepName>> {
+    let is_subtitle = ctx.init.output_mode == "subtitle";
     let source = SubtitleSource::from_state(ctx)?;
     let steps = steps_for(is_subtitle, source);
 
@@ -171,10 +171,10 @@ mod tests {
     use serde_json::json;
     use strum::IntoEnumIterator;
 
-    fn ctx(pipeline: &str, input: serde_json::Value) -> WorkflowState {
+    fn ctx(pipeline: &str, input: serde_json::Value) -> State {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.video_dir = "/x".into();
-        ctx.output_mode = pipeline.into();
+        ctx.init.workflow.video_dir = "/x".into();
+        ctx.init.output_mode = pipeline.into();
         ctx
     }
 
@@ -189,7 +189,7 @@ mod tests {
     }
 
     /// 测试用：`get_steps` 在合法输入下必须 Ok，unwrap 掉 Result 噪音。
-    fn steps_of(c: &WorkflowState) -> Vec<StepName> {
+    fn steps_of(c: &State) -> Vec<StepName> {
         get_steps(c).expect("合法 ctx 不应让 get_steps 失败")
     }
 
@@ -371,7 +371,7 @@ mod tests {
 
     /// **fail-fast**：未知 subtitleSource 必须在 `Input` 反序列化阶段被拒，不能静默降级成 asr。
     ///
-    /// `ctx.input` 已是结构化 `Input`；未知来源不可能走到 `get_steps` /
+    /// `ctx.init.input` 已是结构化 `Input`；未知来源不可能走到 `get_steps` /
     /// `SubtitleSource::from_state`（那些路径只会一致地回退默认 `Asr`，不会出现测试注释里
     /// 担心的「跑哪些 step」与「读哪个字幕文件」来源错乱——两者会一起回退）。fail-fast
     /// 已上移到 `Input` 解析（CLI/RPC 请求阶段，见 `SubtitleSource::from_state` 文档），

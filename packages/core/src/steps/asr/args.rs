@@ -224,7 +224,7 @@ fn default_max_len() -> u32 {
     0
 }
 
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::utils::paths::{separate, separate_after, VideoSourcePath};
 use anyhow::Result;
 
@@ -265,9 +265,9 @@ impl AsrInput {
     ///
     /// `vocalAudioPath` 仅在 `useSeparated=true` 时生效(覆盖 separate 的人声),
     /// 与 `stepAsr` 原逻辑一致; `useSeparated=false` 时忽略它、走 `video_source`。
-    pub fn from_state(state: &WorkflowState) -> Result<Self> {
-        let cfg = AsrArgs::from_input(&state.input);
-        let video_dir = &state.workflow.video_dir;
+    pub fn from_state(state: &State) -> Result<Self> {
+        let cfg = AsrArgs::from_input(&state.init.input);
+        let video_dir = &state.init.workflow.video_dir;
         let audio_path = if cfg.use_separated {
             if let Some(p) = cfg.vocal_audio_path.clone() {
                 AsrSourceAudioPath::Custom(PathBuf::from(p))

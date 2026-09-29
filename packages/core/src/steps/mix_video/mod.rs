@@ -8,7 +8,7 @@ pub mod args;
 
 use anyhow::anyhow;
 
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::mix_audio::out::MixAudioOutputTimings;
 use crate::steps::mix_video::args::{Alignment, MixVideoArgs, MixVideoInput};
 use crate::steps::split_audio::out::SplitAudioTimingResult;
@@ -20,10 +20,10 @@ use crate::steps::utils::{
 use crate::workflows::args::OutputMode;
 
 /// 入口 (镜像 TS `stepMixVideo`)。
-pub fn step_mix_video(state: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = state.workflow.video_dir.clone();
-    let video_id = state.workflow.id.clone();
-    let cfg = MixVideoArgs::from_input(&state.input);
+pub fn step_mix_video(state: &State) -> anyhow::Result<()> {
+    let video_dir = state.init.workflow.video_dir.clone();
+    let video_id = state.init.workflow.id.clone();
+    let cfg = MixVideoArgs::from_input(&state.init.input);
 
     if !cfg.enabled {
         tracing::info!(target: "mix_video", "disabled (mix_video.enabled=false), skipping");
@@ -57,14 +57,14 @@ pub fn step_mix_video(state: &WorkflowState) -> anyhow::Result<()> {
         return Err(anyhow!("video_source.mp4 not found: {video_file_path}"));
     }
 
-    let output_mode = OutputMode::from_input(&state.input);
+    let output_mode = OutputMode::from_input(&state.init.input);
     // 目标语言读**已落定的事实**（翻译步骤写的唯一写入点），不再现算：
     // `resolve_language` 是现算，推断逻辑一变就会与产物不一致。
     let target_lang = crate::steps::utils::paths::translate::LangPath::from_state(state)?
         .lang()
         .to_string();
 
-    let no_translate = !state.input.steps.translate.enabled;
+    let no_translate = !state.init.input.steps.translate.enabled;
 
     let subtitle_source = state
         .input
@@ -204,14 +204,14 @@ pub fn step_mix_video(state: &WorkflowState) -> anyhow::Result<()> {
 
     tracing::info!(target: "mix_video", "Wrote final video: {}", final_video.display());
 
-    // 写回 ctx.workflow.final_video_path (镜像 TS mix_video 设置 finalVideoPath)
-    set_workflow_anyhow(
+    // 写回 mix_video 自己的 facts：final_video_path（镜像 TS mix_video 设置 finalVideoPath）
+    crate::state::write_step_fact(
         &video_dir,
-        WorkflowPatch {
-            final_video_path: Some(Some(final_video.to_string_lossy().into_owned())),
-            ..Default::default()
-        },
-    )?;
+        "mix_video",
+        "final_video_path",
+        serde_json::Value::String(final_video.to_string_lossy().into_owned()),
+    )
+    .map_err(anyhow::Error::msg)?;
 
     set_step_anyhow(
         &video_dir,
@@ -294,7 +294,7 @@ fn build_subtitle_srt_dub_branch(
 mod tests {
     use super::*;
 
-    /// `mix_video` 的目标语言必须来自**已落定的事实**（`ctx.target_language`），
+    /// `mix_video` 的目标语言必须来自**已落定的事实**（`ctx.target_language()`），
     /// 而不是 `resolve_language` 的现算值。
     ///
     /// 为什么这条重要：`target_lang` 不只用于命名，还驱动 `probe_style` →
@@ -313,7 +313,7 @@ mod tests {
             "input": {"workflow": {"targetLang": "vi"}}
         }))
         .unwrap();
-        ctx.target_language = Some("zh".to_string());
+        ctx.target_language() = Some("zh".to_string());
 
         let lang = LangPath::from_state(&ctx).unwrap().lang().to_string();
         assert_eq!(lang, "zh", "应以 ctx 的事实为准，而非 input 里的 vi");

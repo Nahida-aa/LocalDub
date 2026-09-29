@@ -40,10 +40,9 @@ pub fn video_id(video_dir: &str) -> Option<String> {
 // step / workflow 持久化 (镜像 TS context.ts 的 setStep / setTask)
 // ---------------------------------------------------------------------------
 
-/// 部分更新 [`WorkflowStep`] 的字段 (对应 TS `Partial<WorkflowStep>`)。
+/// 部分更新 [`crate::state::StepState`] 的字段 (对应 TS `Partial<WorkflowStep>`)。
 #[derive(Default, Clone)]
 pub struct StepPatch {
-    pub label: Option<String>,
     pub status: Option<crate::state::StepStatus>,
     pub progress: Option<f64>,
     pub started_at: Option<String>,
@@ -53,11 +52,8 @@ pub struct StepPatch {
 }
 
 impl StepPatch {
-    /// 合并进已有的 [`WorkflowStep`] (TS `{...existing, ...patch}`)。
-    fn apply(self, mut base: WorkflowStep) -> WorkflowStep {
-        if let Some(v) = self.label {
-            base.label = v;
-        }
+    /// 合并进已有的 [`crate::state::StepState`] (TS `{...existing, ...patch}`)。
+    fn apply(self, mut base: crate::state::StepState) -> crate::state::StepState {
         if let Some(v) = self.status {
             base.status = v;
         }
@@ -84,28 +80,15 @@ impl StepPatch {
     }
 }
 
-/// 对 `state.json` 中指定 step 做 upsert 合并 (镜像 TS `setStep`)。
+/// 对 `<step>/state.json` 做 RMW 合并 (镜像 TS `setStep`)。
+/// 只碰该步骤自己的文件——并行分支各自写各自的文件，互不竞争。
 pub fn set_step(video_dir: &str, name: &str, patch: StepPatch) -> Result<(), String> {
-    let mut ctx = read_ctx(video_dir)?;
-    let steps = ctx.steps.get_or_insert_with(Vec::new);
-    let idx = steps.iter().position(|s| s.name == name);
-    let base = match idx {
-        Some(i) => steps[i].clone(),
-        None => WorkflowStep {
-            name: name.to_string(),
-            label: name.to_string(),
-            ..Default::default()
-        },
-    };
-    let updated = patch.apply(base);
-    match idx {
-        Some(i) => steps[i] = updated,
-        None => steps.push(updated),
-    }
-    write_ctx(video_dir, &ctx)
+    let mut st = crate::state::read_step_state(video_dir, name)?;
+    st = patch.apply(st);
+    crate::state::write_step_state(video_dir, name, &st)
 }
 
-/// 部分更新 [`crate::context::Workflow`] 的字段 (镜像 TS `setTask`)。
+/// 部分更新 [`crate::state::Workflow`] 的字段 (镜像 TS `setTask`)。
 #[derive(Default, Clone)]
 pub struct WorkflowPatch {
     pub status: Option<String>,
@@ -113,7 +96,6 @@ pub struct WorkflowPatch {
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
     pub error_message: Option<String>,
-    pub final_video_path: Option<Option<String>>,
 }
 
 impl WorkflowPatch {
@@ -133,9 +115,6 @@ impl WorkflowPatch {
         if let Some(v) = self.error_message {
             t.error_message = Some(v);
         }
-        if let Some(v) = self.final_video_path {
-            t.final_video_path = v;
-        }
         // 标记 success 时清空 error_message (镜像 TS)
         if t.status == "success" {
             t.error_message = None;
@@ -144,11 +123,12 @@ impl WorkflowPatch {
     }
 }
 
-/// 对 `state.json` 中 workflow 做 upsert 合并 (镜像 TS `setTask`)。
+/// 对 `init.json` 中 workflow 子树做 RMW 合并 (镜像 TS `setTask`)。
+/// **编排器专用**（run 边界）——步骤不写 init.json。
 pub fn set_workflow(video_dir: &str, patch: WorkflowPatch) -> Result<(), String> {
-    let mut ctx = read_ctx(video_dir)?;
-    ctx.workflow = patch.apply(ctx.workflow);
-    write_ctx(video_dir, &ctx)
+    let mut init = crate::state::read_init(video_dir)?;
+    init.workflow = patch.apply(init.workflow);
+    crate::state::write_init(video_dir, &init)
 }
 
 /// `set_step` 返回 `Result<(), String>`, 此 wrapper 转 `anyhow::Result` 以便 `?`。
@@ -425,11 +405,11 @@ pub fn asr_fix_dir(video_dir: &str) -> PathBuf {
 }
 
 /// 取 video_source_path (缺则报错, 与 TS `video_source_path` 一致)。
-pub fn video_source_path(ctx: &crate::state::WorkflowState) -> anyhow::Result<String> {
-    ctx.video_source_path.clone().ok_or_else(|| {
+pub fn video_source_path(ctx: &crate::state::State) -> anyhow::Result<String> {
+    ctx.init.video_source_path.clone().ok_or_else(|| {
         anyhow::anyhow!(
             "video_source_path 未设置 (session {})",
-            ctx.workflow.video_dir
+            ctx.init.workflow.video_dir
         )
     })
 }
@@ -601,14 +581,14 @@ pub fn split_audio_timings_path(video_dir: &str) -> PathBuf {
 ///
 /// 直通时**无条件用源语言**，即使配了 `targetLang` 也一样——「目标语言」在
 /// 没有翻译的前提下不成立，此时它只是"以后打算翻译成什么"的意向，不是本次
-/// 事实。本次事实由产物名与 `ctx.target_language` 承载，必须是源语言。
+/// 事实。本次事实由产物名与 `ctx.target_language()` 承载，必须是源语言。
 ///
 /// 目标语言是任务级概念（一个任务只有一个翻译阶段），配置入口统一为
 /// `input.workflow.targetLang`；旧 `steps.translate.targetLang` 已移除。
 ///
 /// **本函数是纯函数**（无副作用）。落盘由
 /// [`persist_target_language`] 完成，且只由 translate 调一次。
-pub fn resolve_language(ctx: &crate::state::WorkflowState) -> anyhow::Result<(String, String)> {
+pub fn resolve_language(ctx: &crate::state::State) -> anyhow::Result<(String, String)> {
     let src = crate::state::lang::SourceLang::from_state(ctx);
     let src_code = src.code().to_string();
 
@@ -630,14 +610,14 @@ pub fn resolve_language(ctx: &crate::state::WorkflowState) -> anyhow::Result<(St
 /// 各 step（`asr_fix` 的 LLM 提示词、`split_audio` 写 meta、`sf_ocr_fix` /
 /// `asr_ocr_fix` 的 LLM 修正）拿到的必然一致。
 ///
-/// 回退链：`ctx.asr_language`（ASR 实测）> `input.workflow.sourceLang` > 兜底（未知/空串）。
+/// 回退链：`ctx.asr_language()`（ASR 实测）> `input.workflow.sourceLang` > 兜底（未知/空串）。
 ///
 /// **为什么纯 OCR / subtitle 路径依赖后两级**：那些路径没有 ASR，
-/// `ctx.asr_language` 是 `None`——必须回落到配置的 `sourceLang`，否则非中文任务
+/// `ctx.asr_language()` 是 `None`——必须回落到配置的 `sourceLang`，否则非中文任务
 /// 被当成 zh，进而把目标语言错误推断成 en。
 ///
 /// 源语言是开放事实（`LangCode`），不做枚举截断——列表外语言如实透传。
-pub fn src_language(ctx: &crate::state::WorkflowState) -> LangCode {
+pub fn src_language(ctx: &crate::state::State) -> LangCode {
     crate::state::lang::SourceLang::from_state(ctx).into_inner()
 }
 
@@ -645,8 +625,8 @@ pub fn src_language(ctx: &crate::state::WorkflowState) -> LangCode {
 ///
 /// 直读结构化字段而非构造 `TranslateArgs`：本函数在 `utils` 层，不该依赖 translate
 /// 的 args 类型（那会形成 utils → steps::translate 的循环依赖）。
-fn translate_enabled(ctx: &crate::state::WorkflowState) -> bool {
-    ctx.input.steps.translate.enabled
+fn translate_enabled(ctx: &crate::state::State) -> bool {
+    ctx.init.input.steps.translate.enabled
 }
 
 /// 把本次的目标语言**落盘**（state.json 的 `target_language`）。
@@ -666,12 +646,25 @@ fn translate_enabled(ctx: &crate::state::WorkflowState) -> bool {
 /// 失败**返回 Err**（原先只 `warn`）——写不下去就意味着下游会读到错的语言，
 /// 静默继续会让问题延后到「文件不存在」时才暴露，更难定位。
 pub fn persist_target_language(video_dir: &str, lang: &str) -> anyhow::Result<()> {
-    let mut ctx = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
-    if ctx.target_language.as_deref() == Some(lang) {
-        return Ok(()); // 已是该值，免一次无谓写盘
+    // 幂等：值相同免一次写盘（translate 测试钉住「resolve 调用无副作用」）。
+    // 写入点 = translate 自己的 state 文件（单写者原则）。
+    let mut st = crate::state::read_step_state(video_dir, "translate")
+        .map_err(anyhow::Error::msg)?;
+    let existing = st.facts.get("target_language").and_then(|v| v.as_str());
+    if existing == Some(lang) {
+        return Ok(());
     }
-    ctx.target_language = Some(lang.to_string());
-    write_ctx(video_dir, &ctx).map_err(anyhow::Error::msg)?;
+    if !st.facts.is_object() {
+        st.facts = serde_json::Value::Object(serde_json::Map::new());
+    }
+    if let Some(obj) = st.facts.as_object_mut() {
+        obj.insert(
+            "target_language".to_string(),
+            serde_json::Value::String(lang.to_string()),
+        );
+    }
+    crate::state::write_step_state(video_dir, "translate", &st)
+        .map_err(anyhow::Error::msg)?;
     tracing::info!(target: "output_mode", "target_language 已落盘: {lang}");
     Ok(())
 }
@@ -690,12 +683,13 @@ use std::io::Write as _;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::{read_ctx_from_value, WorkflowState};
+    use crate::state::read_ctx_from_value;
+    use crate::workflows::args::StepName;
     use serde_json::json;
 
-    fn ctx_at(video_dir: &str, input: serde_json::Value) -> WorkflowState {
+    fn ctx_at(video_dir: &str, input: serde_json::Value) -> State {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.video_dir = video_dir.to_string();
+        ctx.init.workflow.video_dir = video_dir.to_string();
         ctx
     }
 
@@ -778,7 +772,7 @@ mod tests {
     /// 直通时**无条件**用源语言——即使显式配了 `targetLang`。
     ///
     /// 理由：「目标语言」在没有翻译的前提下不成立，配了也只是"以后打算翻译成
-    /// 什么"的意向，不是本次事实。本次事实由产物名与 `ctx.target_language`
+    /// 什么"的意向，不是本次事实。本次事实由产物名与 `ctx.target_language()`
     /// 承载，必须是源语言。
     #[test]
     fn passthrough_overrides_explicit_target_lang() {
@@ -870,12 +864,10 @@ mod tests {
         .unwrap();
 
         let reread = read_ctx(&dir).unwrap();
-        let st = reread.steps.unwrap();
-        assert_eq!(st.len(), 1);
-        assert_eq!(st[0].name, "separate");
-        assert_eq!(st[0].status, StepStatus::Running);
-        assert_eq!(st[0].progress, Some(50.0));
-        assert_eq!(st[0].started_at.as_deref(), Some("2024-01-01T00:00:01Z"));
+        let st = reread.step(StepName::Separate);
+        assert_eq!(st.status, StepStatus::Running);
+        assert_eq!(st.progress, Some(50.0));
+        assert_eq!(st.started_at.as_deref(), Some("2024-01-01T00:00:01Z"));
 
         // 标记 success 清空 error_message
         set_step(
@@ -890,9 +882,9 @@ mod tests {
         )
         .unwrap();
         let reread = read_ctx(&dir).unwrap();
-        let st = reread.steps.unwrap();
-        assert_eq!(st[0].status, StepStatus::Success);
-        assert!(st[0].error_message.is_none());
+        let st = reread.step(StepName::Separate);
+        assert_eq!(st.status, StepStatus::Success);
+        assert!(st.error_message.is_none());
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -925,8 +917,8 @@ mod tests {
         )
         .unwrap();
         let reread = read_ctx(&dir).unwrap();
-        assert_eq!(reread.workflow.status, "success");
-        assert!(reread.workflow.error_message.is_none());
+        assert_eq!(reread.init.workflow.status, "success");
+        assert!(reread.init.workflow.error_message.is_none());
 
         let _ = std::fs::remove_dir_all(&dir);
     }

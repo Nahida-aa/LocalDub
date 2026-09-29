@@ -2,18 +2,18 @@ pub mod sf_ocr_dub;
 
 use aa_workflow_core::Workflow;
 
-use crate::state::WorkflowState;
+use crate::state::State;
 
 /// 组合 → workflow id：`dub` × `sf_ocr` → `sf_ocr_dub`
 /// （`{subtitle_source}_{output_mode}`）。
-pub fn resolve_id(ctx: &WorkflowState) -> String {
+pub fn resolve_id(ctx: &State) -> String {
     let source = ctx
         .input
         .workflow
         .as_ref()
         .map(|w| w.subtitle_source.as_str())
         .unwrap_or("asr");
-    format!("{source}_{}", ctx.output_mode)
+    format!("{source}_{}", ctx.init.output_mode)
 }
 
 /// id → 工作流定义。未注册的组合返回 `None`（调用方回退通用定义）。
@@ -30,7 +30,7 @@ mod tests {
     use crate::state::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx(output_mode: &str, source: &str) -> WorkflowState {
+    fn ctx(output_mode: &str, source: &str) -> State {
         read_ctx_from_value(json!({
             "workflow": {"id":"t","video_dir":"/t","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},

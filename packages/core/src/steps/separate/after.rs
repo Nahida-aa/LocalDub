@@ -3,7 +3,7 @@
 //!
 //! 镜像 TS `packages/core/steps/separate/after.ts` (stepSeparateAfter), 纯 ffmpeg 编排。
 
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::asr::args::AsrArgs;
 use crate::steps::separate::after_args::SeparateAfterInput;
 use crate::steps::utils::paths::separate_after::{GatedVocalsPath, Target3VocalsMixedPath};
@@ -12,13 +12,13 @@ use crate::steps::utils::{
 };
 
 /// 读取 asr 阶段配置 (缺省用 AsrArgs::default, 对齐 TS `?? 默认值`)。
-fn read_asr_cfg(state: &WorkflowState) -> AsrArgs {
-    state.input.steps.asr.clone()
+fn read_asr_cfg(state: &State) -> AsrArgs {
+    state.init.input.steps.asr.clone()
 }
 
 /// 入口 (镜像 TS `stepSeparateAfter`)。
-pub fn step_separate_after(state: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = state.workflow.video_dir.clone();
+pub fn step_separate_after(state: &State) -> anyhow::Result<()> {
+    let video_dir = state.init.workflow.video_dir.clone();
     tracing::info!(target: "separate", "start");
 
     set_step_anyhow(
@@ -182,6 +182,7 @@ mod tests {
     use super::*;
     use crate::state::read_ctx_from_value;
     use crate::steps::utils::separate_dir;
+    use crate::workflows::args::StepName;
     use serde_json::json;
 
     fn ffmpeg_available() -> bool {
@@ -205,11 +206,11 @@ mod tests {
         .unwrap();
     }
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowState {
+    fn ctx_at(dir: &str, input: serde_json::Value) -> State {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.video_dir = dir.to_string();
-        ctx.workflow.id = "t".to_string();
-        ctx.output_mode = "dub".to_string();
+        ctx.init.workflow.video_dir = dir.to_string();
+        ctx.init.workflow.id = "t".to_string();
+        ctx.init.output_mode = "dub".to_string();
         ctx
     }
 
@@ -259,9 +260,8 @@ mod tests {
         );
 
         let reread = crate::state::read_ctx(&dir).unwrap();
-        let st = reread.steps.unwrap();
-        assert_eq!(st[0].name, "separate_after");
-        assert_eq!(st[0].status, StepStatus::Success);
+        let st = reread.step(StepName::SeparateAfter);
+        assert_eq!(st.status, StepStatus::Success);
 
         let _ = std::fs::remove_dir_all(&dir);
     }

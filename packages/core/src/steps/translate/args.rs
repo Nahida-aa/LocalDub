@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use config_rs::env::{openai_base_url, openai_model};
 
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::utils::paths::{asr_fix, asr_ocr_fix, sf_ocr_fix, SrtJsonPath};
 use crate::workflows::args::SubtitleSource;
 
@@ -90,7 +90,7 @@ pub struct TranslateInput {
     /// 自包含（消费者不必再拿 ctx），但构造时都由 `from_state` 从同一处取，
     /// 避免「读的目录」与「写的目录」分叉。
     pub video_dir: String,
-    /// 目标语言（`ctx.target_language`）。
+    /// 目标语言（`ctx.target_language()`）。
     ///
     /// **`Option` 而非必填**：本结构管的是「字幕从哪读」，而读
     /// `asr_fix/srt.json` 与目标语言**无关**——import 阶段、pipeline 中途、
@@ -107,25 +107,25 @@ impl TranslateInput {
     /// srt.json 的存在性**不在这里检查**——它是否必须存在由
     /// `translate.enabled` 决定（见 `step_translate`：enabled 时缺失报错，
     /// disabled 时缺失走空直通）。
-    pub fn from_state(state: &WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(state: &State) -> anyhow::Result<Self> {
         // **顺序有讲究**：先解析 subtitleSource，再取 target_language。
         // 反过来的话，配置里同时有非法 subtitleSource 与缺失 target_language 时，
         // 报的是后者——而用户真正写错的是前者，报错会指向错的地方。
         let srt_json_path = match SubtitleSource::from_state(state)? {
             SubtitleSource::Asr => {
-                SubtitleSourcePath::Asr(asr_fix::SrtPath::new(&state.workflow.video_dir))
+                SubtitleSourcePath::Asr(asr_fix::SrtPath::new(&state.init.workflow.video_dir))
             }
             SubtitleSource::SfOcr => {
-                SubtitleSourcePath::SfOcr(sf_ocr_fix::SrtPath::new(&state.workflow.video_dir))
+                SubtitleSourcePath::SfOcr(sf_ocr_fix::SrtPath::new(&state.init.workflow.video_dir))
             }
             SubtitleSource::AsrOcr => {
-                SubtitleSourcePath::AsrOcr(asr_ocr_fix::SrtPath::new(&state.workflow.video_dir))
+                SubtitleSourcePath::AsrOcr(asr_ocr_fix::SrtPath::new(&state.init.workflow.video_dir))
             }
         };
         Ok(Self {
             srt_json_path,
-            video_dir: state.workflow.video_dir.clone(),
-            target_lang: state.target_language.clone(),
+            video_dir: state.init.workflow.video_dir.clone(),
+            target_lang: state.target_language().clone(),
         })
     }
 

@@ -65,9 +65,12 @@ pub fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
                 .video_dir
                 .clone()
                 .ok_or_else(|| anyhow::anyhow!("get_workflow_ctx 需要 input.workflow.videoDir"))?;
-            let ctx = read_ctx(&video_dir)
-                .map_err(|e| anyhow::anyhow!("读取 {}/state.json 失败: {e}", video_dir))?;
-            let json = serde_json::to_string_pretty(&ctx)
+            let state = read_ctx(&video_dir)
+                .map_err(|e| anyhow::anyhow!("读取 {}/init.json 失败: {e}", video_dir))?;
+            // 组合出前端契约形状（旧 WorkflowState）：steps[] 按序列、facts 回填
+            let view = crate::state::compose_frontend_view(&state)
+                .map_err(|e| anyhow::anyhow!("组合 ctx 失败: {e}"))?;
+            let json = serde_json::to_string_pretty(&view)
                 .map_err(|e| anyhow::anyhow!("序列化 ctx 失败: {e}"))?;
             println!("{json}");
         }
@@ -77,9 +80,11 @@ pub fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
                 .clone()
                 .ok_or_else(|| anyhow::anyhow!("status 需要 input.workflow.videoDir"))?;
             let ctx = read_ctx(&video_dir)
-                .map_err(|e| anyhow::anyhow!("读取 {}/state.json 失败: {e}", video_dir))?;
-            println!("workflow.status = {}", ctx.workflow.status);
-            if let Some(steps) = &ctx.steps {
+                .map_err(|e| anyhow::anyhow!("读取 {}/init.json 失败: {e}", video_dir))?;
+            let view = crate::state::compose_frontend_view(&ctx)
+                .map_err(|e| anyhow::anyhow!("组合 status 视图失败: {e}"))?;
+            println!("workflow.status = {}", view.workflow.status);
+            if let Some(steps) = &view.steps {
                 for s in steps {
                     println!("  {}: {:?}", s.name, s.status);
                 }

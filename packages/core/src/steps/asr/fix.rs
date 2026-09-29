@@ -2,7 +2,7 @@
 
 use anyhow::{anyhow, Context};
 
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::asr::fix_args::{AsrFixArgs, AsrFixInput};
 use crate::steps::asr::out::AsrResult;
 use crate::steps::utils::paths::{asr_fix, SrtJsonPath};
@@ -11,13 +11,13 @@ use crate::steps::utils::{
 };
 
 /// 读取 asr_fix 配置 (缺省用 AsrFixArgs::default)。
-fn read_fix_args(ctx: &WorkflowState) -> AsrFixArgs {
-    ctx.input.steps.asr_fix.clone()
+fn read_fix_args(ctx: &State) -> AsrFixArgs {
+    ctx.init.input.steps.asr_fix.clone()
 }
 
 /// 入口 (镜像 TS `stepAsrFix`)。
-pub fn step_asr_fix(ctx: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = ctx.workflow.video_dir.clone();
+pub fn step_asr_fix(ctx: &State) -> anyhow::Result<()> {
+    let video_dir = ctx.init.workflow.video_dir.clone();
     let args = read_fix_args(ctx);
     if !args.enabled {
         tracing::info!(target: "asr", "disabled (asr_fix.enabled=false), skipping");

@@ -8,7 +8,7 @@
 //!   5. Optional LLM fix (step 8)
 
 use crate::cmd::env::ensure_bin;
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::asr_ocr::fix_args::{AsrOcrFixArgs, AsrOcrFixInput};
 use crate::steps::asr_ocr::pre_out::AsrSplitResult;
 use crate::steps::utils::paths::{asr_ocr_fix, SrtJsonPath};
@@ -90,7 +90,7 @@ struct AsrOcrFusedBody {
 
 /// Step 1 (optional): Resample - extract additional frames at isolated high-confidence frames.
 fn maybe_resample(
-    ctx: &WorkflowState,
+    ctx: &State,
     ocr_frames: &OcrFramesResult,
     out_dir: &Path,
     args: &AsrOcrFixArgs,
@@ -222,8 +222,8 @@ fn final_dedup(segs: Vec<OcrSegment>) -> Vec<OcrSegment> {
 }
 
 /// Entry point (mirrors TS `stepAsrOcrFix`).
-pub fn step_asr_ocr_fix(ctx: &WorkflowState) -> Result<()> {
-    let video_dir = ctx.workflow.video_dir.clone();
+pub fn step_asr_ocr_fix(ctx: &State) -> Result<()> {
+    let video_dir = ctx.init.workflow.video_dir.clone();
     info!(target: "asr_ocr", "step_asr_ocr_fix: start");
 
     set_step_anyhow(
@@ -236,7 +236,7 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowState) -> Result<()> {
         },
     )?;
 
-    let args = AsrOcrFixArgs::from_input(&ctx.input);
+    let args = AsrOcrFixArgs::from_input(&ctx.init.input);
     let out_dir = asr_ocr_fix_dir(&video_dir);
     fs::create_dir_all(&out_dir)?;
 
@@ -402,7 +402,7 @@ pub fn step_asr_ocr_fix(ctx: &WorkflowState) -> Result<()> {
     write_json_file(&out_dir.join("asr_ocr_merged.json"), &merged_result)?;
 
     // === Step 7: fixOverlap + final dedup ===
-    let max_advance_ms = ctx.input.steps.mix_audio.max_advance_ms as u32;
+    let max_advance_ms = ctx.init.input.steps.mix_audio.max_advance_ms as u32;
     // Convert OcrSegmentWithAdjust to OcrSegment for fix_overlap
     let ocr_segs_for_fix: Vec<OcrSegment> = seg_filter
         .result

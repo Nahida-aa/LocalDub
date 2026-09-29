@@ -65,6 +65,8 @@ pub enum WorkflowAction {
     strum::IntoStaticStr,
     strum::EnumIter,
     strum::EnumVariantNames,
+    PartialOrd,
+    Ord,
 )]
 #[serde(rename_all = "snake_case")]
 #[value(rename_all = "snake_case")]
@@ -123,17 +125,17 @@ pub enum OutputMode {
 }
 
 impl OutputMode {
-    /// 从 ctx 解析 `ctx.output_mode`（import 落定的事实，字符串形式）。
+    /// 从 ctx 解析 `ctx.init.output_mode`（import 落定的事实，字符串形式）。
     ///
     /// 与 `SubtitleSource::from_state`（读 `input.workflow.subtitleSource` 原始输入）不同，
-    /// OutputMode 已被 import 拍平进 `ctx.output_mode`，此处读**事实**而非重解析输入
+    /// OutputMode 已被 import 拍平进 `ctx.init.output_mode`，此处读**事实**而非重解析输入
     /// —— 与 `LangPath::from_state`「读事实，缺失即报错」的取向一致。
     ///
     /// 空串按 `#[default]`（Dub）兜底（与 `read_ctx_from_value` / `WorkflowArgs` 默认一致）；
     /// 未知值报错（fail-fast，期望列表由 `VARIANTS` 生成，加变体自动更新）。
-    pub fn from_state(state: &crate::state::WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(state: &crate::state::State) -> anyhow::Result<Self> {
         use strum::VariantNames;
-        let s = state.output_mode.trim();
+        let s = state.init.output_mode.trim();
         if s.is_empty() {
             return Ok(Self::default());
         }
@@ -147,7 +149,7 @@ impl OutputMode {
 
     /// 从 `input.workflow.output_mode` 解析（读**输入契约**，非 import 落定的事实）。
     ///
-    /// 与 [`from_state`](Self::from_state)（读 `ctx.output_mode` 事实、未知值 fail-fast）互补：
+    /// 与 [`from_state`](Self::from_state)（读 `ctx.init.output_mode` 事实、未知值 fail-fast）互补：
     /// 此处读的是 `Input` 里**结构化**的 `output_mode` 字段——它已是 `OutputMode`
     /// 枚举，不可能出现「未知值」，故返回 `Self` 而非 `Result`；`workflow` 缺失或
     /// 字段缺省时回退 `#[default]`（Dub）。
@@ -205,12 +207,13 @@ impl SubtitleSource {
 
     /// 从 ctx 解析 `input.workflow.subtitleSource`。
     ///
-    /// `ctx.input` 已是结构化 [`Input`](crate::input::Input)（import 落定），
+    /// `ctx.init.input` 已是结构化 [`Input`](crate::input::Input)（import 落定），
     /// `subtitle_source` 为枚举值，不可能出现「未知来源」——该 fail-fast 已上移到
     /// `Input` 反序列化阶段（CLI/RPC 请求解析）。此处仅在 `workflow` 缺失时回退
     /// 默认 `Asr`（`#[default]`），保持与原 `unwrap_or("asr")` 一致。
-    pub fn from_state(ctx: &crate::state::WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(ctx: &crate::state::State) -> anyhow::Result<Self> {
         Ok(ctx
+            .init
             .input
             .workflow
             .as_ref()
@@ -353,7 +356,7 @@ mod strum_sync_tests {
             read_ctx_from_value(v).unwrap()
         };
 
-        // 读事实：ctx.output_mode 已是 import 落定的值
+        // 读事实：ctx.init.output_mode 已是 import 落定的值
         assert_eq!(
             OutputMode::from_state(&mk(Some("subtitle"))).unwrap(),
             OutputMode::Subtitle

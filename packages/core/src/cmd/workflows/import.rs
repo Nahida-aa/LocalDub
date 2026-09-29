@@ -14,7 +14,7 @@ use anyhow::Context;
 pub fn import_workflow(input: &Input) -> anyhow::Result<String> {
     let ctx =
         crate::workflows::import::download::import_video(input).context("import_video 失败")?;
-    let video_dir = ctx.workflow.video_dir;
+    let video_dir = ctx.init.workflow.video_dir;
     println!("[cli] 导入完成, video_dir = {video_dir}");
     Ok(video_dir)
 }

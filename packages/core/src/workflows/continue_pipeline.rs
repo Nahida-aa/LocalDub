@@ -9,7 +9,7 @@
 //! 那份 ctx (例如 cli 从 `input.jsonc` 解析后写入的 ctx), 而不是可能陈旧的持久化 ctx。
 //! 不调用 `import_video` (TS `continuePipeline` 也不调), caller 应已保证 workflow 目录存在。
 
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::utils::{now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
 use crate::workflows::pipeline::run_step;
 
@@ -17,17 +17,17 @@ use crate::workflows::pipeline::run_step;
 ///
 /// `ctx` 必须由调用者先 `read_ctx(video_dir)` (或自行构造) 后传入; 内部不再读磁盘,
 /// 避免续跑基于陈旧 ctx。
-pub fn continue_pipeline(state: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = state.workflow.video_dir.as_str();
+pub fn continue_pipeline(state: &State) -> anyhow::Result<()> {
+    let video_dir = state.init.workflow.video_dir.as_str();
     // 进入 workflow span: 携带 video_dir 供 WorkflowFileLayer 落盘。
     let _workflow_guard = tracing::info_span!("workflow", video_dir = video_dir).entered();
     tracing::info!(target: "output_mode", "continue_pipeline: start");
 
-    let output_mode = state.output_mode.clone();
-    let video_id = state.workflow.id.clone();
+    let output_mode = state.init.output_mode.clone();
+    let video_id = state.init.workflow.id.clone();
     let steps = crate::steps::get_steps(state)?;
 
-    // continueFrom / targetStep 从 ctx.input.workflow 读取 (镜像 TS ctx.input?.workflow)
+    // continueFrom / targetStep 从 ctx.init.input.workflow 读取 (镜像 TS ctx.init.input?.workflow)
     let continue_from = state
         .input
         .workflow
@@ -78,10 +78,8 @@ pub fn continue_pipeline(state: &WorkflowState) -> anyhow::Result<()> {
         // 无 continueFrom → 跳过已完成前缀, 从第一个未完成 step 续跑
         let existing: std::collections::HashMap<String, StepStatus> = state
             .steps
-            .clone()
-            .unwrap_or_default()
-            .into_iter()
-            .map(|s| (s.name, s.status))
+            .iter()
+            .map(|(name, st)| (name.as_str().to_string(), st.status))
             .collect();
         for (i, s) in steps.iter().enumerate() {
             if existing.get(s.as_str()) != Some(&StepStatus::Success) {

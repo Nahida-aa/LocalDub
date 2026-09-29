@@ -9,9 +9,7 @@ use chrono::Utc;
 use tracing::{info, warn};
 
 use crate::input::Input;
-use crate::state::{
-    read_ctx_from_value, write_ctx, VideoSource, Workflow, WorkflowState, WorkflowStep,
-};
+use crate::state::{read_ctx_from_value, write_init, InitState, VideoSource, Workflow};
 use crate::workflows::args::OutputMode;
 use crate::workflows::import::util::{
     auto_group_id_and_video_id, copy_file_to_path, download_remote_video, encode_to_mp4,
@@ -27,22 +25,8 @@ pub struct Downloaded {
 
 /// import 期构建 step 进度清单 (镜像 TS `getSteps`)。
 ///
-/// 直接委托给 [`crate::steps::steps_for`]——运行时 `get_steps` 也走同一逻辑,
-/// 保证两份实现不会分叉 (此前这份副本对 `subtitle + sf_ocr / asr_ocr` 错误地
-/// 塞入 tts/mix_audio, 与运行时序列不符)。
-pub fn get_steps(
-    output_mode: OutputMode,
-    subtitle_source: crate::workflows::args::SubtitleSource,
-) -> Vec<String> {
-    let is_subtitle = matches!(output_mode, OutputMode::Subtitle);
-    crate::steps::utils::steps::steps_for(is_subtitle, subtitle_source)
-        .iter()
-        .map(|s| s.to_string())
-        .collect()
-}
-
 /// 顶层导入入口 (镜像 TS `importVideo`)。
-pub fn import_video(input: &Input) -> anyhow::Result<WorkflowState> {
+pub fn import_video(input: &Input) -> anyhow::Result<InitState> {
     let args = input.workflow.clone().unwrap_or_default();
     let url = args
         .url
@@ -77,27 +61,12 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowState> {
     );
 
     let output_mode = args.output_mode;
-    let subtitle_source = args.subtitle_source;
     let mode_str = serde_json::to_value(output_mode)
         .ok()
         .and_then(|v| v.as_str().map(|s| s.to_string()))
         .unwrap_or_else(|| "dub".to_string());
-    let step_names = get_steps(output_mode, subtitle_source);
-    let steps: Vec<WorkflowStep> = step_names
-        .iter()
-        .map(|name| WorkflowStep {
-            name: name.clone(),
-            label: name.clone(),
-            status: crate::state::StepStatus::Pending,
-            progress: None,
-            started_at: None,
-            completed_at: None,
-            last_message: None,
-            error_message: None,
-        })
-        .collect();
 
-    let state = WorkflowState {
+    let state = InitState {
         workflow: Workflow {
             id: video_id.clone(),
             source,
@@ -106,28 +75,20 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowState> {
             status: "queued".to_string(),
             current_step: None,
             video_dir: video_dir.to_string_lossy().into(),
-            final_video_path: None,
             error_message: None,
             created_at: Utc::now().to_rfc3339(),
             started_at: None,
             completed_at: None,
         },
-        steps: Some(steps),
         output_mode: mode_str.clone(),
-        last_run_output_mode: Some(mode_str),
         // import 阶段 input 直接透传原始 Input (序列化为 Value)
         input: input.clone(),
         frame_rate,
-        run_info: None,
         video_source_path: Some(downloaded.video_path.clone()),
         audio_source_path: Some(downloaded.audio_path.clone()),
-        asr_language: args.source_lang.clone(),
-        target_language: args
-            .target_lang
-            .map(|l| Into::<&'static str>::into(l).to_string()),
     };
 
-    write_ctx(&video_dir.to_string_lossy(), &state).map_err(anyhow::Error::msg)?;
+    write_init(&video_dir.to_string_lossy(), &state).map_err(anyhow::Error::msg)?;
     Ok(state)
 }
 
@@ -312,13 +273,13 @@ mod tests {
             .as_ref()
             .unwrap()
             .ends_with("audio_source.wav"));
-        assert!(std::path::Path::new(ctx.video_source_path.as_ref().unwrap()).exists());
-        assert!(std::path::Path::new(ctx.audio_source_path.as_ref().unwrap()).exists());
+        assert!(std::path::Path::new(ctx.init.video_source_path.as_ref().unwrap()).exists());
+        assert!(std::path::Path::new(ctx.init.audio_source_path.as_ref().unwrap()).exists());
         // 清理: 删除生成的 workflow 目录
-        let _ = std::fs::remove_dir_all(ctx.workflow.video_dir);
+        let _ = std::fs::remove_dir_all(ctx.init.workflow.video_dir);
         println!(
             "import 成功: group={} workflow={}",
-            ctx.workflow.id, ctx.workflow.id
+            ctx.init.workflow.id, ctx.init.workflow.id
         );
     }
 }

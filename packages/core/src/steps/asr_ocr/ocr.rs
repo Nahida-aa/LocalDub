@@ -4,7 +4,7 @@
 //! Writes `<videoDir>/asr_ocr/frames.json` (OcrFramesResult).
 
 use crate::cmd::env::ensure_bin;
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::asr_ocr::args::{AsrOcrArgs, AsrOcrInput};
 use crate::steps::utils::{
     asr_ocr_dir, now_iso, set_step_anyhow, StepPatch, StepStatus,
@@ -15,8 +15,8 @@ use std::fs;
 use std::process::Command;
 
 /// Entry point (mirrors TS `stepAsrOcr`).
-pub fn step_asr_ocr(ctx: &WorkflowState) -> Result<()> {
-    let video_dir = ctx.workflow.video_dir.clone();
+pub fn step_asr_ocr(ctx: &State) -> Result<()> {
+    let video_dir = ctx.init.workflow.video_dir.clone();
     tracing::info!(target: "asr_ocr", "step_asr_ocr: start");
 
     set_step_anyhow(
@@ -29,7 +29,7 @@ pub fn step_asr_ocr(ctx: &WorkflowState) -> Result<()> {
         },
     )?;
 
-    let cfg = AsrOcrArgs::from_input(&ctx.input);
+    let cfg = AsrOcrArgs::from_input(&ctx.init.input);
 
     // 跨步骤输入清单（依赖见 `AsrOcrInput`）。
     let input = AsrOcrInput::from_video_dir(&video_dir);
@@ -121,10 +121,10 @@ mod tests {
     use crate::state::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowState {
+    fn ctx_at(dir: &str, input: serde_json::Value) -> State {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.video_dir = dir.to_string();
-        ctx.output_mode = "dub".to_string();
+        ctx.init.workflow.video_dir = dir.to_string();
+        ctx.init.output_mode = "dub".to_string();
         ctx
     }
 

@@ -13,7 +13,7 @@ use std::process::Command;
 use anyhow::{anyhow, Context};
 use config_rs::path::models::whisper_model_path;
 
-use crate::state::{write_ctx, WorkflowState};
+use crate::state::{write_ctx, State};
 use crate::steps::asr::args::{AsrArgs, AsrInput, AsrSourceAudioPath, VadModel};
 use crate::steps::asr::out::*;
 use crate::steps::utils::paths::asr;
@@ -22,8 +22,8 @@ use crate::steps::utils::{
 };
 
 /// 入口 (镜像 TS `stepAsr`)。
-pub fn step_asr(ctx: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = ctx.workflow.video_dir.clone();
+pub fn step_asr(ctx: &State) -> anyhow::Result<()> {
+    let video_dir = ctx.init.workflow.video_dir.clone();
     tracing::info!(target: "asr", "start");
 
     set_step_anyhow(
@@ -36,7 +36,7 @@ pub fn step_asr(ctx: &WorkflowState) -> anyhow::Result<()> {
         },
     )?;
 
-    let cfg = AsrArgs::from_input(&ctx.input);
+    let cfg = AsrArgs::from_input(&ctx.init.input);
 
     if !cfg.enabled {
         tracing::info!(target: "asr", "disabled (asr.enabled=false), skipping");
@@ -342,11 +342,15 @@ pub fn step_asr(ctx: &WorkflowState) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// 把检测语言写回 state.json (镜像 TS `setCtx(videoDir, { asr_language })`)。
+/// 把检测语言写回 asr 自己的 state 文件 (镜像 TS `setCtx(videoDir, { asr_language })`)。
 fn set_asr_language(video_dir: &str, lang: &str) -> anyhow::Result<()> {
-    let mut ctx = crate::state::read_ctx(video_dir).map_err(anyhow::Error::msg)?;
-    ctx.asr_language = Some(crate::r#const::lang::LangCode::new(lang));
-    write_ctx(video_dir, &ctx).map_err(anyhow::Error::msg)
+    crate::state::write_step_fact(
+        video_dir,
+        "asr",
+        "asr_language",
+        serde_json::Value::String(lang.to_string()),
+    )
+    .map_err(anyhow::Error::msg)
 }
 
 /// 把可选 f64 参数以 `--kebab`state数值等于默认值时也追加, 与 TS 行为一致)。
@@ -506,7 +510,7 @@ mod tests {
     use crate::steps::asr::fix_args::AsrFixArgs;
     use serde_json::json;
 
-    fn test_ctx(input: serde_json::Value) -> WorkflowState {
+    fn test_ctx(input: serde_json::Value) -> State {
         // 每个测试实例独立目录: 同进程测试并行运行, 共享目录会互相覆盖
         // state.json (读到半写状态导致偶发断言失败)。
         static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -520,8 +524,8 @@ mod tests {
             .to_string();
         std::fs::create_dir_all(&dir).unwrap();
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.video_dir = dir.clone();
-        ctx.output_mode = "dub".into();
+        ctx.init.workflow.video_dir = dir.clone();
+        ctx.init.output_mode = "dub".into();
         write_ctx(&dir, &ctx).unwrap();
         ctx
     }

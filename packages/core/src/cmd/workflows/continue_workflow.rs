@@ -39,7 +39,7 @@ pub fn continue_workflow(input: &Input) -> anyhow::Result<()> {
     // setCtx: 把当前 input 合并进 state.json 的 input 字段 (镜像 TS setCtx(videoDir, { input }))
     let mut ctx = read_ctx(&video_dir)
         .map_err(|e| anyhow::anyhow!("读取 {}/state.json 失败: {e}", video_dir))?;
-    ctx.input = input.clone();
+    ctx.init.input = input.clone();
     write_ctx(&video_dir, &ctx)
         .map_err(|e| anyhow::anyhow!("写回 {}/state.json 失败: {e}", video_dir))?;
 
@@ -82,7 +82,7 @@ mod tests {
         let dir = temp_dir("continue_engine");
         setup_subtitle(&dir);
 
-        // steps stub 与 fixture 一致——continue 会整体替换 ctx.input, 不能只传 engine
+        // steps stub 与 fixture 一致——continue 会整体替换 ctx.init.input, 不能只传 engine
         let input: Input = serde_json::from_str(&format!(
             r#"{{"command":"workflow","workflow":{{"action":"continue","videoDir":"{dir}","engine":true}},
                 "steps":{{"separate":{{"always":false}},"asr":{{"enabled":false}},"asr_fix":{{"enabled":false}},"translate":{{"enabled":false}},"mix_video":{{"enabled":false}}}}}}"#
@@ -110,7 +110,7 @@ mod tests {
         assert_eq!(finished("split_audio"), 1, "重放后不应重记 split_audio");
 
         let ctx = read_ctx(&dir).unwrap();
-        assert_eq!(ctx.workflow.status, "success");
+        assert_eq!(ctx.init.workflow.status, "success");
 
         let _ = std::fs::remove_dir_all(&dir);
     }

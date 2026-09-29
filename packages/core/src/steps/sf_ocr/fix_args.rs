@@ -48,7 +48,7 @@ pub struct OcrFixArgs {
     #[serde(default, flatten)]
     pub llm_fix: LlmFixArgs,
     // 源语言已从参数移除: 统一取 `input.workflow.sourceLang` (> ASR 实测的
-    // ctx.asr_language > 默认 zh), 见 ocr_fix 里的解析。
+    // ctx.asr_language() > 默认 zh), 见 ocr_fix 里的解析。
 }
 
 impl Default for OcrFixArgs {

@@ -33,12 +33,12 @@ pub fn setup_subtitle(dir: &str) {
         "output_mode": "subtitle"
     }))
     .unwrap();
-    ctx.workflow.video_dir = dir.to_string();
-    ctx.workflow.id = "t".to_string();
-    ctx.output_mode = "subtitle".to_string();
+    ctx.init.workflow.video_dir = dir.to_string();
+    ctx.init.workflow.id = "t".to_string();
+    ctx.init.output_mode = "subtitle".to_string();
     // 模拟 import 已跑过：subtitle 序列现恒含 split_audio，无 vocals stem 时它
     // 回退到 audio_source.wav，缺失即报错（文件本身不必存在，probe 失败按 0 处理）。
-    ctx.audio_source_path = Some(format!("{dir}/audio_source.wav"));
+    ctx.init.audio_source_path = Some(format!("{dir}/audio_source.wav"));
     write_ctx(dir, &ctx).unwrap();
     // split_audio 会读 translate 产物；本 stub 禁用了 asr/asr_fix，translate 直通
     // 无内容可搬会写出空产物，split_audio 随即 fail-fast。故给 translate 的
@@ -65,10 +65,5 @@ pub fn setup_subtitle(dir: &str) {
 
 pub fn status_of(dir: &str, step: &str) -> StepStatus {
     let ctx = read_ctx(dir).unwrap();
-    ctx.steps
-        .unwrap()
-        .iter()
-        .find(|s| s.name == step)
-        .unwrap()
-        .status
+    ctx.step(step.parse().unwrap()).status
 }

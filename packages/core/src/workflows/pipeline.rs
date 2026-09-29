@@ -9,7 +9,7 @@
 //! 目前 `run_step` 已注册 separate / separate_after / sf_ocr* / translate / split_audio /
 //! asr / asr_fix / tts / mix_audio / mix_video; 后续阶段 (asr_ocr*) 移植后在此登记即可。
 
-use crate::state::{read_ctx, WorkflowState};
+use crate::state::{read_ctx, State};
 use crate::steps::asr::fix::step_asr_fix;
 use crate::steps::asr::step_asr;
 use crate::steps::asr_ocr::{fix::step_asr_ocr_fix, ocr::step_asr_ocr, pre::step_asr_ocr_pre};
@@ -31,8 +31,8 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
     tracing::info!(target: "output_mode", "run_pipeline: start");
 
     let state = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
-    let output_mode = state.output_mode.clone();
-    let video_id = state.workflow.id.clone();
+    let output_mode = state.init.output_mode.clone();
+    let video_id = state.init.workflow.id.clone();
     let steps = get_steps(&state)?;
 
     // targetStep 不在序列中则告警忽略 (镜像 TS)
@@ -73,14 +73,8 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
                 ..Default::default()
             },
         )?;
-        set_workflow_anyhow(
-            video_dir,
-            crate::steps::utils::WorkflowPatch {
-                status: Some("running".to_string()),
-                current_step: Some(Some(step_str.to_string())),
-                ..Default::default()
-            },
-        )?;
+        // 并行下 current_step 无意义：当前活跃步骤由各 <step>/state.json 表达，
+        // 不再维护 workflow.current_step 的每步投影。
         tracing::info!(target: "output_mode", "Running {step_str}");
 
         // 每步重读盘：前序步骤可能写 state（translate 的 target_language 等），
@@ -149,7 +143,7 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
 ///
 /// **入参是 [`StepName`] 而非 `&str`**：`match` 因此是穷尽的——将来给枚举加
 /// 变体却不在这里登记 handler，会**编译失败**，而不是静默跳过。
-pub fn run_step(step: StepName, state: &WorkflowState) -> anyhow::Result<()> {
+pub fn run_step(step: StepName, state: &State) -> anyhow::Result<()> {
     // 进入 step span: 携带 step 名供 WorkflowFileLayer 作为 [step] 前缀。
     let _step_guard = tracing::info_span!("step", step = step.as_str()).entered();
     match step {
@@ -182,15 +176,15 @@ mod tests {
         dir: &str,
         input: serde_json::Value,
         output_mode: &str,
-    ) -> crate::state::WorkflowState {
+    ) -> crate::state::State {
         std::fs::create_dir_all(dir).unwrap();
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.video_dir = dir.to_string();
-        ctx.workflow.id = "t".to_string();
-        ctx.output_mode = output_mode.to_string();
+        ctx.init.workflow.video_dir = dir.to_string();
+        ctx.init.workflow.id = "t".to_string();
+        ctx.init.output_mode = output_mode.to_string();
         // 模拟 import 已跑过：subtitle 序列现恒含 split_audio，无 vocals stem 时它
         // 回退到 audio_source.wav，缺失即报错（文件本身不必存在，probe 失败按 0 处理）。
-        ctx.audio_source_path = Some(format!("{dir}/audio_source.wav"));
+        ctx.init.audio_source_path = Some(format!("{dir}/audio_source.wav"));
         crate::state::write_ctx(dir, &ctx).unwrap();
         // split_audio 会读 translate 产物；本测试禁用了 asr/asr_fix，translate 直通
         // 无内容可搬会写出空产物，split_audio 随即 fail-fast。故给 translate 的
@@ -243,14 +237,17 @@ mod tests {
         assert!(res.is_ok(), "run_pipeline 不应失败: {:?}", res.err());
 
         let reread = crate::state::read_ctx(&dir).unwrap();
-        assert_eq!(reread.workflow.status, "success");
-        let st = reread.steps.unwrap();
+        assert_eq!(reread.init.workflow.status, "success");
         // subtitle 默认序列里 separate / separate_after 已注册 handler, 其余跳过
-        let by_name: std::collections::HashMap<&str, &crate::state::WorkflowStep> =
-            st.iter().map(|s| (s.name.as_str(), s)).collect();
-        assert_eq!(by_name["separate"].status, StepStatus::Success);
-        assert_eq!(by_name["separate_after"].status, StepStatus::Success);
-        assert_eq!(reread.workflow.current_step, None);
+        assert_eq!(
+            reread.step(StepName::Separate).status,
+            StepStatus::Success
+        );
+        assert_eq!(
+            reread.step(StepName::SeparateAfter).status,
+            StepStatus::Success
+        );
+        assert_eq!(reread.init.workflow.current_step, None);
 
         let _ = std::fs::remove_dir_all(&dir);
     }

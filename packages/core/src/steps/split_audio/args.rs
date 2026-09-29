@@ -122,7 +122,7 @@ impl SplitAudioInput {
     /// 回退到原始音频是**正常路径**。故存在性判断留在这里，类型只表达结论。
     ///
     /// `audio_source_path` 缺失 → Err（与 `video_source_path` 同款）。
-    pub fn from_state(state: &crate::state::WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(state: &crate::state::State) -> anyhow::Result<Self> {
         Ok(Self {
             audio_path: Self::audio_from_state(state)?,
             translate_path: translate::LangPath::from_state(state)?,
@@ -137,10 +137,10 @@ impl SplitAudioInput {
     ///
     /// `audio_source_path` 缺失 → Err（与 `video_source_path` 同款）。
     pub fn audio_from_state(
-        state: &crate::state::WorkflowState,
+        state: &crate::state::State,
     ) -> anyhow::Result<SplitAudioSourcePath> {
-        let args = SplitAudioArgs::from_input(&state.input);
-        let video_dir = &state.workflow.video_dir;
+        let args = SplitAudioArgs::from_input(&state.init.input);
+        let video_dir = &state.init.workflow.video_dir;
 
         Ok(match args.vocals_file_path {
             Some(p) => SplitAudioSourcePath::Custom(PathBuf::from(p)),
@@ -175,7 +175,7 @@ mod tests {
     use super::*;
     use crate::state::read_ctx_from_value;
 
-    fn ctx_at(video_dir: &str, input: serde_json::Value) -> crate::state::WorkflowState {
+    fn ctx_at(video_dir: &str, input: serde_json::Value) -> crate::state::State {
         let mut c = read_ctx_from_value(input).unwrap();
         c.workflow.video_dir = video_dir.to_string();
         c
@@ -185,7 +185,7 @@ mod tests {
         video_dir: &str,
         split_audio_cfg: serde_json::Value,
         audio_src: Option<&str>,
-    ) -> crate::state::WorkflowState {
+    ) -> crate::state::State {
         let mut c = ctx_at(
             video_dir,
             serde_json::json!({

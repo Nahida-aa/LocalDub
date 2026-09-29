@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::utils::paths::AudioSourcePath;
 use anyhow::Result;
 
@@ -85,7 +85,7 @@ pub struct SeparateInput {
 
 impl SeparateInput {
     /// 输入为 import 写进 ctx 的事实, 故走 `from_state`(与 `AsrOcrPreInput` 同款)。
-    pub fn from_state(state: &WorkflowState) -> Result<Self> {
+    pub fn from_state(state: &State) -> Result<Self> {
         Ok(Self {
             audio_source_path: AudioSourcePath::from_state(state)?,
         })

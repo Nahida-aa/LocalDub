@@ -58,8 +58,9 @@ export function VideoDetailPage(props: Props) {
       qc.invalidateQueries({
         queryKey: client.read_app_file_text.queryKey(rel),
       });
-      // state.json 变化（续跑/运行中阶段状态流转）→ 刷新任务上下文，让 step 徽章实时更新。
-      if (rel.endsWith("state.json")) {
+      // state 变化（init.json / 各步骤 state.json 的续跑/运行中阶段状态流转）
+      // → 刷新任务上下文，让 step 徽章实时更新。
+      if (rel === "init.json" || rel.endsWith("/state.json")) {
         qc.invalidateQueries({
           queryKey: client.get_workflow_ctx.queryKey(
             `workfolder/${props.groupId}/${props.videoId}`,

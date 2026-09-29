@@ -4,7 +4,7 @@
 //! `translate/{lang}.json`。翻译是 dub/subtitle pipeline 共享的 step。
 //!
 //! 实现要点 (与 TS 对齐):
-//! - 目标语言 input > auto 推断 (resolve_language), 写回 ctx.target_language
+//! - 目标语言 input > auto 推断 (resolve_language), 写回 ctx.target_language()
 //! - 有 ytdlp_info.json 时先做 preprocess (summary/hotwords/corrections) 注入系统提示
 //! - 批量 BATCH_SIZE=50, 每批 3 次重试; 目标非中文时校验译文中文占比 < 0.3
 //! - 破折号 `——` 替换为逗号
@@ -19,7 +19,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::translate::out::{TranslateResult, TranslateResultMeta, TranslateSegment};
 use crate::steps::translate::prompts::{build_preprocess_prompt, build_translate_system, MetaView};
 use crate::steps::utils::{
@@ -175,11 +175,11 @@ pub fn parse_json_reply(raw: &str) -> anyhow::Result<Value> {
 }
 
 /// 入口 (镜像 TS `stepTranslate`)。
-pub fn step_translate(state: &WorkflowState) -> anyhow::Result<()> {
+pub fn step_translate(state: &State) -> anyhow::Result<()> {
     tracing::info!(target: "translate", "start");
 
     let input = args::TranslateInput::from_state(state)?;
-    let args = args::TranslateArgs::from_input(&state.input);
+    let args = args::TranslateArgs::from_input(&state.init.input);
     let (src_lang, target_lang) = resolve_language(state)?;
     let video_dir = input.video_dir.clone();
 
@@ -387,7 +387,7 @@ pub fn step_translate(state: &WorkflowState) -> anyhow::Result<()> {
     // 但清掉历史遗留也无害)
     let _ = std::fs::remove_file(translation_partial_path(&video_dir, &target_lang));
 
-    // 确保 ctx.target_language 在内存之外也落盘 (resolve_language 已写回文件, 这里仅保险)
+    // 确保 ctx.target_language() 在内存之外也落盘 (resolve_language 已写回文件, 这里仅保险)
     set_step_anyhow(
         &video_dir,
         "translate",
@@ -413,11 +413,11 @@ mod tests {
     use crate::state::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowState {
+    fn ctx_at(dir: &str, input: serde_json::Value) -> State {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.video_dir = dir.to_string();
-        ctx.output_mode = "dub".to_string();
-        ctx.asr_language = Some(crate::r#const::lang::LangCode::from("zh"));
+        ctx.init.workflow.video_dir = dir.to_string();
+        ctx.init.output_mode = "dub".to_string();
+        ctx.asr_language() = Some(crate::r#const::lang::LangCode::from("zh"));
         ctx
     }
 
@@ -509,10 +509,10 @@ mod tests {
 
     /// `subtitleSource` 未知 → `Input` 反序列化阶段 fail-fast（不再在 `from_state` 静默回退）。
     ///
-    /// `ctx.input` 已是结构化 [`Input`](crate::input::Input)，未知来源不可能走到
+    /// `ctx.init.input` 已是结构化 [`Input`](crate::input::Input)，未知来源不可能走到
     /// `SubtitleSource::from_state`（它会回退默认 `Asr`）。fail-fast 已上移到 `Input`
     /// 解析，故此处直接断言 `Input` 反序列化拒绝非法值——与 `OutputMode`（读
-    /// `ctx.output_mode` 事实、未知值报错）的取向一致。
+    /// `ctx.init.output_mode` 事实、未知值报错）的取向一致。
     #[test]
     fn unknown_subtitle_source_rejected_at_input_deserialization() {
         let err = serde_json::from_value::<crate::input::Input>(
@@ -758,7 +758,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// `from_state` 只认 `ctx.target_language`：未设置 → 报错（不臆测语言）。
+    /// `from_state` 只认 `ctx.target_language()`：未设置 → 报错（不臆测语言）。
     ///
     /// 这一条钉的是**单源**承诺：读文件与报错必须指向同一路径。若改回
     /// 「现算 `resolve_language`」，当 state.json 快照与现算结果不同时，
@@ -772,7 +772,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
 
-        // ctx_at 的 target_language 来自 ctx.target_language 字段；input 里只给
+        // ctx_at 的 target_language 来自 ctx.target_language() 字段；input 里只给
         // workflow.targetLang（配置），不足以让 from_state 成功——正是要区分的两件事。
         let ctx = ctx_at(
             &dir,
@@ -783,8 +783,8 @@ mod tests {
             }),
         );
         assert!(
-            ctx.target_language.is_none(),
-            "前置条件: ctx.target_language 应为 None"
+            ctx.target_language().is_none(),
+            "前置条件: ctx.target_language() 应为 None"
         );
         let err = out::TranslateOutput::from_state(&ctx).expect_err("缺 target_language 必须报错");
         assert!(
@@ -796,7 +796,7 @@ mod tests {
     }
 
     /// **分叉已被约束消除（本测试守护那个约束）**：同一个 `ctx` 上，
-    /// `ctx.target_language` 与 `resolve_language()` 仍可能给出不同的值——
+    /// `ctx.target_language()` 与 `resolve_language()` 仍可能给出不同的值——
     /// 但这**不再会写出错的文件**，因为：
     ///
     /// 1. `resolve_language` 已是**纯函数**，不再顺手改写 state.json；
@@ -828,7 +828,7 @@ mod tests {
             }),
         );
         // state.json 落盘，内容为 zh
-        ctx.target_language = Some("zh".to_string());
+        ctx.target_language() = Some("zh".to_string());
         crate::state::write_ctx(&dir, &ctx).unwrap();
 
         let input = args::TranslateInput::from_state(&ctx).expect("from_state 不该失败");

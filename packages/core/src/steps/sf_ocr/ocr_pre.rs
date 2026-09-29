@@ -4,7 +4,7 @@
 //! 落盘 `<videoDir>/sf_ocr_pre/`: frames/(PNG) / mask/ / timeline.txt / keyframes.json。
 
 use crate::cmd::env::ensure_bin;
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::sf_ocr::pre_args::SfOcrPreInput;
 use crate::steps::utils::paths::sf_ocr_pre;
 use crate::steps::utils::{
@@ -13,8 +13,8 @@ use crate::steps::utils::{
 use std::process::Command;
 
 /// 入口 (镜像 TS `stepSfOcrPre`)。
-pub fn step_sf_ocr_pre(state: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = state.workflow.video_dir.clone();
+pub fn step_sf_ocr_pre(state: &State) -> anyhow::Result<()> {
+    let video_dir = state.init.workflow.video_dir.clone();
     tracing::info!(target: "sf_ocr", "start");
 
     set_step_anyhow(
@@ -102,15 +102,15 @@ mod tests {
     use crate::state::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str) -> WorkflowState {
+    fn ctx_at(dir: &str) -> State {
         let mut ctx = read_ctx_from_value(json!({
             "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                      "status":"running","created_at":"2024-01-01T00:00:00Z"},
             "input": {}
         }))
         .unwrap();
-        ctx.workflow.video_dir = dir.to_string();
-        ctx.output_mode = "dub".to_string();
+        ctx.init.workflow.video_dir = dir.to_string();
+        ctx.init.output_mode = "dub".to_string();
         ctx
     }
 
@@ -123,7 +123,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let mut ctx = ctx_at(&dir);
-        ctx.video_source_path = Some(format!("{dir}/nope.mp4"));
+        ctx.init.video_source_path = Some(format!("{dir}/nope.mp4"));
         crate::state::write_ctx(&dir, &ctx).unwrap();
         let res = step_sf_ocr_pre(&ctx);
         assert!(res.is_err());
@@ -171,7 +171,7 @@ mod tests {
         std::fs::write(&stamp_path, serde_json::to_string_pretty(&stamp).unwrap()).unwrap();
 
         let mut ctx = ctx_at(&dir);
-        ctx.video_source_path = Some(video);
+        ctx.init.video_source_path = Some(video);
         crate::state::write_ctx(&dir, &ctx).unwrap();
         let res = step_sf_ocr_pre(&ctx);
 

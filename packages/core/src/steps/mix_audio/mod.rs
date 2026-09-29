@@ -9,7 +9,7 @@ pub mod out;
 
 use std::path::Path;
 
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::mix_audio::out::{MixAudioOutputTimings, Timing};
 use crate::steps::split_audio::out::SplitAudioTimingResult;
 use crate::steps::utils::paths::mix_audio::TimingsPath;
@@ -23,11 +23,11 @@ use args::MixAudioInput;
 pub use args::MixAudioArgs;
 
 /// 入口 (镜像 TS `stepMixAudio`)。
-pub fn step_mix_audio(state: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = state.workflow.video_dir.clone();
+pub fn step_mix_audio(state: &State) -> anyhow::Result<()> {
+    let video_dir = state.init.workflow.video_dir.clone();
     tracing::info!(target: "mix_audio", "start");
 
-    let args = MixAudioArgs::from_input(&state.input);
+    let args = MixAudioArgs::from_input(&state.init.input);
 
     let input = MixAudioInput::from_state(state)?;
     let segments = SplitAudioTimingResult::read(&input.split_audio_timings_path)?.segments;
@@ -281,10 +281,10 @@ mod tests {
     use crate::state::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowState {
+    fn ctx_at(dir: &str, input: serde_json::Value) -> State {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.video_dir = dir.to_string();
-        ctx.output_mode = "dub".to_string();
+        ctx.init.workflow.video_dir = dir.to_string();
+        ctx.init.output_mode = "dub".to_string();
         ctx
     }
 
@@ -298,7 +298,7 @@ mod tests {
                 "input": {}
             }),
         );
-        let cfg = MixAudioArgs::from_input(&ctx.input);
+        let cfg = MixAudioArgs::from_input(&ctx.init.input);
         assert_eq!(cfg.max_speed, 1.35);
         assert_eq!(cfg.max_advance_ms, 500.0);
         assert_eq!(cfg.max_delay_ms, 500.0);

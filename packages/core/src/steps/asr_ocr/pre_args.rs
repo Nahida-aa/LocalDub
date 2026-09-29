@@ -1,6 +1,6 @@
 //! asr_ocr 阶段预处理参数 (镜像 TS `packages/core/steps/04_asr_ocr/pre_args.ts`)。
 
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::utils::paths::{asr, VideoSourcePath};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -39,7 +39,7 @@ fn default_fps() -> f64 {
 ///
 /// 视频源是 ctx 事实（缺失即报错，没导入过就没有），故入口是
 /// [`from_state`](Self::from_state)。`asr/asr.json` 虽是约定拼法，但本步入口统一走
-/// ctx（`video_source_path` 本就来自 ctx），于是也一并从 `ctx.workflow.video_dir` 拼出，
+/// ctx（`video_source_path` 本就来自 ctx），于是也一并从 `ctx.init.workflow.video_dir` 拼出，
 /// 与同族 `SfOcrPreInput` 取法一致。
 ///
 /// 本步的产出（`asr_ocr_pre/asr_split.json` / `asr_ocr_pre/frames/`）属于「产出」而非
@@ -54,9 +54,9 @@ pub struct AsrOcrPreInput {
 
 impl AsrOcrPreInput {
     /// 从工作流状态解析本步输入契约（视频源是 ctx 事实）。
-    pub fn from_state(state: &WorkflowState) -> Result<Self> {
+    pub fn from_state(state: &State) -> Result<Self> {
         Ok(Self {
-            asr_path: asr::AsrPath::new(&state.workflow.video_dir),
+            asr_path: asr::AsrPath::new(&state.init.workflow.video_dir),
             video_source_path: VideoSourcePath::from_state(state)?,
         })
     }

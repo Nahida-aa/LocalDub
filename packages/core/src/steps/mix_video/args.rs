@@ -186,12 +186,12 @@ impl MixVideoInput {
     ///
     /// BGM 默认取 `separate_after/target_bgm.wav`，`mix_video.bgmPath` 有值时
     /// 变成 [`BgmPath::Custom`]（调试覆盖）。
-    pub fn from_state(state: &crate::state::WorkflowState) -> anyhow::Result<Self> {
-        let video_dir = &state.workflow.video_dir;
+    pub fn from_state(state: &crate::state::State) -> anyhow::Result<Self> {
+        let video_dir = &state.init.workflow.video_dir;
         let video_source_path = VideoSourcePath::from_state(state)?;
-        Ok(match OutputMode::from_input(&state.input) {
+        Ok(match OutputMode::from_input(&state.init.input) {
             OutputMode::Dub => {
-                let bgm_path = match MixVideoArgs::from_input(&state.input).bgm_path {
+                let bgm_path = match MixVideoArgs::from_input(&state.init.input).bgm_path {
                     Some(p) => BgmPath::Custom(PathBuf::from(p)),
                     None => BgmPath::Separate(separate_after::TargetBgmPath::new(video_dir)),
                 };

@@ -1,7 +1,7 @@
 //! asr_ocr_pre: Split ASR segments by punctuation (mirroring TS `stepAsrOcrPre`)
 //! and extract frames via ffmpeg.
 
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::asr::out::{AsrResult, AsrSegment};
 use crate::steps::asr_ocr::pre_args::AsrOcrPreInput;
 use crate::steps::utils::ffmpeg;
@@ -134,8 +134,8 @@ fn split_asr_by_words(segs: &[AsrSegment]) -> Vec<SubtitleSegment> {
 }
 
 /// Entry point (mirrors TS `stepAsrOcrPre`).
-pub fn step_asr_ocr_pre(ctx: &WorkflowState) -> Result<()> {
-    let video_dir = ctx.workflow.video_dir.clone();
+pub fn step_asr_ocr_pre(ctx: &State) -> Result<()> {
+    let video_dir = ctx.init.workflow.video_dir.clone();
     info!(target: "asr_ocr", "step_asr_ocr_pre: start");
 
     set_step_anyhow(

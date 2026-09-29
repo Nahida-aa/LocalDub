@@ -17,7 +17,7 @@ pub mod vad_align;
 use std::fs;
 use std::path::Path;
 
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::split_audio::out::{
     SplitAudioResult, SplitAudioSegment, SplitAudioTimingResult, TranslateResultMeta,
 };
@@ -43,11 +43,11 @@ impl SegmentBounds for TranslateSegment {
 
 /// 入口 (镜像 TS `stepSplitAudio`)。
 /// 本步骤耗时在 0~2s, 对于流程中的步骤来说没有必要考虑 如何设计成 与 某些步骤并行
-pub fn step_split_audio(state: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = state.workflow.video_dir.clone();
+pub fn step_split_audio(state: &State) -> anyhow::Result<()> {
+    let video_dir = state.init.workflow.video_dir.clone();
     tracing::info!(target: "split_audio", "start");
 
-    let args = SplitAudioArgs::from_input(&state.input);
+    let args = SplitAudioArgs::from_input(&state.init.input);
 
     // 输入契约一次性构建：切块音频源 + 翻译产物路径，后续只读它，
     // 不再各自 `LangPath::from_state` / `audio_from_state` 拼两次。
@@ -81,7 +81,7 @@ pub fn step_split_audio(state: &WorkflowState) -> anyhow::Result<()> {
     // 是否 dub 流程由 **output_mode 输入契约**决定，不再靠「源文件是否碰巧存在」
     // 推断——后者把「有没有 separate 产物」当成了流程模式，是个副作用推断
     // （subtitle 模式若残留了旧的 vocals stem，就会误判成 dub）。
-    let is_dub = crate::workflows::args::OutputMode::from_input(&state.input)
+    let is_dub = crate::workflows::args::OutputMode::from_input(&state.init.input)
         == crate::workflows::args::OutputMode::Dub;
 
     // 意图时序 =  translate 的 segments **原样搬运**。
@@ -250,7 +250,7 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn ctx_with_input(input: serde_json::Value) -> WorkflowState {
+    fn ctx_with_input(input: serde_json::Value) -> State {
         crate::state::read_ctx_from_value(input).unwrap()
     }
 
@@ -261,7 +261,7 @@ mod tests {
                      "status": "running", "created_at": "2024-01-01T00:00:00Z"},
             "input": {"steps": {"split_audio": {}}}
         }));
-        let cfg = SplitAudioArgs::from_input(&ctx.input);
+        let cfg = SplitAudioArgs::from_input(&ctx.init.input);
         assert!(!cfg.vad_align);
         assert_eq!(cfg.start_pad_ms, 100);
         assert_eq!(cfg.end_pad_ms, 300);
@@ -280,7 +280,7 @@ mod tests {
                 "vocalsFilePath": "/v.wav"
             }}}
         }));
-        let cfg = SplitAudioArgs::from_input(&ctx.input);
+        let cfg = SplitAudioArgs::from_input(&ctx.init.input);
         assert!(cfg.vad_align);
         assert_eq!(cfg.start_pad_ms, 150);
         assert_eq!(cfg.end_pad_ms, 400);

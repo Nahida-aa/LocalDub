@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 /// 原视频 `video_source.mp4`（任务级输入，由 import 产出）。
 ///
 /// 与 [`AudioSourcePath`] 同款：位置不是消费者自己拼的，而是 import 阶段
-/// **写进 ctx** 的（`ctx.video_source_path`）。两个入口对应两类调用者：
+/// **写进 ctx** 的（`ctx.init.video_source_path`）。两个入口对应两类调用者：
 ///
 /// | 入口 | 谁用 |
 /// | --- | --- |
@@ -43,12 +43,13 @@ impl VideoSourcePath {
         Self(video_dir.as_ref().join("video_source.mp4"))
     }
 
-    /// 从 ctx 取 `ctx.video_source_path`（import 写入的路径）。
+    /// 从 ctx 取 `ctx.init.video_source_path`（import 写入的路径）。
     ///
     /// 缺失 → Err（与 [`AudioSourcePath::from_state`] 同款语义：
     /// 没导入过就没有这个文件，无从猜测）。
-    pub fn from_state(state: &crate::state::WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(state: &crate::state::State) -> anyhow::Result<Self> {
         state
+            .init
             .video_source_path
             .clone()
             .map(PathBuf::from)
@@ -56,7 +57,7 @@ impl VideoSourcePath {
             .ok_or_else(|| {
                 anyhow::anyhow!(
                     "video_source_path 未设置 (session {}); 请先运行 import",
-                    state.workflow.video_dir
+                    state.init.workflow.video_dir
                 )
             })
     }
@@ -69,7 +70,7 @@ impl VideoSourcePath {
 /// 原始音频 `audio_source.wav`（任务级输入，由 import 产出）。
 ///
 /// **与 `SrtPath` 的区别**：它的位置不是从 `video_dir` 拼出来的，而是 import
-/// 阶段**写进 ctx** 的（`ctx.audio_source_path`）。两个构造入口对应两类调用者：
+/// 阶段**写进 ctx** 的（`ctx.init.audio_source_path`）。两个构造入口对应两类调用者：
 ///
 /// | 入口 | 谁用 |
 /// | --- | --- |
@@ -90,12 +91,13 @@ impl AudioSourcePath {
         Self(video_dir.as_ref().join("audio_source.wav"))
     }
 
-    /// 从 ctx 取 `ctx.audio_source_path`（import 写入的绝对路径）。
+    /// 从 ctx 取 `ctx.init.audio_source_path`（import 写入的绝对路径）。
     ///
     /// 缺失 → Err（与 [`crate::steps::utils::video_source_path`] 同款语义：
     /// 没导入过就没有这个文件，无从猜测）。
-    pub fn from_state(state: &crate::state::WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(state: &crate::state::State) -> anyhow::Result<Self> {
         state
+            .init
             .audio_source_path
             .clone()
             .map(PathBuf::from)
@@ -103,7 +105,7 @@ impl AudioSourcePath {
             .ok_or_else(|| {
                 anyhow::anyhow!(
                     "audio_source_path 未设置 (session {}); 请先运行 import",
-                    state.workflow.video_dir
+                    state.init.workflow.video_dir
                 )
             })
     }
@@ -564,10 +566,10 @@ pub mod translate {
     /// | 入口 | 谁用 | 参数来源 |
     /// | --- | --- | --- |
     /// | [`new`](Self::new)`(video_dir, lang)` | **翻译步骤** | 它手里已有一对 `(dir, lang)`：`lang` 是它自己 `resolve_language` 决策出来的 |
-    /// | [`from_state`](Self::from_state)`(ctx)` | **后续步骤** | 读 `ctx.target_language`——那个**已落定的事实** |
+    /// | [`from_state`](Self::from_state)`(ctx)` | **后续步骤** | 读 `ctx.target_language()`——那个**已落定的事实** |
     ///
     /// 为什么后续步骤不该走 `new` + `resolve_language`：`resolve_language` 是
-    /// **现算**（读配置、可能推断），而 `ctx.target_language` 是**翻译步骤落盘的
+    /// **现算**（读配置、可能推断），而 `ctx.target_language()` 是**翻译步骤落盘的
     /// 事实**。两者现在恰好一致（纯函数 + 同输入），但那是巧合的稳定——推断逻辑
     /// 一改（如新增直通分支），中途重跑下游就会分叉。`from_state` 让下游只能读到
     /// 事实，读不到「另算一遍」的机会。
@@ -599,21 +601,21 @@ pub mod translate {
             }
         }
 
-        /// 由 ctx 构造，语言取 `ctx.target_language`（**唯一写入点**见
+        /// 由 ctx 构造，语言取 `ctx.target_language()`（**唯一写入点**见
         /// [`crate::steps::utils::persist_target_language`]）。
         ///
         /// **后续步骤专用**：读已落定的事实，不重新解析。
         ///
         /// 缺失 → Err（与 `read_translation_result` 同款语义：目标语言未知时
         /// 无从知道该读哪个文件；正常流程里 translate 跑过就一定有值）。
-        pub fn from_state(ctx: &crate::state::WorkflowState) -> anyhow::Result<Self> {
-            let lang = ctx.target_language.as_deref().ok_or_else(|| {
+        pub fn from_state(ctx: &crate::state::State) -> anyhow::Result<Self> {
+            let lang = ctx.target_language().as_deref().ok_or_else(|| {
                 anyhow::anyhow!(
-                    "ctx.target_language 未设置, 无法定位翻译产物 (task {}); 请先运行 translate",
-                    ctx.workflow.video_dir
+                    "ctx.target_language() 未设置, 无法定位翻译产物 (task {}); 请先运行 translate",
+                    ctx.init.workflow.video_dir
                 )
             })?;
-            Ok(Self::new(&ctx.workflow.video_dir, lang))
+            Ok(Self::new(&ctx.init.workflow.video_dir, lang))
         }
 
         pub fn as_path(&self) -> &Path {
@@ -967,7 +969,7 @@ mod tests {
         );
     }
 
-    /// `LangPath::from_state` 读 `ctx.target_language`——**已落定的事实**。
+    /// `LangPath::from_state` 读 `ctx.target_language()`——**已落定的事实**。
     ///
     /// 后续步骤靠它避开 `resolve_language` 的现算：即使 `input.workflow.targetLang`
     /// 与 ctx 里的值不同，`from_state` 也必须以 ctx 为准（ctx 是翻译步骤写的）。
@@ -983,7 +985,7 @@ mod tests {
                 "input": {"workflow": {"targetLang": "vi"}}
             }))
             .unwrap();
-            ctx.target_language = ctx_lang.map(String::from);
+            ctx.target_language() = ctx_lang.map(String::from);
             ctx
         };
 

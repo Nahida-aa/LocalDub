@@ -10,7 +10,7 @@ pub mod args;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::utils::{
     now_iso, separate_dir, set_step, set_step_anyhow, StepPatch, StepStatus,
 };
@@ -231,14 +231,14 @@ fn run_demucs(
 }
 
 /// 入口 (镜像 TS `stepSeparate`)。
-pub fn step_separate(state: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = state.workflow.video_dir.clone();
+pub fn step_separate(state: &State) -> anyhow::Result<()> {
+    let video_dir = state.init.workflow.video_dir.clone();
     tracing::info!(target: "separate", "start");
 
-    let cfg = SeparateArgs::from_input(&state.input);
+    let cfg = SeparateArgs::from_input(&state.init.input);
 
     // subtitle 模式且未配置 always → 跳过分离
-    if state.output_mode == "subtitle" && !cfg.always {
+    if state.init.output_mode == "subtitle" && !cfg.always {
         tracing::info!(target: "separate", "Skipped (subtitle pipeline, set separate.always=true to force)");
         set_step_anyhow(
             &video_dir,
@@ -366,15 +366,16 @@ mod tests {
     }
     use super::*;
     use crate::state::read_ctx_from_value;
+    use crate::workflows::args::StepName;
     use serde_json::json;
 
-    fn ctx_with(input: serde_json::Value, pipeline: &str) -> WorkflowState {
+    fn ctx_with(input: serde_json::Value, pipeline: &str) -> State {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.video_dir = "/tmp/ld_sep_test".into();
-        ctx.workflow.id = "t".into();
-        ctx.output_mode = pipeline.into();
-        ctx.video_source_path = Some("/tmp/ld_sep_test/video_source.mp4".into());
-        ctx.audio_source_path = Some("/tmp/ld_sep_test/audio_source.wav".into());
+        ctx.init.workflow.video_dir = "/tmp/ld_sep_test".into();
+        ctx.init.workflow.id = "t".into();
+        ctx.init.output_mode = pipeline.into();
+        ctx.init.video_source_path = Some("/tmp/ld_sep_test/video_source.mp4".into());
+        ctx.init.audio_source_path = Some("/tmp/ld_sep_test/audio_source.wav".into());
         ctx
     }
 
@@ -388,7 +389,7 @@ mod tests {
             }),
             "dub",
         );
-        let cfg = SeparateArgs::from_input(&ctx.input);
+        let cfg = SeparateArgs::from_input(&ctx.init.input);
         assert_eq!(cfg.runtime, args::SeparateRuntime::BurnTch);
         assert_eq!(cfg.device, args::Device::Cuda);
         assert!(!cfg.always);
@@ -410,7 +411,7 @@ mod tests {
             }),
             "dub",
         );
-        let cfg = SeparateArgs::from_input(&ctx.input);
+        let cfg = SeparateArgs::from_input(&ctx.init.input);
         assert_eq!(cfg.device, args::Device::Mps);
         assert!(cfg.always);
         assert_eq!(cfg.stems, vec![args::Stem::Drums, args::Stem::Vocals]);
@@ -449,17 +450,16 @@ mod tests {
             }),
             "subtitle",
         );
-        ctx.workflow.video_dir = dir.clone();
-        ctx.output_mode = "subtitle".to_string();
+        ctx.init.workflow.video_dir = dir.clone();
+        ctx.init.output_mode = "subtitle".to_string();
         crate::state::write_ctx(&dir, &ctx).unwrap();
         let res = step_separate(&ctx);
         assert!(res.is_ok(), "subtitle skip 不应失败: {:?}", res.err());
         let reread = crate::state::read_ctx(&dir).unwrap();
-        let st = reread.steps.unwrap();
-        assert_eq!(st[0].name, "separate");
-        assert_eq!(st[0].status, StepStatus::Success);
+        let st = reread.step(StepName::Separate);
+        assert_eq!(st.status, StepStatus::Success);
         assert_eq!(
-            st[0].last_message.as_deref(),
+            st.last_message.as_deref(),
             Some("Skipped (subtitle pipeline)")
         );
         let _ = std::fs::remove_dir_all(&dir);

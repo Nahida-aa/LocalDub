@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::split_audio::out::SplitAudioTimingResult;
 use crate::steps::utils::paths::{split_audio, tts};
 
@@ -66,8 +66,8 @@ impl MixAudioInput {
     /// 顺便做前向校验：时序文件存在且非空、每段 TTS 文件存在。这样 step 主体不必
     /// 再手写「文件不存在」判断——失败得早、错得清楚（与 `SplitAudioInput::from_state`
     /// 同款思路：输入契约在入口一次性查干净）。
-    pub fn from_state(state: &WorkflowState) -> anyhow::Result<Self> {
-        let video_dir = &state.workflow.video_dir;
+    pub fn from_state(state: &State) -> anyhow::Result<Self> {
+        let video_dir = &state.init.workflow.video_dir;
         let split_audio_timings_path = split_audio::TimingsPath::new(video_dir);
         let tts_wavs_dir = tts::WavsDir::new(video_dir);
 

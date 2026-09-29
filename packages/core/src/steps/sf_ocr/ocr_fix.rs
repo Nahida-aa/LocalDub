@@ -7,15 +7,15 @@
 //! 失败时 warn 并保留原文 (不中断 step)。
 
 use crate::cmd::env::ensure_bin;
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::sf_ocr::fix_args::{OcrFixArgs, SfOcrFixInput};
 use crate::steps::utils::paths::{sf_ocr_fix, SrtJsonPath};
 use crate::steps::utils::{now_iso, set_step_anyhow, StepPatch, StepStatus};
 use std::process::Command;
 
 /// 入口 (镜像 TS `stepSfOcrFix`)。
-pub fn step_sf_ocr_fix(state: &WorkflowState) -> anyhow::Result<()> {
-    let video_dir = state.workflow.video_dir.clone();
+pub fn step_sf_ocr_fix(state: &State) -> anyhow::Result<()> {
+    let video_dir = state.init.workflow.video_dir.clone();
     let input = SfOcrFixInput::from_video_dir(&video_dir);
     tracing::info!(target: "sf_ocr", "start");
 
@@ -33,7 +33,7 @@ pub fn step_sf_ocr_fix(state: &WorkflowState) -> anyhow::Result<()> {
     std::fs::create_dir_all(out_dir.as_path())
         .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", out_dir.as_path().display(), e))?;
 
-    let args = OcrFixArgs::from_input(&state.input);
+    let args = OcrFixArgs::from_input(&state.init.input);
 
     let bin = ensure_bin("subtitle_ocr_post_bin").map_err(|e| {
         anyhow::anyhow!(
@@ -169,11 +169,11 @@ mod tests {
     use crate::state::read_ctx_from_value;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> WorkflowState {
+    fn ctx_at(dir: &str, input: serde_json::Value) -> State {
         let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.workflow.video_dir = dir.to_string();
-        ctx.output_mode = "dub".to_string();
-        ctx.video_source_path = Some("/x/video.mp4".to_string());
+        ctx.init.workflow.video_dir = dir.to_string();
+        ctx.init.output_mode = "dub".to_string();
+        ctx.init.video_source_path = Some("/x/video.mp4".to_string());
         ctx
     }
 
@@ -187,7 +187,7 @@ mod tests {
                 "input": {"steps": {"sf_ocr_fix": {}}}
             }),
         );
-        let cfg = OcrFixArgs::from_input(&ctx.input);
+        let cfg = OcrFixArgs::from_input(&ctx.init.input);
         assert_eq!(cfg.adjusted_confidence_threshold, 0.45);
         assert!(!cfg.llm_fix.llm_fix);
     }
@@ -204,7 +204,7 @@ mod tests {
                 }}}
             }),
         );
-        let cfg = OcrFixArgs::from_input(&ctx.input);
+        let cfg = OcrFixArgs::from_input(&ctx.init.input);
         assert_eq!(cfg.adjusted_confidence_threshold, 0.6);
         assert!(cfg.llm_fix.llm_fix);
     }

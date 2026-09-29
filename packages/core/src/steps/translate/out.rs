@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::state::WorkflowState;
+use crate::state::State;
 use crate::steps::utils::paths::translate::LangPath;
 
 /// 单条翻译段 (镜像 TS `TranslateSegment`)。
@@ -120,7 +120,7 @@ pub struct TranslatePartialSegment {
 /// 现在 `translation_file_path` 只在本类型的构造里调用，消费点接收本类型。
 ///
 /// 另一个被顺带修掉的问题：`mix_video` 曾用 `resolve_language()` 现算的 lang 拼
-/// 错误信息、却用 `read_translation_result(ctx)` 里 `ctx.target_language` 的快照去读，
+/// 错误信息、却用 `read_translation_result(ctx)` 里 `ctx.target_language()` 的快照去读，
 /// 两个来源不同（详见 `from_state` 注释）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TranslateOutput {
@@ -137,16 +137,16 @@ impl TranslateOutput {
         }
     }
 
-    /// 从 ctx 构造，目标语言取 `ctx.target_language`。
+    /// 从 ctx 构造，目标语言取 `ctx.target_language()`。
     ///
-    /// **刻意只用 `ctx.target_language`**，不调 `resolve_language`：后者会重新推断，
+    /// **刻意只用 `ctx.target_language()`**，不调 `resolve_language`：后者会重新推断，
     /// 与「已落盘的事实」可能得到不同答案。本类型承诺的是**读与报错指向同一个
     /// 文件**，故必须单源。
     ///
     /// 未设置 → Err（委托 [`LangPath::from_state`]）。
-    pub fn from_state(ctx: &WorkflowState) -> anyhow::Result<Self> {
+    pub fn from_state(ctx: &State) -> anyhow::Result<Self> {
         let path = LangPath::from_state(ctx)?;
-        let lang = ctx.target_language.clone().unwrap_or_default(); // from_state 已保证 Some
+        let lang = ctx.target_language().clone().unwrap_or_default(); // from_state 已保证 Some
         Ok(Self { lang, path })
     }
 
