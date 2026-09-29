@@ -24,7 +24,7 @@ use aa_workflow_core::{
     RunStatus, RunWorkflowOptions, StepCtx, Workflow, WorkflowCtx, run_workflow_sync,
 };
 
-use crate::state::{read_ctx, WorkflowState};
+use crate::state::read_ctx;
 use crate::steps::get_steps;
 use crate::workflows::args::StepName;
 use crate::steps::utils::{
@@ -124,18 +124,18 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
 ///
 /// 入口是同步的 (`run_workflow_sync` 内部自建 tokio runtime 驱动 handler)。
 /// 单个 step 的引擎驱动体（注册表化工作流与通用定义的**共用路径**）：
-/// 置 running → `run_step`（真 step：子进程 + state.json 投影）→ 产物登记；
+/// step 起点读盘（永远新鲜）→ 置 running → `run_step` → 产物登记；
 /// 失败置 failed 并向上传错。
 ///
-/// `state` 是调用方给的**快照**（typed 定义取 `ctx.state.clone()`；通用定义
-/// 每步读盘）——投影写盘用 `state.workflow.video_dir`。
+/// `dir` 由调用方给（typed 定义取 `ctx.state.workflow.video_dir`；通用定义
+/// 捕获构造参数）——真值始终是盘上的 state.json。
 pub(crate) fn drive_step(
-    state: WorkflowState,
+    dir: String,
     step: StepName,
 ) -> impl std::future::Future<Output = anyhow::Result<serde_json::Value>> + Send + 'static {
-    let dir = state.workflow.video_dir.clone();
     let step_name = step.as_str();
     async move {
+        let state = read_ctx(&dir).map_err(anyhow::Error::msg)?;
         tracing::info!(target: "engine", "Running {step_name}");
         set_step_anyhow(
             &dir,
@@ -155,7 +155,12 @@ pub(crate) fn drive_step(
                 ..Default::default()
             },
         )?;
-        match run_step(step, &state) {
+        // 真 step 是同步阻塞（子进程 + 轮询）——丢进 spawn_blocking：
+        // 并行分支互不占死执行器线程。
+        match tokio::task::spawn_blocking(move || run_step(step, &state))
+            .await
+            .map_err(|e| anyhow::anyhow!("step task join 失败: {e}"))?
+        {
             Ok(()) => Ok(step_artifacts(&dir, step_name).unwrap_or(serde_json::Value::Null)),
             Err(e) => {
                 let msg = e.to_string();
@@ -241,13 +246,9 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
                     let step_id = step.as_str().to_string();
                     let step_name = *step;
                     let dir = dir.clone();
-                    // 未注册组合（erased ctx，state 是 Value）：快照从盘上取——
-                    // 与旧 drive_step 的「step 起点读盘」时序一致。
+                    // 未注册组合（erased ctx）：drive_step 自行在 step 起点读盘。
                     wctx.step(&step_id, move |_sc: StepCtx| {
-                        async move {
-                            let state = read_ctx(&dir).map_err(anyhow::Error::msg)?;
-                            drive_step(state, step_name).await
-                        }
+                        drive_step(dir.clone(), step_name)
                     })
                     .await?;
                 }
