@@ -9,7 +9,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3"
 
 [[package]]
-name = "aa-workflow-core"
+name = "aa_workflow_core"
 version = "0.2.0"
 dependencies = [
  "anyhow",
@@ -2639,7 +2639,7 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 name = "ld-core"
 version = "0.1.0"
 dependencies = [
- "aa-workflow-core",
+ "aa_workflow_core",
  "anyhow",
  "chrono",
  "clap",
