@@ -9,7 +9,7 @@
 //! 目前 `run_step` 已注册 separate / separate_after / sf_ocr* / translate / split_audio /
 //! asr / asr_fix / tts / mix_audio / mix_video; 后续阶段 (asr_ocr*) 移植后在此登记即可。
 
-use crate::state::read_ctx;
+use crate::state::{read_ctx, WorkflowState};
 use crate::steps::asr::fix::step_asr_fix;
 use crate::steps::asr::step_asr;
 use crate::steps::asr_ocr::{fix::step_asr_ocr_fix, ocr::step_asr_ocr, pre::step_asr_ocr_pre};
@@ -83,7 +83,10 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
         )?;
         tracing::info!(target: "output_mode", "Running {step_str}");
 
-        match run_step(*step, video_dir) {
+        // 每步重读盘：前序步骤可能写 state（translate 的 target_language 等），
+        // handler 吃「此刻的快照」。
+        let state = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
+        match run_step(*step, &state) {
             Ok(()) => {
                 // 达到 targetStep 即停止 (镜像 TS)
                 if let Some(ts) = state
@@ -140,14 +143,15 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
 
 /// 按 step 名分派到具体 handler (镜像 TS `STEP_HANDLERS`)。
 ///
-/// 每个 handler 自行 `read_ctx` 获取最新 state (与 TS `readCtx(sp)` 一致)。
+/// **入参是 [`StepName`] + 当前 state 快照**（镜像 TS `runStep` 的
+/// `readCtx(sp)` 结果）：快照由调用方提供——pipeline 每步重读盘、引擎每步取
+/// `ctx.state` 快照，两边的「新鲜度」各自保证。
 ///
 /// **入参是 [`StepName`] 而非 `&str`**：`match` 因此是穷尽的——将来给枚举加
 /// 变体却不在这里登记 handler，会**编译失败**，而不是静默跳过。
-pub fn run_step(step: StepName, video_dir: &str) -> anyhow::Result<()> {
+pub fn run_step(step: StepName, state: &WorkflowState) -> anyhow::Result<()> {
     // 进入 step span: 携带 step 名供 WorkflowFileLayer 作为 [step] 前缀。
     let _step_guard = tracing::info_span!("step", step = step.as_str()).entered();
-    let state = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
     match step {
         StepName::Separate => step_separate(&state),
         StepName::SeparateAfter => step_separate_after(&state),

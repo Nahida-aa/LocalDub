@@ -238,6 +238,10 @@ pub struct WorkflowArgs {
     pub queue_id: Option<u64>,
     /// rerunStep 专业参数, 指定要重新运行的步骤
     pub step_name: Option<StepName>,
+    /// 实验开关: start/continue 走 aa-workflow 引擎（`run_workflow_engine`，
+    /// 真源 events.jsonl）而非 `run_pipeline`（真源 state.json）。其余 action 忽略。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub engine: Option<bool>,
     /// 任务模式, dub 配音, subtitle 仅字幕
     ///
     /// **显式 `rename` 覆盖 `rename_all = "camelCase"`**：本字段的 wire 名沿用

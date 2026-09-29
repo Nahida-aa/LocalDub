@@ -1,0 +1,218 @@
+warning: patch `fnrpc-tauri v0.4.6 (https://github.com/Nahida-aa/fnrpc.git?rev=c95425b038c9239abb0df5057c6c3faaca46a091#c95425b0)` was not used in the crate graph
+help: Check that the patched package version and available features are compatible
+      with the dependency requirements. If the patch has a different version from
+      what is locked in the Cargo.lock file, run `cargo update` to use the new
+      version. This may also occur with an optional dependency that is not enabled.
+warning: unused import: `serde_json::json`
+   --> packages/core/src/integration/workflow/engine.rs:367:9
+    |
+367 |     use serde_json::json;
+    |         ^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `resolve_language`
+  --> packages/core/src/steps/asr/fix.rs:10:26
+   |
+10 |     ensure_dir, now_iso, resolve_language, set_step_anyhow, StepPatch, ...
+   |                          ^^^^^^^^^^^^^^^^
+
+warning: unused import: `PathBuf`
+ --> packages/core/src/steps/translate/out.rs:3:23
+  |
+3 | use std::path::{Path, PathBuf};
+  |                       ^^^^^^^
+
+warning: use of deprecated macro `strum::EnumVariantNames`: please use `#[derive(VariantNames)]` instead
+  --> packages/core/src/workflows/args.rs:67:5
+   |
+67 |     strum::EnumVariantNames,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated macro `strum::EnumVariantNames`: please use `#[derive(VariantNames)]` instead
+   --> packages/core/src/workflows/args.rs:115:5
+    |
+115 |     strum::EnumVariantNames,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: use of deprecated macro `strum::EnumVariantNames`: please use `#[derive(VariantNames)]` instead
+   --> packages/core/src/workflows/args.rs:185:5
+    |
+185 |     strum::EnumVariantNames,
+    |     ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `ld-core` (lib test) generated 6 warnings (run `cargo fix --lib -p ld-core --tests` to apply 3 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s
+     Running unittests src/lib.rs (target/debug/deps/ld_core-fc6bd1136fc8b94c)
+
+running 180 tests
+test cmd::check::tests::deserialize_check_args_defaults ... ok
+test cmd::cookie::tests::deserialize_cookie_args ... ok
+test cmd::cookie::tests::set_cookie_writes_and_reads_back ... ok
+test cmd::cookie::tests::set_cookie_rejects_empty ... ok
+test cmd::cookie::tests::youtube_cookie_path_structure ... ok
+test cmd::check::tests::check_args_field_wires_into_input ... ok
+test cmd::env::items::tests::fetch_latest_tag_matches_bin_prefix ... ok
+test cmd::check::tests::asr_falls_back_to_raw ... ok
+test cmd::check::tests::asr_gap_diagnosis ... ok
+test cmd::list_models::tests::api_base_defaults_to_openai_base_url_or_ollama ... ok
+test cmd::list_models::tests::api_base_respects_explicit_value ... ok
+test cmd::sound::tests::play_wav_missing_path_is_silent ... ok
+test cmd::sound::tests::sound_paths_structure ... ok
+test cmd::workflows::meta::tests::assemble_meta_md_uses_llm_translation_and_info ... ok
+test cmd::env::items::tests::extract_zip_flat_rejects_dotdot_basename ... ok
+test cmd::workflows::enqueue_dir::tests::scan_ignores_non_video_files ... ok
+test cmd::workflows::meta::tests::build_meta_prompt_includes_title_and_subtitles ... ok
+test cmd::workflows::enqueue_dir::tests::scan_returns_video_inputs ... ok
+test cmd::workflows::meta::tests::format_ts_variants ... ok
+test cmd::env::items::tests::extract_zip_flat_overwrites_existing ... ok
+test cmd::workflows::meta::tests::format_upload_date_variants ... ok
+test input::tests::camel_case_field_names ... ok
+test cmd::workflows::meta::tests::assemble_meta_md_without_info ... ok
+test input::tests::cookie_field_wires_cookie_args ... ok
+test input::tests::deserialize_partial_fills_defaults ... ok
+test cmd::env::items::tests::extract_zip_flat_flattens_escaping_paths_safely ... ok
+test input::tests::output_mode_wire_key_is_snake_case_both_ways ... ok
+test cmd::workflows::enqueue_dir::tests::scan_skips_existing_ctx_json ... ok
+test input::tests::servers_field_wires_servers_args ... ok
+test input::tests::validate_workflow_required_for_workflow_command ... ok
+test input::tests::sf_ocr_flatten_fields_deserialize ... ok
+test cmd::env::items::tests::extract_zip_flat_flattens_and_skips_dirs ... ok
+test servers::args::tests::wire_shape ... ok
+test integration::workflow::engine_store::tests::cas_conflict_and_fresh_reopen ... ok
+test integration::workflow::engine_store::tests::roundtrip_state_and_events ... ok
+test steps::asr::tests::asr_fix_args_defaults_and_enabled ... ok
+test servers::status::tests::serde_roundtrip ... ok
+test integration::workflow::engine_store::tests::truncate_log_at_step_keeps_prefix_through_terminal ... ok
+test servers::status::tests::parse_voxcpm_status_body ... ok
+test steps::asr::tests::asr_args_defaults_and_enabled ... ok
+test steps::asr_ocr::fix::tests::asr_align_only_snaps_on_text_match ... ok
+test steps::asr_ocr::fix::tests::fix_overlap_adjusts_boundary ... ok
+test steps::asr_ocr::fix::tests::final_dedup_merges_adjacent_same_text ... ok
+test steps::asr::tests::asr_input_resolves_audio_source_by_cfg ... ok
+test steps::mix_audio::out::tests::into_subtitle_segments_prefers_dst_then_text ... ok
+test steps::asr::tests::step_asr_missing_input_errors ... ok
+test steps::asr_ocr::pre::tests::split_simple_no_words ... ok
+test steps::mix_audio::out::tests::into_subtitle_segments_uses_actual_times ... ok
+test steps::asr::tests::step_asr_skips_when_disabled ... ok
+test steps::mix_video::tests::alignment_to_ffmpeg_maps_correctly ... ok
+test steps::mix_audio::tests::args_defaults ... ok
+test steps::mix_video::tests::filter_sub_path_non_windows_passthrough ... ok
+test steps::mix_video::tests::final_video_dir_variants ... ok
+test steps::asr_ocr::ocr::tests::missing_frames_errors ... ok
+test steps::mix_video::tests::mix_video_args_defaults ... ok
+test steps::asr_ocr::pre::tests::split_by_punctuation ... ok
+test steps::mix_video::tests::sub_filter_arg_escapes_quotes ... ok
+test steps::mix_video::tests::win_filter_sub_path_escapes_backslash_and_colon ... ok
+test steps::mix_video::tests::win_filter_sub_path_replaces_all_backslashes ... ok
+test steps::separate::tests::backend_selection ... ok
+test steps::separate::tests::field_defaults_when_absent ... ok
+test steps::separate::tests::from_input_parses_camel_case_fields ... ok
+test integration::workflow::engine::tests::engine_reports_paused_instead_of_swallowing_it ... ok
+test steps::separate::tests::parse_progress_variants ... ok
+test steps::sf_ocr::ocr::tests::args_camel_case ... ok
+test steps::sf_ocr::ocr::tests::args_defaults ... ok
+test steps::sf_ocr::ocr_fix::tests::args_camel_case_and_llm_fix ... ok
+test steps::sf_ocr::ocr_fix::tests::args_defaults ... ok
+test steps::sf_ocr::ocr_fix::tests::missing_frames_errors ... ok
+test steps::separate::tests::subtitle_skips_when_not_always ... ok
+test steps::sf_ocr::ocr::tests::missing_frame_dir_errors ... ok
+test steps::split_audio::args::tests::existing_vocals_stem_is_preferred ... ok
+test steps::split_audio::args::tests::explicit_vocals_file_path_wins ... ok
+test steps::split_audio::args::tests::falls_back_to_audio_source_when_no_vocals ... ok
+test steps::split_audio::args::tests::missing_audio_source_is_error ... ok
+test steps::split_audio::args::tests::missing_target_language_is_error ... ok
+test steps::split_audio::out::tests::into_subtitle_segments_prefers_dst_then_text ... ok
+test steps::split_audio::pad_segment::tests::first_segment_pads_backward ... ok
+test steps::split_audio::out::tests::into_subtitle_segments_uses_own_times ... ok
+test steps::split_audio::pad_segment::tests::large_gap_keeps_full_pad ... ok
+test steps::split_audio::pad_segment::tests::single_short_segment_does_not_reverse ... ok
+test steps::split_audio::pad_segment::tests::tiny_gap_takes_midpoint ... ok
+test steps::split_audio::tests::field_defaults_when_absent ... ok
+test steps::sf_ocr::ocr_pre::tests::missing_video_errors_before_bin ... ok
+test steps::translate::batch::tests::chinese_ratio_detects_cjk ... ok
+test steps::split_audio::tests::read_config_parses_camel_case_fields ... ok
+test steps::translate::batch::tests::chinese_ratio_is_ignored_when_target_is_chinese ... ok
+test steps::translate::batch::tests::chinese_translation_fails_when_target_is_not_chinese ... ok
+test steps::translate::batch::tests::empty_translation_always_fails ... ok
+test steps::translate::batch::tests::describe_missing_formats_both_variants ... ok
+test steps::translate::batch::tests::failure_reason_uses_one_based_index ... ok
+test steps::split_audio::pad_segment::tests::reversed_segment_yields_reversed_bounds ... ok
+test steps::translate::batch::tests::tuning_constants_are_pinned ... ok
+test steps::translate::partial::tests::missing_only_when_untranslated_and_batch_incomplete ... ok
+test steps::translate::partial::tests::unreadable_partial_is_treated_as_no_progress ... ok
+test steps::translate::tests::from_state_resolves_srt_path_per_source ... ok
+test steps::translate::partial::tests::batch_index_derives_from_batch_size ... ok
+test steps::translate::tests::parse_json_reply_finds_brace_block ... ok
+test integration::workflow::engine::tests::engine_target_step_stops ... ok
+test steps::translate::tests::resolve_src_lang_falls_back_to_workflow_source_lang ... ok
+test steps::translate::tests::missing_subtitle_errors ... ok
+test steps::translate::tests::partial_roundtrip_restores_completed_batch ... ok
+test steps::translate::tests::resolve_target_lang_auto ... ok
+test steps::translate::tests::translate_output_from_state_requires_target_language ... ok
+test steps::translate::tests::translate_output_matches_canonical_path ... ok
+test steps::translate::tests::translate_segment_idx_is_one_based_and_dense ... ok
+test steps::translate::tests::translate_segment_requires_idx ... ok
+test steps::translate::tests::translate_result_read_is_typed_and_fails_fast ... ok
+test steps::translate::tests::unknown_subtitle_source_rejected_at_input_deserialization ... ok
+test steps::tts::tests::args_defaults_and_camelcase ... ok
+test steps::tts::tests::missing_timings_errors ... ok
+test steps::tts::util::tests::skip_requires_all_five_conditions ... ok
+test steps::tts::out::tests::read_rejects_invalid_json ... ok
+test steps::utils::paths::tests::dir_is_parent_of_srt_path ... ok
+test steps::utils::paths::tests::lang_path_from_state_uses_persisted_fact ... ok
+test steps::tts::util::tests::zero_duration_wav_is_never_reused ... ok
+test steps::utils::paths::tests::lang_path_shape ... ok
+test steps::tts::util::tests::any_failed_segment_makes_step_fail ... ok
+test steps::translate::tests::resolve_language_is_pure_and_does_not_persist ... ok
+test steps::utils::paths::tests::sf_ocr_paths_shape ... ok
+test steps::utils::paths::tests::srt_path_shape_per_fix_step ... ok
+test steps::utils::paths::tests::srt_path_types_are_distinct ... ok
+test steps::utils::srt::tests::srt_time_format ... ok
+test steps::utils::paths::tests::video_source_path_shape ... ok
+test steps::utils::srt::tests::read_srt_roundtrips_write_srt ... ok
+test steps::utils::steps::tests::all_pipeline_constants_are_valid_step_names ... ok
+test steps::utils::srt::tests::validate_rejects_bad_time_order ... ok
+test steps::utils::steps::tests::dub_asr_ocr ... ok
+test steps::utils::steps::tests::dub_default_is_asr ... ok
+test steps::utils::steps::tests::dub_sf_ocr ... ok
+test steps::utils::steps::tests::missing_subtitle_source_defaults_to_asr ... ok
+test steps::utils::steps::tests::steps_list_matches_all_steps ... ok
+test steps::utils::srt::tests::subtitle_segments_write_srt ... ok
+test steps::utils::steps::tests::subtitle_asr_ocr_uses_ocr_not_dubbed ... ok
+test steps::utils::steps::tests::subtitle_default_is_subtitle_steps ... ok
+test steps::utils::steps::tests::subtitle_sf_ocr_uses_ocr_not_asr ... ok
+test steps::utils::steps::tests::translate_disabled_keeps_step_for_passthrough ... ok
+test steps::utils::steps::tests::unknown_subtitle_source_is_rejected ... ok
+test steps::utils::tests::dir_helpers ... ok
+test steps::utils::tests::explicit_target_wins_when_translating ... ok
+test steps::utils::steps::tests::subtitle_always_includes_split_audio ... ok
+test steps::utils::tests::missing_enabled_defaults_to_translating ... ok
+test steps::utils::steps::tests::dependencies_doc_covers_every_step ... ok
+test steps::utils::tests::now_iso_format ... ok
+test steps::utils::tests::passthrough_overrides_explicit_target_lang ... ok
+test steps::utils::tests::passthrough_targets_source_language ... ok
+test steps::utils::tests::write_srt_json_rejects_invalid_timeline ... ok
+test workflows::args::strum_sync_tests::output_mode_from_input_reads_typed_field ... ok
+test workflows::args::strum_sync_tests::output_mode_from_state_reads_fact ... ok
+test workflows::args::strum_sync_tests::output_mode_serde_and_strum_agree ... ok
+test workflows::args::strum_sync_tests::step_name_serde_and_strum_agree ... ok
+test workflows::args::strum_sync_tests::subtitle_source_serde_and_strum_agree ... ok
+test workflows::import::util::tests::classify_source_various ... ok
+test workflows::import::util::tests::classify_ytdlp_connection_reset ... ok
+test workflows::import::util::tests::classify_ytdlp_cookie_expired ... ok
+test workflows::import::util::tests::classify_ytdlp_generic ... ok
+test workflows::import::util::tests::classify_ytdlp_network_unreachable ... ok
+test workflows::import::util::tests::extract_video_id_local_path ... ok
+test steps::utils::tests::set_workflow_patch ... ok
+test workflows::import::util::tests::extract_youtube_id_variants ... ok
+test workflows::import::util::tests::parse_dir_and_id_basic ... ok
+test workflows::import::util::tests::parse_dir_and_id_skips_generic_parent ... ok
+test workflows::import::util::tests::parse_ytdlp_pct_variants ... ok
+test workflows::import::util::tests::parse_ffmpeg_pct_variants ... ok
+test steps::utils::tests::set_step_upserts_and_merges ... ok
+test steps::mix_video::tests::target_lang_comes_from_persisted_fact_not_config ... ok
+test steps::mix_video::tests::mix_video_args_accepts_decimals ... ok
+test steps::mix_video::tests::probe_style_uses_defaults_for_landscape_zh ... ok

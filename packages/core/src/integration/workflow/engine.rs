@@ -24,8 +24,9 @@ use aa_workflow_core::{
     RunStatus, RunWorkflowOptions, StepCtx, Workflow, WorkflowCtx, run_workflow_sync,
 };
 
-use crate::state::read_ctx;
+use crate::state::{read_ctx, WorkflowState};
 use crate::steps::get_steps;
+use crate::workflows::args::StepName;
 use crate::steps::utils::{
     now_iso, set_step_anyhow, set_workflow_anyhow, video_id, StepPatch, StepStatus, WorkflowPatch,
 };
@@ -122,6 +123,67 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
 /// 用引擎跑 (或续跑) 一条 output_mode, 结束后 workflow.status ∈ {success, failed}。
 ///
 /// 入口是同步的 (`run_workflow_sync` 内部自建 tokio runtime 驱动 handler)。
+/// 单个 step 的引擎驱动体（注册表化工作流与通用定义的**共用路径**）：
+/// 置 running → `run_step`（真 step：子进程 + state.json 投影）→ 产物登记；
+/// 失败置 failed 并向上传错。
+///
+/// `state` 是调用方给的**快照**（typed 定义取 `ctx.state.clone()`；通用定义
+/// 每步读盘）——投影写盘用 `state.workflow.video_dir`。
+pub(crate) fn drive_step(
+    state: WorkflowState,
+    step: StepName,
+) -> impl std::future::Future<Output = anyhow::Result<serde_json::Value>> + Send + 'static {
+    let dir = state.workflow.video_dir.clone();
+    let step_name = step.as_str();
+    async move {
+        tracing::info!(target: "engine", "Running {step_name}");
+        set_step_anyhow(
+            &dir,
+            step_name,
+            StepPatch {
+                status: Some(StepStatus::Running),
+                started_at: Some(now_iso()),
+                last_message: Some(format!("Starting {step_name}...")),
+                ..Default::default()
+            },
+        )?;
+        set_workflow_anyhow(
+            &dir,
+            WorkflowPatch {
+                status: Some("running".to_string()),
+                current_step: Some(Some(step_name.to_string())),
+                ..Default::default()
+            },
+        )?;
+        match run_step(step, &state) {
+            Ok(()) => Ok(step_artifacts(&dir, step_name).unwrap_or(serde_json::Value::Null)),
+            Err(e) => {
+                let msg = e.to_string();
+                tracing::error!(target: "engine", "Step {step_name} failed: {msg}");
+                set_step_anyhow(
+                    &dir,
+                    step_name,
+                    StepPatch {
+                        status: Some(StepStatus::Failed),
+                        error_message: Some(msg.clone()),
+                        completed_at: Some(now_iso()),
+                        ..Default::default()
+                    },
+                )?;
+                set_workflow_anyhow(
+                    &dir,
+                    WorkflowPatch {
+                        status: Some("failed".to_string()),
+                        error_message: Some(msg.clone()),
+                        ..Default::default()
+                    },
+                )?;
+                Err(anyhow::anyhow!(msg))
+            }
+        }
+    }
+}
+
 pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Result<()> {
     let _guard = tracing::info_span!("workflow", video_dir = video_dir).entered();
     let ctx = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
@@ -159,7 +221,14 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
     // handler-replay authoring 面: 串行 = 按 get_steps 顺序逐个 ctx.step.await。
     let run_id =
         video_id(video_dir).ok_or_else(|| anyhow::anyhow!("无法从 video_dir 取 run_id"))?;
-    let wf = Workflow::new(ctx.output_mode.clone()).handler({
+
+    // 注册表优先：已注册的组合用具名定义（显式步骤调用，见 workflows/）；
+    // 未注册的组合回退通用串行定义（get_steps 推导）——实验期其余组合行为不变。
+    let workflow_id = super::workflows::resolve_id(&ctx);
+    let wf = super::workflows::build(&workflow_id).unwrap_or_else(|| {
+        tracing::info!(target: "engine",
+            "workflow \"{workflow_id}\" 未注册，回退通用串行定义");
+        Workflow::new(ctx.output_mode.clone()).handler({
         let dir = video_dir.to_string();
         let steps = steps;
         move |wctx: WorkflowCtx| {
@@ -172,57 +241,12 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
                     let step_id = step.as_str().to_string();
                     let step_name = *step;
                     let dir = dir.clone();
+                    // 未注册组合（erased ctx，state 是 Value）：快照从盘上取——
+                    // 与旧 drive_step 的「step 起点读盘」时序一致。
                     wctx.step(&step_id, move |_sc: StepCtx| {
-                        let dir = dir.clone();
-                        let step = step_name;
-                        let step_name = step.as_str();
                         async move {
-                            tracing::info!(target: "engine", "Running {step_name}");
-                            set_step_anyhow(
-                                &dir,
-                                step_name,
-                                StepPatch {
-                                    status: Some(StepStatus::Running),
-                                    started_at: Some(now_iso()),
-                                    last_message: Some(format!("Starting {step_name}...")),
-                                    ..Default::default()
-                                },
-                            )?;
-                            set_workflow_anyhow(
-                                &dir,
-                                WorkflowPatch {
-                                    status: Some("running".to_string()),
-                                    current_step: Some(Some(step_name.to_string())),
-                                    ..Default::default()
-                                },
-                            )?;
-                            match run_step(step, &dir) {
-                                Ok(()) => Ok(step_artifacts(&dir, step_name)
-                                    .unwrap_or(serde_json::Value::Null)),
-                                Err(e) => {
-                                    let msg = e.to_string();
-                                    tracing::error!(target: "engine", "Step {step_name} failed: {msg}");
-                                    set_step_anyhow(
-                                        &dir,
-                                        step_name,
-                                        StepPatch {
-                                            status: Some(StepStatus::Failed),
-                                            error_message: Some(msg.clone()),
-                                            completed_at: Some(now_iso()),
-                                            ..Default::default()
-                                        },
-                                    )?;
-                                    set_workflow_anyhow(
-                                        &dir,
-                                        WorkflowPatch {
-                                            status: Some("failed".to_string()),
-                                            error_message: Some(msg.clone()),
-                                            ..Default::default()
-                                        },
-                                    )?;
-                                    Err(anyhow::anyhow!(msg))
-                                }
-                            }
+                            let state = read_ctx(&dir).map_err(anyhow::Error::msg)?;
+                            drive_step(state, step_name).await
                         }
                     })
                     .await?;
@@ -230,13 +254,24 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
                 Ok(serde_json::Value::Null)
             }
         }
+    })
     });
 
+    let mut input_value = serde_json::to_value(&ctx.input).map_err(anyhow::Error::msg)?;
+    // 注入 videoDir：注册表化工作流的 initialize / handler 从 run input 取
+    // 任务目录（对齐例子——videoDir 本就是 run input 的一部分；start 路径的
+    // input 原本没有，这里补上）。
+    if let Some(w) = input_value.get_mut("workflow").and_then(|w| w.as_object_mut()) {
+        w.insert(
+            "videoDir".to_string(),
+            serde_json::Value::String(video_dir.to_string()),
+        );
+    }
     let mut r_opts = RunWorkflowOptions::new(
         Arc::new(wf.clone()),
         Arc::new(FsRunStore::new(video_dir)),
     )
-    .input(serde_json::to_value(&ctx.input).map_err(anyhow::Error::msg)?)
+    .input(input_value)
     .run_id(run_id.clone());
     if let Some(cf) = &continue_from {
         r_opts = r_opts.continue_from(cf.clone());
@@ -362,77 +397,10 @@ fn store_wait_desc(video_dir: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::{read_ctx, read_ctx_from_value, write_ctx, StepStatus};
+    use crate::integration::workflow::test_support::{setup_subtitle, status_of, temp_dir};
+    use crate::state::{read_ctx, StepStatus};
     use serde_json::json;
     use aa_workflow_core::RunStore;
-
-    fn temp_dir(name: &str) -> String {
-        let dir = std::env::temp_dir()
-            .join(format!("ld_engine_{name}_{}", std::process::id()))
-            .to_string_lossy()
-            .to_string();
-        let _ = std::fs::remove_dir_all(&dir);
-        dir
-    }
-
-    /// 构造写好 state.json 的 subtitle 临时 workflow 目录 (只触发 separate / separate_after).
-    fn setup_subtitle(dir: &str) {
-        std::fs::create_dir_all(dir).unwrap();
-        let input = json!({
-            "steps": {
-                "separate": {"always": false},
-                "asr": {"enabled": false},
-                "asr_fix": {"enabled": false},
-                "translate": {"enabled": false},
-                "mix_video": {"enabled": false}
-            }
-        });
-        let mut ctx = read_ctx_from_value(json!({
-            "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-            "input": input,
-            "output_mode": "subtitle"
-        }))
-        .unwrap();
-        ctx.workflow.video_dir = dir.to_string();
-        ctx.workflow.id = "t".to_string();
-        ctx.output_mode = "subtitle".to_string();
-        // 模拟 import 已跑过：subtitle 序列现恒含 split_audio，无 vocals stem 时它
-        // 回退到 audio_source.wav，缺失即报错（文件本身不必存在，probe 失败按 0 处理）。
-        ctx.audio_source_path = Some(format!("{dir}/audio_source.wav"));
-        write_ctx(dir, &ctx).unwrap();
-        // split_audio 会读 translate 产物；本 stub 禁用了 asr/asr_fix，translate 直通
-        // 无内容可搬会写出空产物，split_audio 随即 fail-fast。故给 translate 的
-        // **输入**（subtitleSource=asr → asr_fix/srt.json）造假数据，直通原样带出。
-        let p = std::path::Path::new(dir).join("asr_fix").join("srt.json");
-        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
-        crate::steps::utils::write_srt_json(
-            &p,
-            &[
-                subtitle::SubtitleSegment {
-                    text: "一".into(),
-                    start_ms: 0,
-                    end_ms: 1000,
-                },
-                subtitle::SubtitleSegment {
-                    text: "二".into(),
-                    start_ms: 1000,
-                    end_ms: 2000,
-                },
-            ],
-        )
-        .unwrap();
-    }
-
-    fn status_of(dir: &str, step: &str) -> StepStatus {
-        let ctx = read_ctx(dir).unwrap();
-        ctx.steps
-            .unwrap()
-            .iter()
-            .find(|s| s.name == step)
-            .unwrap()
-            .status
-    }
 
     #[test]
     fn engine_serial_matches_run_pipeline() {

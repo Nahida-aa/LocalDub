@@ -78,6 +78,9 @@ enum Command {
         /// 跑到此 step 后停止 (continue/enqueue_continue 用)。
         #[arg(long, value_enum)]
         target_step: Option<StepName>,
+        /// 实验开关: start/continue 走 aa-workflow 引擎 (events.jsonl 真源)。
+        #[arg(long)]
+        engine: bool,
     },
     /// 服务器管理 (等价 input.jsonc command=servers)。
     Servers {
@@ -153,6 +156,7 @@ fn main() {
             queue_id,
             continue_from,
             target_step,
+            engine,
         }) => {
             let mut workflow = input.workflow.clone().unwrap_or_default();
             if let Some(a) = action {
@@ -172,6 +176,9 @@ fn main() {
             }
             if let Some(ts) = target_step {
                 workflow.target_step = Some(ts);
+            }
+            if engine {
+                workflow.engine = Some(true);
             }
             input.workflow = Some(workflow);
             input.command = InputCommand::Workflow;

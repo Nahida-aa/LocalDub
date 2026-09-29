@@ -138,7 +138,9 @@ pub fn continue_pipeline(state: &WorkflowState) -> anyhow::Result<()> {
         )?;
         tracing::info!(target: "output_mode", "Running {step_str}");
 
-        match run_step(step, video_dir) {
+        // 每步重读盘：前序步骤可能写 state。
+        let state = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
+        match run_step(step, &state) {
             Ok(()) => {
                 if let Some(ts) = &target_step {
                     if step_str == ts {
