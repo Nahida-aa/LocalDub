@@ -65,7 +65,10 @@ pub fn sf_ocr_dub() -> WorkflowDefinition<Input, serde_json::Value, WorkflowStat
             }),
     )
     .handler(|ctx: BaseCtx<Input, WorkflowState>| async move {
-        let dir = ctx.state.workflow.video_dir.clone();
+        // Arc<str> 共享任务目录：每步 clone = 引用计数 +1（非深拷贝）；
+        // 闭包 `move` 拥有自己的 Arc，async 块内以 `&dir` 借用——'static 合法。
+        let dir: std::sync::Arc<str> =
+            std::sync::Arc::from(ctx.state.workflow.video_dir.as_str());
 
         // 分支 A（音频侧）：separate → separate_after
         let branch_audio = {
@@ -74,12 +77,16 @@ pub fn sf_ocr_dub() -> WorkflowDefinition<Input, serde_json::Value, WorkflowStat
             async move {
                 ctx.step("separate", {
                     let dir = dir.clone();
-                    move |_sc: StepCtx| drive_step(dir, StepName::Separate)
+                    move |_sc: StepCtx| async move {
+                        drive_step(&dir, StepName::Separate).await
+                    }
                 })
                 .await?;
                 ctx.step("separate_after", {
                     let dir = dir.clone();
-                    move |_sc: StepCtx| drive_step(dir, StepName::SeparateAfter)
+                    move |_sc: StepCtx| async move {
+                        drive_step(&dir, StepName::SeparateAfter).await
+                    }
                 })
                 .await?;
                 anyhow::Ok(())
@@ -93,22 +100,30 @@ pub fn sf_ocr_dub() -> WorkflowDefinition<Input, serde_json::Value, WorkflowStat
             async move {
                 ctx.step("sf_ocr_pre", {
                     let dir = dir.clone();
-                    move |_sc: StepCtx| drive_step(dir, StepName::SfOcrPre)
+                    move |_sc: StepCtx| async move {
+                        drive_step(&dir, StepName::SfOcrPre).await
+                    }
                 })
                 .await?;
                 ctx.step("sf_ocr", {
                     let dir = dir.clone();
-                    move |_sc: StepCtx| drive_step(dir, StepName::SfOcr)
+                    move |_sc: StepCtx| async move {
+                        drive_step(&dir, StepName::SfOcr).await
+                    }
                 })
                 .await?;
                 ctx.step("sf_ocr_fix", {
                     let dir = dir.clone();
-                    move |_sc: StepCtx| drive_step(dir, StepName::SfOcrFix)
+                    move |_sc: StepCtx| async move {
+                        drive_step(&dir, StepName::SfOcrFix).await
+                    }
                 })
                 .await?;
                 ctx.step("translate", {
                     let dir = dir.clone();
-                    move |_sc: StepCtx| drive_step(dir, StepName::Translate)
+                    move |_sc: StepCtx| async move {
+                        drive_step(&dir, StepName::Translate).await
+                    }
                 })
                 .await?;
                 anyhow::Ok(())
@@ -123,22 +138,30 @@ pub fn sf_ocr_dub() -> WorkflowDefinition<Input, serde_json::Value, WorkflowStat
         // join 之后串行尾段
         ctx.step("split_audio", {
             let dir = dir.clone();
-            move |_sc: StepCtx| drive_step(dir, StepName::SplitAudio)
+            move |_sc: StepCtx| async move {
+                drive_step(&dir, StepName::SplitAudio).await
+            }
         })
         .await?;
         ctx.step("tts", {
             let dir = dir.clone();
-            move |_sc: StepCtx| drive_step(dir, StepName::Tts)
+            move |_sc: StepCtx| async move {
+                drive_step(&dir, StepName::Tts).await
+            }
         })
         .await?;
         ctx.step("mix_audio", {
             let dir = dir.clone();
-            move |_sc: StepCtx| drive_step(dir, StepName::MixAudio)
+            move |_sc: StepCtx| async move {
+                drive_step(&dir, StepName::MixAudio).await
+            }
         })
         .await?;
         ctx.step("mix_video", {
             let dir = dir.clone();
-            move |_sc: StepCtx| drive_step(dir, StepName::MixVideo)
+            move |_sc: StepCtx| async move {
+                drive_step(&dir, StepName::MixVideo).await
+            }
         })
         .await?;
         Ok(serde_json::Value::Null)

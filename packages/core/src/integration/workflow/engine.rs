@@ -127,64 +127,60 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
 /// step 起点读盘（永远新鲜）→ 置 running → `run_step` → 产物登记；
 /// 失败置 failed 并向上传错。
 ///
-/// `dir` 由调用方给（typed 定义取 `ctx.state.workflow.video_dir`；通用定义
-/// 捕获构造参数）——真值始终是盘上的 state.json。
-pub(crate) fn drive_step(
-    dir: String,
-    step: StepName,
-) -> impl std::future::Future<Output = anyhow::Result<serde_json::Value>> + Send + 'static {
+/// 入参是**引用**：`dir` 借用自调用方（typed 定义经 `Arc<str>` 共享，
+/// 借用活在其 async 块内部——step future 必须 'static，不能跨块借用）。
+/// 真值始终是盘上的 state.json。
+pub(crate) async fn drive_step(dir: &str, step: StepName) -> anyhow::Result<serde_json::Value> {
     let step_name = step.as_str();
-    async move {
-        let state = read_ctx(&dir).map_err(anyhow::Error::msg)?;
-        tracing::info!(target: "engine", "Running {step_name}");
-        set_step_anyhow(
-            &dir,
-            step_name,
-            StepPatch {
-                status: Some(StepStatus::Running),
-                started_at: Some(now_iso()),
-                last_message: Some(format!("Starting {step_name}...")),
-                ..Default::default()
-            },
-        )?;
-        set_workflow_anyhow(
-            &dir,
-            WorkflowPatch {
-                status: Some("running".to_string()),
-                current_step: Some(Some(step_name.to_string())),
-                ..Default::default()
-            },
-        )?;
-        // 真 step 是同步阻塞（子进程 + 轮询）——丢进 spawn_blocking：
-        // 并行分支互不占死执行器线程。
-        match tokio::task::spawn_blocking(move || run_step(step, &state))
-            .await
-            .map_err(|e| anyhow::anyhow!("step task join 失败: {e}"))?
-        {
-            Ok(()) => Ok(step_artifacts(&dir, step_name).unwrap_or(serde_json::Value::Null)),
-            Err(e) => {
-                let msg = e.to_string();
-                tracing::error!(target: "engine", "Step {step_name} failed: {msg}");
-                set_step_anyhow(
-                    &dir,
-                    step_name,
-                    StepPatch {
-                        status: Some(StepStatus::Failed),
-                        error_message: Some(msg.clone()),
-                        completed_at: Some(now_iso()),
-                        ..Default::default()
-                    },
-                )?;
-                set_workflow_anyhow(
-                    &dir,
-                    WorkflowPatch {
-                        status: Some("failed".to_string()),
-                        error_message: Some(msg.clone()),
-                        ..Default::default()
-                    },
-                )?;
-                Err(anyhow::anyhow!(msg))
-            }
+    let state = read_ctx(dir).map_err(anyhow::Error::msg)?;
+    tracing::info!(target: "engine", "Running {step_name}");
+    set_step_anyhow(
+        dir,
+        step_name,
+        StepPatch {
+            status: Some(StepStatus::Running),
+            started_at: Some(now_iso()),
+            last_message: Some(format!("Starting {step_name}...")),
+            ..Default::default()
+        },
+    )?;
+    set_workflow_anyhow(
+        dir,
+        WorkflowPatch {
+            status: Some("running".to_string()),
+            current_step: Some(Some(step_name.to_string())),
+            ..Default::default()
+        },
+    )?;
+    // 真 step 是同步阻塞（子进程 + 轮询）——丢进 spawn_blocking：
+    // 并行分支互不占死执行器线程。
+    match tokio::task::spawn_blocking(move || run_step(step, &state))
+        .await
+        .map_err(|e| anyhow::anyhow!("step task join 失败: {e}"))?
+    {
+        Ok(()) => Ok(step_artifacts(dir, step_name).unwrap_or(serde_json::Value::Null)),
+        Err(e) => {
+            let msg = e.to_string();
+            tracing::error!(target: "engine", "Step {step_name} failed: {msg}");
+            set_step_anyhow(
+                dir,
+                step_name,
+                StepPatch {
+                    status: Some(StepStatus::Failed),
+                    error_message: Some(msg.clone()),
+                    completed_at: Some(now_iso()),
+                    ..Default::default()
+                },
+            )?;
+            set_workflow_anyhow(
+                dir,
+                WorkflowPatch {
+                    status: Some("failed".to_string()),
+                    error_message: Some(msg.clone()),
+                    ..Default::default()
+                },
+            )?;
+            Err(anyhow::anyhow!(msg))
         }
     }
 }
@@ -247,8 +243,8 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
                     let step_name = *step;
                     let dir = dir.clone();
                     // 未注册组合（erased ctx）：drive_step 自行在 step 起点读盘。
-                    wctx.step(&step_id, move |_sc: StepCtx| {
-                        drive_step(dir.clone(), step_name)
+                    wctx.step(&step_id, move |_sc: StepCtx| async move {
+                        drive_step(&dir, step_name).await
                     })
                     .await?;
                 }
