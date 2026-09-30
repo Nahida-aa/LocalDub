@@ -714,6 +714,12 @@ fn spawn_detached(bin: &str, args: &[&str]) {
 // 模型目录默认相对仓库根: vision-lab CLI 用 current_exe_repo_root() 上溯两级解析
 // (target/release 深度), data/bin 与其同深度, 故落位 data/bin 后能正确解析到
 // 仓库根 data/models/rapidocr。
+//
+// ⚠️ vision-lab 09dc6ac 起包名/bin 名统一 `-` → `_` (subtitle_ocr / subtitle_finder /
+// subtitle_ocr_post)。本文件仍按下划线前的旧 bin/资产名下载 —— 因为下面 pin 的是
+// 历史 release tag (subtitle-ocr-v0.1.1 等), 其资产名不可变。下次 bump 新 release
+// tag 时, 需同步改各 spec 的 bin/linux_asset/windows_asset (steps 侧经 ensure_bin
+// 派生二进制路径, 会自动跟随; items.rs/input.rs 里的日志与提示文案需手改)。
 // ---------------------------------------------------------------------------
 
 /// 单个 release 二进制的下载描述 (按平台区分资产 + sha256)。

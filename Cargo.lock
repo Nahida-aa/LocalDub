@@ -2665,8 +2665,8 @@ dependencies = [
  "specta-typescript",
  "strum",
  "subtitle",
- "subtitle-ocr-post",
- "subtitle-ocr-types",
+ "subtitle_ocr_post",
+ "subtitle_ocr_types",
  "time 0.1.0",
  "tokio",
  "tracing",
@@ -3285,9 +3285,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "ocr-types"
+name = "ocr_types"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/vision-lab?rev=e2cc2a4#e2cc2a44f2c43881ce1aeffebaa3948a3ff7aeca"
+source = "git+https://github.com/Nahida-aa/vision-lab?rev=09dc6ac#09dc6ac9f0148fe459f3b6245bef82082c0e3bb2"
 dependencies = [
  "serde",
 ]
@@ -4482,7 +4482,7 @@ dependencies = [
  "serde",
  "serde_json",
  "specta",
- "subtitle-ocr-post",
+ "subtitle_ocr_post",
  "tokio",
  "tower",
  "tower-http 0.5.2",
@@ -4761,35 +4761,35 @@ dependencies = [
 [[package]]
 name = "subtitle"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/vision-lab?rev=e2cc2a4#e2cc2a44f2c43881ce1aeffebaa3948a3ff7aeca"
+source = "git+https://github.com/Nahida-aa/vision-lab?rev=09dc6ac#09dc6ac9f0148fe459f3b6245bef82082c0e3bb2"
 dependencies = [
  "serde",
  "specta",
 ]
 
 [[package]]
-name = "subtitle-ocr-post"
+name = "subtitle_ocr_post"
 version = "0.1.3"
-source = "git+https://github.com/Nahida-aa/vision-lab?rev=e2cc2a4#e2cc2a44f2c43881ce1aeffebaa3948a3ff7aeca"
+source = "git+https://github.com/Nahida-aa/vision-lab?rev=09dc6ac#09dc6ac9f0148fe459f3b6245bef82082c0e3bb2"
 dependencies = [
  "anyhow",
  "clap",
- "ocr-types",
+ "ocr_types",
  "serde",
  "serde_json",
  "specta",
  "subtitle",
- "subtitle-ocr-types",
+ "subtitle_ocr_types",
  "tracing",
  "tracing-subscriber",
 ]
 
 [[package]]
-name = "subtitle-ocr-types"
+name = "subtitle_ocr_types"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/vision-lab?rev=e2cc2a4#e2cc2a44f2c43881ce1aeffebaa3948a3ff7aeca"
+source = "git+https://github.com/Nahida-aa/vision-lab?rev=09dc6ac#09dc6ac9f0148fe459f3b6245bef82082c0e3bb2"
 dependencies = [
- "ocr-types",
+ "ocr_types",
  "serde",
  "specta",
  "subtitle",
