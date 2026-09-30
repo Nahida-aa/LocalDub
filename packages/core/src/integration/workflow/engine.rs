@@ -396,8 +396,7 @@ mod tests {
         let input_old = setup_subtitle(&dir_old);
         let _ = setup_subtitle(&dir_new); // engine 路径自己从 input.json 读
 
-        crate::workflows::pipeline::run_pipeline(&dir_old, &input_old)
-            .expect("run_pipeline 不应失败");
+        crate::workflows::pipeline::run_pipeline(&input_old).expect("run_pipeline 不应失败");
         run_workflow_engine(&dir_new, &EngineOptions::default()).expect("engine 不应失败");
 
         for dir in [&dir_old, &dir_new] {

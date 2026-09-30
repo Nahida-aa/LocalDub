@@ -28,7 +28,7 @@ mod tests {
 
     fn input_with(output_mode: &str, source: &str) -> Input {
         serde_json::from_value(serde_json::json!({
-            "workflow": {"output_mode": output_mode, "subtitleSource": source}
+            "workflow": {"output_mode": output_mode, "subtitle_source": source}
         }))
         .unwrap()
     }

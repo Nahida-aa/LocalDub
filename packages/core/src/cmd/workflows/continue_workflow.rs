@@ -72,11 +72,11 @@ pub fn continue_workflow(input: &Input) -> anyhow::Result<()> {
         }
         ExecPath::Parallel => {
             println!("[cli] 并行模式 (实验, DAG 调度, 按步跳过已成功步骤)");
-            crate::workflows::parallel::run_pipeline_parallel(&video_dir, input)
+            crate::workflows::parallel::run_pipeline_parallel(input)
                 .context("run_pipeline_parallel 失败")?;
         }
         ExecPath::Serial => {
-            continue_pipeline(&video_dir, input).context("continue_pipeline 失败")?;
+            continue_pipeline(input).context("continue_pipeline 失败")?;
         }
     }
     println!("[cli] 完成: {}", video_dir);

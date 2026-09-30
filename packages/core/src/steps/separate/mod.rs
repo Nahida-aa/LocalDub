@@ -427,7 +427,7 @@ mod tests {
             json!({
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"outputMode": "subtitle"},
+                "input": {"workflow": {"output_mode": "subtitle"},
                           "steps": {"separate": {"always": false}}},
                 "output_mode": "subtitle"
             }),

@@ -276,7 +276,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 | | 路径 |
 | --- | --- |
-| **读** ⚠️ | 规范化字幕 `srt.json`（按 `subtitleSource` 选目录，见「规范化字幕」节；类型化契约 `TranslateInput::from_state`，未知来源**报错**） |
+| **读** ⚠️ | 规范化字幕 `srt.json`（按 `subtitle_source` 选目录，见「规范化字幕」节；类型化契约 `TranslateInput::from_state`，未知来源**报错**） |
 | **读** | `data/bin/yt-dlp` 产物（可选元信息） |
 | **写** | `translate/{lang}.json`（类型化契约 `TranslateOutput::for_lang`）、中间态 `{lang}.partial.json`（仅 LLM 路径，私有状态） |
 | **写** | `state.json` 的 `target_language`——**全仓唯一写点**（`persist_target_language`），见下 |
@@ -473,17 +473,17 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 - 三种 `SrtPath` 是不同类型、不可互换，`from_state` 的 match 必须逐支写
   （or-pattern 会因类型不同而编译失败——这是刻意的）。
 - 消费方由类型保证：`TranslateInput::from_state`（`translate/mod.rs`）按
-  `subtitleSource` 解析到 `TranslateInput::Asr / SfOcr / AsrOcr` 三变体，
+  `subtitle_source` 解析到 `TranslateInput::Asr / SfOcr / AsrOcr` 三变体，
   未知来源报错；srt.json 缺失的存在性语义由 `translate.enabled` 决定
   （见 `translate` 节）。
 - **迁移已完成**：translate / split_audio / mix_video 三个消费者全部只认
-  srt.json 与 {lang}.json，不再按 `subtitleSource`/`llmFix` 找字幕。
+  srt.json 与 {lang}.json，不再按 `subtitle_source`/`llmFix` 找字幕。
 
 ### 已退役：焦点文件（`subtitle_file_path(ctx)`）
 
-旧契约：按 `subtitleSource` × `llmFix`（3×2）解析出「权威字幕文件」：
+旧契约：按 `subtitle_source` × `llmFix`（3×2）解析出「权威字幕文件」：
 
-| `subtitleSource` | 路径 |
+| `subtitle_source` | 路径 |
 | --- | --- |
 | `asr`（默认） | `asr_fix/asr_fix.json` |
 | `sf_ocr` | `sf_ocr_fix/segment_filter.json` 或 `segment_filter_llm_fix.json` |
@@ -511,7 +511,7 @@ shared:  video_source.mp4 ─┬────────────────
 separate ──► separate_after ┤                                       │
                             │                                       │
    ┌────────────────────────┴─────────────────────┐                 │
-   │ sf_ocr 链（subtitleSource=sf_ocr）           │ asr 链（=asr）  │
+   │ sf_ocr 链（subtitle_source=sf_ocr）           │ asr 链（=asr）  │
    │ sf_ocr_pre ─► sf_ocr ─► sf_ocr_fix ──┐       │ asr ─► asr_fix ─┤
    └──────────────────────────────────────┼───────┘─────────────────┘
                                           ▼
@@ -550,7 +550,7 @@ subtitle pipeline 的 mix_video 不吃 mix_audio 产物，
 改任何一个 step 之前，回答这几个问题：
 
 1. **我改的是「写」还是「读」？** 改「写」要检查所有读它的地方（用上面的表反查）。
-2. **`subtitleSource` 相关吗？** 涉及 `subtitle_file_path` 就得同时考虑三种取值。
+2. **`subtitle_source` 相关吗？** 涉及 `subtitle_file_path` 就得同时考虑三种取值。
 3. **我加的读是「缺失即失败」还是「有则用」？** 前者会改变失败面。
 4. **有没有破坏性副作用？**（如 `sf_ocr` 的 `cleanup_frames` 可删帧）
 5. **`state.json` 的并发假设还成立吗？**（见下）

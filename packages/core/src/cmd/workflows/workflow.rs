@@ -28,8 +28,9 @@ pub fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
             start_workflow(input).context("start_workflow 失败")?;
         }
         Some(WorkflowAction::Import) => {
-            crate::cmd::workflows::import::import_workflow(input)
-                .context("import_workflow 失败")?;
+            crate::workflows::import::download::import_video(input)
+                .map(|_| ())
+                .context("import_video 失败")?;
         }
         Some(WorkflowAction::EnqueueStart) => {
             crate::cmd::workflows::enqueue::enqueue_workflow(input, true)

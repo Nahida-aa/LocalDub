@@ -147,7 +147,9 @@ where
 /// 入口语义与 [`crate::workflows::pipeline::run_pipeline`] 对齐：
 /// `action=start` 全新全量跑；`action=continue` 按步跳过已 success 的步骤，
 /// `continueFrom` 显式重跑该步及其传递下游。
-pub fn run_pipeline_parallel(video_dir: &str, input: &Input) -> anyhow::Result<()> {
+/// 任务目录取自 `input.workflow.videoDir`（[`crate::input::Input::video_dir`]）。
+pub fn run_pipeline_parallel(input: &Input) -> anyhow::Result<()> {
+    let video_dir = input.video_dir()?;
     // 进入 workflow span: 携带 video_dir 供 WorkflowFileLayer 落盘。
     let _workflow_guard = tracing::info_span!("workflow", video_dir = video_dir).entered();
     tracing::info!(target: "output_mode", "run_pipeline_parallel: start");

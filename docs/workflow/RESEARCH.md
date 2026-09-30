@@ -29,7 +29,7 @@
 关键文件:
 
 - `packages/core/context/context.ts`、`packages/core/context/types.ts` — `TaskStep` 记录与 `setStep/readCtx`
-- `packages/core/steps/utils/steps.ts` — `DUB_STEPS` / `DUB_SF_OCR_STEPS` / `DUB_ASR_OCR_STEPS` / `SUBTITLE_STEPS` + `getSteps()` 动态筛选(按 `subtitleSource` 与 `translate.enabled`)
+- `packages/core/steps/utils/steps.ts` — `DUB_STEPS` / `DUB_SF_OCR_STEPS` / `DUB_ASR_OCR_STEPS` / `SUBTITLE_STEPS` + `getSteps()` 动态筛选(按 `subtitle_source` 与 `translate.enabled`)
 
 ### 1.2 阶段列表 = 隐式 DAG
 
@@ -214,7 +214,7 @@ ld-core 现有依赖已经完备:**tokio**(rt/sync/time,已精简)、**tracing**
 - **定位**:DBOS-compatible durable-execution library,2026-06 起,MIT/Apache-2.0。v0.3。Postgres / **SQLite**(文件 DB) / InMemory 三后端;SQLite 号称"full durability on a file database"。
 - **设计**:`#[durare::workflow]` + `#[durare::step]`,per-step 在 DB 记录 completion;crash 后从第一个未 checkpoint 的步骤恢复;步骤结果 exactly-once(`operation_outputs` 表 per-execution counter)。
 - **为什么不适合 LocalDub**:
-  - **dealbreaker**:DBOS 用 deterministic per-execution counter 索引步骤(每步在 workflow 中有固定序号)。LocalDub 的 `getSteps()` 根据 `subtitleSource`、`translate.enabled` 等动态裁剪阶段列表——每次 run 步骤序列可能不同 → counter 不匹配 → 不兼容。
+  - **dealbreaker**:DBOS 用 deterministic per-execution counter 索引步骤(每步在 workflow 中有固定序号)。LocalDub 的 `getSteps()` 根据 `subtitle_source`、`translate.enabled` 等动态裁剪阶段列表——每次 run 步骤序列可能不同 → counter 不匹配 → 不兼容。
   - 控制流必须 deterministic:步骤必须按相同顺序调用;LocalDub 有 config 动态裁剪。
   - 需要 SQLite/Postgres:虽 SQLite 是文件 DB,但仍引入 DBMS 抽象层;而 LocalDub 的产物文件需要被 ffmpeg/whisper 等外部工具直接读写。
 - **结论:不采纳。**

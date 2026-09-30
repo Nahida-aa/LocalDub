@@ -424,7 +424,9 @@ fn execute_entry(input: &Input) -> anyhow::Result<()> {
     match action {
         Some(WorkflowAction::Start) => ld_core::cmd::workflows::start_workflow(input).map(|_| ()),
         Some(WorkflowAction::Continue) => ld_core::cmd::workflows::continue_workflow(input),
-        Some(WorkflowAction::Import) => ld_core::cmd::workflows::import_workflow(input).map(|_| ()),
+        Some(WorkflowAction::Import) => {
+            ld_core::workflows::import::download::import_video(input).map(|_| ())
+        }
         other => Err(anyhow::anyhow!(
             "队列任务仅支持 start/continue/import, 收到 {other:?}"
         )),

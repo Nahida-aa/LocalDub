@@ -14,5 +14,5 @@ pub mod translate;
 pub mod tts;
 pub mod utils;
 
-/// 根据 pipeline / subtitleSource / 开关解析本次要执行的 step 序列。
+/// 根据 pipeline / subtitle_source / 开关解析本次要执行的 step 序列。
 pub use utils::steps::get_steps;

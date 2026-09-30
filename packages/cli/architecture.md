@@ -44,7 +44,7 @@ export const SUBTITLE_STEPS: StepSpec[] = [
 
 - **`timings.json`** 是下游唯一数据源（mix_video / mix_audio / tts 只读此文件）
 - **`translation.json`** 仅作为 translate 的输出分界点，被 split_audio 消费后不再使用
-- **`asr_fix.json` / `ocr.json`** — 字幕源文件，各自归属 asr_fix / ocr 阶段，下游通过 `subtitleSource` config 精准选择
+- **`asr_fix.json` / `ocr.json`** — 字幕源文件，各自归属 asr_fix / ocr 阶段，下游通过 `subtitle_source` config 精准选择
 
 ### dub 流程
 
@@ -72,7 +72,7 @@ flowchart
   sa["split_audio"]
   mv["mix_video"]
 
-  dl["download"] --> sub_src_cond{subtitleSource}
+  dl["download"] --> sub_src_cond{subtitle_source}
   sub_src_cond --> |asr| sep_cond
   sub_src_cond --> |ocr| ocr
   ocr --> cond_translate
@@ -215,7 +215,7 @@ Translate ASR text via LLM (OpenAI-compatible API). 可跳过：`config.steps.tr
 
 | Input                                | Source        | Description                                       |
 | ------------------------------------ | ------------- | ------------------------------------------------- |
-| `metadata/asr_fix.json` / `ocr.json` | asr_fix / ocr | Sentences to translate（取决于 `subtitleSource`） |
+| `metadata/asr_fix.json` / `ocr.json` | asr_fix / ocr | Sentences to translate（取决于 `subtitle_source`） |
 | `metadata/ytdlp_info.json`           | download      | Optional context (title, description)             |
 | `metadata/local_info.json`           | download      | Language settings                                 |
 | config `translate.apiBase`           | `input.json`  | LLM API endpoint                                  |

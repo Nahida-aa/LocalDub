@@ -22,7 +22,7 @@ use anyhow::Context;
 ///
 /// 返回新任务的绝对 video_dir (供 RPC/CLI 层用于跳转/提示)。
 pub fn start_workflow(input: &Input) -> anyhow::Result<String> {
-    let st =
+    let (st, input) =
         crate::workflows::import::download::import_video(input).context("import_video 失败")?;
     println!("[cli] 导入完成, video_dir = {}", st.workflow.video_dir);
     let path = match input.workflow.as_ref() {
@@ -44,12 +44,11 @@ pub fn start_workflow(input: &Input) -> anyhow::Result<String> {
         }
         ExecPath::Parallel => {
             println!("[cli] 并行模式 (实验, DAG 调度, 真源各 <step>/state.json)");
-            crate::workflows::parallel::run_pipeline_parallel(&st.workflow.video_dir, input)
+            crate::workflows::parallel::run_pipeline_parallel(&input)
                 .context("run_pipeline_parallel 失败")?;
         }
         ExecPath::Serial => {
-            crate::workflows::pipeline::run_pipeline(&st.workflow.video_dir, input)
-                .context("run_pipeline 失败")?;
+            crate::workflows::pipeline::run_pipeline(&input).context("run_pipeline 失败")?;
         }
     }
     println!("[cli] 完成: {}", st.workflow.video_dir);

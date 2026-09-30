@@ -40,7 +40,7 @@ type FormState = {
   continueFrom: string;
   targetStep: string;
   output_mode: string;
-  subtitleSource: string;
+  subtitle_source: string;
   sourceLang: string;
   targetLang: string;
   serverAction: string;
@@ -55,7 +55,7 @@ const emptyForm = (): FormState => ({
   continueFrom: "",
   targetStep: "",
   output_mode: "",
-  subtitleSource: "",
+  subtitle_source: "",
   sourceLang: "",
   targetLang: "",
   serverAction: "",
@@ -91,7 +91,7 @@ export function InputFormSettings() {
         set(["workflow", "continueFrom"], value.continueFrom);
         set(["workflow", "targetStep"], value.targetStep);
         set(["workflow", "output_mode"], value.output_mode);
-        set(["workflow", "subtitleSource"], value.subtitleSource);
+        set(["workflow", "subtitle_source"], value.subtitle_source);
         set(["workflow", "sourceLang"], value.sourceLang);
         set(["workflow", "targetLang"], value.targetLang);
         set(["servers", "action"], value.serverAction);
@@ -122,7 +122,7 @@ export function InputFormSettings() {
       continueFrom: String(t.continueFrom ?? ""),
       targetStep: String(t.targetStep ?? ""),
       output_mode: String(t.output_mode ?? ""),
-      subtitleSource: String(t.subtitleSource ?? ""),
+      subtitle_source: String(t.subtitle_source ?? ""),
       sourceLang: String(t.sourceLang ?? ""),
       targetLang: String(t.targetLang ?? ""),
       serverAction: String(s.action ?? ""),
@@ -226,10 +226,10 @@ export function InputFormSettings() {
                 />
               )}
             </form.Field>
-            <form.Field name="subtitleSource">
+            <form.Field name="subtitle_source">
               {(field) => (
                 <CardSelect
-                  title="workflow.subtitleSource"
+                  title="workflow.subtitle_source"
                   description="字幕来源: asr = 语音识别(默认), sf_ocr = 关键帧 OCR, asr_ocr = 两者合并"
                   field={field}
                   options={SUBTITLE_SOURCES}

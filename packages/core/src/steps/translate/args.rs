@@ -54,22 +54,22 @@ fn default_true() -> bool {
     true
 }
 
-/// `subtitleSource` 三选一的**类型化字幕路径**。
+/// `subtitle_source` 三选一的**类型化字幕路径**。
 ///
 /// 三个变体各自包住该链 fix 步骤的 `SrtPath`（不同型，不可互换）。存在的意义是
 /// 让 [`TranslateInput`] 能用**一个字段**表达「本次读哪个来源」——否则三种路径
 /// 类型无法共存于同一字段，只能退回「三个变体各写一遍」。
 ///
 /// 放在这里而不是 `utils::paths`：`paths` 是**路径词汇表**（每个类型对应一个
-/// 文件/目录），而本枚举是**业务聚合**（「按 subtitleSource 三选一」），归属
+/// 文件/目录），而本枚举是**业务聚合**（「按 subtitle_source 三选一」），归属
 /// 在用到它的契约旁边。
 #[derive(Debug, Clone)]
 pub enum SubtitleSourcePath {
-    /// `subtitleSource = asr`：`asr_fix/srt.json`
+    /// `subtitle_source = asr`：`asr_fix/srt.json`
     Asr(asr_fix::SrtPath),
-    /// `subtitleSource = sf_ocr`：`sf_ocr_fix/srt.json`
+    /// `subtitle_source = sf_ocr`：`sf_ocr_fix/srt.json`
     SfOcr(sf_ocr_fix::SrtPath),
-    /// `subtitleSource = asr_ocr`：`asr_ocr_fix/srt.json`
+    /// `subtitle_source = asr_ocr`：`asr_ocr_fix/srt.json`
     AsrOcr(asr_ocr_fix::SrtPath),
 }
 
@@ -80,7 +80,7 @@ pub enum SubtitleSourcePath {
 ///   落 srt.json），消费者只认规范化产物。旧的 3×2 焦点文件矩阵由此消失。
 /// - **provenance 在类型里**：`srt_json_path` 的每个变体是 `paths` 命名空间的
 ///   类型化路径，不是裸 `PathBuf`。
-/// - 未知 `subtitleSource` → 报错而非静默回退（fail-fast）。
+/// - 未知 `subtitle_source` → 报错而非静默回退（fail-fast）。
 #[derive(Debug, Clone)]
 pub struct TranslateInput {
     /// 本次要读的字幕来源（三选一，各带自己的类型化路径）。
@@ -102,14 +102,14 @@ pub struct TranslateInput {
 }
 
 impl TranslateInput {
-    /// `(video_dir, input)` → 输入契约。`subtitleSource` 未知 → 报错（fail-fast）。
+    /// `(video_dir, input)` → 输入契约。`subtitle_source` 未知 → 报错（fail-fast）。
     ///
     /// srt.json 的存在性**不在这里检查**——它是否必须存在由
     /// `translate.enabled` 决定（见 `step_translate`：enabled 时缺失报错，
     /// disabled 时缺失走空直通）。
     pub fn new(video_dir: &str, input: &crate::input::Input) -> anyhow::Result<Self> {
-        // **顺序有讲究**：先解析 subtitleSource，再算目标语言。
-        // 反过来的话，配置了非法 subtitleSource 时暴露的可能是后者——而用户真正
+        // **顺序有讲究**：先解析 subtitle_source，再算目标语言。
+        // 反过来的话，配置了非法 subtitle_source 时暴露的可能是后者——而用户真正
         // 写错的是前者，报错会指向错的地方。
         let srt_json_path = match SubtitleSource::from_input(input)? {
             SubtitleSource::Asr => SubtitleSourcePath::Asr(asr_fix::SrtPath::new(video_dir)),

@@ -8,7 +8,7 @@
     "continueFrom": "tts",
     "targetStep": "mix_video",
     "output_mode": "dub",
-    "subtitleSource": "sf_ocr",
+    "subtitle_source": "sf_ocr",
     "sourceLang": "zh",
     "targetLang": "vi",
   },

@@ -188,7 +188,7 @@ pub struct MixVideoInput {
     pub target_lang: String,
     /// `!input.steps.translate.enabled`（直通）：成片目录名的一部分。
     pub no_translate: bool,
-    /// 字幕来源（`input.workflow.subtitleSource`）：成片目录名的一部分。
+    /// 字幕来源（`input.workflow.subtitle_source`）：成片目录名的一部分。
     pub subtitle_source: String,
     /// 本次运行参数（`input.steps.mix_video`）。
     pub args: MixVideoArgs,

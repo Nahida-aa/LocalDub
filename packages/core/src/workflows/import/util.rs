@@ -188,12 +188,17 @@ fn parse_dir_and_id(path: &str) -> (String, String) {
     .into_iter()
     .collect();
     let n = parts.len();
+    // "."/".." 不能当 group：路径里的字面 ".."（如 `<dir>/../tmp/x.mp4`）若被
+    // 当成目录名，video_dir 会逃出 workfolder（真实案例：smoke 测试路径带 "..",
+    // video_dir 落到仓库根，收尾清理把仓库文件删了）。
+    let is_generic =
+        |d: &str| generic_dirs.contains(d) || d == "." || d == "..";
     // 直接父目录
     let parent = parts[n - 2];
-    if generic_dirs.contains(parent) && n >= 3 {
+    if is_generic(parent) && n >= 3 {
         // 跳过通用父目录, 用祖父目录作为 group
         let grand = parts[n - 3];
-        if !generic_dirs.contains(grand) {
+        if !is_generic(grand) {
             return (grand.to_string(), id);
         }
     }

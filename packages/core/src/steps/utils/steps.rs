@@ -1,6 +1,6 @@
 //! pipeline 阶段序列定义与解析 (镜像 TS `packages/core/steps/utils/steps.ts`)
 //!
-//! TS 侧 `getSteps` 通过 `readInputArgs()` 读取 subtitleSource / translate.enabled /
+//! TS 侧 `getSteps` 通过 `readInputArgs()` 读取 subtitle_source / translate.enabled /
 //! split_audio.vadAlign; Rust 侧没有该全局 singleton, 改为从 [`crate::input::Input`]
 //! 解析相同字段。
 
@@ -75,7 +75,7 @@ pub const SUBTITLE_STEPS: &[&str] = &[
     "mix_video",
 ];
 
-/// subtitle 模式 + subtitleSource=sf_ocr: OCR 提硬字幕 → 翻译 → 烧字幕, 不配音 (无 tts/mix_audio)。
+/// subtitle 模式 + subtitle_source=sf_ocr: OCR 提硬字幕 → 翻译 → 烧字幕, 不配音 (无 tts/mix_audio)。
 pub const SUBTITLE_SF_OCR_STEPS: &[&str] = &[
     "separate",
     "separate_after",
@@ -87,7 +87,7 @@ pub const SUBTITLE_SF_OCR_STEPS: &[&str] = &[
     "mix_video",
 ];
 
-/// subtitle 模式 + subtitleSource=asr_ocr: ASR 提时序 → OCR 校正文本 → 翻译 → 烧字幕, 不配音。
+/// subtitle 模式 + subtitle_source=asr_ocr: ASR 提时序 → OCR 校正文本 → 翻译 → 烧字幕, 不配音。
 pub const SUBTITLE_ASR_OCR_STEPS: &[&str] = &[
     "separate",
     "separate_after",
@@ -112,8 +112,8 @@ pub const SUBTITLE_ASR_OCR_STEPS: &[&str] = &[
 /// 非必要开销由步骤内部自行跳过(如 `is_dub == false` 不切人声块), 不在序列层面裁剪。
 pub fn steps_for(is_subtitle: bool, source: SubtitleSource) -> &'static [&'static str] {
     if is_subtitle {
-        // subtitle 模式: 按 subtitleSource 切换字幕提取策略, 但始终只到 mix_video
-        // (不配音 → 无 tts / mix_audio)。subtitleSource 语义是"字幕怎么提取",
+        // subtitle 模式: 按 subtitle_source 切换字幕提取策略, 但始终只到 mix_video
+        // (不配音 → 无 tts / mix_audio)。subtitle_source 语义是"字幕怎么提取",
         // 不是"是否配音"; dub 序列常量含 tts/mix_audio, 不能复用。
         match source {
             SubtitleSource::SfOcr => SUBTITLE_SF_OCR_STEPS,
@@ -121,7 +121,7 @@ pub fn steps_for(is_subtitle: bool, source: SubtitleSource) -> &'static [&'stati
             SubtitleSource::Asr => SUBTITLE_STEPS,
         }
     } else {
-        // dub 模式下按 subtitleSource 选基础序列
+        // dub 模式下按 subtitle_source 选基础序列
         match source {
             SubtitleSource::SfOcr => DUB_SF_OCR_STEPS,
             SubtitleSource::AsrOcr => DUB_ASR_OCR_STEPS,
@@ -130,14 +130,14 @@ pub fn steps_for(is_subtitle: bool, source: SubtitleSource) -> &'static [&'stati
     }
 }
 
-/// 根据 output_mode 与 subtitleSource 过滤, 返回本次要执行的 step 序列 (镜像 TS `getSteps`)。
+/// 根据 output_mode 与 subtitle_source 过滤, 返回本次要执行的 step 序列 (镜像 TS `getSteps`)。
 ///
 /// 返回**已解析的 [`StepName`]**：序列常量仍是字符串（便于和 TS 逐字对照），
 /// 但在这里立刻解析——**写错名字会 panic**，而不是流到后面被静默跳过。
 /// 有 `all_pipeline_constants_are_valid_step_names` 测试兜底，所以 panic 只在
 /// 开发期触发。
 ///
-/// **subtitleSource 走 [`SubtitleSource::from_input`]**：与 translate / mix_video
+/// **subtitle_source 走 [`SubtitleSource::from_input`]**：与 translate / mix_video
 /// 同源。此前这里是独立的一份字符串解析、未知值静默默认 asr，与 translate 的
 /// fail-fast 相矛盾——同一个非法值在两条路径上表现不同（一个报错、一个悄悄降级）。
 /// 现在未知值统一在入口报错。
@@ -177,10 +177,10 @@ mod tests {
         let mut v = json.get("input").cloned().unwrap_or(json!({}));
         match v.get_mut("workflow").and_then(|w| w.as_object_mut()) {
             Some(w) => {
-                w.insert("outputMode".into(), json!(pipeline));
+                w.insert("output_mode".into(), json!(pipeline));
             }
             None => {
-                v["workflow"] = json!({ "outputMode": pipeline });
+                v["workflow"] = json!({ "output_mode": pipeline });
             }
         }
         serde_json::from_value(v).unwrap()
@@ -340,7 +340,7 @@ mod tests {
             json!({
                 "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"subtitleSource": "sf_ocr"}}
+                "input": {"workflow": {"subtitle_source": "sf_ocr"}}
             }),
         );
         assert!(has(&steps_of(&c), "sf_ocr"));
@@ -354,7 +354,7 @@ mod tests {
             json!({
                 "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"subtitleSource": "asr_ocr"}}
+                "input": {"workflow": {"subtitle_source": "asr_ocr"}}
             }),
         );
         let s = steps_of(&c);
@@ -377,7 +377,7 @@ mod tests {
         assert!(has(&steps_of(&c), "translate"));
     }
 
-    /// **fail-fast**：未知 subtitleSource 必须在 `Input` 反序列化阶段被拒，不能静默降级成 asr。
+    /// **fail-fast**：未知 subtitle_source 必须在 `Input` 反序列化阶段被拒，不能静默降级成 asr。
     ///
     /// `ctx.input` 已是结构化 `Input`；未知来源不可能走到 `get_steps` /
     /// `SubtitleSource::from_input`（那些路径只会一致地回退默认 `Asr`，不会出现测试注释里
@@ -389,7 +389,7 @@ mod tests {
     fn unknown_subtitle_source_is_rejected() {
         for bad in ["no_such_source", "sf-OCR", "sfocr", "asr_OCR"] {
             let err = serde_json::from_value::<crate::input::Input>(json!({
-                "workflow": {"subtitleSource": bad}
+                "workflow": {"subtitle_source": bad}
             }))
             .expect_err(&format!("\"{bad}\" 应被 Input 反序列化拒绝"));
             let msg = err.to_string();
@@ -451,7 +451,7 @@ mod tests {
             json!({
                 "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"subtitleSource": "sf_ocr"}}
+                "input": {"workflow": {"subtitle_source": "sf_ocr"}}
             }),
         );
         let s = steps_of(&c);
@@ -472,7 +472,7 @@ mod tests {
             json!({
                 "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"subtitleSource": "asr_ocr"}}
+                "input": {"workflow": {"subtitle_source": "asr_ocr"}}
             }),
         );
         let s = steps_of(&c);
@@ -486,7 +486,7 @@ mod tests {
 
     #[test]
     fn subtitle_default_is_subtitle_steps() {
-        // subtitle 无 subtitleSource: 默认 asr + 仅字幕序列 (无 tts/mix_audio)。
+        // subtitle 无 subtitle_source: 默认 asr + 仅字幕序列 (无 tts/mix_audio)。
         let c = ctx(
             "subtitle",
             json!({

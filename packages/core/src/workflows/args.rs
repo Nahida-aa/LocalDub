@@ -189,7 +189,7 @@ impl SubtitleSource {
         self.into()
     }
 
-    /// 从 ctx 解析 `input.workflow.subtitleSource`。
+    /// 从 ctx 解析 `input.workflow.subtitle_source`。
     ///
     /// `ctx.input` 已是结构化 [`Input`](crate::input::Input)（import 落定），
     /// `subtitle_source` 为枚举值，不可能出现「未知来源」——该 fail-fast 已上移到
@@ -242,7 +242,11 @@ pub struct WorkflowArgs {
     #[serde(default, rename = "output_mode")]
     pub output_mode: OutputMode,
     /// 字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)
-    #[serde(default)]
+    ///
+    /// **显式 `rename` 覆盖 `rename_all = "camelCase"`**：wire 名沿用 snake_case
+    /// （`"subtitle_source"`），与 `output_mode` 同理——input.json 与 state.json
+    /// 侧字段名保持一套风格。
+    #[serde(default, rename = "subtitle_source")]
     pub subtitle_source: SubtitleSource,
     /// 是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。
     /// 注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。

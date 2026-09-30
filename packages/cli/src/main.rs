@@ -306,7 +306,7 @@ mod tests {
     fn parses_repo_input_jsonc_and_mix_video_decimals() {
         let raw = r#"{
             // 行注释: subtitle_source 走 sf_ocr
-            "workflow": { "action": "start", "output_mode": "dub", "subtitleSource": "sf_ocr" },
+            "workflow": { "action": "start", "output_mode": "dub", "subtitle_source": "sf_ocr" },
             "steps": {
                 "mix_video": {
                     "fontSize": 21.4,
@@ -327,7 +327,7 @@ mod tests {
         .expect("解析 JSONC 失败");
         assert!(input.validate().is_ok());
 
-        // subtitleSource=sf_ocr → sf_ocr 全链路, 不经过 asr
+        // subtitle_source=sf_ocr → sf_ocr 全链路, 不经过 asr
         assert_eq!(
             input.workflow.as_ref().unwrap().subtitle_source,
             ld_core::workflows::args::SubtitleSource::SfOcr

@@ -80,6 +80,19 @@ impl Default for Input {
 }
 
 impl Input {
+    /// 任务目录 = `input.workflow.videoDir`。
+    ///
+    /// pipeline 入口 ([`crate::workflows::pipeline::run_pipeline`] /
+    /// [`crate::workflows::continue_pipeline`] / [`crate::workflows::parallel::run_pipeline_parallel`])
+    /// 的 video_dir 都从这里取，不再由调用方显式传参：start 路径由 import_video
+    /// 身份回填保证它是落定的真实目录；continue 路径本来就必填。
+    pub fn video_dir(&self) -> anyhow::Result<&str> {
+        self.workflow
+            .as_ref()
+            .and_then(|w| w.video_dir.as_deref())
+            .ok_or_else(|| anyhow::anyhow!("input.workflow.videoDir 缺失 (start 由 import_video 回填, continue 必填)"))
+    }
+
     /// command=workflow 时 workflow 必填
     ///
     /// 目前主要被测试引用；CLI/RPC 解析入口可直接调用。

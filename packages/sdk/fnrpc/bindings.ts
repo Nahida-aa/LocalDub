@@ -274,24 +274,6 @@ export type AsrResult_Serialize = {
 	meta: AsrResultMeta_Serialize,
 };
 
-export type AsrRunInfo = AsrRunInfo_Serialize | AsrRunInfo_Deserialize;
-
-export type AsrRunInfo_Deserialize = {
-	engine: string,
-	device: string,
-	compute_type?: string | null,
-	gpu_attempted?: boolean | null,
-	fallback_to_cpu?: boolean | null,
-};
-
-export type AsrRunInfo_Serialize = {
-	engine: string,
-	device: string,
-	compute_type: string | null,
-	gpu_attempted: boolean | null,
-	fallback_to_cpu: boolean | null,
-};
-
 /**
  *  asr 推理运行时。
  * 
@@ -519,11 +501,6 @@ export type EnvCheckItem = {
 };
 
 export type FoundVia = "Mdns" | "Default" | "PortFile";
-
-export type FrameRate = {
-	numerator: number,
-	denominator: number,
-};
 
 export type GpuInfo = GpuInfo_Serialize | GpuInfo_Deserialize;
 
@@ -1194,16 +1171,6 @@ export type RpcErr = {
 	data: unknown,
 };
 
-export type RunInfo = RunInfo_Serialize | RunInfo_Deserialize;
-
-export type RunInfo_Deserialize = {
-	asr?: AsrRunInfo_Deserialize | null,
-};
-
-export type RunInfo_Serialize = {
-	asr: AsrRunInfo_Serialize | null,
-};
-
 /**  组成字幕段的单个帧明细。 */
 export type SegmentFrame = {
 	/**  帧文本。 */
@@ -1531,8 +1498,6 @@ export type Stem = "drums" | "bass" | "other" | "vocals";
  *  `rename_all` 与 strum 的 `serialize_all` 必须一致，有 roundtrip 测试钉住。
  */
 export type StepName = "separate" | "separate_after" | "asr" | "asr_fix" | "sf_ocr_pre" | "sf_ocr" | "sf_ocr_fix" | "asr_ocr_pre" | "asr_ocr" | "asr_ocr_fix" | "translate" | "split_audio" | "tts" | "mix_audio" | "mix_video";
-
-export type StepStatus = "pending" | "running" | "success" | "failed";
 
 /**
  *  各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StepsSchema)
@@ -1893,8 +1858,6 @@ export type Value = null | boolean | number | string | Value[] | { [key in strin
 
 export type Vendor = "amd" | "nvidia" | "intel" | "unknown";
 
-export type VideoSource = "youtube" | "bilibili" | "local" | "remote" | "unknown";
-
 export type VramInfo = VramInfo_Serialize | VramInfo_Deserialize;
 
 export type VramInfo_Deserialize = {
@@ -1921,8 +1884,6 @@ export type VulkanHeaps = {
 	deviceLocal: number | null,
 	hostVisible: number | null,
 };
-
-export type Workflow = Workflow_Serialize | Workflow_Deserialize;
 
 /**  任务操作 (serde 与 clap 参数值统一为 snake_case) */
 export type WorkflowAction = "start" | "continue" | 
@@ -1958,6 +1919,19 @@ export type WorkflowArgs_Deserialize = {
 	/**  rerunStep 专业参数, 指定要重新运行的步骤 */
 	stepName?: StepName | null,
 	/**
+	 *  实验开关: start/continue 走 aa-workflow 引擎——**开发中，暂不可用**
+	 *  （集成暂停，见 `integration/workflow/mod.rs`；设了会在 ExecPath 分派时
+	 *  打印「开发中」并报错）。恢复后：真源 events.jsonl，与 `run_pipeline`
+	 *  （真源 state.json）二选一。其余 action 忽略。
+	 */
+	engine?: boolean | null,
+	/**
+	 *  实验开关: **非 engine** 路径按步骤 DAG 并行执行（目前只有 `sf_ocr_dub`
+	 *  有 DAG 定义，见 [`crate::workflows::dag::StepDag`]；其它组合明确报错）。
+	 *  与 `engine` 互斥——同设报错（引擎恢复前设 engine 本身就会报「开发中」）。
+	 */
+	parallel?: boolean | null,
+	/**
 	 *  任务模式, dub 配音, subtitle 仅字幕
 	 * 
 	 *  **显式 `rename` 覆盖 `rename_all = "camelCase"`**：本字段的 wire 名沿用
@@ -1965,8 +1939,14 @@ export type WorkflowArgs_Deserialize = {
 	 *  因为 state.json 侧的 `output_mode` 字段也已是 snake_case。
 	 */
 	output_mode?: OutputMode,
-	/**  字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合) */
-	subtitleSource?: SubtitleSource,
+	/**
+	 *  字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)
+	 * 
+	 *  **显式 `rename` 覆盖 `rename_all = "camelCase"`**：wire 名沿用 snake_case
+	 *  （`"subtitle_source"`），与 `output_mode` 同理——input.json 与 state.json
+	 *  侧字段名保持一套风格。
+	 */
+	subtitle_source?: SubtitleSource,
 	/**
 	 *  是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。
 	 *  注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。
@@ -1992,6 +1972,19 @@ export type WorkflowArgs_Serialize = {
 	/**  rerunStep 专业参数, 指定要重新运行的步骤 */
 	stepName: StepName | null,
 	/**
+	 *  实验开关: start/continue 走 aa-workflow 引擎——**开发中，暂不可用**
+	 *  （集成暂停，见 `integration/workflow/mod.rs`；设了会在 ExecPath 分派时
+	 *  打印「开发中」并报错）。恢复后：真源 events.jsonl，与 `run_pipeline`
+	 *  （真源 state.json）二选一。其余 action 忽略。
+	 */
+	engine?: boolean,
+	/**
+	 *  实验开关: **非 engine** 路径按步骤 DAG 并行执行（目前只有 `sf_ocr_dub`
+	 *  有 DAG 定义，见 [`crate::workflows::dag::StepDag`]；其它组合明确报错）。
+	 *  与 `engine` 互斥——同设报错（引擎恢复前设 engine 本身就会报「开发中」）。
+	 */
+	parallel?: boolean,
+	/**
 	 *  任务模式, dub 配音, subtitle 仅字幕
 	 * 
 	 *  **显式 `rename` 覆盖 `rename_all = "camelCase"`**：本字段的 wire 名沿用
@@ -1999,8 +1992,14 @@ export type WorkflowArgs_Serialize = {
 	 *  因为 state.json 侧的 `output_mode` 字段也已是 snake_case。
 	 */
 	output_mode: OutputMode,
-	/**  字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合) */
-	subtitleSource: SubtitleSource,
+	/**
+	 *  字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)
+	 * 
+	 *  **显式 `rename` 覆盖 `rename_all = "camelCase"`**：wire 名沿用 snake_case
+	 *  （`"subtitle_source"`），与 `output_mode` 同理——input.json 与 state.json
+	 *  侧字段名保持一套风格。
+	 */
+	subtitle_source: SubtitleSource,
 	/**
 	 *  是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。
 	 *  注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。
@@ -2032,90 +2031,6 @@ export type WorkflowBrief_Serialize = {
 	error_message: string | null,
 };
 
-export type WorkflowState = WorkflowState_Serialize | WorkflowState_Deserialize;
-
-export type WorkflowState_Deserialize = {
-	workflow: Workflow_Deserialize,
-	steps?: WorkflowStep_Deserialize[] | null,
-	output_mode: string,
-	last_run_output_mode?: string | null,
-	input: Input_Deserialize,
-	frame_rate: FrameRate,
-	run_info?: RunInfo_Deserialize | null,
-	video_source_path?: string | null,
-	audio_source_path?: string | null,
-	asr_language?: LangCode | null,
-	target_language?: string | null,
-};
-
-export type WorkflowState_Serialize = {
-	workflow: Workflow_Serialize,
-	steps: WorkflowStep_Serialize[] | null,
-	output_mode: string,
-	last_run_output_mode: string | null,
-	input: Input_Serialize,
-	frame_rate: FrameRate,
-	run_info: RunInfo_Serialize | null,
-	video_source_path: string | null,
-	audio_source_path: string | null,
-	asr_language: LangCode | null,
-	target_language: string | null,
-};
-
-export type WorkflowStep = WorkflowStep_Serialize | WorkflowStep_Deserialize;
-
-export type WorkflowStep_Deserialize = {
-	name: string,
-	label: string,
-	status?: StepStatus,
-	progress?: number | null,
-	started_at?: string | null,
-	completed_at?: string | null,
-	last_message?: string | null,
-	error_message?: string | null,
-};
-
-export type WorkflowStep_Serialize = {
-	name: string,
-	label: string,
-	status: StepStatus,
-	progress: number | null,
-	started_at: string | null,
-	completed_at: string | null,
-	last_message: string | null,
-	error_message: string | null,
-};
-
-export type Workflow_Deserialize = {
-	id: string,
-	source: VideoSource,
-	url: string,
-	title?: string | null,
-	status: string,
-	current_step?: string | null,
-	video_dir: string,
-	final_video_path?: string | null,
-	error_message?: string | null,
-	created_at: string,
-	started_at?: string | null,
-	completed_at?: string | null,
-};
-
-export type Workflow_Serialize = {
-	id: string,
-	source: VideoSource,
-	url: string,
-	title: string | null,
-	status: string,
-	current_step: string | null,
-	video_dir: string,
-	final_video_path: string | null,
-	error_message: string | null,
-	created_at: string,
-	started_at: string | null,
-	completed_at: string | null,
-};
-
 export type Procedures = {
   read_app_file_text: { kind: "query"; method: "GET"; input: string; output: string; error: RpcErr };
   write_app_file_text: { kind: "mutate"; method: "POST"; input: [string, string]; output: null; error: RpcErr };
@@ -2126,7 +2041,6 @@ export type Procedures = {
   watch_workflow_log: { kind: "subscribe"; method: "GET"; input: string; output: string; error: RpcErr };
   watch_workflow_tree: { kind: "subscribe"; method: "GET"; input: string; output: PathEvent; error: RpcErr };
   get_group_list: { kind: "query"; method: "GET"; input: null; output: GroupInfo[]; error: RpcErr };
-  get_workflow_ctx: { kind: "query"; method: "GET"; input: string; output: WorkflowState; error: RpcErr };
   health_check: { kind: "query"; method: "GET"; input: null; output: string; error: RpcErr };
   find_server: { kind: "query"; method: "GET"; input: ServerType; output: ServerInfo; error: RpcErr };
   get_server_status: { kind: "query"; method: "GET"; input: ServerType; output: ModelServerStatus; error: RpcErr };
@@ -2159,7 +2073,6 @@ export const __procedureMeta = {
   watch_workflow_log: { kind: "subscribe", method: "GET" },
   watch_workflow_tree: { kind: "subscribe", method: "GET" },
   get_group_list: { kind: "query", method: "GET" },
-  get_workflow_ctx: { kind: "query", method: "GET" },
   health_check: { kind: "query", method: "GET" },
   find_server: { kind: "query", method: "GET" },
   get_server_status: { kind: "query", method: "GET" },

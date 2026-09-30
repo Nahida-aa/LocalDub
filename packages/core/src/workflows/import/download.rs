@@ -31,7 +31,7 @@ pub struct Downloaded {
 /// import 期构建 step 进度清单 (镜像 TS `getSteps`)。
 ///
 /// 顶层导入入口 (镜像 TS `importVideo`)。
-pub fn import_video(input: &Input) -> anyhow::Result<WorkflowState> {
+pub fn import_video(input: &Input) -> anyhow::Result<(WorkflowState, Input)> {
     let args = input.workflow.clone().unwrap_or_default();
     let url = args
         .url
@@ -93,8 +93,17 @@ pub fn import_video(input: &Input) -> anyhow::Result<WorkflowState> {
 
     let video_dir_str = video_dir.to_string_lossy().into_owned();
     write_state(&video_dir_str, &state).map_err(anyhow::Error::msg)?;
-    write_input(&video_dir_str, input).map_err(anyhow::Error::msg)?;
-    Ok(state)
+    // 身份回填：input.json 与返回值里的 videoDir 都填成 import 落定的真实目录
+    // （start 路径的 input 原本没有它——此前只有引擎注入这一种补法）。落盘的
+    // input.json 与返回的新 Input 同源同构：读盘的 = 调用方拿到的。
+    let mut input = input.clone();
+    if let Some(w) = input.workflow.as_mut() {
+        w.video_dir = Some(video_dir_str.clone());
+    }
+    write_input(&video_dir_str, &input).map_err(anyhow::Error::msg)?;
+    // 导入完成的用户可见提示（原 cmd 层 import_workflow 的打印，内化到干活的函数里）
+    println!("导入完成, video_dir = {video_dir_str}");
+    Ok((state, input))
 }
 
 /// 下载/复制视频并转码 + 抽音频 (镜像 TS `downloadVideo`)。
@@ -250,6 +259,12 @@ mod tests {
             eprintln!("跳过: 无 {smoke}");
             return;
         }
+        // canonicalize 消掉路径里的字面 ".."：parse_dir_and_id 把 ".." 当目录名
+        // 会解析出 group=".."，video_dir 逃出 workfolder（曾把仓库根 smoke/ 清掉）。
+        let smoke = std::fs::canonicalize(smoke)
+            .expect("canonicalize smoke.mp4 失败")
+            .to_string_lossy()
+            .into_owned();
         let input = Input {
             workflow: Some(crate::workflows::args::WorkflowArgs {
                 url: Some(smoke.to_string()),
@@ -259,12 +274,20 @@ mod tests {
             }),
             ..Default::default()
         };
-        let st = import_video(&input).expect("import_video 失败");
+        let (st, imported) = import_video(&input).expect("import_video 失败");
         assert!(st
             .video_source_path
             .as_ref()
             .unwrap()
             .ends_with("video_source.mp4"));
+        // 返回的 Input 已回填 videoDir（与 input.json 落盘内容一致）
+        assert_eq!(
+            imported
+                .workflow
+                .as_ref()
+                .and_then(|w| w.video_dir.as_deref()),
+            Some(st.workflow.video_dir.as_str())
+        );
         assert!(st
             .audio_source_path
             .as_ref()
@@ -291,8 +314,19 @@ mod tests {
         assert_eq!(reread.workflow.id, st.workflow.id);
         let reread_input = crate::state::read_input(dir).expect("read_input 失败");
         assert_eq!(
-            reread_input.workflow.and_then(|w| w.url),
+            reread_input
+                .workflow
+                .as_ref()
+                .and_then(|w| w.url.clone()),
             Some(smoke.to_string())
+        );
+        // input.json 落盘的也是回填过 videoDir 的版本
+        assert_eq!(
+            reread_input
+                .workflow
+                .as_ref()
+                .and_then(|w| w.video_dir.clone()),
+            Some(st.workflow.video_dir.clone())
         );
         // 清理: 删除生成的 workflow 目录
         let _ = std::fs::remove_dir_all(&st.workflow.video_dir);

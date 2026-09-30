@@ -40,10 +40,13 @@ use crate::workflows::args::StepName;
 
 /// 运行完整 output_mode (镜像 TS `runPipeline`)。
 ///
+/// 任务目录取自 `input.workflow.videoDir`（[`crate::input::Input::video_dir`]）。
+///
 /// 每步的入参是**该步骤自己的 `<Step>Input`**（依赖清单），统一由
 /// `<Step>Input::new(video_dir, input)` 构造——不再有「什么都装」的组合态在
 /// 步骤之间传来传去。
-pub fn run_pipeline(video_dir: &str, input: &crate::input::Input) -> anyhow::Result<()> {
+pub fn run_pipeline(input: &crate::input::Input) -> anyhow::Result<()> {
+    let video_dir = input.video_dir()?;
     // 进入 workflow span: 携带 video_dir 供 WorkflowFileLayer 落盘到 <video_dir>/<tid>.log。
     let _workflow_guard = tracing::info_span!("workflow", video_dir = video_dir).entered();
     tracing::info!(target: "output_mode", "run_pipeline: start");
@@ -213,7 +216,7 @@ mod tests {
         let input = crate::state::write_fixture(dir, input);
         // split_audio 会读 translate 产物；本测试禁用了 asr/asr_fix，translate 直通
         // 无内容可搬会写出空产物，split_audio 随即 fail-fast。故给 translate 的
-        // **输入**（subtitleSource=asr → asr_fix/srt.json）造假数据，直通原样带出。
+        // **输入**（subtitle_source=asr → asr_fix/srt.json）造假数据，直通原样带出。
         seed_asr_fix_srt(dir);
         input
     }
@@ -252,13 +255,13 @@ mod tests {
             json!({
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"outputMode": "subtitle"},
+                "input": {"workflow": {"output_mode": "subtitle", "videoDir": dir},
                           "steps": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
                 "output_mode": "subtitle"
             }),
         );
         // subtitle + !always → separate 走 skip 分支 (无需 demucs 二进制)
-        let res = run_pipeline(&dir, &input);
+        let res = run_pipeline(&input);
         assert!(res.is_ok(), "run_pipeline 不应失败: {:?}", res.err());
 
         let wf = crate::state::read_workflow(&dir).unwrap();
@@ -293,12 +296,12 @@ mod tests {
             json!({
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"outputMode": "subtitle", "targetStep": "separate"},
+                "input": {"workflow": {"output_mode": "subtitle", "targetStep": "separate", "videoDir": dir},
                           "steps": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
                 "output_mode": "subtitle"
             }),
         );
-        let res = run_pipeline(&dir, &input);
+        let res = run_pipeline(&input);
         assert!(res.is_ok(), "run_pipeline 不应失败: {:?}", res.err());
         // targetStep=separate 命中即停
         let wf = crate::state::read_workflow(&dir).unwrap();

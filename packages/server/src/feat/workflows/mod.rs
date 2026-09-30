@@ -183,7 +183,7 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
             "action": "start",
             "url": url,
             "output_mode": "dub",
-            "subtitleSource": "sf_ocr",
+            "subtitle_source": "sf_ocr",
         },
         "steps": {
             "separate": {"runtime": "burn-tch", "device": "cpu", "always": true},
@@ -214,7 +214,7 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
     .await;
 
     let abs_video_dir = match ctx {
-        Ok(Ok(ctx)) => ctx.workflow.video_dir,
+        Ok(Ok((st, _))) => st.workflow.video_dir,
         Ok(Err(e)) => return Err(e),
         Err(e) => return Err(format!("import 任务崩溃: {e}")),
     };
@@ -222,10 +222,11 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
     // 后台跑完整 pipeline (不阻塞 RPC); 失败仅记日志, 任务页可续跑。
     let video_dir = abs_video_dir.clone();
     tokio::task::spawn_blocking(move || {
-        // pipeline 吃 `(video_dir, input)`：input 从 import 落好的 input.json 读回。
+        // pipeline 吃 input（video_dir 从 input.workflow.videoDir 取）：input 从
+        // import 落好的 input.json 读回，身份回填已把 videoDir 写在里面。
         match ld_core::state::read_input(&video_dir) {
             Ok(input) => {
-                if let Err(e) = ld_core::workflows::pipeline::run_pipeline(&video_dir, &input) {
+                if let Err(e) = ld_core::workflows::pipeline::run_pipeline(&input) {
                     tracing::error!("start_workflow pipeline 失败 ({video_dir}): {e:#}");
                 }
             }

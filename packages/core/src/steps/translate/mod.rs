@@ -501,7 +501,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// `subtitleSource` 未知 → `Input` 反序列化阶段 fail-fast（不在契约构造里静默回退）。
+    /// `subtitle_source` 未知 → `Input` 反序列化阶段 fail-fast（不在契约构造里静默回退）。
     ///
     /// `ctx.input` 已是结构化 [`Input`](crate::input::Input)，未知来源不可能走到
     /// `SubtitleSource::from_input`（它会回退默认 `Asr`）。fail-fast 已上移到 `Input`
@@ -510,17 +510,17 @@ mod tests {
     #[test]
     fn unknown_subtitle_source_rejected_at_input_deserialization() {
         let err = serde_json::from_value::<crate::input::Input>(
-            json!({"workflow": {"subtitleSource": "wat"}}),
+            json!({"workflow": {"subtitle_source": "wat"}}),
         )
-        .expect_err("未知 subtitleSource 必须在 Input 反序列化阶段报错");
+        .expect_err("未知 subtitle_source 必须在 Input 反序列化阶段报错");
         let msg = err.to_string();
         assert!(
-            msg.contains("subtitleSource") || msg.contains("wat"),
+            msg.contains("subtitle_source") || msg.contains("wat"),
             "实际: {msg}"
         );
     }
 
-    /// `subtitleSource` → 对应的 srt.json 路径（provenance 在类型里）。
+    /// `subtitle_source` → 对应的 srt.json 路径（provenance 在类型里）。
     #[test]
     fn new_resolves_srt_path_per_source() {
         let dir = std::env::temp_dir()
@@ -549,7 +549,7 @@ mod tests {
             )
             .unwrap();
 
-            let input = at(&dir, None, json!({"workflow": {"subtitleSource": source}}));
+            let input = at(&dir, None, json!({"workflow": {"subtitle_source": source}}));
             let ti =
                 args::TranslateInput::new(&dir, &input).unwrap_or_else(|e| panic!("{source}: {e}"));
             assert!(

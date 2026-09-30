@@ -8,7 +8,7 @@
 //! （[`sf_ocr_dub_edges_are_topo_consistent_with_serial_constant`]）。
 //!
 //! 为什么按 workflow 建图而不是全局静态表：依赖边**随配置变**——`translate`
-//! 的上游随 subtitleSource 变（asr→asr_fix / sf_ocr→sf_ocr_fix），
+//! 的上游随 subtitle_source 变（asr→asr_fix / sf_ocr→sf_ocr_fix），
 //! `mix_video` 的上游随 output_mode 变（dub 读 mix_audio + separate_after 的
 //! bgm；subtitle 只读 split_audio 时序）。全局表要么塞满条件分支，要么撒谎。
 //! 每个 workflow 一张具体小图，边就是事实。

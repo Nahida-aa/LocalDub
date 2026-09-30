@@ -1265,12 +1265,12 @@
       "title": "WorkflowAction",
       "description": " 任务操作 (serde 与 clap 参数值统一为 snake_case)"
     },
-    "Language": {
+    "LangCode": {
       "type": "string",
-      "title": "Language",
-      "description": " 语言标识基础类型: **内部是开放字符串 (事实), 对外提供已知语言视图 (枚举)**。\n\n 源语言是\"事实\" (来自 ASR 识别或用户声明), 值域开放 —— whisper 支持约\n 99 种语言, 超出支持翻译的 23 种 [`TargetLang`] 列表; 若用封闭枚举建模,\n 列表外语言 (it/uk/nl/...) 会被截断丢信息。用 newtype 包字符串:\n - serde 透明 (序列化为 \"it\" 这样的字符串), 任何语言码原样进出\n - [`Language::as_known`] 提供封闭 [`TargetLang`] 视图 (目标语言是\n   \"承诺\", 必须落在支持翻译的语言内, 保持封闭)"
+      "title": "LangCode",
+      "description": " 源语言标识基础类型: **内部是开放字符串（事实）**。\n\n 源语言来自 ASR 识别或用户声明，值域开放——whisper 支持约 99 种语言，\n 超出支持翻译的 [`Language`] 列表；若用封闭枚举建模，列表外语言\n (it/uk/nl/...) 会被截断丢信息。用 newtype 包字符串:\n - serde 透明（序列化为 \"it\" 这样的字符串），任何语言码原样进出\n - 封闭视图: 需要\"支持翻译的目标语言\"时改用 [`Language`] 枚举（\"承诺\"，必须落在\n   支持翻译的语言内；列表外语言不是可用的翻译目标）"
     },
-    "TargetLang": {
+    "Language": {
       "anyOf": [
         {
           "const": "en"
@@ -1342,8 +1342,8 @@
           "const": "bn"
         }
       ],
-      "title": "TargetLang",
-      "description": " 目标语言 (langList)"
+      "title": "Language",
+      "description": " 目标语言（支持翻译的封闭集合，与 TS 侧 langList 保持同步）。\n\n 与源语言 [`LangCode`] 不同：目标是\"承诺\"——必须落在支持翻译的语言内，\n 故用封闭枚举建模；列表外语言不是可用的翻译目标。\n\n 变体名即语言码的小写形式（`En`→`\"en\"`）。serde 的 `rename_all` 与 strum 的\n `serialize_all` 都按 \"lowercase\" 从变体名导出码，单一事实来源仍是变体列表本身——\n 加语言只改这一处。"
     },
     "StepName": {
       "anyOf": [
@@ -1451,7 +1451,7 @@
         "sourceLang": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Language"
+              "$ref": "#/$defs/LangCode"
             },
             {
               "type": "null"
@@ -1461,7 +1461,7 @@
         "targetLang": {
           "anyOf": [
             {
-              "$ref": "#/$defs/TargetLang"
+              "$ref": "#/$defs/Language"
             },
             {
               "type": "null"
@@ -1524,13 +1524,21 @@
           ],
           "description": " rerunStep 专业参数, 指定要重新运行的步骤"
         },
+        "engine": {
+          "type": "boolean",
+          "description": " 实验开关: start/continue 走 aa-workflow 引擎——**开发中，暂不可用**\n （集成暂停，见 `integration/workflow/mod.rs`；设了会在 ExecPath 分派时\n 打印「开发中」并报错）。恢复后：真源 events.jsonl，与 `run_pipeline`\n （真源 state.json）二选一。其余 action 忽略。"
+        },
+        "parallel": {
+          "type": "boolean",
+          "description": " 实验开关: **非 engine** 路径按步骤 DAG 并行执行（目前只有 `sf_ocr_dub`\n 有 DAG 定义，见 [`crate::workflows::dag::StepDag`]；其它组合明确报错）。\n 与 `engine` 互斥——同设报错（引擎恢复前设 engine 本身就会报「开发中」）。"
+        },
         "output_mode": {
           "$ref": "#/$defs/OutputMode",
           "description": " 任务模式, dub 配音, subtitle 仅字幕\n\n **显式 `rename` 覆盖 `rename_all = \"camelCase\"`**：本字段的 wire 名沿用\n snake_case（`\"output_mode\"`），与其余 camelCase 字段不一致——这是刻意的，\n 因为 state.json 侧的 `output_mode` 字段也已是 snake_case。"
         },
-        "subtitleSource": {
+        "subtitle_source": {
           "$ref": "#/$defs/SubtitleSource",
-          "description": " 字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)"
+          "description": " 字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)\n\n **显式 `rename` 覆盖 `rename_all = \"camelCase\"`**：wire 名沿用 snake_case\n （`\"subtitle_source\"`），与 `output_mode` 同理——input.json 与 state.json\n 侧字段名保持一套风格。"
         },
         "downloadSubtitles": {
           "type": "boolean",
@@ -1548,7 +1556,7 @@
         "queueId",
         "stepName",
         "output_mode",
-        "subtitleSource",
+        "subtitle_source",
         "downloadSubtitles"
       ],
       "title": "WorkflowArgs_Serialize",
@@ -1626,7 +1634,7 @@
         }
       ],
       "title": "SeparateRuntime",
-      "description": " separate 推理运行时\n\n TS 侧为 `z.enum([\"burn\", \"burn-tch\"])` (kebab-case), 故用 `rename_all = \"kebab-case\"`\n (`BurnTch` → `\"burn-tch\"`)。原先误用 `lowercase` 会得到 `\"burntch\"`, 与 TS 对不上,\n 导致运行时 `\"burn-tch\"` 解析失败回落默认 (see `read_args_parses_camel_case_fields`)。"
+      "description": " separate 推理运行时\n\n TS 侧为 `z.enum([\"burn\", \"burn-tch\"])` (kebab-case), 故用 `rename_all = \"kebab-case\"`\n (`BurnTch` → `\"burn-tch\"`)。原先误用 `lowercase` 会得到 `\"burntch\"`, 与 TS 对不上,\n 导致运行时 `\"burn-tch\"` 解析失败回落默认 (see `from_input_parses_camel_case_fields`)。"
     },
     "Stem": {
       "anyOf": [
@@ -1764,26 +1772,14 @@
               "type": "null"
             }
           ],
-          "description": " 人声文件路径, 调试使用"
-        },
-        "sourceFilePath": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 原始视频音频路径, 调试使用"
+          "description": " 人声文件路径, 调试使用（作为 [`crate::steps::split_audio::SplitAudioSourcePath::Custom]）"
         }
       },
       "required": [
         "vadAlign",
         "startPadMs",
         "endPadMs",
-        "vocalsFilePath",
-        "sourceFilePath"
+        "vocalsFilePath"
       ],
       "title": "SplitAudioArgs_Serialize",
       "description": " split_audio 阶段参数 (镜像 TS `packages/core/steps/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 state.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。"
@@ -2167,7 +2163,7 @@
         "sourceLang": {
           "anyOf": [
             {
-              "$ref": "#/$defs/Language"
+              "$ref": "#/$defs/LangCode"
             },
             {
               "type": "null"
@@ -2177,7 +2173,7 @@
         "targetLang": {
           "anyOf": [
             {
-              "$ref": "#/$defs/TargetLang"
+              "$ref": "#/$defs/Language"
             },
             {
               "type": "null"
@@ -2240,13 +2236,35 @@
           ],
           "description": " rerunStep 专业参数, 指定要重新运行的步骤"
         },
+        "engine": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 实验开关: start/continue 走 aa-workflow 引擎——**开发中，暂不可用**\n （集成暂停，见 `integration/workflow/mod.rs`；设了会在 ExecPath 分派时\n 打印「开发中」并报错）。恢复后：真源 events.jsonl，与 `run_pipeline`\n （真源 state.json）二选一。其余 action 忽略。"
+        },
+        "parallel": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 实验开关: **非 engine** 路径按步骤 DAG 并行执行（目前只有 `sf_ocr_dub`\n 有 DAG 定义，见 [`crate::workflows::dag::StepDag`]；其它组合明确报错）。\n 与 `engine` 互斥——同设报错（引擎恢复前设 engine 本身就会报「开发中」）。"
+        },
         "output_mode": {
           "$ref": "#/$defs/OutputMode",
           "description": " 任务模式, dub 配音, subtitle 仅字幕\n\n **显式 `rename` 覆盖 `rename_all = \"camelCase\"`**：本字段的 wire 名沿用\n snake_case（`\"output_mode\"`），与其余 camelCase 字段不一致——这是刻意的，\n 因为 state.json 侧的 `output_mode` 字段也已是 snake_case。"
         },
-        "subtitleSource": {
+        "subtitle_source": {
           "$ref": "#/$defs/SubtitleSource",
-          "description": " 字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)"
+          "description": " 字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)\n\n **显式 `rename` 覆盖 `rename_all = \"camelCase\"`**：wire 名沿用 snake_case\n （`\"subtitle_source\"`），与 `output_mode` 同理——input.json 与 state.json\n 侧字段名保持一套风格。"
         },
         "downloadSubtitles": {
           "type": "boolean",
@@ -2399,18 +2417,7 @@
               "type": "null"
             }
           ],
-          "description": " 人声文件路径, 调试使用"
-        },
-        "sourceFilePath": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 原始视频音频路径, 调试使用"
+          "description": " 人声文件路径, 调试使用（作为 [`crate::steps::split_audio::SplitAudioSourcePath::Custom]）"
         }
       },
       "title": "SplitAudioArgs_Deserialize",
