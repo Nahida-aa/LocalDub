@@ -3287,7 +3287,7 @@ dependencies = [
 [[package]]
 name = "ocr-types"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/vision-lab?rev=4a54721#4a54721472320048f0221cc277642219946bb4e2"
+source = "git+https://github.com/Nahida-aa/vision-lab?rev=e2cc2a4#e2cc2a44f2c43881ce1aeffebaa3948a3ff7aeca"
 dependencies = [
  "serde",
 ]
@@ -4761,7 +4761,7 @@ dependencies = [
 [[package]]
 name = "subtitle"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/vision-lab?rev=4a54721#4a54721472320048f0221cc277642219946bb4e2"
+source = "git+https://github.com/Nahida-aa/vision-lab?rev=e2cc2a4#e2cc2a44f2c43881ce1aeffebaa3948a3ff7aeca"
 dependencies = [
  "serde",
  "specta",
@@ -4769,8 +4769,8 @@ dependencies = [
 
 [[package]]
 name = "subtitle-ocr-post"
-version = "0.1.2"
-source = "git+https://github.com/Nahida-aa/vision-lab?rev=4a54721#4a54721472320048f0221cc277642219946bb4e2"
+version = "0.1.3"
+source = "git+https://github.com/Nahida-aa/vision-lab?rev=e2cc2a4#e2cc2a44f2c43881ce1aeffebaa3948a3ff7aeca"
 dependencies = [
  "anyhow",
  "clap",
@@ -4787,7 +4787,7 @@ dependencies = [
 [[package]]
 name = "subtitle-ocr-types"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/vision-lab?rev=4a54721#4a54721472320048f0221cc277642219946bb4e2"
+source = "git+https://github.com/Nahida-aa/vision-lab?rev=e2cc2a4#e2cc2a44f2c43881ce1aeffebaa3948a3ff7aeca"
 dependencies = [
  "ocr-types",
  "serde",

@@ -279,6 +279,8 @@ pub fn step_asr_ocr_fix(input: &AsrOcrFixInput) -> Result<()> {
     let merge_args = MergeFramesArgs {
         is_merge_substring: Some(args.ocr_fix.is_merge_substring),
         dedup_edit_distance: Some(args.ocr_fix.dedup_edit_distance),
+        // 断段三参数不透传，走库内默认（两帧 6000 / 系数 4.0 / 多帧硬上限 5000）。
+        ..MergeFramesArgs::default()
     };
     let merged = merge_frames(&filtered.frames, &merge_args);
     write_json_file(&out_dir.join("frames_merged.json"), &merged)?;

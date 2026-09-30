@@ -770,12 +770,12 @@ const SUBTITLE_OCR_POST: ReleaseBinSpec = ReleaseBinSpec {
     key: "subtitle_ocr_post_bin",
     bin: "subtitle-ocr-post",
     repo: "Nahida-aa/vision-lab",
-    tag: "subtitle-ocr-post-v0.1.2",
+    tag: "subtitle-ocr-post-v0.1.3",
     zip: false,
     linux_asset: "subtitle-ocr-post-x86_64-unknown-linux-gnu",
-    linux_sha256: "c9449cecc0bfb718c6f5cdfe52ffc3ab468a370698647e7ea65257520a5f86e1",
+    linux_sha256: "2a4bddbb573410e1f10d60490ca71734e3b58b57e963fb7a641f97923f680939",
     windows_asset: Some("subtitle-ocr-post-x86_64-pc-windows-msvc.zip"),
-    windows_sha256: Some("c8c3d3be0c283dfcc3388b4355790bd0ce43a3c82732fdbc1b5f763554f7d414"),
+    windows_sha256: Some("f075f1655c4df0088ab49eaaecf78ff005fbfc2c5a54cd6f5527200d679df89d"),
     stamp: ".subtitle_ocr_post.version.json",
 };
 
