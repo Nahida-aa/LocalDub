@@ -146,21 +146,19 @@ impl RunStore for FsRunStore {
             .map_err(|e| StoreError::Io(e.to_string()))?;
         let (events, _) = self.read_events()?;
         // 对齐 InMemoryStore: 裁到 step_id 最新终态 checkpoint (含), 之前的保留。
-        let Some(cut) = events
-            .iter()
-            .rposition(|ev| match ev {
-                WorkflowEvent::StepFinished { step_id: id, .. }
-                | WorkflowEvent::StepFailed { step_id: id, .. } => id == step_id,
-                _ => false,
-            })
-        else {
+        let Some(cut) = events.iter().rposition(|ev| match ev {
+            WorkflowEvent::StepFinished { step_id: id, .. }
+            | WorkflowEvent::StepFailed { step_id: id, .. } => id == step_id,
+            _ => false,
+        }) else {
             return Ok(());
         };
         let mut out = String::new();
         for ev in &events[..cut] {
-            out.push_str(&serde_json::to_string(ev).map_err(|e| {
-                StoreError::Io(format!("event 序列化失败: {e}"))
-            })?);
+            out.push_str(
+                &serde_json::to_string(ev)
+                    .map_err(|e| StoreError::Io(format!("event 序列化失败: {e}")))?,
+            );
             out.push('\n');
         }
         Self::atomic_write(&self.events_path(), &out)
@@ -205,6 +203,9 @@ mod tests {
             input: serde_json::json!({"x": 1}),
             output: None,
             error: None,
+            // awaiting 是规范形（waiting_for / pending_approval 是它的镜像）：
+            // 空即「无挂起」，序列化时整字段跳过
+            awaiting: vec![],
             waiting_for: None,
             pending_approval: None,
             created_at: 1,
