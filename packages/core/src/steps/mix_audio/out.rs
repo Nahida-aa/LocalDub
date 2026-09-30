@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::steps::split_audio::out::SplitAudioTiming;
 use crate::steps::utils::paths::mix_audio::{self, TimingsPath};
-use crate::utils::file_ops::{ensure_parent_dir, write_json_pretty};
 use crate::steps::utils::srt::SubtitleSegments;
+use crate::utils::file_ops::{ensure_parent_dir, write_json_pretty};
 use subtitle::SubtitleSegment;
 
 /// 单段对齐时序 (镜像 TS `Timing` = SplitAudioTiming + 对齐字段)。

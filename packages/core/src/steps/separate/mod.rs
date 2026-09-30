@@ -10,10 +10,10 @@ pub mod args;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use crate::state::State;
 use crate::steps::utils::{
     now_iso, separate_dir, set_step, set_step_anyhow, StepPatch, StepStatus,
 };
+use crate::workflows::args::OutputMode;
 
 pub use after::step_separate_after;
 pub use after_args::SeparateAfterInput;
@@ -231,14 +231,17 @@ fn run_demucs(
 }
 
 /// 入口 (镜像 TS `stepSeparate`)。
-pub fn step_separate(state: &State) -> anyhow::Result<()> {
-    let video_dir = state.init.workflow.video_dir.clone();
+///
+/// **单参**：本步的全部依赖已在 [`SeparateInput`] 里列清（身份 + 上游音频 + 本次
+/// 参数 + 决策用的 output_mode），不再接一个"什么都装"的组合态。
+pub fn step_separate(input: &SeparateInput) -> anyhow::Result<()> {
+    let video_dir = input.video_dir.clone();
     tracing::info!(target: "separate", "start");
 
-    let cfg = SeparateArgs::from_input(&state.init.input);
+    let cfg = &input.args;
 
     // subtitle 模式且未配置 always → 跳过分离
-    if state.init.output_mode == "subtitle" && !cfg.always {
+    if input.output_mode == OutputMode::Subtitle && !cfg.always {
         tracing::info!(target: "separate", "Skipped (subtitle pipeline, set separate.always=true to force)");
         set_step_anyhow(
             &video_dir,
@@ -263,8 +266,6 @@ pub fn step_separate(state: &State) -> anyhow::Result<()> {
             ..Default::default()
         },
     )?;
-
-    let input = SeparateInput::from_state(state)?;
 
     let audio_path = input
         .audio_source_path
@@ -365,31 +366,17 @@ mod tests {
         assert_eq!(parse_progress_pct("(abc%)"), None);
     }
     use super::*;
-    use crate::state::read_ctx_from_value;
-    use crate::workflows::args::StepName;
     use serde_json::json;
 
-    fn ctx_with(input: serde_json::Value, pipeline: &str) -> State {
-        let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.init.workflow.video_dir = "/tmp/ld_sep_test".into();
-        ctx.init.workflow.id = "t".into();
-        ctx.init.output_mode = pipeline.into();
-        ctx.init.video_source_path = Some("/tmp/ld_sep_test/video_source.mp4".into());
-        ctx.init.audio_source_path = Some("/tmp/ld_sep_test/audio_source.wav".into());
-        ctx
+    /// 从扁平夹具 JSON 取 `input` 子树（`SeparateArgs` 等只吃这一份）。
+    fn input_with(input: serde_json::Value) -> crate::input::Input {
+        serde_json::from_value(input.get("input").cloned().unwrap_or(json!({}))).unwrap()
     }
 
     #[test]
     fn field_defaults_when_absent() {
-        let ctx = ctx_with(
-            json!({
-                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"steps": {"separate": {}}}
-            }),
-            "dub",
-        );
-        let cfg = SeparateArgs::from_input(&ctx.init.input);
+        let input = input_with(json!({"input": {"steps": {"separate": {}}}}));
+        let cfg = SeparateArgs::from_input(&input);
         assert_eq!(cfg.runtime, args::SeparateRuntime::BurnTch);
         assert_eq!(cfg.device, args::Device::Cuda);
         assert!(!cfg.always);
@@ -398,20 +385,15 @@ mod tests {
 
     #[test]
     fn from_input_parses_camel_case_fields() {
-        let ctx = ctx_with(
-            json!({
-                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"steps": {"separate": {
-                    "runtime": "burn-tch",
-                    "device": "mps",
-                    "always": true,
-                    "stems": ["drums", "vocals"]
-                }}}
-            }),
-            "dub",
-        );
-        let cfg = SeparateArgs::from_input(&ctx.init.input);
+        let input = input_with(json!({
+            "input": {"steps": {"separate": {
+                "runtime": "burn-tch",
+                "device": "mps",
+                "always": true,
+                "stems": ["drums", "vocals"]
+            }}}
+        }));
+        let cfg = SeparateArgs::from_input(&input);
         assert_eq!(cfg.device, args::Device::Mps);
         assert!(cfg.always);
         assert_eq!(cfg.stems, vec![args::Stem::Drums, args::Stem::Vocals]);
@@ -435,28 +417,24 @@ mod tests {
 
     #[test]
     fn subtitle_skips_when_not_always() {
-        // 用一个 fake state.json, 验证 subtitle + !always 走 skip 分支
+        // subtitle + !always → skip 分支（不看磁盘上的音频是否存在）
         let dir = std::env::temp_dir()
             .join(format!("ld_sep_skip_{}", std::process::id()))
             .to_string_lossy()
             .to_string();
-        std::fs::create_dir_all(&dir).unwrap();
-        let mut ctx = ctx_with(
+        let input = crate::state::write_fixture(
+            &dir,
             json!({
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"steps": {"separate": {"always": false}}},
+                "input": {"workflow": {"outputMode": "subtitle"},
+                          "steps": {"separate": {"always": false}}},
                 "output_mode": "subtitle"
             }),
-            "subtitle",
         );
-        ctx.init.workflow.video_dir = dir.clone();
-        ctx.init.output_mode = "subtitle".to_string();
-        crate::state::write_ctx(&dir, &ctx).unwrap();
-        let res = step_separate(&ctx);
+        let res = step_separate(&SeparateInput::new(&dir, &input).unwrap());
         assert!(res.is_ok(), "subtitle skip 不应失败: {:?}", res.err());
-        let reread = crate::state::read_ctx(&dir).unwrap();
-        let st = reread.step(StepName::Separate);
+        let st = crate::state::read_step_state(&dir, "separate").unwrap();
         assert_eq!(st.status, StepStatus::Success);
         assert_eq!(
             st.last_message.as_deref(),

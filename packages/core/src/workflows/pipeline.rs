@@ -9,35 +9,50 @@
 //! 目前 `run_step` 已注册 separate / separate_after / sf_ocr* / translate / split_audio /
 //! asr / asr_fix / tts / mix_audio / mix_video; 后续阶段 (asr_ocr*) 移植后在此登记即可。
 
-use crate::state::{read_ctx, State};
+use crate::steps::asr::args::AsrInput;
 use crate::steps::asr::fix::step_asr_fix;
+use crate::steps::asr::fix_args::AsrFixInput;
 use crate::steps::asr::step_asr;
+use crate::steps::asr_ocr::args::AsrOcrInput;
+use crate::steps::asr_ocr::fix_args::AsrOcrFixInput;
+use crate::steps::asr_ocr::pre_args::AsrOcrPreInput;
 use crate::steps::asr_ocr::{fix::step_asr_ocr_fix, ocr::step_asr_ocr, pre::step_asr_ocr_pre};
 use crate::steps::get_steps;
+use crate::steps::mix_audio::args::MixAudioInput;
 use crate::steps::mix_audio::step_mix_audio;
+use crate::steps::mix_video::args::MixVideoInput;
 use crate::steps::mix_video::step_mix_video;
-use crate::steps::separate::{step_separate, step_separate_after};
+use crate::steps::separate::{
+    after_args::SeparateAfterInput, args::SeparateInput, step_separate, step_separate_after,
+};
+use crate::steps::sf_ocr::args::SfOcrInput;
+use crate::steps::sf_ocr::fix_args::SfOcrFixInput;
+use crate::steps::sf_ocr::pre_args::SfOcrPreInput;
 use crate::steps::sf_ocr::{step_sf_ocr, step_sf_ocr_fix, step_sf_ocr_pre};
+use crate::steps::split_audio::args::SplitAudioInput;
 use crate::steps::split_audio::step_split_audio;
+use crate::steps::translate::args::TranslateInput;
 use crate::steps::translate::step_translate;
+use crate::steps::tts::args::TtsInput;
 use crate::steps::tts::step_tts;
 use crate::steps::utils::{now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
 use crate::workflows::args::StepName;
 
 /// 运行完整 output_mode (镜像 TS `runPipeline`)。
-pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
+///
+/// 每步的入参是**该步骤自己的 `<Step>Input`**（依赖清单），统一由
+/// `<Step>Input::new(video_dir, input)` 构造——不再有「什么都装」的组合态在
+/// 步骤之间传来传去。
+pub fn run_pipeline(video_dir: &str, input: &crate::input::Input) -> anyhow::Result<()> {
     // 进入 workflow span: 携带 video_dir 供 WorkflowFileLayer 落盘到 <video_dir>/<tid>.log。
     let _workflow_guard = tracing::info_span!("workflow", video_dir = video_dir).entered();
     tracing::info!(target: "output_mode", "run_pipeline: start");
 
-    let state = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
-    let output_mode = state.init.output_mode.clone();
-    let video_id = state.init.workflow.id.clone();
-    let steps = get_steps(&state)?;
+    let video_id = crate::steps::utils::video_id(video_dir).unwrap_or_default();
+    let steps = get_steps(input)?;
 
     // targetStep 不在序列中则告警忽略 (镜像 TS)
-    if let Some(ts) = state
-        .input
+    if let Some(ts) = input
         .workflow
         .as_ref()
         .and_then(|w| w.target_step.as_ref())
@@ -45,7 +60,8 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
     {
         if !steps.iter().any(|s| s.as_str() == ts) {
             tracing::info!(target: "output_mode",
-                "[WARN] targetStep \"{ts}\" 不在 {output_mode} output_mode 中, 忽略"
+                "[WARN] targetStep \"{ts}\" 不在 {} 序列中, 忽略",
+                crate::workflows::args::OutputMode::from_input(input).as_str()
             );
         }
     }
@@ -77,14 +93,12 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
         // 不再维护 workflow.current_step 的每步投影。
         tracing::info!(target: "output_mode", "Running {step_str}");
 
-        // 每步重读盘：前序步骤可能写 state（translate 的 target_language 等），
-        // handler 吃「此刻的快照」。
-        let state = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
-        match run_step(*step, &state) {
+        // 每步重读 input.json：continue / regen 会改写配置，handler 吃「此刻的配置」。
+        let input = crate::state::read_input(video_dir).map_err(anyhow::Error::msg)?;
+        match run_step(*step, video_dir, &input) {
             Ok(()) => {
                 // 达到 targetStep 即停止 (镜像 TS)
-                if let Some(ts) = state
-                    .input
+                if let Some(ts) = input
                     .workflow
                     .as_ref()
                     .and_then(|w| w.target_step.as_ref())
@@ -137,60 +151,51 @@ pub fn run_pipeline(video_dir: &str) -> anyhow::Result<()> {
 
 /// 按 step 名分派到具体 handler (镜像 TS `STEP_HANDLERS`)。
 ///
-/// **入参是 [`StepName`] + 当前 state 快照**（镜像 TS `runStep` 的
-/// `readCtx(sp)` 结果）：快照由调用方提供——pipeline 每步重读盘、引擎每步取
-/// `ctx.state` 快照，两边的「新鲜度」各自保证。
+/// **入参是 [`StepName`] + `(video_dir, input)`**（镜像 TS `runStep` 的
+/// `readCtx(sp)` 结果）：每个分支自己用 `<Step>Input::new` 取依赖清单——步骤之间
+/// 不再传一个共享的大对象，谁读什么写在各自的 Input 里。
 ///
 /// **入参是 [`StepName`] 而非 `&str`**：`match` 因此是穷尽的——将来给枚举加
 /// 变体却不在这里登记 handler，会**编译失败**，而不是静默跳过。
-pub fn run_step(step: StepName, state: &State) -> anyhow::Result<()> {
+pub fn run_step(
+    step: StepName,
+    video_dir: &str,
+    input: &crate::input::Input,
+) -> anyhow::Result<()> {
     // 进入 step span: 携带 step 名供 WorkflowFileLayer 作为 [step] 前缀。
     let _step_guard = tracing::info_span!("step", step = step.as_str()).entered();
     match step {
-        StepName::Separate => step_separate(&state),
-        StepName::SeparateAfter => step_separate_after(&state),
-        StepName::SfOcrPre => step_sf_ocr_pre(&state),
-        StepName::SfOcr => step_sf_ocr(&state),
-        StepName::SfOcrFix => step_sf_ocr_fix(&state),
-        StepName::Translate => step_translate(&state),
-        StepName::SplitAudio => step_split_audio(&state),
-        StepName::Asr => step_asr(&state),
-        StepName::AsrFix => step_asr_fix(&state),
-        StepName::AsrOcrPre => step_asr_ocr_pre(&state),
-        StepName::AsrOcr => step_asr_ocr(&state),
-        StepName::AsrOcrFix => step_asr_ocr_fix(&state),
-        StepName::Tts => step_tts(&state),
-        StepName::MixAudio => step_mix_audio(&state),
-        StepName::MixVideo => step_mix_video(&state),
+        StepName::Separate => step_separate(&SeparateInput::new(video_dir, input)?),
+        StepName::SeparateAfter => step_separate_after(&SeparateAfterInput::new(video_dir, input)),
+        StepName::SfOcrPre => step_sf_ocr_pre(&SfOcrPreInput::new(video_dir, input)),
+        StepName::SfOcr => step_sf_ocr(&SfOcrInput::new(video_dir, input)),
+        StepName::SfOcrFix => step_sf_ocr_fix(&SfOcrFixInput::new(video_dir, input)),
+        StepName::Translate => step_translate(&TranslateInput::new(video_dir, input)?),
+        StepName::SplitAudio => step_split_audio(&SplitAudioInput::new(video_dir, input)?),
+        StepName::Asr => step_asr(&AsrInput::new(video_dir, input)),
+        StepName::AsrFix => step_asr_fix(&AsrFixInput::new(video_dir, input)),
+        StepName::AsrOcrPre => step_asr_ocr_pre(&AsrOcrPreInput::new(video_dir, input)),
+        StepName::AsrOcr => step_asr_ocr(&AsrOcrInput::new(video_dir, input)),
+        StepName::AsrOcrFix => step_asr_ocr_fix(&AsrOcrFixInput::new(video_dir, input)),
+        StepName::Tts => step_tts(&TtsInput::new(video_dir, input)),
+        StepName::MixAudio => step_mix_audio(&MixAudioInput::new(video_dir, input)?),
+        StepName::MixVideo => step_mix_video(&MixVideoInput::new(video_dir, input)?),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::read_ctx_from_value;
     use serde_json::json;
 
-    /// 构造一个写好 state.json 的临时 workflow 目录
-    fn setup_ctx(
-        dir: &str,
-        input: serde_json::Value,
-        output_mode: &str,
-    ) -> crate::state::State {
-        std::fs::create_dir_all(dir).unwrap();
-        let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.init.workflow.video_dir = dir.to_string();
-        ctx.init.workflow.id = "t".to_string();
-        ctx.init.output_mode = output_mode.to_string();
-        // 模拟 import 已跑过：subtitle 序列现恒含 split_audio，无 vocals stem 时它
-        // 回退到 audio_source.wav，缺失即报错（文件本身不必存在，probe 失败按 0 处理）。
-        ctx.init.audio_source_path = Some(format!("{dir}/audio_source.wav"));
-        crate::state::write_ctx(dir, &ctx).unwrap();
+    /// 铺一个任务目录：`state.json` + `input.json` + 直通用的假 srt，返回 input。
+    fn setup(dir: &str, input: serde_json::Value) -> crate::input::Input {
+        let input = crate::state::write_fixture(dir, input);
         // split_audio 会读 translate 产物；本测试禁用了 asr/asr_fix，translate 直通
         // 无内容可搬会写出空产物，split_audio 随即 fail-fast。故给 translate 的
         // **输入**（subtitleSource=asr → asr_fix/srt.json）造假数据，直通原样带出。
         seed_asr_fix_srt(dir);
-        ctx
+        input
     }
 
     /// 落一份最小 `asr_fix/srt.json`，让 translate 直通有内容可搬。
@@ -222,32 +227,36 @@ mod tests {
             .to_string_lossy()
             .to_string();
         let _ = std::fs::remove_dir_all(&dir);
-        setup_ctx(
+        let input = setup(
             &dir,
             json!({
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"steps": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
+                "input": {"workflow": {"outputMode": "subtitle"},
+                          "steps": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
                 "output_mode": "subtitle"
             }),
-            "subtitle",
         );
         // subtitle + !always → separate 走 skip 分支 (无需 demucs 二进制)
-        let res = run_pipeline(&dir);
+        let res = run_pipeline(&dir, &input);
         assert!(res.is_ok(), "run_pipeline 不应失败: {:?}", res.err());
 
-        let reread = crate::state::read_ctx(&dir).unwrap();
-        assert_eq!(reread.init.workflow.status, "success");
+        let wf = crate::state::read_workflow(&dir).unwrap();
+        assert_eq!(wf.status, "success");
         // subtitle 默认序列里 separate / separate_after 已注册 handler, 其余跳过
         assert_eq!(
-            reread.step(StepName::Separate).status,
+            crate::state::read_step_state(&dir, "separate")
+                .unwrap()
+                .status,
             StepStatus::Success
         );
         assert_eq!(
-            reread.step(StepName::SeparateAfter).status,
+            crate::state::read_step_state(&dir, "separate_after")
+                .unwrap()
+                .status,
             StepStatus::Success
         );
-        assert_eq!(reread.init.workflow.current_step, None);
+        assert_eq!(wf.current_step, None);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -259,21 +268,21 @@ mod tests {
             .to_string_lossy()
             .to_string();
         let _ = std::fs::remove_dir_all(&dir);
-        setup_ctx(
+        let input = setup(
             &dir,
             json!({
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"targetStep": "separate", "steps": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
+                "input": {"workflow": {"outputMode": "subtitle", "targetStep": "separate"},
+                          "steps": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
                 "output_mode": "subtitle"
             }),
-            "subtitle",
         );
-        let res = run_pipeline(&dir);
+        let res = run_pipeline(&dir, &input);
         assert!(res.is_ok(), "run_pipeline 不应失败: {:?}", res.err());
-        let reread = crate::state::read_ctx(&dir).unwrap();
-        // 仅一个 step (subtitle 默认 omit split_audio), targetStep=separate 命中即停
-        assert_eq!(reread.workflow.status, "success");
+        // targetStep=separate 命中即停
+        let wf = crate::state::read_workflow(&dir).unwrap();
+        assert_eq!(wf.status, "success");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -274,9 +274,7 @@ mod tests {
             assert!(err.contains("第 1 句译文为空"), "实际: {err}");
         }
         // 只有空白也算空 (调用前已 trim)
-        assert!(check_sentence("", 7, "vi")
-            .unwrap_err()
-            .contains("第 8 句"));
+        assert!(check_sentence("", 7, "vi").unwrap_err().contains("第 8 句"));
     }
 
     /// 失败原因里带 1-based 句号 (对齐 TS 的 `第 N 句`), 便于定位。
@@ -294,12 +292,24 @@ mod tests {
 
         let plain = describe_missing(&batch, &pending, None, 40);
         assert_eq!(plain.len(), 2);
-        assert!(plain[0].starts_with("#1 (原文: short"), "实际: {}", plain[0]);
+        assert!(
+            plain[0].starts_with("#1 (原文: short"),
+            "实际: {}",
+            plain[0]
+        );
         assert!(plain[1].contains('…'), "超长原文应截断: {}", plain[1]);
-        assert!(!plain[0].contains("原因"), "不带原因时不应出现: {}", plain[0]);
+        assert!(
+            !plain[0].contains("原因"),
+            "不带原因时不应出现: {}",
+            plain[0]
+        );
 
         let with_reason = describe_missing(&batch, &pending, Some("超时"), 60);
-        assert!(with_reason[0].contains("原因: 超时"), "实际: {}", with_reason[0]);
+        assert!(
+            with_reason[0].contains("原因: 超时"),
+            "实际: {}",
+            with_reason[0]
+        );
         // cap 更大 → 截断位置更靠后
         assert!(
             with_reason[1].len() > plain[1].len(),

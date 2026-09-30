@@ -1,10 +1,9 @@
 //! translate 阶段输出结构 (镜像 TS `packages/core/steps/05_translate/out.ts`)。
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::state::State;
 use crate::steps::utils::paths::translate::LangPath;
 
 /// 单条翻译段 (镜像 TS `TranslateSegment`)。
@@ -121,33 +120,49 @@ pub struct TranslatePartialSegment {
 ///
 /// 另一个被顺带修掉的问题：`mix_video` 曾用 `resolve_language()` 现算的 lang 拼
 /// 错误信息、却用 `read_translation_result(ctx)` 里 `ctx.target_language()` 的快照去读，
-/// 两个来源不同（详见 `from_state` 注释）。
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// 两个来源不同（详见上文）。out
+/// translate 的**产物事实**：`<translate>/out.json` 的形状。
+///
+/// 两个字段回答同一件事（这次译到哪、文件叫啥），都写进盘是因为它们**互为校验**：
+/// 文件名 `translate/{lang}.json` 里的 lang 就是本次落定的目标语言，下游只需读一次
+/// 就能同时定位文件与知道语言，不必再拼一遍命名规则。
+///
+/// 存在的意义是**单点构造 + 单点事实**。此前 `translation_file_path(video_dir, lang)`
+/// 被 5 处独立调用（写侧、split_audio 读、mix_video 读、engine 事件登记，以及两处
+/// 「仅为拼错误信息」）；现在拼法收口在 `LangPath::new`，事实收口在本类型。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct TranslateOutput {
-    lang: String,
-    path: LangPath,
+    /// 本次落定的目标语言。
+    pub target_language: String,
+    /// 译文文件路径的自我描述（`translate/{lang}.json`）。
+    pub file: std::path::PathBuf,
 }
 
 impl TranslateOutput {
-    /// **唯一构造入口**。路径拼装委托给 [`LangPath::new`]。
+    /// **内存构造**（不落盘）：路径拼装委托给 [`LangPath::new`]。
     pub fn for_lang(video_dir: &str, lang: &str) -> Self {
         Self {
-            lang: lang.to_string(),
-            path: LangPath::new(video_dir, lang),
+            target_language: lang.to_string(),
+            file: LangPath::new(video_dir, lang).as_path().to_path_buf(),
         }
     }
 
-    /// 从 ctx 构造，目标语言取 `ctx.target_language()`。
+    /// **登记**本次产物：`translate` 写出译文文件后调用（唯一写者）。
     ///
-    /// **刻意只用 `ctx.target_language()`**，不调 `resolve_language`：后者会重新推断，
-    /// 与「已落盘的事实」可能得到不同答案。本类型承诺的是**读与报错指向同一个
-    /// 文件**，故必须单源。
-    ///
-    /// 未设置 → Err（委托 [`LangPath::from_state`]）。
-    pub fn from_state(ctx: &State) -> anyhow::Result<Self> {
-        let path = LangPath::from_state(ctx)?;
-        let lang = ctx.target_language().clone().unwrap_or_default(); // from_state 已保证 Some
-        Ok(Self { lang, path })
+    /// 幂等：值相同不重写。
+    pub fn write(video_dir: &str, lang: &str) -> anyhow::Result<Self> {
+        let out = Self::for_lang(video_dir, lang);
+        if Self::read(video_dir)?.as_ref() == Some(&out) {
+            return Ok(out);
+        }
+        crate::state::write_step_out(video_dir, "translate", &out).map_err(anyhow::Error::msg)?;
+        tracing::info!(target: "translate", "target_language 已落盘: {lang}");
+        Ok(out)
+    }
+
+    /// 读 `<translate>/out.json`；还没译完 → `None`。
+    pub fn read(video_dir: &str) -> anyhow::Result<Option<Self>> {
+        crate::state::read_step_out(video_dir, "translate").map_err(anyhow::Error::msg)
     }
 
     /// 译文的完整路径。
@@ -155,11 +170,12 @@ impl TranslateOutput {
     /// 返 `&Path` 而非 `&PathBuf`：调用点一律当路径用（`.display()` / `.parent()` /
     /// `read_to_string` / `write`），没有一处需要 `PathBuf` 的方法。
     pub fn path(&self) -> &Path {
-        self.path.as_path()
+        &self.file
     }
 
+    /// 目标语言（= 落盘事实，非推断）。
     pub fn lang(&self) -> &str {
-        &self.lang
+        &self.target_language
     }
 }
 
@@ -167,6 +183,6 @@ impl TranslateOutput {
 /// 不必到处 `.path().display()`。
 impl std::fmt::Display for TranslateOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.path.as_path().display())
+        write!(f, "{}", self.file.display())
     }
 }

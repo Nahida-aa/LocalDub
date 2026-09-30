@@ -1,7 +1,5 @@
 //! sf_ocr 阶段参数 (镜像 TS `packages/core/steps/sf_ocr/args.ts`)。
 
-use std::path::Path;
-
 use serde::{Deserialize, Serialize};
 
 use crate::steps::utils::paths::sf_ocr_pre;
@@ -104,14 +102,20 @@ fn default_true() -> bool {
 /// 路径是 `{video_dir}/...` 的**约定拼法**，不读 ctx 里落定的事实，故入口是
 /// [`from_video_dir`](Self::from_video_dir)。
 pub struct SfOcrInput {
+    /// 任务目录（写侧 step status 需要）。
+    pub video_dir: String,
     /// 来自 sf_ocr_pre 的关键帧目录 `<video_dir>/sf_ocr_pre/frames`。
     pub keyframes_dir: sf_ocr_pre::KeyframesDir,
+    /// 本次运行参数（`input.steps.sf_ocr`）。
+    pub args: SfOcrArgs,
 }
 
 impl SfOcrInput {
-    pub fn from_video_dir(video_dir: impl AsRef<Path>) -> Self {
+    pub fn new(video_dir: &str, input: &crate::input::Input) -> Self {
         Self {
-            keyframes_dir: sf_ocr_pre::KeyframesDir::new(&video_dir),
+            video_dir: video_dir.to_string(),
+            keyframes_dir: sf_ocr_pre::KeyframesDir::new(video_dir),
+            args: SfOcrArgs::from_input(input),
         }
     }
 }

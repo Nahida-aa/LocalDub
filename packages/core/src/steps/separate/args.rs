@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use crate::state::State;
 use crate::steps::utils::paths::AudioSourcePath;
+use crate::workflows::args::OutputMode;
 use anyhow::Result;
 
 /// separate 推理运行时
@@ -74,20 +74,34 @@ fn default_stems() -> Vec<Stem> {
 
 /// separate 步骤的跨步骤依赖清单(代码即 DAG 视角)。
 ///
-/// 与 `AsrOcrPreInput` 等兄弟 `*Input` 同款定位: 只声明**被消费的跨步骤产物**,
-/// 自身输出(stems)、`*Args::from_input` 另行获取。separate 直接对 import 落地的
-/// 音频做分轨(原视频 `video_source.mp4` 仅作来源、demucs 实际只吃 `audio_source.wav`,
-/// 故此处不把 video_source 列为依赖):
+/// 与 `AsrOcrPreInput` 等兄弟 `*Input` 同款定位: 只声明**被消费的跨步骤产物**;
+/// separate 直接对 import 落地的音频做分轨(原视频 `video_source.mp4` 仅作来源、
+/// demucs 实际只吃 `audio_source.wav`, 故此处不把 video_source 列为依赖):
 /// - `audio_source_path`: 原音频 `audio_source.wav`(import 产出), demucs 实际分轨的输入。
+///
+/// `output_mode` 也在此：它决定本步是"真分轨"还是"跳过"（subtitle + !always），
+/// 属于本步的**决策输入**而非被消费的产物——跳过时本步不读任何上游文件。
+///
+/// 构造器统一为 [`new`](Self::new)`(video_dir, input)`——`video_dir` 给身份与写侧
+/// 用，`input` 给本次运行参数([`SeparateArgs`])用；两参数取代原先的组合态 `&State`。
+#[derive(Debug, Clone)]
 pub struct SeparateInput {
+    /// 任务目录（写侧 ready / step status 需要）。
+    pub video_dir: String,
     pub audio_source_path: AudioSourcePath,
+    /// 本次运行参数（`input.steps.separate`）。
+    pub args: SeparateArgs,
+    /// 任务模式（`input.workflow.output_mode`）：决定 subtitle + !always 的跳过分支。
+    pub output_mode: OutputMode,
 }
 
 impl SeparateInput {
-    /// 输入为 import 写进 ctx 的事实, 故走 `from_state`(与 `AsrOcrPreInput` 同款)。
-    pub fn from_state(state: &State) -> Result<Self> {
+    pub fn new(video_dir: &str, input: &crate::input::Input) -> Result<Self> {
         Ok(Self {
-            audio_source_path: AudioSourcePath::from_state(state)?,
+            video_dir: video_dir.to_string(),
+            audio_source_path: AudioSourcePath::from_video_dir(video_dir),
+            args: SeparateArgs::from_input(input),
+            output_mode: OutputMode::from_input(input),
         })
     }
 }

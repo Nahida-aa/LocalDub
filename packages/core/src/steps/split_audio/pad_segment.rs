@@ -153,11 +153,7 @@ mod tests {
         for (s, e) in [(1000u32, 1100u32), (1000, 1000), (1000, 900)] {
             let segs = vec![Seg { s, e }];
             let out = pad_segments(&segs, 100, 300);
-            assert!(
-                out[0].0 < out[0].1,
-                "单段 ({s},{e}) 不该反向: {:?}",
-                out[0]
-            );
+            assert!(out[0].0 < out[0].1, "单段 ({s},{e}) 不该反向: {:?}", out[0]);
         }
     }
 }

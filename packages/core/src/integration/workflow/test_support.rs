@@ -3,7 +3,7 @@
 use serde_json::json;
 use subtitle::SubtitleSegment;
 
-use crate::state::{read_ctx, read_ctx_from_value, write_ctx, StepStatus};
+use crate::state::{read_step_state, write_fixture, StepStatus};
 
 pub fn temp_dir(name: &str) -> String {
     let dir = std::env::temp_dir()
@@ -14,32 +14,27 @@ pub fn temp_dir(name: &str) -> String {
     dir
 }
 
-/// 构造写好 state.json 的 subtitle 临时 workflow 目录 (只触发 separate / separate_after).
-pub fn setup_subtitle(dir: &str) {
-    std::fs::create_dir_all(dir).unwrap();
-    let input = json!({
-        "steps": {
-            "separate": {"always": false},
-            "asr": {"enabled": false},
-            "asr_fix": {"enabled": false},
-            "translate": {"enabled": false},
-            "mix_video": {"enabled": false}
-        }
-    });
-    let mut ctx = read_ctx_from_value(json!({
-        "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
-                     "status":"running","created_at":"2024-01-01T00:00:00Z"},
-        "input": input,
-        "output_mode": "subtitle"
-    }))
-    .unwrap();
-    ctx.init.workflow.video_dir = dir.to_string();
-    ctx.init.workflow.id = "t".to_string();
-    ctx.init.output_mode = "subtitle".to_string();
-    // 模拟 import 已跑过：subtitle 序列现恒含 split_audio，无 vocals stem 时它
-    // 回退到 audio_source.wav，缺失即报错（文件本身不必存在，probe 失败按 0 处理）。
-    ctx.init.audio_source_path = Some(format!("{dir}/audio_source.wav"));
-    write_ctx(dir, &ctx).unwrap();
+/// 构造写好 `state.json` + `input.json` 的 subtitle 临时 workflow 目录
+/// (只触发 separate / separate_after)。
+pub fn setup_subtitle(dir: &str) -> crate::input::Input {
+    let input = write_fixture(
+        dir,
+        json!({
+            "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
+                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
+            "input": {
+                "workflow": {"outputMode": "subtitle"},
+                "steps": {
+                    "separate": {"always": false},
+                    "asr": {"enabled": false},
+                    "asr_fix": {"enabled": false},
+                    "translate": {"enabled": false},
+                    "mix_video": {"enabled": false}
+                }
+            },
+            "output_mode": "subtitle"
+        }),
+    );
     // split_audio 会读 translate 产物；本 stub 禁用了 asr/asr_fix，translate 直通
     // 无内容可搬会写出空产物，split_audio 随即 fail-fast。故给 translate 的
     // **输入**（subtitleSource=asr → asr_fix/srt.json）造假数据，直通原样带出。
@@ -61,9 +56,9 @@ pub fn setup_subtitle(dir: &str) {
         ],
     )
     .unwrap();
+    input
 }
 
 pub fn status_of(dir: &str, step: &str) -> StepStatus {
-    let ctx = read_ctx(dir).unwrap();
-    ctx.step(step.parse().unwrap()).status
+    read_step_state(dir, step).unwrap().status
 }

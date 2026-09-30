@@ -19,7 +19,6 @@ use chrono::Utc;
 use serde::Serialize;
 
 use crate::r#const::lang::LangCode;
-use crate::state::{read_ctx, write_ctx, WorkflowStep};
 use subtitle::SubtitleSegment;
 
 /// RFC3339 时间戳, 去毫秒 (镜像 TS `nowISO`, 形如 `2024-01-01T00:00:00Z`)。
@@ -123,12 +122,12 @@ impl WorkflowPatch {
     }
 }
 
-/// 对 `init.json` 中 workflow 子树做 RMW 合并 (镜像 TS `setTask`)。
-/// **编排器专用**（run 边界）——步骤不写 init.json。
+/// 对 `state.json` 中 workflow 子树做 RMW 合并 (镜像 TS `setTask`)。
+/// **编排器专用**（run 边界）——步骤不写 `state.json`。
 pub fn set_workflow(video_dir: &str, patch: WorkflowPatch) -> Result<(), String> {
-    let mut init = crate::state::read_init(video_dir)?;
-    init.workflow = patch.apply(init.workflow);
-    crate::state::write_init(video_dir, &init)
+    let mut st = crate::state::read_state(video_dir)?;
+    st.workflow = patch.apply(st.workflow);
+    crate::state::write_state(video_dir, &st)
 }
 
 /// `set_step` 返回 `Result<(), String>`, 此 wrapper 转 `anyhow::Result` 以便 `?`。
@@ -404,14 +403,11 @@ pub fn asr_fix_dir(video_dir: &str) -> PathBuf {
     Path::new(video_dir).join("asr_fix")
 }
 
-/// 取 video_source_path (缺则报错, 与 TS `video_source_path` 一致)。
-pub fn video_source_path(ctx: &crate::state::State) -> anyhow::Result<String> {
-    ctx.init.video_source_path.clone().ok_or_else(|| {
-        anyhow::anyhow!(
-            "video_source_path 未设置 (session {})",
-            ctx.init.workflow.video_dir
-        )
-    })
+/// 原视频 `video_source.mp4` 的**约定路径**（[`VideoSourcePath`] 的唯一拼法）。
+///
+/// 不再读 state.json 里那份「可能与实际落点漂移」的副本——拼法只有一个来源。
+pub fn video_source_path(video_dir: &str) -> String {
+    crate::steps::utils::paths::VideoSourcePath::from_video_dir(video_dir).to_string()
 }
 
 /// 确保目录存在 (镜像 TS `ensureDir`)。
@@ -567,7 +563,7 @@ pub fn split_audio_timings_path(video_dir: &str) -> PathBuf {
 /// 本函数已删：它返 `serde_json::Value`，逼得每个消费者再手写一遍字段解析
 /// （`split_audio` 30 行、`mix_video` 一个 `extract_segs_from_value`），
 /// 且每处 `unwrap_or(0)` 静默吞错。现在翻译产物是**带类型**读取的，解析只在
-/// 一处。需要 ctx 版本时：`TranslateResult::read(&LangPath::from_state(ctx)?)`。
+/// 一处。需要按事实定位时：`TranslateResult::read(&LangPath::from_video_dir(video_dir)?)`。
 
 /// 解析目标语言。返回 `(srcLang, targetLang)`。
 ///
@@ -581,92 +577,57 @@ pub fn split_audio_timings_path(video_dir: &str) -> PathBuf {
 ///
 /// 直通时**无条件用源语言**，即使配了 `targetLang` 也一样——「目标语言」在
 /// 没有翻译的前提下不成立，此时它只是"以后打算翻译成什么"的意向，不是本次
-/// 事实。本次事实由产物名与 `ctx.target_language()` 承载，必须是源语言。
+/// 事实。本次事实由产物名与 `<translate>/out.json` 承载，必须是源语言。
 ///
 /// 目标语言是任务级概念（一个任务只有一个翻译阶段），配置入口统一为
 /// `input.workflow.targetLang`；旧 `steps.translate.targetLang` 已移除。
 ///
-/// **本函数是纯函数**（无副作用）。落盘由
-/// [`persist_target_language`] 完成，且只由 translate 调一次。
-pub fn resolve_language(ctx: &crate::state::State) -> anyhow::Result<(String, String)> {
-    let src = crate::state::lang::SourceLang::from_state(ctx);
+/// **本函数是纯函数**（无副作用）：只读 `input` 与 `<asr>/out.json`，不落盘。
+/// 落盘由 [`crate::steps::translate::out::TranslateOutput::write`] 完成，且只由
+/// translate 调一次。
+pub fn resolve_language(
+    video_dir: &str,
+    input: &crate::input::Input,
+) -> anyhow::Result<(String, String)> {
+    let src = crate::state::lang::SourceLang::from_video_dir(video_dir, input);
     let src_code = src.code().to_string();
 
     // ① 直通：目标 = 源。不查配置、不推断——没有翻译就没有"目标"这个概念。
-    if !translate_enabled(ctx) {
+    if !translate_enabled(input) {
         return Ok((src_code.clone(), src_code));
     }
 
     // ②③ 目标语言: input.workflow.targetLang > auto 推断 (源 zh -> en, 其它 -> zh)。
     // 目标必须是支持的翻译语言: 显式值经 `Language` 枚举校验 (非法回落 auto)。
-    // 解析委托给 `TargetLang::from_state`，与各 step 共用同一套解析，避免各自内联。
-    let target = crate::state::lang::TargetLang::from_state(ctx);
+    // 解析委托给 `TargetLang::from_video_dir`，与各 step 共用同一套解析，避免各自内联。
+    let target = crate::state::lang::TargetLang::from_video_dir(video_dir, input);
     Ok((src_code, target.code().to_string()))
 }
 
 /// 解析**源语言**（与目标语言无关，故独立成函数）。
 ///
-/// 委托给 [`crate::state::lang::SourceLang::from_state`]——单一解析来源，
+/// 委托给 [`crate::state::lang::SourceLang::from_video_dir`]——单一解析来源，
 /// 各 step（`asr_fix` 的 LLM 提示词、`split_audio` 写 meta、`sf_ocr_fix` /
 /// `asr_ocr_fix` 的 LLM 修正）拿到的必然一致。
 ///
-/// 回退链：`ctx.asr_language()`（ASR 实测）> `input.workflow.sourceLang` > 兜底（未知/空串）。
+/// 回退链：`<asr>/out.json` 的 `language`（ASR 实测）> `input.workflow.sourceLang`
+/// > 兜底（未知/空串）。
 ///
 /// **为什么纯 OCR / subtitle 路径依赖后两级**：那些路径没有 ASR，
-/// `ctx.asr_language()` 是 `None`——必须回落到配置的 `sourceLang`，否则非中文任务
+/// `<asr>/out.json` 不存在——必须回落到配置的 `sourceLang`，否则非中文任务
 /// 被当成 zh，进而把目标语言错误推断成 en。
 ///
 /// 源语言是开放事实（`LangCode`），不做枚举截断——列表外语言如实透传。
-pub fn src_language(ctx: &crate::state::State) -> LangCode {
-    crate::state::lang::SourceLang::from_state(ctx).into_inner()
+pub fn src_language(video_dir: &str, input: &crate::input::Input) -> LangCode {
+    crate::state::lang::SourceLang::from_video_dir(video_dir, input).into_inner()
 }
 
 /// `steps.translate.enabled`，缺省 `true`（与 `TranslateArgs` 的 serde 默认一致）。
 ///
 /// 直读结构化字段而非构造 `TranslateArgs`：本函数在 `utils` 层，不该依赖 translate
 /// 的 args 类型（那会形成 utils → steps::translate 的循环依赖）。
-fn translate_enabled(ctx: &crate::state::State) -> bool {
-    ctx.init.input.steps.translate.enabled
-}
-
-/// 把本次的目标语言**落盘**（state.json 的 `target_language`）。
-///
-/// **只能由 [`crate::steps::translate::step_translate`] 调用一次。**
-/// 这是刻意的写入权限约束：
-///
-/// 此前这一步藏在 `resolve_language` 内部（「算出来变了就顺手写回」），于是
-/// 一个**看起来纯读**的函数带着隐形写副作用。后果是产生顺序依赖——
-/// `split_audio` 先调 `read_translation_result(ctx)`（读 ctx 里的旧值）**再**调
-/// `resolve_language(ctx)`（顺带改写 state.json），读在写之前，读到的文件名与
-/// 该步骤认定的语言就不是同一个。
-///
-/// 现在拆开：`resolve_language` 纯函数（可随便调、幂等、无副作用），写盘只此一处。
-/// 「谁写的」在类型/调用点上可见，不再需要读者去猜某个函数有没有副作用。
-///
-/// 失败**返回 Err**（原先只 `warn`）——写不下去就意味着下游会读到错的语言，
-/// 静默继续会让问题延后到「文件不存在」时才暴露，更难定位。
-pub fn persist_target_language(video_dir: &str, lang: &str) -> anyhow::Result<()> {
-    // 幂等：值相同免一次写盘（translate 测试钉住「resolve 调用无副作用」）。
-    // 写入点 = translate 自己的 state 文件（单写者原则）。
-    let mut st = crate::state::read_step_state(video_dir, "translate")
-        .map_err(anyhow::Error::msg)?;
-    let existing = st.facts.get("target_language").and_then(|v| v.as_str());
-    if existing == Some(lang) {
-        return Ok(());
-    }
-    if !st.facts.is_object() {
-        st.facts = serde_json::Value::Object(serde_json::Map::new());
-    }
-    if let Some(obj) = st.facts.as_object_mut() {
-        obj.insert(
-            "target_language".to_string(),
-            serde_json::Value::String(lang.to_string()),
-        );
-    }
-    crate::state::write_step_state(video_dir, "translate", &st)
-        .map_err(anyhow::Error::msg)?;
-    tracing::info!(target: "output_mode", "target_language 已落盘: {lang}");
-    Ok(())
+fn translate_enabled(input: &crate::input::Input) -> bool {
+    input.steps.translate.enabled
 }
 
 /// 序列化辅助: 把任意可序列化值转成 pretty JSON 字符串 (测试 / 透传用)。
@@ -683,14 +644,12 @@ use std::io::Write as _;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::read_ctx_from_value;
-    use crate::workflows::args::StepName;
+    use crate::input::Input;
     use serde_json::json;
 
-    fn ctx_at(video_dir: &str, input: serde_json::Value) -> State {
-        let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.init.workflow.video_dir = video_dir.to_string();
-        ctx
+    /// 从扁平夹具 JSON 取出 `input` 子树（这些用例不落盘，纯推演语言）。
+    fn input_at(json: serde_json::Value) -> Input {
+        serde_json::from_value(json.get("input").cloned().unwrap_or(json!({}))).unwrap()
     }
 
     #[test]
@@ -755,16 +714,11 @@ mod tests {
     /// 按"目标语言"选字体（非 zh → Arial）会给中文字幕配 Arial。
     #[test]
     fn passthrough_targets_source_language() {
-        let ctx = ctx_at(
-            "/x",
-            json!({
-                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"sourceLang": "zh"},
-                          "steps": {"translate": {"enabled": false}}}
-            }),
-        );
-        let (src, dst) = resolve_language(&ctx).unwrap();
+        let input = input_at(json!({
+            "input": {"workflow": {"sourceLang": "zh"},
+                      "steps": {"translate": {"enabled": false}}}
+        }));
+        let (src, dst) = resolve_language("/x", &input).unwrap();
         assert_eq!(src, "zh");
         assert_eq!(dst, "zh", "直通时目标应等于源（不是推断出的 en）");
     }
@@ -772,20 +726,15 @@ mod tests {
     /// 直通时**无条件**用源语言——即使显式配了 `targetLang`。
     ///
     /// 理由：「目标语言」在没有翻译的前提下不成立，配了也只是"以后打算翻译成
-    /// 什么"的意向，不是本次事实。本次事实由产物名与 `ctx.target_language()`
+    /// 什么"的意向，不是本次事实。本次事实由产物名与 `<translate>/out.json`
     /// 承载，必须是源语言。
     #[test]
     fn passthrough_overrides_explicit_target_lang() {
-        let ctx = ctx_at(
-            "/x",
-            json!({
-                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"sourceLang": "zh", "targetLang": "vi"},
-                          "steps": {"translate": {"enabled": false}}}
-            }),
-        );
-        let (_, dst) = resolve_language(&ctx).unwrap();
+        let input = input_at(json!({
+            "input": {"workflow": {"sourceLang": "zh", "targetLang": "vi"},
+                      "steps": {"translate": {"enabled": false}}}
+        }));
+        let (_, dst) = resolve_language("/x", &input).unwrap();
         assert_eq!(dst, "zh", "直通时显式 targetLang 被源语言覆盖");
     }
 
@@ -795,31 +744,19 @@ mod tests {
     /// 全部走直通，静默不翻译。
     #[test]
     fn missing_enabled_defaults_to_translating() {
-        let ctx = ctx_at(
-            "/x",
-            json!({
-                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"sourceLang": "zh"}}
-            }),
-        );
-        let (_, dst) = resolve_language(&ctx).unwrap();
+        let input = input_at(json!({"input": {"workflow": {"sourceLang": "zh"}}}));
+        let (_, dst) = resolve_language("/x", &input).unwrap();
         assert_eq!(dst, "en", "缺省 enabled=true → 正常推断（源 zh → en）");
     }
 
     /// 开翻译时显式 `targetLang` 优先于推断。
     #[test]
     fn explicit_target_wins_when_translating() {
-        let ctx = ctx_at(
-            "/x",
-            json!({
-                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"sourceLang": "zh", "targetLang": "vi"},
-                          "steps": {"translate": {"enabled": true}}}
-            }),
-        );
-        let (_, dst) = resolve_language(&ctx).unwrap();
+        let input = input_at(json!({
+            "input": {"workflow": {"sourceLang": "zh", "targetLang": "vi"},
+                      "steps": {"translate": {"enabled": true}}}
+        }));
+        let (_, dst) = resolve_language("/x", &input).unwrap();
         assert_eq!(dst, "vi");
     }
 
@@ -830,7 +767,7 @@ mod tests {
             .to_string_lossy()
             .to_string();
         let _ = std::fs::create_dir_all(&dir);
-        let ctx = ctx_at(
+        crate::state::write_fixture(
             &dir,
             json!({
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
@@ -838,7 +775,6 @@ mod tests {
                 "input": {}, "output_mode": "dub"
             }),
         );
-        write_ctx(&dir, &ctx).unwrap();
 
         // 第一次 set → 新建, 带 running + started_at
         set_step(
@@ -863,8 +799,7 @@ mod tests {
         )
         .unwrap();
 
-        let reread = read_ctx(&dir).unwrap();
-        let st = reread.step(StepName::Separate);
+        let st = crate::state::read_step_state(&dir, "separate").unwrap();
         assert_eq!(st.status, StepStatus::Running);
         assert_eq!(st.progress, Some(50.0));
         assert_eq!(st.started_at.as_deref(), Some("2024-01-01T00:00:01Z"));
@@ -881,8 +816,7 @@ mod tests {
             },
         )
         .unwrap();
-        let reread = read_ctx(&dir).unwrap();
-        let st = reread.step(StepName::Separate);
+        let st = crate::state::read_step_state(&dir, "separate").unwrap();
         assert_eq!(st.status, StepStatus::Success);
         assert!(st.error_message.is_none());
 
@@ -896,7 +830,7 @@ mod tests {
             .to_string_lossy()
             .to_string();
         let _ = std::fs::create_dir_all(&dir);
-        let ctx = ctx_at(
+        crate::state::write_fixture(
             &dir,
             json!({
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
@@ -904,7 +838,6 @@ mod tests {
                 "input": {}, "output_mode": "dub"
             }),
         );
-        write_ctx(&dir, &ctx).unwrap();
 
         set_workflow(
             &dir,
@@ -916,9 +849,9 @@ mod tests {
             },
         )
         .unwrap();
-        let reread = read_ctx(&dir).unwrap();
-        assert_eq!(reread.init.workflow.status, "success");
-        assert!(reread.init.workflow.error_message.is_none());
+        let wf = crate::state::read_workflow(&dir).unwrap();
+        assert_eq!(wf.status, "success");
+        assert!(wf.error_message.is_none());
 
         let _ = std::fs::remove_dir_all(&dir);
     }

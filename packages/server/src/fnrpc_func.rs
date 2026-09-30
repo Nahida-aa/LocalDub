@@ -22,7 +22,7 @@ use crate::{
         },
         workflows::{
             cancel_queue, continue_workflow, enqueue_continue, enqueue_dir, enqueue_import,
-            enqueue_start, get_group_list, get_workflow_ctx, list_queue, log::watch_workflow_log,
+            enqueue_start, get_group_list /* get_workflow_ctx */, list_queue, log::watch_workflow_log,
             regen_tts, start_workflow, tree::watch_workflow_tree,
         },
     },
@@ -44,7 +44,8 @@ pub fn build_fn_rpc_router() -> fnrpc::router::RpcRouter<Ctx> {
         .subscribe(watch_workflow_log)
         .subscribe(watch_workflow_tree)
         .route_fn(get_group_list)
-        .route_fn(get_workflow_ctx)
+        // get_workflow_ctx 端点暂停接入（State 形状改造中，待 CLI 跑通后再议）
+        // .route_fn(get_workflow_ctx)
         .route_fn(health_check)
         .route_fn(find_server)
         .route_fn(get_server_status)

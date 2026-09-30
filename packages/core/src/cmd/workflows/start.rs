@@ -16,21 +16,25 @@ use anyhow::Context;
 ///
 /// 返回新任务的绝对 video_dir (供 RPC/CLI 层用于跳转/提示)。
 pub fn start_workflow(input: &Input) -> anyhow::Result<String> {
-    let state =
+    let st =
         crate::workflows::import::download::import_video(input).context("import_video 失败")?;
-    println!("[cli] 导入完成, video_dir = {}", state.init.workflow.video_dir);
-    let engine = input.workflow.as_ref().and_then(|w| w.engine).unwrap_or(false);
+    println!("[cli] 导入完成, video_dir = {}", st.workflow.video_dir);
+    let engine = input
+        .workflow
+        .as_ref()
+        .and_then(|w| w.engine)
+        .unwrap_or(false);
     if engine {
         println!("[cli] 引擎模式 (aa-workflow, 真源 events.jsonl)");
         crate::integration::workflow::run_workflow_engine(
-            &state.init.workflow.video_dir,
+            &st.workflow.video_dir,
             &crate::integration::workflow::EngineOptions::from_input(input),
         )
         .context("run_workflow_engine 失败")?;
     } else {
-        crate::workflows::pipeline::run_pipeline(&state.init.workflow.video_dir)
+        crate::workflows::pipeline::run_pipeline(&st.workflow.video_dir, input)
             .context("run_pipeline 失败")?;
     }
-    println!("[cli] 完成: {}", state.init.workflow.video_dir);
-    Ok(state.init.workflow.video_dir)
+    println!("[cli] 完成: {}", st.workflow.video_dir);
+    Ok(st.workflow.video_dir)
 }

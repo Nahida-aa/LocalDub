@@ -28,7 +28,12 @@ pub const BATCH_SIZE: usize = 50;
 ///
 /// 文件不存在 / 解析失败都当作"没有进度"——partial 只是加速与诊断用的
 /// 中间态, 丢了重跑即可, 不该让 step 失败。
-pub fn read_partial(path: &Path) -> (std::collections::HashSet<usize>, Vec<TranslatePartialSegment>) {
+pub fn read_partial(
+    path: &Path,
+) -> (
+    std::collections::HashSet<usize>,
+    Vec<TranslatePartialSegment>,
+) {
     let Ok(raw) = std::fs::read_to_string(path) else {
         return (Default::default(), Vec::new());
     };
@@ -55,7 +60,8 @@ pub fn write_partial(
         .map(|gi| {
             let bi = gi / BATCH_SIZE;
             let dst = dsts.get(gi).cloned().flatten().unwrap_or_default();
-            let missing = dsts.get(gi).map(|o| o.is_none()).unwrap_or(true) && !completed.contains(&bi);
+            let missing =
+                dsts.get(gi).map(|o| o.is_none()).unwrap_or(true) && !completed.contains(&bi);
             TranslatePartialSegment {
                 text: texts[gi].clone(),
                 dst,

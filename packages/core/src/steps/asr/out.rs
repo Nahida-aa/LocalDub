@@ -100,6 +100,52 @@ impl AsrResult {
 }
 
 // ---------------------------------------------------------------------------
+// <asr>/out.json —— 本步的**产物事实**
+// ---------------------------------------------------------------------------
+
+/// `<asr>/out.json`：asr 这一步产出的、供下游消费的**事实**。
+///
+/// 与 `asr/asr.json`（[`AsrResult`]）分工明确：后者是逐段转录内容（读它要吃下
+/// 全部 segments），前者只有一条——**实测语言**。下游（`TargetLang` / `mix_video`
+/// 的字体与`srt` 语言选择）只想要这一条，不必扛整个转录结果。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct AsrOutput {
+    /// whisper 实测的源语言（如 `"en"` / `"zh"`）。
+    ///
+    /// 这是 asr 唯一「算不出来、只能实测」的产物，其它语言信息来源都是配置或推断。
+    pub language: String,
+}
+
+impl AsrOutput {
+    /// 写入 `<asr>/out.json`（asr 成功识别后一次性写入，唯一写者）。
+    pub fn write(video_dir: &str, language: &str) -> Result<Self> {
+        let out = Self {
+            language: language.to_string(),
+        };
+        crate::state::write_step_out(video_dir, "asr", &out)
+            .map_err(anyhow::Error::msg)
+            .context("写 <asr>/out.json 失败")?;
+        Ok(out)
+    }
+
+    /// 读 `<asr>/out.json`；文件缺失 → `None`（纯 OCR / subtitle 路径不跑 asr）。
+    pub fn read(video_dir: &str) -> Result<Option<Self>> {
+        crate::state::read_step_out(video_dir, "asr").map_err(anyhow::Error::msg)
+    }
+}
+
+/// 「视频目录 → 实测源语言」的便利入口（`asr_language()` 直接吃 video_dir）。
+///
+/// 解析失败一律当「没跑过 asr」返回 `None`：语言只影响字体/术语等次要决策，
+/// 让它缺位（走 `sourceLang` 配置兜底）比让整条 pipeline 崩掉合理。
+pub fn asr_language(video_dir: &str) -> Option<crate::r#const::lang::LangCode> {
+    AsrOutput::read(video_dir)
+        .ok()
+        .flatten()
+        .map(|o| crate::r#const::lang::LangCode::from(o.language))
+}
+
+// ---------------------------------------------------------------------------
 // whisper.cpp `-ojf` 原生 JSON 结构 (镜像 TS `WhisperJson` / `WhisperJsonSegment`)
 // ---------------------------------------------------------------------------
 

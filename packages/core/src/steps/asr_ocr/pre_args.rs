@@ -1,8 +1,6 @@
 //! asr_ocr 阶段预处理参数 (镜像 TS `packages/core/steps/04_asr_ocr/pre_args.ts`)。
 
-use crate::state::State;
 use crate::steps::utils::paths::{asr, VideoSourcePath};
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 /// asr_ocr 阶段预处理参数。
@@ -30,34 +28,37 @@ fn default_fps() -> f64 {
 
 /// asr_ocr_pre 步骤的输入契约（**依赖清单**）：本步**消费**的路径。
 ///
-/// 装两条依赖：
+/// 装三条东西：
 /// - `asr/asr.json`（`asr` 步骤产出，约定拼法 `{video_dir}/asr/asr.json`，
 ///   经 [`asr::AsrPath`]）——本步据此做 ASR 切分；
-/// - 原视频文件 `video_source.mp4`（任务级输入，由 import 落盘进 ctx 的**事实**，
-///   非 video_dir 约定拼法，经
-///   [`crate::steps::utils::paths::VideoSourcePath::from_state`]）。
+/// - 原视频文件 `video_source.mp4`（约定拼法，经
+///   [`VideoSourcePath::from_video_dir`]）；
+/// - `args`：本次抽帧参数（`input.steps.asr_ocr_pre`）。
 ///
-/// 视频源是 ctx 事实（缺失即报错，没导入过就没有），故入口是
-/// [`from_state`](Self::from_state)。`asr/asr.json` 虽是约定拼法，但本步入口统一走
-/// ctx（`video_source_path` 本就来自 ctx），于是也一并从 `ctx.init.workflow.video_dir` 拼出，
-/// 与同族 `SfOcrPreInput` 取法一致。
+/// 两条路径都是 `{video_dir}/...` 的约定拼法，故入口是
+/// [`new`](Self::new)`(video_dir, input)`。
 ///
 /// 本步的产出（`asr_ocr_pre/asr_split.json` / `asr_ocr_pre/frames/`）属于「产出」而非
-/// 「依赖」，不在此清单内。与 `SfOcrPreInput` / `SfOcrFixInput` / `TtsInput` 同款：
+/// 「依赖」，不在此清单内。与 `SfOcrPreInput` / `TtsInput` 同款：
 /// `StepInput` 是依赖清单。
 pub struct AsrOcrPreInput {
+    /// 任务目录（写侧 step status 需要）。
+    pub video_dir: String,
     /// 来自 asr 步骤的识别结果 `asr/asr.json`。
     pub asr_path: asr::AsrPath,
     /// 原视频文件（任务级输入，由 import 产出）。
     pub video_source_path: VideoSourcePath,
+    /// 本次运行参数（`input.steps.asr_ocr_pre`：抽帧帧率）。
+    pub args: AsrOcrPreArgs,
 }
 
 impl AsrOcrPreInput {
-    /// 从工作流状态解析本步输入契约（视频源是 ctx 事实）。
-    pub fn from_state(state: &State) -> Result<Self> {
-        Ok(Self {
-            asr_path: asr::AsrPath::new(&state.init.workflow.video_dir),
-            video_source_path: VideoSourcePath::from_state(state)?,
-        })
+    pub fn new(video_dir: &str, input: &crate::input::Input) -> Self {
+        Self {
+            video_dir: video_dir.to_string(),
+            asr_path: asr::AsrPath::new(video_dir),
+            video_source_path: VideoSourcePath::from_video_dir(video_dir),
+            args: input.steps.asr_ocr_pre.clone(),
+        }
     }
 }

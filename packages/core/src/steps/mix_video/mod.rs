@@ -5,25 +5,26 @@
 //! - `dub` output_mode: 混流配音音频 (audio_dubbing.wav + bgm, sidechain 压缩) 再硬烧字幕
 
 pub mod args;
+pub mod out;
 
 use anyhow::anyhow;
 
-use crate::state::State;
 use crate::steps::mix_audio::out::MixAudioOutputTimings;
-use crate::steps::mix_video::args::{Alignment, MixVideoArgs, MixVideoInput};
+use crate::steps::mix_video::args::{Alignment, MixVideoArgs, MixVideoBranch, MixVideoInput};
 use crate::steps::split_audio::out::SplitAudioTimingResult;
 use crate::steps::utils::srt::SubtitleSegments;
 use crate::steps::utils::{
     default_font, ensure_dir, ffmpeg_timeout, final_video_dir, probe_video_resolution,
-    set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus, WorkflowPatch,
+    set_step_anyhow, StepPatch, StepStatus,
 };
-use crate::workflows::args::OutputMode;
 
 /// 入口 (镜像 TS `stepMixVideo`)。
-pub fn step_mix_video(state: &State) -> anyhow::Result<()> {
-    let video_dir = state.init.workflow.video_dir.clone();
-    let video_id = state.init.workflow.id.clone();
-    let cfg = MixVideoArgs::from_input(&state.init.input);
+///
+/// 单参 [`MixVideoInput`]：分支读集 + 身份 + 语言事实 + 本次参数都在里面。
+pub fn step_mix_video(input: &MixVideoInput) -> anyhow::Result<()> {
+    let video_dir = input.video_dir.clone();
+    let video_id = input.video_id.clone();
+    let cfg = &input.args;
 
     if !cfg.enabled {
         tracing::info!(target: "mix_video", "disabled (mix_video.enabled=false), skipping");
@@ -41,39 +42,26 @@ pub fn step_mix_video(state: &State) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let input = MixVideoInput::from_state(state)?;
-    let video_file_path = match &input {
-        MixVideoInput::Dub {
-            video_source_path, ..
-        }
-        | MixVideoInput::Subtitle {
-            video_source_path, ..
-        } => video_source_path.to_string(),
-    };
+    let video_file_path = input
+        .video_source_path
+        .as_path()
+        .to_string_lossy()
+        .into_owned();
     let mix_video = std::path::Path::new(&video_dir).join("mix_video");
     ensure_dir(&mix_video)?;
 
-    if !std::path::Path::new(&video_file_path).exists() {
+    if !input.video_source_path.as_path().exists() {
         return Err(anyhow!("video_source.mp4 not found: {video_file_path}"));
     }
 
-    let output_mode = OutputMode::from_input(&state.init.input);
-    // 目标语言读**已落定的事实**（翻译步骤写的唯一写入点），不再现算：
+    let output_mode = input.output_mode;
+    // 目标语言读**已落定的事实**（翻译步骤写的），不再现算：
     // `resolve_language` 是现算，推断逻辑一变就会与产物不一致。
-    let target_lang = crate::steps::utils::paths::translate::LangPath::from_state(state)?
-        .lang()
-        .to_string();
+    let target_lang = input.target_lang.clone();
 
-    let no_translate = !state.init.input.steps.translate.enabled;
+    let subtitle_source = input.subtitle_source.as_str();
 
-    let subtitle_source = state
-        .input
-        .workflow
-        .as_ref()
-        .map(|w| w.subtitle_source.as_str())
-        .unwrap_or("asr");
-
-    let final_dir_name = final_video_dir(&output_mode.as_ref(), subtitle_source, no_translate);
+    let final_dir_name = final_video_dir(output_mode.as_str(), subtitle_source, input.no_translate);
     let final_video_dir = mix_video.join(&final_dir_name);
     ensure_dir(&final_video_dir)?;
     let final_video = final_video_dir.join(format!("{video_id}.mp4"));
@@ -85,13 +73,12 @@ pub fn step_mix_video(state: &State) -> anyhow::Result<()> {
     let sub_path = mix_video.join(format!("{target_lang}.srt"));
     let style = probe_style(&video_file_path, &target_lang, &cfg, alignment_num);
 
-    match input {
+    match &input.branch {
         // 字幕时间轴统一取 split_audio 的**意图时序** `timings.json`：
         // `split_audio.json` 里 padding 后的切块区间是给切音频用的，不是字幕显示
         // 时间。vad_align 打开时 timings.json 本身已含 VAD 修正，无需再分支。
-        MixVideoInput::Subtitle {
+        MixVideoBranch::Subtitle {
             split_audio_timings_path,
-            ..
         } => {
             let timings = SplitAudioTimingResult::read(&split_audio_timings_path)
                 .map_err(|e| anyhow!("读取 split_audio 意图时序失败: {e}"))?;
@@ -125,11 +112,10 @@ pub fn step_mix_video(state: &State) -> anyhow::Result<()> {
             )
             .map_err(|e| anyhow!("mix_video (subtitle) ffmpeg 失败: {e}"))?;
         }
-        MixVideoInput::Dub {
+        MixVideoBranch::Dub {
             dubbing_path,
             bgm_path,
             mix_audio_timings_path,
-            ..
         } => {
             if !dubbing_path.exists() {
                 return Err(anyhow!(
@@ -204,14 +190,8 @@ pub fn step_mix_video(state: &State) -> anyhow::Result<()> {
 
     tracing::info!(target: "mix_video", "Wrote final video: {}", final_video.display());
 
-    // 写回 mix_video 自己的 facts：final_video_path（镜像 TS mix_video 设置 finalVideoPath）
-    crate::state::write_step_fact(
-        &video_dir,
-        "mix_video",
-        "final_video_path",
-        serde_json::Value::String(final_video.to_string_lossy().into_owned()),
-    )
-    .map_err(anyhow::Error::msg)?;
+    // 登记成片路径到 <mix_video>/out.json（镜像 TS mix_video 设置 finalVideoPath）
+    crate::steps::mix_video::out::MixVideoOutput::write(&video_dir, &final_video)?;
 
     set_step_anyhow(
         &video_dir,
@@ -294,7 +274,7 @@ fn build_subtitle_srt_dub_branch(
 mod tests {
     use super::*;
 
-    /// `mix_video` 的目标语言必须来自**已落定的事实**（`ctx.target_language()`），
+    /// `mix_video` 的目标语言必须来自**已落定的事实**（`<translate>/out.json`），
     /// 而不是 `resolve_language` 的现算值。
     ///
     /// 为什么这条重要：`target_lang` 不只用于命名，还驱动 `probe_style` →
@@ -304,19 +284,18 @@ mod tests {
     /// 构造「配置说 vi、事实是 zh」的错配，断言以**事实**为准。
     #[test]
     fn target_lang_comes_from_persisted_fact_not_config() {
-        use crate::state::read_ctx_from_value;
         use crate::steps::utils::paths::translate::LangPath;
 
-        let mut ctx = read_ctx_from_value(serde_json::json!({
-            "workflow": {"id":"t","video_dir":"/w","url":"http://e","source":"remote",
-                     "status":"running","created_at":"2024-01-01T00:00:00Z"},
-            "input": {"workflow": {"targetLang": "vi"}}
-        }))
-        .unwrap();
-        ctx.target_language() = Some("zh".to_string());
+        let dir = std::env::temp_dir()
+            .join(format!("ld_mv_lang_{}", std::process::id()))
+            .to_string_lossy()
+            .to_string();
+        let _ = std::fs::remove_dir_all(&dir);
+        // 配置说 vi、translate 落定的事实是 zh → 以事实为准
+        crate::steps::translate::out::TranslateOutput::write(&dir, "zh").unwrap();
 
-        let lang = LangPath::from_state(&ctx).unwrap().lang().to_string();
-        assert_eq!(lang, "zh", "应以 ctx 的事实为准，而非 input 里的 vi");
+        let lang = LangPath::from_video_dir(&dir).unwrap().lang().to_string();
+        assert_eq!(lang, "zh", "应以落定的事实为准，而非 input 里的 vi");
 
         // 与字体选择挂钩：zh 必须选到 CJK 字体而非 Arial
         let style = probe_style("/nonexistent.mp4", &lang, &MixVideoArgs::default(), 2);
@@ -324,6 +303,7 @@ mod tests {
             !style.contains("FontName=Arial"),
             "中文字幕不该配 Arial（无中文字形）: {style}"
         );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

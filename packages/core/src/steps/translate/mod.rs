@@ -4,7 +4,7 @@
 //! `translate/{lang}.json`。翻译是 dub/subtitle pipeline 共享的 step。
 //!
 //! 实现要点 (与 TS 对齐):
-//! - 目标语言 input > auto 推断 (resolve_language), 写回 ctx.target_language()
+//! - 目标语言 input > auto 推断 (resolve_language), 由 TranslateOutput::write 落定
 //! - 有 ytdlp_info.json 时先做 preprocess (summary/hotwords/corrections) 注入系统提示
 //! - 批量 BATCH_SIZE=50, 每批 3 次重试; 目标非中文时校验译文中文占比 < 0.3
 //! - 破折号 `——` 替换为逗号
@@ -19,12 +19,10 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use crate::state::State;
 use crate::steps::translate::out::{TranslateResult, TranslateResultMeta, TranslateSegment};
 use crate::steps::translate::prompts::{build_preprocess_prompt, build_translate_system, MetaView};
 use crate::steps::utils::{
-    lang_name, now_iso, resolve_language, set_step_anyhow, translation_partial_path, StepPatch,
-    StepStatus,
+    lang_name, now_iso, set_step_anyhow, translation_partial_path, StepPatch, StepStatus,
 };
 use crate::utils::file_ops::write_json_pretty;
 use config_rs::env::openai_api_key;
@@ -175,19 +173,23 @@ pub fn parse_json_reply(raw: &str) -> anyhow::Result<Value> {
 }
 
 /// 入口 (镜像 TS `stepTranslate`)。
-pub fn step_translate(state: &State) -> anyhow::Result<()> {
+///
+/// 单参 [`args::TranslateInput`]：字幕来源 + 任务目录 + 本次参数 + 本次语言决策。
+pub fn step_translate(input: &args::TranslateInput) -> anyhow::Result<()> {
     tracing::info!(target: "translate", "start");
 
-    let input = args::TranslateInput::from_state(state)?;
-    let args = args::TranslateArgs::from_input(&state.init.input);
-    let (src_lang, target_lang) = resolve_language(state)?;
+    let args = &input.args;
+    let src_lang = input.src_lang.clone();
+    let target_lang = input.target_lang.clone().ok_or_else(|| {
+        anyhow::anyhow!("TranslateInput.target_lang 缺失（resolve_language 失败？）")
+    })?;
     let video_dir = input.video_dir.clone();
 
-    // **本文件是全仓唯一把 target_language 落盘的地方**（见
-    // `persist_target_language` 的说明）。放在最前：后续所有产物（translation /
-    // split_audio / mix_audio / mix_video）都按这个语言命名，落盘后才能保证
-    // 「下游从 ctx 读到的」与「translate 实际写的」是同一个语言。
-    crate::steps::utils::persist_target_language(&video_dir, &target_lang)?;
+    // **本文件是全仓唯一登记 target_language 的地方**（见 `TranslateOutput::write`
+    // 的说明）。放在最前：后续所有产物（translation / split_audio / mix_audio /
+    // mix_video）都按这个语言命名，落盘后才能保证「下游读到的」与「translate
+    // 实际写的」是同一个语言。
+    out::TranslateOutput::write(&video_dir, &target_lang)?;
 
     let src_lang_name = lang_name(&src_lang);
     let dst_lang_name = lang_name(&target_lang);
@@ -387,7 +389,7 @@ pub fn step_translate(state: &State) -> anyhow::Result<()> {
     // 但清掉历史遗留也无害)
     let _ = std::fs::remove_file(translation_partial_path(&video_dir, &target_lang));
 
-    // 确保 ctx.target_language() 在内存之外也落盘 (resolve_language 已写回文件, 这里仅保险)
+    // 目标语言事实落盘（本步骤是唯一写者，幂等）
     set_step_anyhow(
         &video_dir,
         "translate",
@@ -410,15 +412,27 @@ pub fn step_translate(state: &State) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::read_ctx_from_value;
+    use crate::steps::utils::resolve_language;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> State {
-        let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.init.workflow.video_dir = dir.to_string();
-        ctx.init.output_mode = "dub".to_string();
-        ctx.asr_language() = Some(crate::r#const::lang::LangCode::from("zh"));
-        ctx
+    /// 铺任务目录：`state.json` + `input.json`（+ 可选的 asr 事实），返回 input。
+    ///
+    /// 源语言的 ASR 实测值现在存在 `<asr>/out.json` 里，所以夹具要真写一份——
+    /// 这也是「事实」与「配置」分开之后，测试必须显式选择的一个维度。
+    fn at(dir: &str, asr_lang: Option<&str>, input: serde_json::Value) -> crate::input::Input {
+        let input = crate::state::write_fixture(
+            dir,
+            json!({
+                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
+                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
+                "input": input,
+                "output_mode": "dub"
+            }),
+        );
+        if let Some(lang) = asr_lang {
+            crate::steps::asr::out::AsrOutput::write(dir, lang).unwrap();
+        }
+        input
     }
 
     /// `parse_json_reply` 由 batch 与 run_preprocess 共用, 留在 mod 层测。
@@ -431,53 +445,41 @@ mod tests {
 
     #[test]
     fn resolve_target_lang_auto() {
+        let dir = std::env::temp_dir()
+            .join(format!("ld_tr_auto_{}", std::process::id()))
+            .to_string_lossy()
+            .to_string();
+        let _ = std::fs::remove_dir_all(&dir);
+
         // 源 zh -> en
-        let ctx = ctx_at(
-            "/x",
-            json!({
-                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {}
-            }),
-        );
-        let (src, dst) = resolve_language(&ctx).unwrap();
+        let input = at(&dir, Some("zh"), json!({}));
+        let (src, dst) = resolve_language(&dir, &input).unwrap();
         assert_eq!(src, "zh");
         assert_eq!(dst, "en");
 
         // 源 en -> zh
-        let ctx2 = ctx_at(
-            "/x",
-            json!({
-                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {}
-            }),
-        );
-        let c2 = read_ctx_from_value(json!({
-            "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
-                     "status":"running","created_at":"2024-01-01T00:00:00Z"},
-            "input": {}, "asr_language": "en"
-        }))
-        .unwrap();
-        let (src2, dst2) = resolve_language(&c2).unwrap();
+        let input2 = at(&dir, Some("en"), json!({}));
+        let (src2, dst2) = resolve_language(&dir, &input2).unwrap();
         assert_eq!(src2, "en");
         assert_eq!(dst2, "zh");
-        let _ = ctx2;
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// 无 ASR (纯 OCR / subtitle 路径) 时源语言回落到 input.workflow.sourceLang,
     /// 否则日语任务会被当成 zh -> 目标语言错误推断为 en。
     #[test]
     fn resolve_src_lang_falls_back_to_workflow_source_lang() {
-        let ctx = read_ctx_from_value(json!({
-            "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
-                     "status":"running","created_at":"2024-01-01T00:00:00Z"},
-            "input": {"workflow": {"sourceLang": "ja"}}
-        }))
-        .unwrap();
-        let (src, dst) = resolve_language(&ctx).unwrap();
+        let dir = std::env::temp_dir()
+            .join(format!("ld_tr_ja_{}", std::process::id()))
+            .to_string_lossy()
+            .to_string();
+        let _ = std::fs::remove_dir_all(&dir);
+        let input = at(&dir, None, json!({"workflow": {"sourceLang": "ja"}}));
+        let (src, dst) = resolve_language(&dir, &input).unwrap();
         assert_eq!(src, "ja");
         assert_eq!(dst, "zh");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -488,16 +490,8 @@ mod tests {
             .to_string();
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let ctx = ctx_at(
-            &dir,
-            json!({
-                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {}
-            }),
-        );
-        crate::state::write_ctx(&dir, &ctx).unwrap();
-        let res = step_translate(&ctx);
+        let input = at(&dir, Some("zh"), json!({}));
+        let res = step_translate(&args::TranslateInput::new(&dir, &input).unwrap());
         let err = res.expect_err("缺 srt.json 必须报错");
         let msg = err.to_string();
         assert!(
@@ -507,12 +501,12 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// `subtitleSource` 未知 → `Input` 反序列化阶段 fail-fast（不再在 `from_state` 静默回退）。
+    /// `subtitleSource` 未知 → `Input` 反序列化阶段 fail-fast（不在契约构造里静默回退）。
     ///
-    /// `ctx.init.input` 已是结构化 [`Input`](crate::input::Input)，未知来源不可能走到
-    /// `SubtitleSource::from_state`（它会回退默认 `Asr`）。fail-fast 已上移到 `Input`
+    /// `ctx.input` 已是结构化 [`Input`](crate::input::Input)，未知来源不可能走到
+    /// `SubtitleSource::from_input`（它会回退默认 `Asr`）。fail-fast 已上移到 `Input`
     /// 解析，故此处直接断言 `Input` 反序列化拒绝非法值——与 `OutputMode`（读
-    /// `ctx.init.output_mode` 事实、未知值报错）的取向一致。
+    /// `ctx.state.output_mode` 事实、未知值报错）的取向一致。
     #[test]
     fn unknown_subtitle_source_rejected_at_input_deserialization() {
         let err = serde_json::from_value::<crate::input::Input>(
@@ -528,7 +522,7 @@ mod tests {
 
     /// `subtitleSource` → 对应的 srt.json 路径（provenance 在类型里）。
     #[test]
-    fn from_state_resolves_srt_path_per_source() {
+    fn new_resolves_srt_path_per_source() {
         let dir = std::env::temp_dir()
             .join(format!("ld_translate_p_{}", std::process::id()))
             .to_string_lossy()
@@ -541,7 +535,7 @@ mod tests {
             ("sf_ocr", "sf_ocr_fix", "sf_ocr_fix/srt.json"),
             ("asr_ocr", "asr_ocr_fix", "asr_ocr_fix/srt.json"),
         ] {
-            // 先落 srt.json（from_state 对缺失文件 fail-fast）。
+            // 先落 srt.json（step_translate 对缺失文件 fail-fast）。
             std::fs::create_dir_all(std::path::Path::new(&dir).join(producer_dir)).unwrap();
             crate::steps::utils::write_srt_json(
                 &std::path::Path::new(&dir)
@@ -555,20 +549,13 @@ mod tests {
             )
             .unwrap();
 
-            let ctx = ctx_at(
-                &dir,
-                json!({
-                    "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
-                             "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                    "input": {"workflow": {"subtitleSource": source}}
-                }),
-            );
-            let input =
-                args::TranslateInput::from_state(&ctx).unwrap_or_else(|e| panic!("{source}: {e}"));
+            let input = at(&dir, None, json!({"workflow": {"subtitleSource": source}}));
+            let ti =
+                args::TranslateInput::new(&dir, &input).unwrap_or_else(|e| panic!("{source}: {e}"));
             assert!(
-                input.srt_path().to_string_lossy().ends_with(expected),
+                ti.srt_path().to_string_lossy().ends_with(expected),
                 "{source} 应解析到 {expected}, 实际 {:?}",
-                input.srt_path()
+                ti.srt_path()
             );
         }
         let _ = std::fs::remove_dir_all(&dir);
@@ -758,57 +745,51 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// `from_state` 只认 `ctx.target_language()`：未设置 → 报错（不臆测语言）。
+    /// [`out::TranslateOutput`] 只认 `<translate>/out.json`：translate 没跑过 → 报错
+    /// （不臆测语言）。
     ///
     /// 这一条钉的是**单源**承诺：读文件与报错必须指向同一路径。若改回
-    /// 「现算 `resolve_language`」，当 state.json 快照与现算结果不同时，
-    /// 报错会指向一个没被尝试读取的文件。
+    /// 「现算 `resolve_language`」，当配置与落定事实不同时，报错会指向一个
+    /// 没被尝试读取的文件。
     #[test]
-    fn translate_output_from_state_requires_target_language() {
+    fn translate_output_requires_persisted_target_language() {
         let dir = std::env::temp_dir()
             .join(format!("ld_tr_out_{}", std::process::id()))
             .to_string_lossy()
             .to_string();
         let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
 
-        // ctx_at 的 target_language 来自 ctx.target_language() 字段；input 里只给
-        // workflow.targetLang（配置），不足以让 from_state 成功——正是要区分的两件事。
-        let ctx = ctx_at(
-            &dir,
-            json!({
-                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"targetLang": "vi"}}
-            }),
-        );
+        // input 里给了 workflow.targetLang（配置），但 translate 还没落定事实——
+        // 正是要区分的两件事。
+        let input = at(&dir, None, json!({"workflow": {"targetLang": "vi"}}));
         assert!(
-            ctx.target_language().is_none(),
-            "前置条件: ctx.target_language() 应为 None"
+            out::TranslateOutput::read(&dir).unwrap().is_none(),
+            "前置条件: translate 还没写过 out.json"
         );
-        let err = out::TranslateOutput::from_state(&ctx).expect_err("缺 target_language 必须报错");
+        let err = crate::steps::utils::paths::translate::LangPath::from_video_dir(&dir)
+            .expect_err("缺 translate/out.json 必须报错");
         assert!(
-            err.to_string().contains("target_language"),
-            "错误应点名缺失的字段, 实际: {err}"
+            err.to_string().contains("translate"),
+            "错误应点名缺失的产物, 实际: {err}"
         );
-
+        let _ = input;
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// **分叉已被约束消除（本测试守护那个约束）**：同一个 `ctx` 上，
-    /// `ctx.target_language()` 与 `resolve_language()` 仍可能给出不同的值——
-    /// 但这**不再会写出错的文件**，因为：
+    /// **分叉已被约束消除（本测试守护那个约束）**：`resolve_language()` 的现算值
+    /// 与 `<translate>/out.json` 里落定的事实仍可能不同——但这**不再会写出错的
+    /// 文件**，因为：
     ///
-    /// 1. `resolve_language` 已是**纯函数**，不再顺手改写 state.json；
-    /// 2. 落盘只由 `step_translate` 显式调 `persist_target_language` 一次。
+    /// 1. `resolve_language` 是**纯函数**，不写盘；
+    /// 2. 落盘只由 `step_translate` 显式调 `TranslateOutput::write` 一次。
     ///
     /// 约束前的问题形状：`resolve_language` 内部「算出来变了就写回」，于是
-    /// `split_audio` 先 `read_translation_result(ctx)`（读旧值）**再**
-    /// `resolve_language(ctx)`（顺带改写 state.json）——读在写之前，读到的文件名
-    /// 与该步骤认定的语言不是同一个。症状：报「文件不存在」，但文件在，只是名字不同。
+    /// `split_audio` 先读产物（读旧值）**再** `resolve_language`（顺带改写）——
+    /// 读在写之前，读到的文件名与该步骤认定的语言不是同一个。症状：报「文件不
+    /// 存在」，但文件在，只是名字不同。
     ///
-    /// 本测试断言**两个来源仍可不同**（这是事实：调用者手里的 ctx 可能是陈旧的），
-    /// 但不再意味着「会持久化污染」——下半部分验证写盘没发生。
+    /// 本测试断言**两个来源仍可不同**（调用者手里的快照可能陈旧），但不再意味着
+    /// 「会污染落定事实」——下半部分验证读盘不变。
     #[test]
     fn resolve_language_is_pure_and_does_not_persist() {
         let dir = std::env::temp_dir()
@@ -816,42 +797,45 @@ mod tests {
             .to_string_lossy()
             .to_string();
         let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
 
-        // ctx 里已持久化 zh；input 里要求 vi —— resolve_language 会算出 vi。
-        let mut ctx = ctx_at(
-            &dir,
-            json!({
-                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"targetLang": "vi"}}
-            }),
-        );
-        // state.json 落盘，内容为 zh
-        ctx.target_language() = Some("zh".to_string());
-        crate::state::write_ctx(&dir, &ctx).unwrap();
+        // translate 落定的事实是 zh；input 里要求 vi —— resolve_language 会算出 vi。
+        let input = at(&dir, None, json!({"workflow": {"targetLang": "vi"}}));
+        out::TranslateOutput::write(&dir, "zh").unwrap();
 
-        let input = args::TranslateInput::from_state(&ctx).expect("from_state 不该失败");
+        let ti = args::TranslateInput::new(&dir, &input).expect("构造不该失败");
 
-        // ① 两个来源确实可以不同（调用者手里的 ctx 可能陈旧）
-        let (_, resolved) = resolve_language(&ctx).unwrap();
-        assert_eq!(input.target_lang.as_deref(), Some("zh"));
-        assert_eq!(resolved, "vi");
-
-        // ② **关键**：调 resolve_language 之后，磁盘上的 state.json 必须**没变**。
-        //    这是「纯函数」的实质保障——若有人把写回塞回 resolve_language，
-        //    这条会红。分叉之所以不再有害，全靠这一步不写盘。
-        let after = crate::state::read_ctx(&dir).unwrap();
+        // ① 两个来源确实可以不同（落定事实 vs 本次推断）
+        let (_, resolved) = resolve_language(&dir, &input).unwrap();
         assert_eq!(
-            after.target_language.as_deref(),
+            crate::steps::utils::paths::translate::LangPath::from_video_dir(&dir)
+                .unwrap()
+                .lang(),
+            "zh"
+        );
+        assert_eq!(resolved, "vi");
+        let _ = ti;
+
+        // ② **关键**：调 resolve_language 之后，落定的事实必须**没变**。
+        //    这是「纯函数」的实质保障——若有人把写回塞回 resolve_language，
+        //    这条会红。
+        assert_eq!(
+            out::TranslateOutput::read(&dir)
+                .unwrap()
+                .map(|o| o.lang().to_string())
+                .as_deref(),
             Some("zh"),
-            "resolve_language 不该有副作用；state.json 被改说明写回又回到了它里面"
+            "resolve_language 不该有副作用；out.json 被改说明写回又回到了它里面"
         );
 
         // ③ 显式落盘才改（这是 translate 唯一的写点）
-        crate::steps::utils::persist_target_language(&dir, &resolved).unwrap();
-        let persisted = crate::state::read_ctx(&dir).unwrap();
-        assert_eq!(persisted.target_language.as_deref(), Some("vi"));
+        out::TranslateOutput::write(&dir, &resolved).unwrap();
+        assert_eq!(
+            out::TranslateOutput::read(&dir)
+                .unwrap()
+                .map(|o| o.lang().to_string())
+                .as_deref(),
+            Some("vi")
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }

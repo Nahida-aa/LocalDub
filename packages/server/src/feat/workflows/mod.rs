@@ -12,15 +12,12 @@ use config_rs::{
 
 use ld_core::{
     cmd::workflows::{
-        enqueue_dir::{DirScanOutput, scan_dir_videos},
+        enqueue_dir::{scan_dir_videos, DirScanOutput},
         get_workflow::{EnqueueDirResult, GroupInfo},
     },
-    state::{
-        self,
-        WorkflowState,
-        // Workflow
-    },
     input::Input,
+    state::{self},
+    // State — get_workflow_ctx 端点暂停接入后不再出 RPC 面
 };
 
 /// 各任务目录是否已有续跑在途 (防同一任务并发续跑)。
@@ -38,17 +35,19 @@ pub async fn get_group_list() -> Result<Vec<GroupInfo>, String> {
     ld_core::cmd::workflows::get_workflow::get_group_list()
 }
 
-#[fnrpc::rpc_query]
-pub async fn get_workflow_ctx(video_dir: String) -> Result<WorkflowState, String> {
-    let path = repo_root().join(&video_dir);
-    let st = state::read_ctx(
-        &path
-            .to_str()
-            .ok_or_else(|| format!("Invalid video_dir: {}", video_dir))?,
-    )?;
-    // 组合出前端契约形状（旧 WorkflowState）：steps[] 按序列、facts 回填
-    state::compose_frontend_view(&st)
-}
+// get_workflow_ctx 端点暂停接入：没有「组合态」了——CLI 的 GetWorkflowCtx 现在是分别
+// 打印 `state.json` / `input.json` / 各 `<step>/state.json`。等前端确认它到底要哪种
+// 形状（整棵任务树？还是只要步骤状态表）后再决定是否恢复。
+// #[fnrpc::rpc_query]
+// pub async fn get_workflow_ctx(video_dir: String) -> Result<serde_json::Value, String> {
+//     let path = repo_root().join(&video_dir);
+//     let dir = path.to_str().ok_or_else(|| format!("Invalid video_dir: {video_dir}"))?;
+//     Ok(serde_json::json!({
+//         "state": ld_core::state::read_state(dir).map_err(|e| e)?,
+//         "input": ld_core::state::read_input(dir).map_err(|e| e)?,
+//         "steps": ld_core::state::read_steps_state(dir).map_err(|e| e)?.0,
+//     }))
+// }
 
 #[fnrpc::rpc_mutate]
 pub async fn continue_workflow(video_dir: String, from_step: String) -> Result<(), String> {
@@ -62,17 +61,11 @@ pub async fn continue_workflow(video_dir: String, from_step: String) -> Result<(
         repo_root().display()
     );
 
-    // 读 init.json 的 input 字段作为续跑基准配置 (仅改写 workflow 相关字段, 其余原样保留)。
-    let state_path = abs_video_dir.join("init.json");
-    let ctx_raw =
-        std::fs::read_to_string(&state_path).map_err(|e| format!("read init.json failed: {}", e))?;
-    let mut ctx: serde_json::Value =
-        serde_json::from_str(&ctx_raw).map_err(|e| format!("parse init.json failed: {}", e))?;
-
-    let mut input_value = ctx
-        .get_mut("input")
-        .map(|v| v.take())
-        .ok_or_else(|| "init.json 缺少 input 字段".to_string())?;
+    // 读 input.json 作为续跑基准配置 (仅改写 workflow 相关字段, 其余原样保留)。
+    let input: Input = state::read_input(&abs_video_dir_str)
+        .map_err(|e| format!("read input.json failed: {e}"))?;
+    let mut input_value =
+        serde_json::to_value(&input).map_err(|e| format!("serialize input failed: {e}"))?;
     let workflow = input_value
         .get_mut("workflow")
         .ok_or_else(|| "input 缺少 workflow 字段".to_string())?;
@@ -122,17 +115,11 @@ pub async fn regen_tts(
         .ok_or_else(|| "invalid video_dir".to_string())?
         .to_string();
 
-    // 读 init.json 的 input 字段作为续跑基准配置 (仅改写 workflow / steps.tts, 其余保留)。
-    let state_path = abs_video_dir.join("init.json");
-    let ctx_raw =
-        std::fs::read_to_string(&state_path).map_err(|e| format!("read init.json failed: {}", e))?;
-    let mut ctx: serde_json::Value =
-        serde_json::from_str(&ctx_raw).map_err(|e| format!("parse init.json failed: {}", e))?;
-
-    let mut input_value = ctx
-        .get_mut("input")
-        .map(|v| v.take())
-        .ok_or_else(|| "init.json 缺少 input 字段".to_string())?;
+    // 读 input.json 作为续跑基准配置 (仅改写 workflow / steps.tts, 其余保留)。
+    let input: Input = state::read_input(&abs_video_dir_str)
+        .map_err(|e| format!("read input.json failed: {e}"))?;
+    let mut input_value =
+        serde_json::to_value(&input).map_err(|e| format!("serialize input failed: {e}"))?;
     let workflow = input_value
         .get_mut("workflow")
         .ok_or_else(|| "input 缺少 workflow 字段".to_string())?;
@@ -218,7 +205,7 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
     let input: Input =
         serde_json::from_value(base).map_err(|e| format!("parse input failed: {}", e))?;
 
-    // 只跑导入 (拷贝/下载 + 探测 + 写 init.json), 拿到 video_dir 立即返回;
+    // 只跑导入 (拷贝/下载 + 探测 + 写 state.json / input.json), 拿到 video_dir 立即返回;
     // 完整 pipeline 在后台跑, 前端跳转任务页后由 ctx watcher 实时刷新 step 徽章。
     let ctx = tokio::task::spawn_blocking(move || {
         ld_core::workflows::import::download::import_video(&input)
@@ -235,8 +222,14 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
     // 后台跑完整 pipeline (不阻塞 RPC); 失败仅记日志, 任务页可续跑。
     let video_dir = abs_video_dir.clone();
     tokio::task::spawn_blocking(move || {
-        if let Err(e) = ld_core::workflows::pipeline::run_pipeline(&video_dir) {
-            tracing::error!("start_workflow pipeline 失败 ({video_dir}): {e:#}");
+        // pipeline 吃 `(video_dir, input)`：input 从 import 落好的 input.json 读回。
+        match ld_core::state::read_input(&video_dir) {
+            Ok(input) => {
+                if let Err(e) = ld_core::workflows::pipeline::run_pipeline(&video_dir, &input) {
+                    tracing::error!("start_workflow pipeline 失败 ({video_dir}): {e:#}");
+                }
+            }
+            Err(e) => tracing::error!("读取 {video_dir}/input.json 失败: {e}"),
         }
     });
 

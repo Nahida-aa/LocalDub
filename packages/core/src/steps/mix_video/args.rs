@@ -2,7 +2,9 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::steps::utils::paths::{mix_audio, separate_after, split_audio, VideoSourcePath};
+use crate::steps::utils::paths::{
+    mix_audio, separate_after, split_audio, translate, VideoSourcePath,
+};
 use crate::workflows::args::OutputMode;
 
 /// 字幕对齐位置 (镜像 TS `packages/core/steps/mix_video/args.ts` alignmentList)
@@ -157,55 +159,85 @@ impl BgmPath {
     }
 }
 
-pub enum MixVideoInput {
+/// mix_video 的两条分支**各自需要的路径**。
+///
+/// 与 `AsrInput` 的 `AsrSourceAudioPath` 同款：分支不同 → 读集不同，用枚举表达，
+/// 让 step 体的 `match` 是穷尽的。共享部分（身份 / 语言 / 参数）在
+/// [`MixVideoInput`] 里，不放进枚举——否则两条分支各存一份、还要写访问器。
+pub enum MixVideoBranch {
     Dub {
-        video_source_path: VideoSourcePath,
         mix_audio_timings_path: mix_audio::TimingsPath,
         dubbing_path: mix_audio::DubbingPath,
         bgm_path: BgmPath,
     },
-
     Subtitle {
-        video_source_path: VideoSourcePath,
         split_audio_timings_path: split_audio::TimingsPath,
     },
 }
 
+/// mix_video 步骤的输入契约。
+pub struct MixVideoInput {
+    /// 任务目录（写侧 step status 与 `<mix_video>/out.json` 需要）。
+    pub video_dir: String,
+    /// 任务 id（成片文件名用它）——与 [`crate::steps::utils::video_id`] 同源。
+    pub video_id: String,
+    pub video_source_path: VideoSourcePath,
+    /// 任务模式（决定走哪条分支、成片目录名）。
+    pub output_mode: OutputMode,
+    /// 目标语言（`<translate>/out.json` 的**落定事实**，不现算）。
+    pub target_lang: String,
+    /// `!input.steps.translate.enabled`（直通）：成片目录名的一部分。
+    pub no_translate: bool,
+    /// 字幕来源（`input.workflow.subtitleSource`）：成片目录名的一部分。
+    pub subtitle_source: String,
+    /// 本次运行参数（`input.steps.mix_video`）。
+    pub args: MixVideoArgs,
+    /// 分支专属的读集。
+    pub branch: MixVideoBranch,
+}
+
 impl MixVideoInput {
-    /// 从工作流状态解析本步输入契约。
-    ///
     /// 分支由 `OutputMode` 决定，两条分支**需要的输入不同**：
     /// Dub 要配音轨 + BGM + mix_audio 对齐时序；Subtitle 只要 split_audio 意图时序。
     ///
-    /// 与 `MixAudioInput::from_state` 同款：路径全部交给 `paths` 里各类型的
-    /// 构造函数，本函数不自己拼字符串；`video_source_path` 走
-    /// [`VideoSourcePath::from_state`] 读 ctx 里的事实，缺失即报错。
-    ///
-    /// 分支用 [`OutputMode::from_input`]（读**输入契约**），与 `mix_video/mod.rs`
-    /// 同源——两者必须是同一个判断，否则契约选的分支和实际执行的分叉。
-    ///
-    /// BGM 默认取 `separate_after/target_bgm.wav`，`mix_video.bgmPath` 有值时
-    /// 变成 [`BgmPath::Custom`]（调试覆盖）。
-    pub fn from_state(state: &crate::state::State) -> anyhow::Result<Self> {
-        let video_dir = &state.init.workflow.video_dir;
-        let video_source_path = VideoSourcePath::from_state(state)?;
-        Ok(match OutputMode::from_input(&state.init.input) {
+    /// 路径全部交给 `paths` 里各类型的构造函数，本函数不自己拼字符串；
+    /// `video_source_path` 走 [`VideoSourcePath::from_video_dir`] 的约定拼法。
+    pub fn new(video_dir: &str, input: &crate::input::Input) -> anyhow::Result<Self> {
+        let args = MixVideoArgs::from_input(input);
+        let video_source_path = VideoSourcePath::from_video_dir(video_dir);
+        let branch = match OutputMode::from_input(input) {
             OutputMode::Dub => {
-                let bgm_path = match MixVideoArgs::from_input(&state.init.input).bgm_path {
+                let bgm_path = match &args.bgm_path {
                     Some(p) => BgmPath::Custom(PathBuf::from(p)),
                     None => BgmPath::Separate(separate_after::TargetBgmPath::new(video_dir)),
                 };
-                Self::Dub {
-                    video_source_path,
+                MixVideoBranch::Dub {
                     mix_audio_timings_path: mix_audio::TimingsPath::new(video_dir),
                     dubbing_path: mix_audio::DubbingPath::new(video_dir),
                     bgm_path,
                 }
             }
-            OutputMode::Subtitle => Self::Subtitle {
-                video_source_path,
+            OutputMode::Subtitle => MixVideoBranch::Subtitle {
                 split_audio_timings_path: split_audio::TimingsPath::new(video_dir),
             },
+        };
+        Ok(Self {
+            video_dir: video_dir.to_string(),
+            video_id: crate::steps::utils::video_id(video_dir).unwrap_or_default(),
+            video_source_path,
+            output_mode: OutputMode::from_input(input),
+            target_lang: translate::LangPath::from_video_dir(video_dir)?
+                .lang()
+                .to_string(),
+            no_translate: !input.steps.translate.enabled,
+            subtitle_source: input
+                .workflow
+                .as_ref()
+                .map(|w| w.subtitle_source.as_str())
+                .unwrap_or("asr")
+                .to_string(),
+            args,
+            branch,
         })
     }
 }

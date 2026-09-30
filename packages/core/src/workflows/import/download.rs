@@ -1,6 +1,12 @@
 //! import 阶段: 视频导入工作区 (镜像 TS `packages/core/workflows/import/download.ts`)。
 //!
-//! 主流程: 判定来源 → 下载/复制 → 转码 mp4 + 抽音频 → 探测帧率 → 写 WorkflowState。
+//! 主流程: 判定来源 → 下载/复制 → 转码 mp4 + 抽音频 → 探测帧率 → 写状态文件。
+//!
+//! import 是任务目录的**创建者**, 也是 `state.json` / `input.json` 的唯一初次写入方:
+//! 身份 (workflow 子树) 与 import 事实 (video/audio_source_path、frame_rate) 进
+//! `state.json`, 配置进 `input.json` (两者写者与生命周期不同, 见 [`crate::state`])。
+//! **不预写任何 `<step>/state.json`** —— 步骤状态文件由各步骤自己在首次运行时创建
+//! (缺失即 pending)。
 
 use std::path::PathBuf;
 
@@ -9,8 +15,7 @@ use chrono::Utc;
 use tracing::{info, warn};
 
 use crate::input::Input;
-use crate::state::{read_ctx_from_value, write_init, InitState, VideoSource, Workflow};
-use crate::workflows::args::OutputMode;
+use crate::state::{write_input, write_state, VideoSource, Workflow, WorkflowState};
 use crate::workflows::import::util::{
     auto_group_id_and_video_id, copy_file_to_path, download_remote_video, encode_to_mp4,
     extract_audio, probe_frame_rate, run_yt_dlp_download,
@@ -26,7 +31,7 @@ pub struct Downloaded {
 /// import 期构建 step 进度清单 (镜像 TS `getSteps`)。
 ///
 /// 顶层导入入口 (镜像 TS `importVideo`)。
-pub fn import_video(input: &Input) -> anyhow::Result<InitState> {
+pub fn import_video(input: &Input) -> anyhow::Result<WorkflowState> {
     let args = input.workflow.clone().unwrap_or_default();
     let url = args
         .url
@@ -66,7 +71,7 @@ pub fn import_video(input: &Input) -> anyhow::Result<InitState> {
         .and_then(|v| v.as_str().map(|s| s.to_string()))
         .unwrap_or_else(|| "dub".to_string());
 
-    let state = InitState {
+    let state = WorkflowState {
         workflow: Workflow {
             id: video_id.clone(),
             source,
@@ -80,15 +85,15 @@ pub fn import_video(input: &Input) -> anyhow::Result<InitState> {
             started_at: None,
             completed_at: None,
         },
-        output_mode: mode_str.clone(),
-        // import 阶段 input 直接透传原始 Input (序列化为 Value)
-        input: input.clone(),
+        output_mode: mode_str,
         frame_rate,
         video_source_path: Some(downloaded.video_path.clone()),
         audio_source_path: Some(downloaded.audio_path.clone()),
     };
 
-    write_init(&video_dir.to_string_lossy(), &state).map_err(anyhow::Error::msg)?;
+    let video_dir_str = video_dir.to_string_lossy().into_owned();
+    write_state(&video_dir_str, &state).map_err(anyhow::Error::msg)?;
+    write_input(&video_dir_str, input).map_err(anyhow::Error::msg)?;
     Ok(state)
 }
 
@@ -232,14 +237,6 @@ fn download_youtube_subtitles(
     Ok(())
 }
 
-/// 从 state.json 读回 (方便下游阶段复用, 镜像 TS `readCtx`)。
-pub fn read_ctx(video_dir: &str) -> anyhow::Result<WorkflowState> {
-    let raw = std::fs::read_to_string(crate::state::state_path(video_dir))
-        .with_context(|| format!("读 state.json 失败: {video_dir}"))?;
-    let v: serde_json::Value = serde_json::from_str(&raw)?;
-    read_ctx_from_value(v).map_err(anyhow::Error::msg)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -256,30 +253,52 @@ mod tests {
         let input = Input {
             workflow: Some(crate::workflows::args::WorkflowArgs {
                 url: Some(smoke.to_string()),
-                output_mode: OutputMode::Dub,
+                output_mode: crate::workflows::args::OutputMode::Dub,
                 subtitle_source: crate::workflows::args::SubtitleSource::Asr,
                 ..Default::default()
             }),
             ..Default::default()
         };
-        let ctx = import_video(&input).expect("import_video 失败");
-        assert!(ctx
+        let st = import_video(&input).expect("import_video 失败");
+        assert!(st
             .video_source_path
             .as_ref()
             .unwrap()
             .ends_with("video_source.mp4"));
-        assert!(ctx
+        assert!(st
             .audio_source_path
             .as_ref()
             .unwrap()
             .ends_with("audio_source.wav"));
-        assert!(std::path::Path::new(ctx.init.video_source_path.as_ref().unwrap()).exists());
-        assert!(std::path::Path::new(ctx.init.audio_source_path.as_ref().unwrap()).exists());
+        assert!(std::path::Path::new(st.video_source_path.as_ref().unwrap()).exists());
+        assert!(std::path::Path::new(st.audio_source_path.as_ref().unwrap()).exists());
+        // import 写出的状态产出物: state.json (身份+事实) + input.json (配置)
+        // ——各步骤的 state.json 不预写。
+        let dir = st.workflow.video_dir.as_str();
+        let state_path = crate::state::state_path(dir);
+        let input_path = crate::state::input_path(dir);
+        assert!(
+            state_path.exists(),
+            "import 未写出 {}",
+            state_path.display()
+        );
+        assert!(
+            input_path.exists(),
+            "import 未写出 {}",
+            input_path.display()
+        );
+        let reread = crate::state::read_state(dir).expect("read_state 失败");
+        assert_eq!(reread.workflow.id, st.workflow.id);
+        let reread_input = crate::state::read_input(dir).expect("read_input 失败");
+        assert_eq!(
+            reread_input.workflow.and_then(|w| w.url),
+            Some(smoke.to_string())
+        );
         // 清理: 删除生成的 workflow 目录
-        let _ = std::fs::remove_dir_all(ctx.init.workflow.video_dir);
+        let _ = std::fs::remove_dir_all(&st.workflow.video_dir);
         println!(
             "import 成功: group={} workflow={}",
-            ctx.init.workflow.id, ctx.init.workflow.id
+            st.workflow.id, st.workflow.id
         );
     }
 }

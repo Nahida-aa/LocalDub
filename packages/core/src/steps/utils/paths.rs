@@ -22,16 +22,10 @@ use derive_more::{AsRef, Deref, DerefMut, Display, From, Into};
 use std::path::{Path, PathBuf};
 /// 原视频 `video_source.mp4`（任务级输入，由 import 产出）。
 ///
-/// 与 [`AudioSourcePath`] 同款：位置不是消费者自己拼的，而是 import 阶段
-/// **写进 ctx** 的（`ctx.init.video_source_path`）。两个入口对应两类调用者：
-///
-/// | 入口 | 谁用 |
-/// | --- | --- |
-/// | [`from_video_dir`](Self::from_video_dir) | **import 产出方**——它写 ctx 之前就得知道路径 |
-/// | [`from_state`](Self::from_state) | **消费者**——读 import 落下的那个值 |
-///
-/// 前者是「约定拼法」（import 落点固定为 `{video_dir}/video_source.mp4`，
-/// 见 `import/download.rs`），后者是「事实」。
+/// 落点是**约定拼法**：import 固定写到 `{video_dir}/video_source.mp4`
+/// （见 `import/download.rs`），消费者按同一规则拼回来，不再依赖 ctx 里的
+/// 冗余副本——此前 import 会把同一路径再写进 state.json 一份由 `from_state`（已删）
+/// 读，那份副本可能与实际落点漂移，且与本 newtype 单源拼法的初衷冲突。
 #[derive(Debug, Clone, PartialEq, Eq, Display, AsRef)]
 #[display("{}", _0.display())]
 #[as_ref(forward)]
@@ -43,25 +37,6 @@ impl VideoSourcePath {
         Self(video_dir.as_ref().join("video_source.mp4"))
     }
 
-    /// 从 ctx 取 `ctx.init.video_source_path`（import 写入的路径）。
-    ///
-    /// 缺失 → Err（与 [`AudioSourcePath::from_state`] 同款语义：
-    /// 没导入过就没有这个文件，无从猜测）。
-    pub fn from_state(state: &crate::state::State) -> anyhow::Result<Self> {
-        state
-            .init
-            .video_source_path
-            .clone()
-            .map(PathBuf::from)
-            .map(Self)
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "video_source_path 未设置 (session {}); 请先运行 import",
-                    state.init.workflow.video_dir
-                )
-            })
-    }
-
     pub fn as_path(&self) -> &Path {
         &self.0
     }
@@ -69,17 +44,8 @@ impl VideoSourcePath {
 
 /// 原始音频 `audio_source.wav`（任务级输入，由 import 产出）。
 ///
-/// **与 `SrtPath` 的区别**：它的位置不是从 `video_dir` 拼出来的，而是 import
-/// 阶段**写进 ctx** 的（`ctx.init.audio_source_path`）。两个构造入口对应两类调用者：
-///
-/// | 入口 | 谁用 |
-/// | --- | --- |
-/// | [`from_video_dir`](Self::from_video_dir) | **import 产出方**——它写 ctx 之前就得知道路径 |
-/// | [`from_state`](Self::from_state) | **消费者**——读 import 落下的那个值 |
-///
-/// 两者在正常流程下指向同一文件（import 落点固定为 `{video_dir}/audio_source.wav`，
-/// 见 `import/download.rs`），但语义不同：前者是「约定拼法」，后者是「事实」。
-/// 与 `LangPath` 的 `new` / `from_state` 同一模式。
+/// 与 [`VideoSourcePath`] 同款：落点是约定拼法，import 固定写到
+/// `{video_dir}/audio_source.wav`，消费者按同一规则拼回来。
 #[derive(Debug, Clone, PartialEq, Eq, Display, AsRef)]
 #[display("{}", _0.display())]
 #[as_ref(forward)]
@@ -89,25 +55,6 @@ impl AudioSourcePath {
     /// 按约定拼：`{video_dir}/audio_source.wav`（import 的落点）。
     pub fn from_video_dir(video_dir: impl AsRef<Path>) -> Self {
         Self(video_dir.as_ref().join("audio_source.wav"))
-    }
-
-    /// 从 ctx 取 `ctx.init.audio_source_path`（import 写入的绝对路径）。
-    ///
-    /// 缺失 → Err（与 [`crate::steps::utils::video_source_path`] 同款语义：
-    /// 没导入过就没有这个文件，无从猜测）。
-    pub fn from_state(state: &crate::state::State) -> anyhow::Result<Self> {
-        state
-            .init
-            .audio_source_path
-            .clone()
-            .map(PathBuf::from)
-            .map(Self)
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "audio_source_path 未设置 (session {}); 请先运行 import",
-                    state.init.workflow.video_dir
-                )
-            })
     }
 
     pub fn as_path(&self) -> &Path {
@@ -558,7 +505,7 @@ pub mod translate {
 
     /// 翻译产物路径 `translate/{lang}.json`。
     ///
-    /// 字段私有：路径只能经 [`LangPath::new`] 或 [`LangPath::from_state`] 产生，
+    /// 字段私有：路径只能经 [`LangPath::new`] 或 [`LangPath::from_video_dir`] 产生，
     /// 与三个 `SrtPath` 同款约束（拼法只有一个来源）。
     ///
     /// **两个构造入口，对应两类调用者**——这是刻意的分工：
@@ -566,13 +513,13 @@ pub mod translate {
     /// | 入口 | 谁用 | 参数来源 |
     /// | --- | --- | --- |
     /// | [`new`](Self::new)`(video_dir, lang)` | **翻译步骤** | 它手里已有一对 `(dir, lang)`：`lang` 是它自己 `resolve_language` 决策出来的 |
-    /// | [`from_state`](Self::from_state)`(ctx)` | **后续步骤** | 读 `ctx.target_language()`——那个**已落定的事实** |
+    /// | [`from_video_dir`](Self::from_video_dir) | **后续步骤** | 读 `<translate>/out.json`——那个**已落定的事实** |
     ///
     /// 为什么后续步骤不该走 `new` + `resolve_language`：`resolve_language` 是
-    /// **现算**（读配置、可能推断），而 `ctx.target_language()` 是**翻译步骤落盘的
+    /// **现算**（读配置、可能推断），而 `<translate>/out.json` 是**翻译步骤落盘的
     /// 事实**。两者现在恰好一致（纯函数 + 同输入），但那是巧合的稳定——推断逻辑
-    /// 一改（如新增直通分支），中途重跑下游就会分叉。`from_state` 让下游只能读到
-    /// 事实，读不到「另算一遍」的机会。
+    /// 一改（如新增直通分支），中途重跑下游就会分叉。`from_video_dir` 让下游只能
+    /// 读到事实，读不到「另算一遍」的机会。
     ///
     /// **存 `lang` 而不只存路径**：下游不只需要路径，还要语言本身——`mix_video`
     /// 用 `lang` 命名中间 SRT 并选字体（`default_font`：非 zh → Arial）。
@@ -601,21 +548,22 @@ pub mod translate {
             }
         }
 
-        /// 由 ctx 构造，语言取 `ctx.target_language()`（**唯一写入点**见
-        /// [`crate::steps::utils::persist_target_language`]）。
+        /// 读 `<translate>/out.json`（translate 落盘的 `{target_language, file}`）。
         ///
         /// **后续步骤专用**：读已落定的事实，不重新解析。
         ///
         /// 缺失 → Err（与 `read_translation_result` 同款语义：目标语言未知时
         /// 无从知道该读哪个文件；正常流程里 translate 跑过就一定有值）。
-        pub fn from_state(ctx: &crate::state::State) -> anyhow::Result<Self> {
-            let lang = ctx.target_language().as_deref().ok_or_else(|| {
-                anyhow::anyhow!(
-                    "ctx.target_language() 未设置, 无法定位翻译产物 (task {}); 请先运行 translate",
-                    ctx.init.workflow.video_dir
-                )
-            })?;
-            Ok(Self::new(&ctx.init.workflow.video_dir, lang))
+        pub fn from_video_dir(video_dir: &str) -> anyhow::Result<Self> {
+            let out = crate::steps::translate::out::TranslateOutput::read(video_dir)
+                .map_err(anyhow::Error::msg)?
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "translate 尚未产出 out.json, 无法定位翻译产物 (task {video_dir}); \
+                         请先运行 translate"
+                    )
+                })?;
+            Ok(Self::new(video_dir, out.lang()))
         }
 
         pub fn as_path(&self) -> &Path {
@@ -842,7 +790,6 @@ pub struct SeparateAfterOutput {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
 
     /// `video_source.mp4` 的落点：`{video_dir}/video_source.mp4`（**无** `media/` 中间层）。
     ///
@@ -969,37 +916,41 @@ mod tests {
         );
     }
 
-    /// `LangPath::from_state` 读 `ctx.target_language()`——**已落定的事实**。
+    /// `LangPath::from_video_dir` 读 `<translate>/out.json`——**已落定的事实**。
     ///
     /// 后续步骤靠它避开 `resolve_language` 的现算：即使 `input.workflow.targetLang`
-    /// 与 ctx 里的值不同，`from_state` 也必须以 ctx 为准（ctx 是翻译步骤写的）。
+    /// 与落定的值不同，也必须以 `<translate>/out.json` 为准（那是 translate 写的）。
     #[test]
-    fn lang_path_from_state_uses_persisted_fact() {
-        use crate::state::read_ctx_from_value;
+    fn lang_path_from_video_dir_uses_persisted_fact() {
+        let dir = std::env::temp_dir()
+            .join(format!("ld_langpath_{}", std::process::id()))
+            .to_string_lossy()
+            .to_string();
+        let _ = std::fs::remove_dir_all(&dir);
 
-        let mk = |ctx_lang: Option<&str>| {
-            let mut ctx = read_ctx_from_value(json!({
-                "workflow": {"id":"t","video_dir":"/w","url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                // 配置说要 vi，但 ctx 的落定事实可能不同
-                "input": {"workflow": {"targetLang": "vi"}}
-            }))
-            .unwrap();
-            ctx.target_language() = ctx_lang.map(String::from);
-            ctx
-        };
+        // 配置层可以写 vi，但 translate 落定的事实是 zh —— 以事实为准
+        crate::steps::translate::out::TranslateOutput::write(&dir, "zh").unwrap();
+        let p = translate::LangPath::from_video_dir(&dir).unwrap();
+        assert_eq!(
+            p.as_path().to_string_lossy(),
+            format!("{dir}/translate/zh.json")
+        );
 
-        // ctx 说 zh → 用 zh，**无视** input 里的 vi
-        let p = translate::LangPath::from_state(&mk(Some("zh"))).unwrap();
-        assert_eq!(p.as_path().to_string_lossy(), "/w/translate/zh.json");
-
-        // 缺失 → 报错（不现算、不推断）
-        let err =
-            translate::LangPath::from_state(&mk(None)).expect_err("缺失 target_language 必须报错");
+        // 缺失 out.json → 报错（不现算、不推断）
+        let none = std::env::temp_dir()
+            .join(format!("ld_langpath_none_{}", std::process::id()))
+            .to_string_lossy()
+            .to_string();
+        let _ = std::fs::remove_dir_all(&none);
+        let err = translate::LangPath::from_video_dir(&none)
+            .expect_err("缺失 translate/out.json 必须报错");
         let msg = err.to_string();
         assert!(
-            msg.contains("target_language") && msg.contains("translate"),
-            "错误应点名字段并提示先跑 translate, 实际: {msg}"
+            msg.contains("translate"),
+            "错误应提示先跑 translate, 实际: {msg}"
         );
+
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&none);
     }
 }

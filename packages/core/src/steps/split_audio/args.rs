@@ -66,10 +66,18 @@ fn default_end_pad_ms() -> u32 {
 /// 消费者只需读这里，不必再自己去 ctx 里拼路径 / 判断文件存在性。
 #[derive(Debug, Clone)]
 pub struct SplitAudioInput {
+    /// 任务目录（写侧 step status 需要）。
+    pub video_dir: String,
     /// 切块时要切哪个音频。
     pub audio_path: SplitAudioSourcePath,
     /// 字幕时序来源（意图时序 + 文本 + 译文）。
     pub translate_path: translate::LangPath,
+    /// 本次运行参数（`input.steps.split_audio`）。
+    pub args: SplitAudioArgs,
+    /// 源语言（`<asr>/out.json` > `input.workflow.sourceLang` > 未知）：写 meta 用。
+    pub source_lang: crate::r#const::lang::LangCode,
+    /// 是否 dub 流程（`input.workflow.output_mode`）：决定切不切 wav 块。
+    pub is_dub: bool,
 }
 
 /// 切块用的音频源（三选一）。
@@ -81,7 +89,7 @@ pub struct SplitAudioInput {
 ///
 /// **为什么 `Vocals` 是「可能不存在」的**：subtitle 模式不做 separate，没有
 /// 人声 stem，此时回退到原始音频是**正常路径**而非错误。所以存在性检查留在
-/// 选择逻辑里（`SplitAudioInput::from_state`），不进类型。
+/// 选择逻辑里（[`SplitAudioInput::audio_source`]），不进类型。
 ///
 /// **历史说明（已核实：不构成产物差异）**：`step_split_audio` 旧逻辑的 fallback 是
 /// `video_source_path(ctx)`（`video_source.mp4`）。但 `audio_source.wav` 本就是
@@ -110,7 +118,8 @@ pub enum SplitAudioSourcePath {
 }
 
 impl SplitAudioInput {
-    /// 从 ctx 解析：先定音频源（按 `SplitAudioSourcePath` 的优先级），再取翻译产物路径。
+    /// 音乐源解析：`(video_dir, input)` → 先定音频源（按 `SplitAudioSourcePath`
+    /// 的优先级），再取翻译产物路径（`<translate>/out.json`）。
     ///
     /// **优先级与存在性检查的现状对齐**（`step_split_audio` 原有逻辑）：
     ///
@@ -121,28 +130,27 @@ impl SplitAudioInput {
     /// 第 2 步的「存在才用」是刻意的：subtitle 模式不做 separate，没有人声 stem，
     /// 回退到原始音频是**正常路径**。故存在性判断留在这里，类型只表达结论。
     ///
-    /// `audio_source_path` 缺失 → Err（与 `video_source_path` 同款）。
-    pub fn from_state(state: &crate::state::State) -> anyhow::Result<Self> {
+    /// `translate` 没跑过时 `<translate>/out.json` 不存在 → Err（无从知道该读哪个文件）。
+    pub fn new(video_dir: &str, input: &crate::input::Input) -> anyhow::Result<Self> {
+        let args = SplitAudioArgs::from_input(input);
         Ok(Self {
-            audio_path: Self::audio_from_state(state)?,
-            translate_path: translate::LangPath::from_state(state)?,
+            video_dir: video_dir.to_string(),
+            audio_path: Self::audio_source(video_dir, &args),
+            translate_path: translate::LangPath::from_video_dir(video_dir)?,
+            args,
+            source_lang: crate::steps::utils::src_language(video_dir, input),
+            is_dub: crate::workflows::args::OutputMode::from_input(input)
+                == crate::workflows::args::OutputMode::Dub,
         })
     }
 
     /// 只解析**切块音频源**（优先级见 [`SplitAudioSourcePath`]）。
     ///
     /// 拆出来是给「只要音频源、不要 translate 路径」的消费者用——它不必为了
-    /// 拿 audio 而顺带构造一个用不到的 `LangPath`（后者会在 `target_language`
-    /// 缺失时报错，把与该消费者无关的失败条件引进来）。
-    ///
-    /// `audio_source_path` 缺失 → Err（与 `video_source_path` 同款）。
-    pub fn audio_from_state(
-        state: &crate::state::State,
-    ) -> anyhow::Result<SplitAudioSourcePath> {
-        let args = SplitAudioArgs::from_input(&state.init.input);
-        let video_dir = &state.init.workflow.video_dir;
-
-        Ok(match args.vocals_file_path {
+    /// 拿 audio 而顺带构造一个用不到的 `LangPath`（后者会在 translate 没跑过时
+    /// 报错，把与该消费者无关的失败条件引进来）。
+    pub fn audio_source(video_dir: &str, args: &SplitAudioArgs) -> SplitAudioSourcePath {
+        match &args.vocals_file_path {
             Some(p) => SplitAudioSourcePath::Custom(PathBuf::from(p)),
             None => {
                 let vocals = separate::Target3VocalsPath::new(video_dir);
@@ -151,11 +159,11 @@ impl SplitAudioInput {
                     SplitAudioSourcePath::Vocals(vocals)
                 } else {
                     SplitAudioSourcePath::SourceAudio(
-                        crate::steps::utils::paths::AudioSourcePath::from_state(state)?,
+                        crate::steps::utils::paths::AudioSourcePath::from_video_dir(video_dir),
                     )
                 }
             }
-        })
+        }
     }
 }
 
@@ -173,30 +181,15 @@ impl SplitAudioSourcePath {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::read_ctx_from_value;
 
-    fn ctx_at(video_dir: &str, input: serde_json::Value) -> crate::state::State {
-        let mut c = read_ctx_from_value(input).unwrap();
-        c.workflow.video_dir = video_dir.to_string();
-        c
-    }
-
-    fn mk(
-        video_dir: &str,
-        split_audio_cfg: serde_json::Value,
-        audio_src: Option<&str>,
-    ) -> crate::state::State {
-        let mut c = ctx_at(
-            video_dir,
-            serde_json::json!({
-                "workflow": {"id":"t","video_dir":video_dir,"url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"steps": {"split_audio": split_audio_cfg}}
-            }),
-        );
-        c.target_language = Some("vi".to_string());
-        c.audio_source_path = audio_src.map(String::from);
-        c
+    /// 只验证**音频源优先级**的测试不需要 translate 产物，故走
+    /// [`SplitAudioInput::audio_source`] 而不构造完整的 `SplitAudioInput`
+    /// （后者要求 `<translate>/out.json` 已存在）。
+    fn audio_of(dir: &str, split_audio_cfg: serde_json::Value) -> SplitAudioSourcePath {
+        let input: crate::input::Input =
+            serde_json::from_value(serde_json::json!({"steps": {"split_audio": split_audio_cfg}}))
+                .unwrap();
+        SplitAudioInput::audio_source(dir, &SplitAudioArgs::from_input(&input))
     }
 
     /// 优先级 1：`vocalsFilePath` 显式指定 → 用它，**无视其它**。
@@ -210,17 +203,12 @@ mod tests {
             .to_string();
         let _ = std::fs::create_dir_all(&dir);
 
-        let c = mk(
+        let audio_path = audio_of(
             &dir,
             serde_json::json!({"vocalsFilePath": "/tmp/my_vocals.wav"}),
-            Some("/x/audio_source.wav"),
         );
-        let input = SplitAudioInput::from_state(&c).expect("应可构造");
-        assert!(matches!(input.audio_path, SplitAudioSourcePath::Custom(_)));
-        assert_eq!(
-            input.audio_path.as_path().to_string_lossy(),
-            "/tmp/my_vocals.wav"
-        );
+        assert!(matches!(audio_path, SplitAudioSourcePath::Custom(_)));
+        assert_eq!(audio_path.as_path().to_string_lossy(), "/tmp/my_vocals.wav");
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -243,22 +231,20 @@ mod tests {
         )
         .unwrap();
 
-        let c = mk(&dir, serde_json::json!({}), Some("/x/audio_source.wav"));
-        let input = SplitAudioInput::from_state(&c).expect("应可构造");
+        let audio_path = audio_of(&dir, serde_json::json!({}));
         assert!(
-            matches!(input.audio_path, SplitAudioSourcePath::Vocals(_)),
+            matches!(audio_path, SplitAudioSourcePath::Vocals(_)),
             "存在 vocals 时应优先用它, 实际 {:?}",
-            input.audio_path.as_path()
+            audio_path.as_path()
         );
         // 必须是 separate/（原始人声），不是 separate_after/
         assert!(
-            input
-                .audio_path
+            audio_path
                 .as_path()
                 .to_string_lossy()
                 .contains("/separate/"),
             "该用 separate/ 的原始人声: {:?}",
-            input.audio_path.as_path()
+            audio_path.as_path()
         );
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -276,26 +262,26 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
 
-        let c = mk(&dir, serde_json::json!({}), Some("/x/audio_source.wav"));
-        let input = SplitAudioInput::from_state(&c).expect("应可构造");
+        let audio_path = audio_of(&dir, serde_json::json!({}));
         assert!(
-            matches!(input.audio_path, SplitAudioSourcePath::SourceAudio(_)),
+            matches!(audio_path, SplitAudioSourcePath::SourceAudio(_)),
             "无 vocals 应回退音频源, 实际 {:?}",
-            input.audio_path.as_path()
+            audio_path.as_path()
         );
+        // 约定拼法：`{video_dir}/audio_source.wav`
         assert_eq!(
-            input.audio_path.as_path().to_string_lossy(),
-            "/x/audio_source.wav"
+            audio_path.as_path().to_string_lossy(),
+            format!("{dir}/audio_source.wav")
         );
 
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// `audio_source_path` 缺失 + 无 vocals → Err（不猜路径）。
-    ///
-    /// 与 `video_source_path` 同款语义：没 import 过就没有这个文件。
+    /// `audio_source.wav` 现在是约定拼法（`{video_dir}/audio_source.wav`），
+    /// 不再有「没填路径」这种状态——缺文件是 produce 侧的事，不是契约构造失败。
+    /// 契约构造唯一的失败条件是 `translate` 没跑过（`<translate>/out.json` 缺失）。
     #[test]
-    fn missing_audio_source_is_error() {
+    fn missing_translate_output_is_error() {
         let dir = std::env::temp_dir()
             .join(format!("ld_sa_missing_{}", std::process::id()))
             .to_string_lossy()
@@ -303,32 +289,11 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
 
-        let c = mk(&dir, serde_json::json!({}), None);
-        let err = SplitAudioInput::from_state(&c).expect_err("缺 audio_source_path 应报错");
+        let input: crate::input::Input = serde_json::from_value(serde_json::json!({})).unwrap();
+        let err = SplitAudioInput::new(&dir, &input).expect_err("translate 没跑过应报错");
         assert!(
-            err.to_string().contains("audio_source_path"),
-            "错误应点名字段: {err}"
-        );
-
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    /// `target_language` 缺失 → Err（翻译产物路径无从确定）。
-    #[test]
-    fn missing_target_language_is_error() {
-        let dir = std::env::temp_dir()
-            .join(format!("ld_sa_nolang_{}", std::process::id()))
-            .to_string_lossy()
-            .to_string();
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-
-        let mut c = mk(&dir, serde_json::json!({}), Some("/x/audio_source.wav"));
-        c.target_language = None;
-        let err = SplitAudioInput::from_state(&c).expect_err("缺 target_language 应报错");
-        assert!(
-            err.to_string().contains("target_language"),
-            "错误应点名字段: {err}"
+            err.to_string().contains("translate"),
+            "错误应点名缺失的 translate 产物: {err}"
         );
 
         let _ = std::fs::remove_dir_all(&dir);

@@ -29,28 +29,31 @@
 //! state.json（Phase 3 的「state 由日志派生」是后续方向）。
 //!
 //! `video_dir` 不走参数：引擎把 `videoDir` 注入 run input（`initialize`
-//! 从 `ctx.init.input` 取），`ctx.state` 重建后 handler 从它取一次任务目录。
+//! 从 `ctx.input` 取），`ctx.state` 重建后 handler 从它取一次任务目录。
 //!
 //! 驱动仍走 FsRunStore 直驱 core：`--continue-from`/`--target-step` 保留；
 //! runtime 层（lease/sweep）等其收益出现再切。
 
 use aa_workflow_core::{
-    BaseCtx, StepCtx, WorkflowDefinition, create_workflow, CreateWorkflowConfig,
+    create_workflow, BaseCtx, CreateWorkflowConfig, StepCtx, WorkflowDefinition,
 };
 
 use super::super::engine::drive_step;
 use crate::input::Input;
-use crate::state::{read_ctx, State};
+use crate::state::WorkflowState;
 use crate::workflows::args::StepName;
 
 pub const WORKFLOW_ID: &str = "sf_ocr_dub";
 
 /// 构建 `sf_ocr_dub` 定义（id → 构建函数的映射见 [`super::build`]）。
-pub fn sf_ocr_dub() -> WorkflowDefinition<Input, serde_json::Value, State> {
+///
+/// 引擎侧的 `state` 是 [`WorkflowState`]（`state.json` 的身份 + 运行状态）：handler
+/// 只从它取一次任务目录，真正的读集在每步的 `<Step>Input` 里。
+pub fn sf_ocr_dub() -> WorkflowDefinition<Input, serde_json::Value, WorkflowState> {
     create_workflow(
         CreateWorkflowConfig::new(WORKFLOW_ID)
             .input::<Input>()
-            .state::<State>()
+            .state::<WorkflowState>()
             // state 不落盘：每次 start / resume 从 state.json 重建。
             // videoDir 由引擎注入进 run input（start 路径的 input 原本没有）。
             .initialize(|input: &Input| {
@@ -61,14 +64,13 @@ pub fn sf_ocr_dub() -> WorkflowDefinition<Input, serde_json::Value, State> {
                     .ok_or_else(|| {
                         anyhow::anyhow!("run input 缺 workflow.videoDir（引擎路径应注入）")
                     })?;
-                read_ctx(dir).map_err(anyhow::Error::msg)
+                crate::state::read_state(dir).map_err(anyhow::Error::msg)
             }),
     )
-    .handler(|ctx: BaseCtx<Input, State>| async move {
+    .handler(|ctx: BaseCtx<Input, WorkflowState>| async move {
         // Arc<str> 共享任务目录：每步 clone = 引用计数 +1（非深拷贝）；
         // 闭包 `move` 拥有自己的 Arc，async 块内以 `&dir` 借用——'static 合法。
-        let dir: std::sync::Arc<str> =
-            std::sync::Arc::from(ctx.state.init.workflow.video_dir.as_str());
+        let dir: std::sync::Arc<str> = std::sync::Arc::from(ctx.state.workflow.video_dir.as_str());
 
         // 分支 A（音频侧）：separate → separate_after
         let branch_audio = {
@@ -77,9 +79,7 @@ pub fn sf_ocr_dub() -> WorkflowDefinition<Input, serde_json::Value, State> {
             async move {
                 ctx.step("separate", {
                     let dir = dir.clone();
-                    move |_sc: StepCtx| async move {
-                        drive_step(&dir, StepName::Separate).await
-                    }
+                    move |_sc: StepCtx| async move { drive_step(&dir, StepName::Separate).await }
                 })
                 .await?;
                 ctx.step("separate_after", {
@@ -100,30 +100,22 @@ pub fn sf_ocr_dub() -> WorkflowDefinition<Input, serde_json::Value, State> {
             async move {
                 ctx.step("sf_ocr_pre", {
                     let dir = dir.clone();
-                    move |_sc: StepCtx| async move {
-                        drive_step(&dir, StepName::SfOcrPre).await
-                    }
+                    move |_sc: StepCtx| async move { drive_step(&dir, StepName::SfOcrPre).await }
                 })
                 .await?;
                 ctx.step("sf_ocr", {
                     let dir = dir.clone();
-                    move |_sc: StepCtx| async move {
-                        drive_step(&dir, StepName::SfOcr).await
-                    }
+                    move |_sc: StepCtx| async move { drive_step(&dir, StepName::SfOcr).await }
                 })
                 .await?;
                 ctx.step("sf_ocr_fix", {
                     let dir = dir.clone();
-                    move |_sc: StepCtx| async move {
-                        drive_step(&dir, StepName::SfOcrFix).await
-                    }
+                    move |_sc: StepCtx| async move { drive_step(&dir, StepName::SfOcrFix).await }
                 })
                 .await?;
                 ctx.step("translate", {
                     let dir = dir.clone();
-                    move |_sc: StepCtx| async move {
-                        drive_step(&dir, StepName::Translate).await
-                    }
+                    move |_sc: StepCtx| async move { drive_step(&dir, StepName::Translate).await }
                 })
                 .await?;
                 anyhow::Ok(())
@@ -138,30 +130,22 @@ pub fn sf_ocr_dub() -> WorkflowDefinition<Input, serde_json::Value, State> {
         // join 之后串行尾段
         ctx.step("split_audio", {
             let dir = dir.clone();
-            move |_sc: StepCtx| async move {
-                drive_step(&dir, StepName::SplitAudio).await
-            }
+            move |_sc: StepCtx| async move { drive_step(&dir, StepName::SplitAudio).await }
         })
         .await?;
         ctx.step("tts", {
             let dir = dir.clone();
-            move |_sc: StepCtx| async move {
-                drive_step(&dir, StepName::Tts).await
-            }
+            move |_sc: StepCtx| async move { drive_step(&dir, StepName::Tts).await }
         })
         .await?;
         ctx.step("mix_audio", {
             let dir = dir.clone();
-            move |_sc: StepCtx| async move {
-                drive_step(&dir, StepName::MixAudio).await
-            }
+            move |_sc: StepCtx| async move { drive_step(&dir, StepName::MixAudio).await }
         })
         .await?;
         ctx.step("mix_video", {
             let dir = dir.clone();
-            move |_sc: StepCtx| async move {
-                drive_step(&dir, StepName::MixVideo).await
-            }
+            move |_sc: StepCtx| async move { drive_step(&dir, StepName::MixVideo).await }
         })
         .await?;
         Ok(serde_json::Value::Null)

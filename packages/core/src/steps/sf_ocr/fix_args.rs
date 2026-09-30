@@ -5,8 +5,6 @@
 //! `MergeFramesArgs` 仍内联（subtitle-ocr 的 Rust crate 尚未落地），`LlmFixArgs` 直接复用
 //! `llm` crate 的类型，并用 `#[serde(flatten)]` 保持与 TS spread 一致的扁平 JSON 结构。
 
-use std::path::Path;
-
 use llm::LlmFixArgs;
 use serde::{Deserialize, Serialize};
 
@@ -48,7 +46,7 @@ pub struct OcrFixArgs {
     #[serde(default, flatten)]
     pub llm_fix: LlmFixArgs,
     // 源语言已从参数移除: 统一取 `input.workflow.sourceLang` (> ASR 实测的
-    // ctx.asr_language() > 默认 zh), 见 ocr_fix 里的解析。
+    // `<asr>/out.json` > 默认 zh), 见 ocr_fix 里的解析。
 }
 
 impl Default for OcrFixArgs {
@@ -112,14 +110,23 @@ fn default_dedup_edit_distance() -> u32 {
 /// 所有路径都是 `{video_dir}/...` 的**约定拼法**，不读 ctx 里落定的事实，故入口是
 /// [`from_video_dir`](Self::from_video_dir)（同 `TtsInput::from_video_dir`）。
 pub struct SfOcrFixInput {
+    /// 任务目录（写侧 step status 需要）。
+    pub video_dir: String,
     /// 来自 sf_ocr 步骤的关键帧 OCR 结果 `sf_ocr/frames.json`。
     pub frames_path: sf_ocr::FramesPath,
+    /// 源语言（`<asr>/out.json` > `input.workflow.sourceLang` > 未知）：LLM 提示词用它。
+    pub source_lang: crate::r#const::lang::LangCode,
+    /// 本次运行参数（`input.steps.sf_ocr_fix`）。
+    pub args: OcrFixArgs,
 }
 
 impl SfOcrFixInput {
-    pub fn from_video_dir(video_dir: impl AsRef<Path>) -> Self {
+    pub fn new(video_dir: &str, input: &crate::input::Input) -> Self {
         Self {
-            frames_path: sf_ocr::FramesPath::new(&video_dir),
+            video_dir: video_dir.to_string(),
+            frames_path: sf_ocr::FramesPath::new(video_dir),
+            source_lang: crate::steps::utils::src_language(video_dir, input),
+            args: OcrFixArgs::from_input(input),
         }
     }
 }

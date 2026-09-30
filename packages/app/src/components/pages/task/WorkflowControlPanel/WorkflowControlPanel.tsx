@@ -21,30 +21,17 @@ import {
 } from "@repo/ui-solid/base/context-menu";
 import { StepStatusBadge } from "./StepStatusBadge";
 import { useMutation, useQueryClient } from "@tanstack/solid-query";
-import { StepName, WorkflowState, WorkflowStep } from "@repo/sdk/index";
-
-export const steps_to_map = (
-  steps: (WorkflowStep | undefined)[],
-): Record<StepName, WorkflowStep | undefined> => {
-  return steps.reduce(
-    (acc, step) => {
-      if (step === undefined) return acc;
-      acc[step.name as StepName] = step;
-      return acc;
-    },
-    {} as Record<StepName, WorkflowStep | undefined>,
-  );
-};
+import { StepName, State, StepState } from "@repo/sdk/index";
 
 export const WorkflowControlPanel = (p: {
-  ctx: WorkflowState;
+  ctx: State;
   // onResumeFrom: (stepName: string | null) => void;
 }) => {
   const params = useParams({ from: "/group/$id/$videoId" });
-  const videoDir = `workfolder/${params().id}/${p.ctx.workflow.id}`;
-  const steps = () => p.ctx.steps ?? [];
-  const step_map = () => steps_to_map(steps() ?? []);
-  const tabs = () => ["root", ...steps().map((s) => s.name)] as StepTab[];
+  const videoDir = `workfolder/${params().id}/${p.ctx.state.workflow.id}`;
+  // steps 是 StepName → StepState 的 map（键序 = 管线序，缺失步骤已由后端补 pending）。
+  const step_map = (): Partial<Record<StepName, StepState>> => p.ctx.steps ?? {};
+  const tabs = () => ["root", ...(Object.keys(step_map()) as StepName[])] as StepTab[];
   const resumeFrom = use_resumeFrom();
   const runningStep = useRunningStep();
   const viewingTab = useViewingTab();

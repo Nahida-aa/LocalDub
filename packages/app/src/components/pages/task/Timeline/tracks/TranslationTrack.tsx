@@ -53,7 +53,12 @@ export function TranslationTrack(props: Props) {
   const onSeek = props.onSeek;
 
   const ctxQ = useQuery(() => client.get_workflow_ctx.queryOptions(props.videoDir));
-  const lang = () => (ctxQ.isSuccess ? ctxQ.data?.target_language : undefined);
+  // 目标语言是 translate 步骤的事实（<translate>/state.json 的 facts）。
+  const lang = () =>
+    ctxQ.isSuccess
+      ? (ctxQ.data?.steps?.translate?.facts as { target_language?: string | null } | undefined)
+          ?.target_language
+      : undefined;
   const path = () => (lang() ? `${props.videoDir}/translate/${lang()}.json` : undefined);
 
   const { segments } = useTrackData({

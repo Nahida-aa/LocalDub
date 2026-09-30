@@ -5,7 +5,6 @@
 //! 这里复用 `sf_ocr::args::SfOcrArgs`，用 `#[serde(flatten)]` 保持扁平 JSON 结构，
 //! 同时保留 asr_ocr 独立的类型身份 (便于将来与 sf_ocr 分叉)。
 
-use std::path::Path;
 use crate::steps::sf_ocr::args::SfOcrArgs;
 use crate::steps::utils::paths::asr_ocr_pre;
 use serde::{Deserialize, Serialize};
@@ -48,15 +47,21 @@ impl AsrOcrArgs {
 /// 该目录是交给 `subtitle-ocr` 二进制做 OCR 的输入（`--dir`），不是 JSON 产物；
 /// 自身产物 `asr_ocr/frames.json` 不在此列——那是输出，非输入。
 pub struct AsrOcrInput {
+    /// 任务目录（写侧 step status 需要）。
+    pub video_dir: String,
     /// 来自 asr_ocr_pre 步骤的帧目录 `asr_ocr_pre/frames`。
     pub frames_dir: asr_ocr_pre::FramesDir,
+    /// 本次运行参数（`input.steps.asr_ocr`）。
+    pub args: AsrOcrArgs,
 }
 
 impl AsrOcrInput {
     /// 按约定拼法构造：`{video_dir}/asr_ocr_pre/frames`。
-    pub fn from_video_dir(video_dir: impl AsRef<Path>) -> Self {
+    pub fn new(video_dir: &str, input: &crate::input::Input) -> Self {
         Self {
-            frames_dir: asr_ocr_pre::FramesDir::new(&video_dir),
+            video_dir: video_dir.to_string(),
+            frames_dir: asr_ocr_pre::FramesDir::new(video_dir),
+            args: input.steps.asr_ocr.clone(),
         }
     }
 }

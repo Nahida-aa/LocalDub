@@ -4,7 +4,6 @@
 //! 落盘 `<videoDir>/sf_ocr_pre/`: frames/(PNG) / mask/ / timeline.txt / keyframes.json。
 
 use crate::cmd::env::ensure_bin;
-use crate::state::State;
 use crate::steps::sf_ocr::pre_args::SfOcrPreInput;
 use crate::steps::utils::paths::sf_ocr_pre;
 use crate::steps::utils::{
@@ -13,8 +12,10 @@ use crate::steps::utils::{
 use std::process::Command;
 
 /// 入口 (镜像 TS `stepSfOcrPre`)。
-pub fn step_sf_ocr_pre(state: &State) -> anyhow::Result<()> {
-    let video_dir = state.init.workflow.video_dir.clone();
+///
+/// 单参 [`SfOcrPreInput`]：依赖（原视频）+ 任务目录都在里面。
+pub fn step_sf_ocr_pre(input: &SfOcrPreInput) -> anyhow::Result<()> {
+    let video_dir = input.video_dir.clone();
     tracing::info!(target: "sf_ocr", "start");
 
     set_step_anyhow(
@@ -27,7 +28,6 @@ pub fn step_sf_ocr_pre(state: &State) -> anyhow::Result<()> {
         },
     )?;
 
-    let input = SfOcrPreInput::from_state(state)?;
     let video_path = input.video_source_path.as_path();
     if !video_path.exists() {
         return Err(anyhow::anyhow!(
@@ -99,19 +99,10 @@ pub fn step_sf_ocr_pre(state: &State) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::read_ctx_from_value;
-    use serde_json::json;
 
-    fn ctx_at(dir: &str) -> State {
-        let mut ctx = read_ctx_from_value(json!({
-            "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
-                     "status":"running","created_at":"2024-01-01T00:00:00Z"},
-            "input": {}
-        }))
-        .unwrap();
-        ctx.init.workflow.video_dir = dir.to_string();
-        ctx.init.output_mode = "dub".to_string();
-        ctx
+    /// 依赖只有 video_dir（约定拼法），故夹具不需要 input.json。
+    fn input_at(dir: &str) -> SfOcrPreInput {
+        SfOcrPreInput::new(dir, &crate::input::Input::default())
     }
 
     #[test]
@@ -122,10 +113,8 @@ mod tests {
             .to_string();
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let mut ctx = ctx_at(&dir);
-        ctx.init.video_source_path = Some(format!("{dir}/nope.mp4"));
-        crate::state::write_ctx(&dir, &ctx).unwrap();
-        let res = step_sf_ocr_pre(&ctx);
+        // `{dir}/video_source.mp4` 不存在（import 没跑过）
+        let res = step_sf_ocr_pre(&input_at(&dir));
         assert!(res.is_err());
         assert!(
             res.unwrap_err().to_string().contains("OCR input not found"),
@@ -148,7 +137,7 @@ mod tests {
             .to_string();
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let video = format!("{dir}/video.mp4");
+        let video = std::path::Path::new(&dir).join("video_source.mp4");
         std::fs::write(&video, b"fake").unwrap();
 
         // 备份 data/bin 现场
@@ -170,10 +159,7 @@ mod tests {
         });
         std::fs::write(&stamp_path, serde_json::to_string_pretty(&stamp).unwrap()).unwrap();
 
-        let mut ctx = ctx_at(&dir);
-        ctx.init.video_source_path = Some(video);
-        crate::state::write_ctx(&dir, &ctx).unwrap();
-        let res = step_sf_ocr_pre(&ctx);
+        let res = step_sf_ocr_pre(&input_at(&dir));
 
         // 清理假二进制, 恢复现场
         let _ = std::fs::remove_file(&bin_path);

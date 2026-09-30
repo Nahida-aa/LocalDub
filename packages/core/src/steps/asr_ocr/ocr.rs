@@ -4,19 +4,18 @@
 //! Writes `<videoDir>/asr_ocr/frames.json` (OcrFramesResult).
 
 use crate::cmd::env::ensure_bin;
-use crate::state::State;
-use crate::steps::asr_ocr::args::{AsrOcrArgs, AsrOcrInput};
-use crate::steps::utils::{
-    asr_ocr_dir, now_iso, set_step_anyhow, StepPatch, StepStatus,
-};
+use crate::steps::asr_ocr::args::AsrOcrInput;
 use crate::steps::utils::paths::asr_ocr;
+use crate::steps::utils::{asr_ocr_dir, now_iso, set_step_anyhow, StepPatch, StepStatus};
 use anyhow::Result;
 use std::fs;
 use std::process::Command;
 
 /// Entry point (mirrors TS `stepAsrOcr`).
-pub fn step_asr_ocr(ctx: &State) -> Result<()> {
-    let video_dir = ctx.init.workflow.video_dir.clone();
+///
+/// 单参 [`AsrOcrInput`]：依赖（帧目录）+ 任务目录 + 本次参数都在里面。
+pub fn step_asr_ocr(input: &AsrOcrInput) -> Result<()> {
+    let video_dir = input.video_dir.clone();
     tracing::info!(target: "asr_ocr", "step_asr_ocr: start");
 
     set_step_anyhow(
@@ -29,10 +28,7 @@ pub fn step_asr_ocr(ctx: &State) -> Result<()> {
         },
     )?;
 
-    let cfg = AsrOcrArgs::from_input(&ctx.init.input);
-
-    // 跨步骤输入清单（依赖见 `AsrOcrInput`）。
-    let input = AsrOcrInput::from_video_dir(&video_dir);
+    let cfg = &input.args;
     let frame_dir = input.frames_dir.as_path();
     if !frame_dir.exists() {
         return Err(anyhow::anyhow!(
@@ -118,15 +114,6 @@ pub fn step_asr_ocr(ctx: &State) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::read_ctx_from_value;
-    use serde_json::json;
-
-    fn ctx_at(dir: &str, input: serde_json::Value) -> State {
-        let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.init.workflow.video_dir = dir.to_string();
-        ctx.init.output_mode = "dub".to_string();
-        ctx
-    }
 
     #[test]
     fn missing_frames_errors() {
@@ -136,16 +123,9 @@ mod tests {
             .to_string();
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
-        let ctx = ctx_at(
-            &dir,
-            json!({
-                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {}
-            }),
-        );
-        crate::state::write_ctx(&dir, &ctx).unwrap();
-        let res = step_asr_ocr(&ctx);
+        // 本步不读 state.json，故 input 用默认即可（帧目录缺失是最先被拦的条件）
+        let input = crate::input::Input::default();
+        let res = step_asr_ocr(&AsrOcrInput::new(&dir, &input));
         assert!(res.is_err());
         assert!(
             res.unwrap_err()

@@ -21,9 +21,9 @@ use std::sync::{Arc, Mutex};
 use ld_core::input::Input;
 
 use event::{
-    Checkpoint, KEEP_TERMINAL, QueueEvent, TerminalEntry, entry_action_target, parse_event,
+    entry_action_target, parse_event, Checkpoint, QueueEvent, TerminalEntry, KEEP_TERMINAL,
 };
-use persist::{ROTATE_BYTES, append_event, write_checkpoint};
+use persist::{append_event, write_checkpoint, ROTATE_BYTES};
 
 /// 事件折叠: 更新内存的活跃区与终态缓存 (重放与运行终态共用)。
 fn finish_entry(

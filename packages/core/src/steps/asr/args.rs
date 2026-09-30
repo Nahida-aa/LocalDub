@@ -224,9 +224,7 @@ fn default_max_len() -> u32 {
     0
 }
 
-use crate::state::State;
 use crate::steps::utils::paths::{separate, separate_after, VideoSourcePath};
-use anyhow::Result;
 
 /// asr 实际只转写**一路**音源, 但具体取哪路由 `cfg`
 /// (`useSeparated` / `vocalAudioPath`) 决定。把「可能的跨步骤音源」穷举成枚举,
@@ -253,23 +251,28 @@ pub enum AsrSourceAudioPath {
 
 /// asr 步骤的跨步骤依赖清单(代码即 DAG 视角)。
 ///
-/// 与 `AsrOcrPreInput` 等兄弟 `*Input` 同款定位: 只声明**被消费的跨步骤产物**,
-/// 自身的输出(`asr/asr.json`)、`*Args::from_input`、以及 `VideoSourcePath::from_state`
-/// 另行获取。此处因音源是「多选一」, 用枚举而非扁平字段表达读集。
+/// 与 `AsrOcrPreInput` 等兄弟 `*Input` 同款定位: 只声明**被消费的跨步骤产物**与
+/// 本次运行参数，自身的输出(`asr/asr.json`)不在清单内。此处因音源是「多选一」,
+/// 用枚举而非扁平字段表达读集。
 pub struct AsrInput {
+    /// 任务目录（写侧 step status 与 `<asr>/out.json` 需要）。
+    pub video_dir: String,
     pub audio_path: AsrSourceAudioPath,
+    /// 本次运行参数（`input.steps.asr`）。
+    pub args: AsrArgs,
+    /// 显式指定的源语言（`input.workflow.sourceLang`）：未配置则 whisper auto 检测。
+    pub source_lang: Option<String>,
 }
 
 impl AsrInput {
-    /// 纯声明: 仅依据 `cfg` 选枚举分支, 不触碰磁盘(存在性仲裁留给 step 体)。
+    /// 纯声明: 仅依据 `args` 选枚举分支, 不触碰磁盘(存在性仲裁留给 step 体)。
     ///
     /// `vocalAudioPath` 仅在 `useSeparated=true` 时生效(覆盖 separate 的人声),
     /// 与 `stepAsr` 原逻辑一致; `useSeparated=false` 时忽略它、走 `video_source`。
-    pub fn from_state(state: &State) -> Result<Self> {
-        let cfg = AsrArgs::from_input(&state.init.input);
-        let video_dir = &state.init.workflow.video_dir;
-        let audio_path = if cfg.use_separated {
-            if let Some(p) = cfg.vocal_audio_path.clone() {
+    pub fn new(video_dir: &str, input: &crate::input::Input) -> Self {
+        let args = AsrArgs::from_input(input);
+        let audio_path = if args.use_separated {
+            if let Some(p) = args.vocal_audio_path.clone() {
                 AsrSourceAudioPath::Custom(PathBuf::from(p))
             } else {
                 AsrSourceAudioPath::Separated {
@@ -279,8 +282,17 @@ impl AsrInput {
                 }
             }
         } else {
-            AsrSourceAudioPath::Raw(VideoSourcePath::from_state(state)?)
+            AsrSourceAudioPath::Raw(VideoSourcePath::from_video_dir(video_dir))
         };
-        Ok(Self { audio_path })
+        Self {
+            video_dir: video_dir.to_string(),
+            audio_path,
+            args,
+            source_lang: input
+                .workflow
+                .as_ref()
+                .and_then(|w| w.source_lang.as_ref())
+                .map(|l| l.code().to_string()),
+        }
     }
 }

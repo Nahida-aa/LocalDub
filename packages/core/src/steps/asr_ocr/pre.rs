@@ -1,15 +1,12 @@
 //! asr_ocr_pre: Split ASR segments by punctuation (mirroring TS `stepAsrOcrPre`)
 //! and extract frames via ffmpeg.
 
-use crate::state::State;
 use crate::steps::asr::out::{AsrResult, AsrSegment};
 use crate::steps::asr_ocr::pre_args::AsrOcrPreInput;
-use crate::steps::utils::ffmpeg;
-use crate::steps::utils::{
-    asr_ocr_pre_dir, now_iso, set_step_anyhow, StepPatch, StepStatus,
-};
-use crate::steps::utils::paths::asr_ocr_pre;
 use crate::steps::asr_ocr::pre_out::{AsrSplitResult, AsrSplitResultBody, AsrSplitResultMeta};
+use crate::steps::utils::ffmpeg;
+use crate::steps::utils::paths::asr_ocr_pre;
+use crate::steps::utils::{asr_ocr_pre_dir, now_iso, set_step_anyhow, StepPatch, StepStatus};
 use anyhow::Result;
 use std::collections::HashSet;
 use std::fs;
@@ -134,8 +131,10 @@ fn split_asr_by_words(segs: &[AsrSegment]) -> Vec<SubtitleSegment> {
 }
 
 /// Entry point (mirrors TS `stepAsrOcrPre`).
-pub fn step_asr_ocr_pre(ctx: &State) -> Result<()> {
-    let video_dir = ctx.init.workflow.video_dir.clone();
+///
+/// 单参 [`AsrOcrPreInput`]：依赖（asr.json + 原视频）+ 任务目录 + 本次参数都在里面。
+pub fn step_asr_ocr_pre(input: &AsrOcrPreInput) -> Result<()> {
+    let video_dir = input.video_dir.clone();
     info!(target: "asr_ocr", "step_asr_ocr_pre: start");
 
     set_step_anyhow(
@@ -148,11 +147,12 @@ pub fn step_asr_ocr_pre(ctx: &State) -> Result<()> {
         },
     )?;
 
-    // 跨步骤输入清单（依赖见 `AsrOcrPreInput`）。
-    let input = AsrOcrPreInput::from_state(ctx)?;
     let video_source = input.video_source_path.as_path();
     if !video_source.exists() {
-        return Err(anyhow::anyhow!("Video not found: {}", video_source.display()));
+        return Err(anyhow::anyhow!(
+            "Video not found: {}",
+            video_source.display()
+        ));
     }
     let video_path = video_source.to_string_lossy().into_owned();
 

@@ -7,7 +7,6 @@
 use crate::steps::sf_ocr::fix_args::OcrFixArgs;
 use crate::steps::utils::paths::{asr_ocr, asr_ocr_pre};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 
 /// asr_ocr 阶段 OCR 修正参数。
 ///
@@ -53,18 +52,31 @@ impl AsrOcrFixArgs {
 ///
 /// 自身产物 `asr_ocr_fix/srt.json` 不在此列——那是输出，非输入。
 pub struct AsrOcrFixInput {
+    /// 任务目录（写侧 step status 需要）。
+    pub video_dir: String,
     /// 来自 asr_ocr_pre 步骤的 ASR 切分结果 `asr_ocr_pre/asr_split.json`。
     pub asr_ocr_pre_asr_split_path: asr_ocr_pre::AsrSplitPath,
     /// 来自 asr_ocr 步骤的逐帧 OCR 结果 `asr_ocr/frames.json`。
     pub ocr_frames_path: asr_ocr::FramesPath,
+    /// 源语言（`<asr>/out.json` > `input.workflow.sourceLang` > 未知）：LLM 提示词用它。
+    pub source_lang: crate::r#const::lang::LangCode,
+    /// 本次运行参数（`input.steps.asr_ocr_fix`）。
+    pub args: AsrOcrFixArgs,
+    /// fixOverlap 的最大提前量：`input.steps.mix_audio.max_advance_ms`（以 ms 为单位
+    /// 的字幕提前容忍限度，与配音对齐用同一个值）。
+    pub max_advance_ms: f64,
 }
 
 impl AsrOcrFixInput {
     /// 按约定拼法构造：`{video_dir}/asr_ocr_pre/asr_split.json` 等两条。
-    pub fn from_video_dir(video_dir: impl AsRef<Path>) -> Self {
+    pub fn new(video_dir: &str, input: &crate::input::Input) -> Self {
         Self {
-            asr_ocr_pre_asr_split_path: asr_ocr_pre::AsrSplitPath::new(&video_dir),
-            ocr_frames_path: asr_ocr::FramesPath::new(&video_dir),
+            video_dir: video_dir.to_string(),
+            asr_ocr_pre_asr_split_path: asr_ocr_pre::AsrSplitPath::new(video_dir),
+            ocr_frames_path: asr_ocr::FramesPath::new(video_dir),
+            source_lang: crate::steps::utils::src_language(video_dir, input),
+            args: input.steps.asr_ocr_fix.clone(),
+            max_advance_ms: input.steps.mix_audio.max_advance_ms,
         }
     }
 }

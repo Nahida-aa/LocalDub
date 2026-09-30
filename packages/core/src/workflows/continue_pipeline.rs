@@ -5,37 +5,31 @@
 //! - 否则 → 跳过已 `success` 的前缀 step, 从第一个未完成 step 续跑;
 //! - `workflow.targetStep` 命中即停 (truncate 序列)。
 //!
-//! ctx 由调用者传入 (而非内部从磁盘 `read_ctx`), 以保证续跑使用的是调用者选定的
-//! 那份 ctx (例如 cli 从 `input.jsonc` 解析后写入的 ctx), 而不是可能陈旧的持久化 ctx。
-//! 不调用 `import_video` (TS `continuePipeline` 也不调), caller 应已保证 workflow 目录存在。
+//! `input` 由调用者传入 (而非内部从磁盘 `read_input`), 以保证续跑使用的是调用者
+//! 选定的那份配置 (例如 cli 从 `input.jsonc` 解析后写入的 input.json), 而不是可能
+//! 陈旧的持久化配置。不调用 `import_video` (TS `continuePipeline` 也不调), caller
+//! 应已保证 workflow 目录存在。
 
-use crate::state::State;
+use crate::input::Input;
 use crate::steps::utils::{now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
 use crate::workflows::pipeline::run_step;
 
 /// 续跑 output_mode (镜像 TS `continuePipeline`)。
-///
-/// `ctx` 必须由调用者先 `read_ctx(video_dir)` (或自行构造) 后传入; 内部不再读磁盘,
-/// 避免续跑基于陈旧 ctx。
-pub fn continue_pipeline(state: &State) -> anyhow::Result<()> {
-    let video_dir = state.init.workflow.video_dir.as_str();
+pub fn continue_pipeline(video_dir: &str, input: &Input) -> anyhow::Result<()> {
     // 进入 workflow span: 携带 video_dir 供 WorkflowFileLayer 落盘。
     let _workflow_guard = tracing::info_span!("workflow", video_dir = video_dir).entered();
     tracing::info!(target: "output_mode", "continue_pipeline: start");
 
-    let output_mode = state.init.output_mode.clone();
-    let video_id = state.init.workflow.id.clone();
-    let steps = crate::steps::get_steps(state)?;
+    let video_id = crate::steps::utils::video_id(video_dir).unwrap_or_default();
+    let steps = crate::steps::get_steps(input)?;
 
-    // continueFrom / targetStep 从 ctx.init.input.workflow 读取 (镜像 TS ctx.init.input?.workflow)
-    let continue_from = state
-        .input
+    // continueFrom / targetStep 从 input.workflow 读取 (镜像 TS ctx.input?.workflow)
+    let continue_from = input
         .workflow
         .as_ref()
         .and_then(|w| w.continue_from.as_ref())
         .map(|s| s.as_str().to_string());
-    let target_step = state
-        .input
+    let target_step = input
         .workflow
         .as_ref()
         .and_then(|w| w.target_step.as_ref())
@@ -44,9 +38,7 @@ pub fn continue_pipeline(state: &State) -> anyhow::Result<()> {
     // targetStep 不在序列中则告警忽略 (镜像 TS)
     if let Some(ts) = &target_step {
         if !steps.iter().any(|s| s.as_str() == ts) {
-            tracing::info!(target: "output_mode",
-                "[WARN] targetStep \"{ts}\" 不在 {output_mode} output_mode 中, 忽略"
-            );
+            tracing::info!(target: "output_mode", "[WARN] targetStep \"{ts}\" 不在序列中, 忽略");
         }
     }
 
@@ -76,13 +68,13 @@ pub fn continue_pipeline(state: &State) -> anyhow::Result<()> {
         );
     } else {
         // 无 continueFrom → 跳过已完成前缀, 从第一个未完成 step 续跑
-        let existing: std::collections::HashMap<String, StepStatus> = state
-            .steps
-            .iter()
-            .map(|(name, st)| (name.as_str().to_string(), st.status))
-            .collect();
+        let existing = crate::state::read_steps_state(video_dir).map_err(anyhow::Error::msg)?;
         for (i, s) in steps.iter().enumerate() {
-            if existing.get(s.as_str()) != Some(&StepStatus::Success) {
+            let done = existing
+                .0
+                .get(s)
+                .is_some_and(|st| st.status == StepStatus::Success);
+            if !done {
                 start_idx = i;
                 break;
             }
@@ -136,9 +128,9 @@ pub fn continue_pipeline(state: &State) -> anyhow::Result<()> {
         )?;
         tracing::info!(target: "output_mode", "Running {step_str}");
 
-        // 每步重读盘：前序步骤可能写 state。
-        let state = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
-        match run_step(step, &state) {
+        // 每步重读 input.json：前序步骤可能改配置（continue 也可能中途改过）。
+        let input = crate::state::read_input(video_dir).map_err(anyhow::Error::msg)?;
+        match run_step(step, video_dir, &input) {
             Ok(()) => {
                 if let Some(ts) = &target_step {
                     if step_str == ts {

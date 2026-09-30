@@ -21,20 +21,19 @@
 use std::sync::Arc;
 
 use aa_workflow_core::{
-    RunStatus, RunWorkflowOptions, StepCtx, Workflow, WorkflowCtx, run_workflow_sync,
+    run_workflow_sync, RunStatus, RunWorkflowOptions, StepCtx, Workflow, WorkflowCtx,
 };
 
-use crate::state::read_ctx;
 use crate::steps::get_steps;
-use crate::workflows::args::StepName;
 use crate::steps::utils::{
     now_iso, set_step_anyhow, set_workflow_anyhow, video_id, StepPatch, StepStatus, WorkflowPatch,
 };
+use crate::workflows::args::StepName;
 use crate::workflows::pipeline::run_step;
 
 use super::engine_store::FsRunStore;
 
-/// 引擎调用参数 (由调用方注入; 未显式给出的回退到 ctx.init.input.workflow 里的字段)。
+/// 引擎调用参数 (由调用方注入; 未显式给出的回退到 ctx.input.workflow 里的字段)。
 #[derive(Default, Debug, Clone)]
 pub struct EngineOptions {
     /// 从该 step 起重置为 pending 续跑 (镜像 continue_pipeline 的 continueFrom)。
@@ -44,8 +43,8 @@ pub struct EngineOptions {
 }
 
 impl EngineOptions {
-    /// 从 `ctx.init.input` 填充: `workflow.continueFrom` / `workflow.targetStep`
-    /// (TS 续跑路径放这)。`ctx.init.input` 已是结构化 [`Input`](crate::input::Input)，
+    /// 从 `ctx.input` 填充: `workflow.continueFrom` / `workflow.targetStep`
+    /// (TS 续跑路径放这)。`ctx.input` 已是结构化 [`Input`](crate::input::Input)，
     /// 故直接读类型字段（无顶层 `targetStep` 兜底——该字段本就位于 `workflow` 下）。
     pub fn from_input(input: &crate::input::Input) -> Self {
         let wf = input.workflow.as_ref();
@@ -84,24 +83,24 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
             vec![p(asr_fix::SrtPath::new(wf).as_path().to_path_buf())]
         }
         "translate" => {
-            let ctx = crate::state::read_ctx(wf).ok()?;
-            // 读已落定的事实（translation 步骤写的），不现算。
-            let p_lang = crate::steps::utils::paths::translate::LangPath::from_state(&ctx).ok()?;
+            let p_lang =
+                crate::steps::utils::paths::translate::LangPath::from_video_dir(wf).ok()?;
             vec![p(p_lang.as_path().to_path_buf())]
         }
         "split_audio" => vec![p(split_audio_path(wf)), p(split_audio_timings_path(wf))],
         "tts" => vec![p(TtsPath::new(wf).into())],
         "mix_audio" => vec![p(dubbing_path(wf)), p(mix_audio_timings_path(wf))],
         "mix_video" => {
-            let ctx = crate::state::read_ctx(wf).ok()?;
-            let no_translate = !ctx.init.input.steps.translate.enabled;
-            let sub_src = ctx
-                .input
-                .workflow
-                .as_ref()
-                .map(|w| w.subtitle_source.as_str())
-                .unwrap_or("asr");
-            let dir_name = final_video_dir(&ctx.init.output_mode, sub_src, no_translate);
+            let input = crate::state::read_input(wf).ok()?;
+            let dir_name = final_video_dir(
+                crate::workflows::args::OutputMode::from_input(&input).as_str(),
+                input
+                    .workflow
+                    .as_ref()
+                    .map(|w| w.subtitle_source.as_str())
+                    .unwrap_or("asr"),
+                !input.steps.translate.enabled,
+            );
             let vid = video_id(wf).unwrap_or_default();
             vec![p(std::path::Path::new(wf)
                 .join("mix_video")
@@ -132,7 +131,7 @@ fn step_artifacts(video_dir: &str, step: &str) -> Option<serde_json::Value> {
 /// 真值始终是盘上的 state.json。
 pub(crate) async fn drive_step(dir: &str, step: StepName) -> anyhow::Result<serde_json::Value> {
     let step_name = step.as_str();
-    let state = read_ctx(dir).map_err(anyhow::Error::msg)?;
+    let input = crate::state::read_input(dir).map_err(anyhow::Error::msg)?;
     tracing::info!(target: "engine", "Running {step_name}");
     set_step_anyhow(
         dir,
@@ -146,7 +145,8 @@ pub(crate) async fn drive_step(dir: &str, step: StepName) -> anyhow::Result<serd
     )?;
     // 真 step 是同步阻塞（子进程 + 轮询）——丢进 spawn_blocking：
     // 并行分支互不占死执行器线程。
-    match tokio::task::spawn_blocking(move || run_step(step, &state))
+    let dir_owned = dir.to_string();
+    match tokio::task::spawn_blocking(move || run_step(step, &dir_owned, &input))
         .await
         .map_err(|e| anyhow::anyhow!("step task join 失败: {e}"))?
     {
@@ -165,7 +165,7 @@ pub(crate) async fn drive_step(dir: &str, step: StepName) -> anyhow::Result<serd
                 },
             )?;
             // workflow 级 failed 状态由 apply_outcome 在 run 边界写——
-            // 步骤失败路径不写 init.json（并行分支不碰它）。
+            // 步骤失败路径不写 state.json（并行分支不碰它）。
             Err(anyhow::anyhow!(msg))
         }
     }
@@ -173,23 +173,22 @@ pub(crate) async fn drive_step(dir: &str, step: StepName) -> anyhow::Result<serd
 
 pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Result<()> {
     let _guard = tracing::info_span!("workflow", video_dir = video_dir).entered();
-    let ctx = read_ctx(video_dir).map_err(anyhow::Error::msg)?;
-    let steps = get_steps(&ctx)?;
+    let input = crate::state::read_input(video_dir).map_err(anyhow::Error::msg)?;
+    let steps = get_steps(&input)?;
 
     let target_step = opts
         .target_step
         .clone()
-        .or_else(|| EngineOptions::from_input(&ctx.init.input).target_step);
+        .or_else(|| EngineOptions::from_input(&input).target_step);
     let continue_from = opts
         .continue_from
         .clone()
-        .or_else(|| EngineOptions::from_input(&ctx.init.input).continue_from);
+        .or_else(|| EngineOptions::from_input(&input).continue_from);
 
     // target_step 不在序列中则告警忽略 (镜像 run_pipeline)
     if let Some(ts) = &target_step {
         if !steps.iter().any(|s| s.as_str() == ts) {
-            tracing::info!(target: "engine",
-                "[WARN] target_step \"{ts}\" 不在 {} output_mode 中, 忽略", ctx.init.output_mode);
+            tracing::info!(target: "engine", "[WARN] target_step \"{ts}\" 不在序列中, 忽略");
         }
     }
 
@@ -211,51 +210,57 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
 
     // 注册表优先：已注册的组合用具名定义（显式步骤调用，见 workflows/）；
     // 未注册的组合回退通用串行定义（get_steps 推导）——实验期其余组合行为不变。
-    let workflow_id = super::workflows::resolve_id(&ctx);
+    let workflow_id = super::workflows::resolve_id(&input);
     let wf = super::workflows::build(&workflow_id).unwrap_or_else(|| {
         tracing::info!(target: "engine",
             "workflow \"{workflow_id}\" 未注册，回退通用串行定义");
-        Workflow::new(ctx.init.output_mode.clone()).handler({
-        let dir = video_dir.to_string();
-        let steps = steps;
-        move |wctx: WorkflowCtx| {
-            let dir = dir.clone();
-            let steps = steps.clone();
-            async move {
-                for step in &steps {
-                    // `steps` 已是 `StepName`（`get_steps` 解析过），每个变体都有
-                    // `run_step` 分支——不再需要 has_handler 过滤。
-                    let step_id = step.as_str().to_string();
-                    let step_name = *step;
-                    let dir = dir.clone();
-                    // 未注册组合（erased ctx）：drive_step 自行在 step 起点读盘。
-                    wctx.step(&step_id, move |_sc: StepCtx| async move {
-                        drive_step(&dir, step_name).await
-                    })
-                    .await?;
+        Workflow::new(
+            crate::workflows::args::OutputMode::from_input(&input)
+                .as_str()
+                .to_string(),
+        )
+        .handler({
+            let dir = video_dir.to_string();
+            let steps = steps;
+            move |wctx: WorkflowCtx| {
+                let dir = dir.clone();
+                let steps = steps.clone();
+                async move {
+                    for step in &steps {
+                        // `steps` 已是 `StepName`（`get_steps` 解析过），每个变体都有
+                        // `run_step` 分支——不再需要 has_handler 过滤。
+                        let step_id = step.as_str().to_string();
+                        let step_name = *step;
+                        let dir = dir.clone();
+                        // 未注册组合（erased ctx）：drive_step 自行在 step 起点读盘。
+                        wctx.step(&step_id, move |_sc: StepCtx| async move {
+                            drive_step(&dir, step_name).await
+                        })
+                        .await?;
+                    }
+                    Ok(serde_json::Value::Null)
                 }
-                Ok(serde_json::Value::Null)
             }
-        }
-    })
+        })
     });
 
-    let mut input_value = serde_json::to_value(&ctx.init.input).map_err(anyhow::Error::msg)?;
+    let mut input_value = serde_json::to_value(&input).map_err(anyhow::Error::msg)?;
     // 注入 videoDir：注册表化工作流的 initialize / handler 从 run input 取
     // 任务目录（对齐例子——videoDir 本就是 run input 的一部分；start 路径的
     // input 原本没有，这里补上）。
-    if let Some(w) = input_value.get_mut("workflow").and_then(|w| w.as_object_mut()) {
+    if let Some(w) = input_value
+        .get_mut("workflow")
+        .and_then(|w| w.as_object_mut())
+    {
         w.insert(
             "videoDir".to_string(),
             serde_json::Value::String(video_dir.to_string()),
         );
     }
-    let mut r_opts = RunWorkflowOptions::new(
-        Arc::new(wf.clone()),
-        Arc::new(FsRunStore::new(video_dir)),
-    )
-    .input(input_value)
-    .run_id(run_id.clone());
+    let mut r_opts =
+        RunWorkflowOptions::new(Arc::new(wf.clone()), Arc::new(FsRunStore::new(video_dir)))
+            .input(input_value)
+            .run_id(run_id.clone());
     if let Some(cf) = &continue_from {
         r_opts = r_opts.continue_from(cf.clone());
     }
@@ -263,8 +268,8 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
         r_opts = r_opts.target_step(ts.clone());
     }
 
-    let outcome = run_workflow_sync(&r_opts)
-        .map_err(|e| anyhow::anyhow!("workflow engine error: {e}"))?;
+    let outcome =
+        run_workflow_sync(&r_opts).map_err(|e| anyhow::anyhow!("workflow engine error: {e}"))?;
 
     apply_outcome(video_dir, &run_id, outcome)
 }
@@ -381,24 +386,24 @@ fn store_wait_desc(video_dir: &str) -> String {
 mod tests {
     use super::*;
     use crate::integration::workflow::test_support::{setup_subtitle, status_of, temp_dir};
-    use crate::state::{read_ctx, StepStatus};
-    use serde_json::json;
+    use crate::state::{read_workflow, StepStatus};
     use aa_workflow_core::RunStore;
 
     #[test]
     fn engine_serial_matches_run_pipeline() {
         let dir_old = temp_dir("eq_old");
         let dir_new = temp_dir("eq_new");
-        setup_subtitle(&dir_old);
-        setup_subtitle(&dir_new);
+        let input_old = setup_subtitle(&dir_old);
+        let _ = setup_subtitle(&dir_new); // engine 路径自己从 input.json 读
 
-        crate::workflows::pipeline::run_pipeline(&dir_old).expect("run_pipeline 不应失败");
+        crate::workflows::pipeline::run_pipeline(&dir_old, &input_old)
+            .expect("run_pipeline 不应失败");
         run_workflow_engine(&dir_new, &EngineOptions::default()).expect("engine 不应失败");
 
         for dir in [&dir_old, &dir_new] {
-            let ctx = read_ctx(dir).unwrap();
-            assert_eq!(ctx.init.workflow.status, "success");
-            assert_eq!(ctx.init.workflow.current_step, None);
+            let wf = read_workflow(dir).unwrap();
+            assert_eq!(wf.status, "success");
+            assert_eq!(wf.current_step, None);
             assert_eq!(status_of(dir, "separate"), StepStatus::Success);
             assert_eq!(status_of(dir, "separate_after"), StepStatus::Success);
         }
@@ -436,8 +441,8 @@ mod tests {
                 .count(),
             1
         );
-        let ctx = read_ctx(&dir).unwrap();
-        assert_eq!(ctx.init.workflow.status, "success");
+        let wf = read_workflow(&dir).unwrap();
+        assert_eq!(wf.status, "success");
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -456,17 +461,12 @@ mod tests {
         )
         .unwrap();
 
-        let ctx = read_ctx(&dir).unwrap();
-        assert_eq!(ctx.init.workflow.status, "success");
+        let wf = read_workflow(&dir).unwrap();
+        assert_eq!(wf.status, "success");
         assert_eq!(status_of(&dir, "separate"), StepStatus::Success);
-        // separate_after 未跑 → state.json 无对应 step 条目 (或非 success)
-        let after = ctx
-            .steps
-            .as_ref()
-            .and_then(|s| s.iter().find(|s| s.name == "separate_after"));
-        assert!(after
-            .map(|s| s.status != StepStatus::Success)
-            .unwrap_or(true));
+        // separate_after 未跑 → 没有它自己的 <step>/state.json（status 读出默认 pending）
+        // 未跑过 → 没有独立的 <step>/state.json（status 读出来是默认 pending）
+        assert_ne!(status_of(&dir, "separate_after"), StepStatus::Success);
 
         // 事件日志里 separate_after 不应有 StepFinished
         let store = FsRunStore::new(&dir);
@@ -573,8 +573,8 @@ mod tests {
             1
         );
 
-        let ctx = read_ctx(&dir).unwrap();
-        assert_eq!(ctx.init.workflow.status, "success");
+        let wf = read_workflow(&dir).unwrap();
+        assert_eq!(wf.status, "success");
         assert_eq!(status_of(&dir, "separate"), StepStatus::Success);
         assert_eq!(status_of(&dir, "separate_after"), StepStatus::Success);
 
@@ -616,8 +616,8 @@ mod tests {
         );
 
         // workflow 状态如实置 paused（不是 success / failed）。
-        let ctx = read_ctx(&dir).unwrap();
-        assert_eq!(ctx.init.workflow.status, "paused");
+        let wf = read_workflow(&dir).unwrap();
+        assert_eq!(wf.status, "paused");
 
         // 日志里不得出现终态事件——挂起不是终局。
         let events = FsRunStore::new(&dir).get_events("t").unwrap();

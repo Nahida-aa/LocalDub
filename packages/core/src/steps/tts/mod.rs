@@ -17,9 +17,8 @@ use std::path::Path;
 
 use indicatif::{ProgressBar, ProgressStyle};
 
-use crate::state::State;
 use crate::steps::split_audio::out::SplitAudioTimingResult;
-use crate::steps::tts::args::{TtsArgs, TtsInput, TtsRuntime};
+use crate::steps::tts::args::{TtsInput, TtsRuntime};
 use crate::steps::tts::out::{TtsSegment, TtsSegmentsResult};
 use crate::steps::tts::util::{
     ensure_no_failed_segments, pick_voxcpm_bin, should_skip_segment, write_silent_wav,
@@ -40,15 +39,13 @@ const MIN_REF_DURATION_MS: u64 = 2500;
 const MIN_TTS_DURATION_MS: u64 = 100;
 
 /// 入口 (镜像 TS `stepTts`)。
-pub fn step_tts(state: &State) -> anyhow::Result<()> {
-    let video_dir = state.init.workflow.video_dir.clone();
+///
+/// 单参 [`TtsInput`]：只读 split_audio 的两个产物 + 任务目录 + 本次参数。
+pub fn step_tts(input: &TtsInput) -> anyhow::Result<()> {
+    let video_dir = input.video_dir.clone();
     tracing::info!(target: "tts", "start");
 
-    let args = TtsArgs::from_input(&state.init.input);
-    // 输入契约一次性构建：本步只读 split_audio 的两个产物，路径全由 `paths` 里的
-    // 类型给出，本函数不再自己拼字符串。
-    let input = TtsInput::from_video_dir(&video_dir);
-    // 本步产出不在 StepInput 依赖清单内，步骤体自行构造。
+    let args = &input.args;
     let tts_wavs_dir = crate::steps::utils::paths::tts::WavsDir::new(&video_dir);
     let ref_doubled_dir = crate::steps::utils::paths::tts::RefDoubledDir::new(&video_dir);
     let tts_path = crate::steps::utils::paths::tts::TtsPath::new(&video_dir);
@@ -96,8 +93,7 @@ pub fn step_tts(state: &State) -> anyhow::Result<()> {
     // - 首次 start 时强制忽略, 全量跑; 仅 continue 重跑时用。
     // - 列表内的段: 无视 skipExisting, 强制重新合成 (先删旧 wav 再生成)。
     // - 列表外的段: 保留旧结果 —— 优先复用 tts.json 已有记录, 无旧记录才写合法静音占位。
-    let is_start = state.init.input.workflow.as_ref().and_then(|w| w.action)
-        == Some(crate::workflows::args::WorkflowAction::Start);
+    let is_start = input.is_start;
     let regen_indices: Option<Vec<u32>> = if is_start {
         None
     } else {
@@ -463,40 +459,23 @@ pub fn step_tts(state: &State) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::read_ctx_from_value;
+    use crate::steps::tts::args::TtsArgs;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> State {
-        let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.init.workflow.video_dir = dir.to_string();
-        ctx.init.output_mode = "dub".to_string();
-        ctx
+    fn input_at(input: serde_json::Value) -> crate::input::Input {
+        serde_json::from_value(input).unwrap()
     }
 
     #[test]
     fn args_defaults_and_camelcase() {
-        let ctx = ctx_at(
-            "/x",
-            json!({
-                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {}
-            }),
-        );
-        let cfg = TtsArgs::from_input(&ctx.init.input);
+        let cfg = TtsArgs::from_input(&input_at(json!({})));
         assert!(cfg.skip_existing);
         assert!(!cfg.ref_audio_x2);
         assert_eq!(cfg.regen_indices, None);
 
-        let ctx2 = ctx_at(
-            "/x",
-            json!({
-                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"steps": {"tts": {"skipExisting": false, "refAudioX2": true, "regenIndices": [1,2,3]}}}
-            }),
-        );
-        let cfg2 = TtsArgs::from_input(&ctx2.input);
+        let cfg2 = TtsArgs::from_input(&input_at(
+            json!({"steps": {"tts": {"skipExisting": false, "refAudioX2": true, "regenIndices": [1,2,3]}}}),
+        ));
         assert!(!cfg2.skip_existing);
         assert!(cfg2.ref_audio_x2);
         assert_eq!(cfg2.regen_indices, Some(vec![1, 2, 3]));
@@ -510,16 +489,8 @@ mod tests {
             .to_string();
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let ctx = ctx_at(
-            &dir,
-            json!({
-                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {}
-            }),
-        );
-        crate::state::write_ctx(&dir, &ctx).unwrap();
-        let res = step_tts(&ctx);
+        let input = input_at(json!({}));
+        let res = step_tts(&TtsInput::new(&dir, &input));
         assert!(res.is_err());
         assert!(
             res.unwrap_err().to_string().contains("timings.json"),

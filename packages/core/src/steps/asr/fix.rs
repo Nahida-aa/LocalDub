@@ -2,23 +2,17 @@
 
 use anyhow::{anyhow, Context};
 
-use crate::state::State;
-use crate::steps::asr::fix_args::{AsrFixArgs, AsrFixInput};
+use crate::steps::asr::fix_args::AsrFixInput;
 use crate::steps::asr::out::AsrResult;
 use crate::steps::utils::paths::{asr_fix, SrtJsonPath};
-use crate::steps::utils::{
-    ensure_dir, now_iso, resolve_language, set_step_anyhow, StepPatch, StepStatus,
-};
-
-/// 读取 asr_fix 配置 (缺省用 AsrFixArgs::default)。
-fn read_fix_args(ctx: &State) -> AsrFixArgs {
-    ctx.init.input.steps.asr_fix.clone()
-}
+use crate::steps::utils::{ensure_dir, now_iso, set_step_anyhow, StepPatch, StepStatus};
 
 /// 入口 (镜像 TS `stepAsrFix`)。
-pub fn step_asr_fix(ctx: &State) -> anyhow::Result<()> {
-    let video_dir = ctx.init.workflow.video_dir.clone();
-    let args = read_fix_args(ctx);
+///
+/// 单参 [`AsrFixInput`]：依赖（asr 结果）+ 任务目录 + 本次参数都在里面。
+pub fn step_asr_fix(input: &AsrFixInput) -> anyhow::Result<()> {
+    let video_dir = input.video_dir.clone();
+    let args = &input.args;
     if !args.enabled {
         tracing::info!(target: "asr", "disabled (asr_fix.enabled=false), skipping");
         return Ok(());
@@ -26,13 +20,12 @@ pub fn step_asr_fix(ctx: &State) -> anyhow::Result<()> {
     // asr_fix 目录平级于 video_dir (镜像 TS `join(videoDir, "asr_fix")`),
     // 与权威字幕路径 (utils::subtitle_path 的 videoDir/asr_fix) 保持一致。
     let asr_fix_dir = std::path::Path::new(&video_dir).join("asr_fix");
-    let input = AsrFixInput::from_video_dir(&video_dir);
     let asr_file = args
         .asr_file_path
         .clone()
         .unwrap_or_else(|| input.asr_path.as_path().to_string_lossy().to_string());
     // 源语言独立解析（三级回退），与目标语言无关——本步骤只用它做 LLM 提示词标签。
-    let src_lang = crate::steps::utils::src_language(ctx).code().to_string();
+    let src_lang = input.source_lang.code().to_string();
 
     if !std::path::Path::new(&asr_file).exists() {
         return Err(anyhow!(

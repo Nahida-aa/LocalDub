@@ -6,8 +6,6 @@
 //! 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写
 //! `impl Default` 以保证默认值一致 (与 `input::steps::Asr` 同款处理)。
 
-use std::path::Path;
-
 use llm::LlmFixArgs;
 use serde::{Deserialize, Serialize};
 
@@ -48,17 +46,26 @@ impl Default for AsrFixArgs {
 /// （`asr_fix/` 下的产物与 `srt.json`）由步骤内部 `::new(video_dir)` 构造，拼法同样
 /// 只有一处来源。与 `SfOcrFixInput` 同款：`StepInput` 是依赖清单。
 ///
-/// 该路径是 `{video_dir}/asr/asr.json` 的**约定拼法**（非 ctx 落定事实），故入口是
-/// [`from_video_dir`](Self::from_video_dir)（同 `SfOcrFixInput::from_video_dir`）。
+/// 该路径是 `{video_dir}/asr/asr.json` 的**约定拼法**（非拍平的事实副本），故入口
+/// 是 [`new`](Self::new)`(video_dir, input)`。
 pub struct AsrFixInput {
+    /// 任务目录（写侧 step status 需要）。
+    pub video_dir: String,
     /// 来自 asr 步骤的识别结果 `asr/asr.json`。
     pub asr_path: AsrPath,
+    /// 源语言（`<asr>/out.json` > `input.workflow.sourceLang` > 未知）：LLM 提示词用它。
+    pub source_lang: crate::r#const::lang::LangCode,
+    /// 本次运行参数（`input.steps.asr_fix`）。
+    pub args: AsrFixArgs,
 }
 
 impl AsrFixInput {
-    pub fn from_video_dir(video_dir: impl AsRef<Path>) -> Self {
+    pub fn new(video_dir: &str, input: &crate::input::Input) -> Self {
         Self {
-            asr_path: AsrPath::new(&video_dir),
+            video_dir: video_dir.to_string(),
+            asr_path: AsrPath::new(video_dir),
+            source_lang: crate::steps::utils::src_language(video_dir, input),
+            args: input.steps.asr_fix.clone(),
         }
     }
 }

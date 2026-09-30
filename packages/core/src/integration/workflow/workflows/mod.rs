@@ -2,18 +2,16 @@ pub mod sf_ocr_dub;
 
 use aa_workflow_core::Workflow;
 
-use crate::state::State;
+use crate::input::Input;
+use crate::workflows::args::{OutputMode, SubtitleSource};
 
 /// 组合 → workflow id：`dub` × `sf_ocr` → `sf_ocr_dub`
 /// （`{subtitle_source}_{output_mode}`）。
-pub fn resolve_id(ctx: &State) -> String {
-    let source = ctx
-        .input
-        .workflow
-        .as_ref()
-        .map(|w| w.subtitle_source.as_str())
-        .unwrap_or("asr");
-    format!("{source}_{}", ctx.init.output_mode)
+pub fn resolve_id(input: &Input) -> String {
+    let source = SubtitleSource::from_input(input)
+        .map(|s| s.as_str().to_string())
+        .unwrap_or_else(|_| "asr".to_string());
+    format!("{source}_{}", OutputMode::from_input(input).as_str())
 }
 
 /// id → 工作流定义。未注册的组合返回 `None`（调用方回退通用定义）。
@@ -27,23 +25,18 @@ pub fn build(workflow_id: &str) -> Option<Workflow> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::read_ctx_from_value;
-    use serde_json::json;
 
-    fn ctx(output_mode: &str, source: &str) -> State {
-        read_ctx_from_value(json!({
-            "workflow": {"id":"t","video_dir":"/t","url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-            "input": {"workflow": {"subtitleSource": source}},
-            "output_mode": output_mode
+    fn input_with(output_mode: &str, source: &str) -> Input {
+        serde_json::from_value(serde_json::json!({
+            "workflow": {"output_mode": output_mode, "subtitleSource": source}
         }))
         .unwrap()
     }
 
     #[test]
     fn resolve_id_combines_source_and_output_mode() {
-        assert_eq!(resolve_id(&ctx("dub", "sf_ocr")), "sf_ocr_dub");
-        assert_eq!(resolve_id(&ctx("subtitle", "asr")), "asr_subtitle");
+        assert_eq!(resolve_id(&input_with("dub", "sf_ocr")), "sf_ocr_dub");
+        assert_eq!(resolve_id(&input_with("subtitle", "asr")), "asr_subtitle");
     }
 
     #[test]

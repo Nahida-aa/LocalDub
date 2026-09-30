@@ -5,15 +5,16 @@
 //! 段合并 / 时间调整 / LLM 修正由下游 sf_ocr_fix 负责。
 
 use crate::cmd::env::ensure_bin;
-use crate::state::State;
-use crate::steps::sf_ocr::args::{SfOcrArgs, SfOcrInput};
+use crate::steps::sf_ocr::args::SfOcrInput;
 use crate::steps::utils::paths::sf_ocr;
 use crate::steps::utils::{now_iso, set_step_anyhow, StepPatch, StepStatus};
 use std::process::Command;
 
 /// 入口 (镜像 TS `stepSfOcr`)。
-pub fn step_sf_ocr(state: &State) -> anyhow::Result<()> {
-    let video_dir = state.init.workflow.video_dir.clone();
+///
+/// 单参 [`SfOcrInput`]：依赖（关键帧目录）+ 任务目录 + 本次参数都在里面。
+pub fn step_sf_ocr(input: &SfOcrInput) -> anyhow::Result<()> {
+    let video_dir = input.video_dir.clone();
     tracing::info!(target: "sf_ocr", "start");
 
     set_step_anyhow(
@@ -26,9 +27,7 @@ pub fn step_sf_ocr(state: &State) -> anyhow::Result<()> {
         },
     )?;
 
-    let cfg = SfOcrArgs::from_input(&state.init.input);
-
-    let input = SfOcrInput::from_video_dir(&video_dir);
+    let cfg = &input.args;
     let frame_dir = input.keyframes_dir.as_path();
     if !frame_dir.exists() {
         return Err(anyhow::anyhow!(
@@ -125,28 +124,17 @@ pub fn step_sf_ocr(state: &State) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::read_ctx_from_value;
+    use crate::steps::sf_ocr::args::SfOcrArgs;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> State {
-        let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.init.workflow.video_dir = dir.to_string();
-        ctx.init.output_mode = "dub".to_string();
-        ctx
+    fn input_at(input: serde_json::Value) -> crate::input::Input {
+        serde_json::from_value(input).unwrap()
     }
 
     #[test]
     fn args_defaults() {
-        let dir = "/x";
-        let ctx = ctx_at(
-            dir,
-            json!({
-                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"steps": {"sf_ocr": {}}}
-            }),
-        );
-        let cfg = SfOcrArgs::from_input(&ctx.init.input);
+        let input = input_at(json!({"steps": {"sf_ocr": {}}}));
+        let cfg = SfOcrArgs::from_input(&input);
         assert_eq!(cfg.text_confidence_threshold, 0.45);
         assert!(cfg.subtitle_only);
         assert!(!cfg.cleanup_frames);
@@ -154,18 +142,10 @@ mod tests {
 
     #[test]
     fn args_camel_case() {
-        let dir = "/x";
-        let ctx = ctx_at(
-            dir,
-            json!({
-                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"steps": {"sf_ocr": {
-                    "textConfidenceThreshold": 0.7, "subtitleOnly": false, "cleanupFrames": true
-                }}}
-            }),
-        );
-        let cfg = SfOcrArgs::from_input(&ctx.init.input);
+        let input = input_at(json!({"steps": {"sf_ocr": {
+            "textConfidenceThreshold": 0.7, "subtitleOnly": false, "cleanupFrames": true
+        }}}));
+        let cfg = SfOcrArgs::from_input(&input);
         assert_eq!(cfg.text_confidence_threshold, 0.7);
         assert!(!cfg.subtitle_only);
         assert!(cfg.cleanup_frames);
@@ -179,16 +159,8 @@ mod tests {
             .to_string();
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let ctx = ctx_at(
-            &dir,
-            json!({
-                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {}
-            }),
-        );
-        crate::state::write_ctx(&dir, &ctx).unwrap();
-        let res = step_sf_ocr(&ctx);
+        let input = input_at(json!({}));
+        let res = step_sf_ocr(&SfOcrInput::new(&dir, &input));
         assert!(res.is_err());
         assert!(
             res.unwrap_err()

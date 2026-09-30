@@ -65,7 +65,10 @@ impl SubtitleSegments {
             ));
         }
         ensure_parent_dir(path).map_err(|e| anyhow::anyhow!("创建目录失败: {e}"))?;
-        write_json_pretty(path, &serde_json::json!({ "result": { "segments": self.0 } }))
+        write_json_pretty(
+            path,
+            &serde_json::json!({ "result": { "segments": self.0 } }),
+        )
     }
 
     /// 从 **SRT 文本文件**读入（[`write_srt`](Self::write_srt) 的逆操作）。

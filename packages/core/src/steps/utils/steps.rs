@@ -1,11 +1,11 @@
 //! pipeline 阶段序列定义与解析 (镜像 TS `packages/core/steps/utils/steps.ts`)
 //!
 //! TS 侧 `getSteps` 通过 `readInputArgs()` 读取 subtitleSource / translate.enabled /
-//! split_audio.vadAlign; Rust 侧没有该全局 singleton, 改为从 [`crate::context::WorkflowState`]
-//! 的 `input` (已是 JSON Value) 解析相同字段。
+//! split_audio.vadAlign; Rust 侧没有该全局 singleton, 改为从 [`crate::input::Input`]
+//! 解析相同字段。
 
-use crate::state::State;
-use crate::workflows::args::{StepName, SubtitleSource};
+use crate::input::Input;
+use crate::workflows::args::{OutputMode, StepName, SubtitleSource};
 
 /// 所有合法 step 名 (镜像 TS `stepsList`)
 pub const STEPS_LIST: &[&str] = &[
@@ -105,8 +105,8 @@ pub const SUBTITLE_ASR_OCR_STEPS: &[&str] = &[
 /// 避免 `subtitle + sf_ocr / asr_ocr` 这类组合在两份实现间分叉
 /// (曾有一次: import 副本无条件把 tts/mix_audio 塞进序列, 而运行时序列不含)。
 ///
-/// `is_subtitle` 直接传布尔, 以匹配 `get_steps` 原先用 `ctx.init.output_mode == "subtitle"`
-/// 的宽松语义——`OutputMode::from_state` 对未知值 fail-fast, 这里不引入该差异。
+/// `is_subtitle` 直接传布尔, 以匹配 `get_steps` 原先用 `output_mode == "subtitle"`
+/// 的宽松语义——此处的值来自 [`OutputMode::from_input`]（枚举，不可能是未知值）。
 ///
 /// `translate` / `split_audio` **恒在序列**(不再按开关剔除), 见 `get_steps` 下方说明;
 /// 非必要开销由步骤内部自行跳过(如 `is_dub == false` 不切人声块), 不在序列层面裁剪。
@@ -137,7 +137,7 @@ pub fn steps_for(is_subtitle: bool, source: SubtitleSource) -> &'static [&'stati
 /// 有 `all_pipeline_constants_are_valid_step_names` 测试兜底，所以 panic 只在
 /// 开发期触发。
 ///
-/// **subtitleSource 走 [`SubtitleSource::from_state`]**：与 translate / mix_video
+/// **subtitleSource 走 [`SubtitleSource::from_input`]**：与 translate / mix_video
 /// 同源。此前这里是独立的一份字符串解析、未知值静默默认 asr，与 translate 的
 /// fail-fast 相矛盾——同一个非法值在两条路径上表现不同（一个报错、一个悄悄降级）。
 /// 现在未知值统一在入口报错。
@@ -148,34 +148,42 @@ pub fn steps_for(is_subtitle: bool, source: SubtitleSource) -> &'static [&'stati
 /// `split_audio` **恒在序列**（不再按 `vad_align` 剔除）：它是「意图时序」
 /// `split_audio/timings.json` 的唯一写入方，而下游（含 subtitle 的字幕轨）
 /// 只认这一个字幕来源——剔掉它就没有时序可读。
-pub fn get_steps(ctx: &State) -> anyhow::Result<Vec<StepName>> {
-    let is_subtitle = ctx.init.output_mode == "subtitle";
-    let source = SubtitleSource::from_state(ctx)?;
+pub fn get_steps(input: &Input) -> anyhow::Result<Vec<StepName>> {
+    let is_subtitle = OutputMode::from_input(input) == OutputMode::Subtitle;
+    let source = SubtitleSource::from_input(input)?;
     let steps = steps_for(is_subtitle, source);
 
     // 解析成枚举——序列常量与 `StepName` 必须一致，不一致说明有一处改名漏了。
-    Ok(steps
+    let parsed = steps
         .iter()
         .map(|s| {
             s.parse::<StepName>().unwrap_or_else(|e| {
                 panic!("序列里的 step \"{s}\" 不是合法的 StepName（{e}；改名时漏了某处？）")
             })
         })
-        .collect())
+        .collect();
+    Ok(parsed)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::read_ctx_from_value;
     use serde_json::json;
     use strum::IntoEnumIterator;
 
-    fn ctx(pipeline: &str, input: serde_json::Value) -> State {
-        let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.init.workflow.video_dir = "/x".into();
-        ctx.init.output_mode = pipeline.into();
-        ctx
+    /// 从夹具 JSON 的 `input` 子树构造 [`Input`]，并把 output_mode 注入进去
+    /// （原先这一步依赖 `ctx.state.output_mode` 那条已被删掉的组合态）。
+    fn ctx(pipeline: &str, json: serde_json::Value) -> Input {
+        let mut v = json.get("input").cloned().unwrap_or(json!({}));
+        match v.get_mut("workflow").and_then(|w| w.as_object_mut()) {
+            Some(w) => {
+                w.insert("outputMode".into(), json!(pipeline));
+            }
+            None => {
+                v["workflow"] = json!({ "outputMode": pipeline });
+            }
+        }
+        serde_json::from_value(v).unwrap()
     }
 
     /// 断言用：把 `Vec<StepName>` 转成名字列表，测试里仍可逐字写字符串。
@@ -189,8 +197,8 @@ mod tests {
     }
 
     /// 测试用：`get_steps` 在合法输入下必须 Ok，unwrap 掉 Result 噪音。
-    fn steps_of(c: &State) -> Vec<StepName> {
-        get_steps(c).expect("合法 ctx 不应让 get_steps 失败")
+    fn steps_of(input: &Input) -> Vec<StepName> {
+        get_steps(input).expect("合法 input 不应让 get_steps 失败")
     }
 
     /// **一致性护栏**：pipeline 常量里的每一步都必须是合法的 `StepName`。
@@ -371,11 +379,11 @@ mod tests {
 
     /// **fail-fast**：未知 subtitleSource 必须在 `Input` 反序列化阶段被拒，不能静默降级成 asr。
     ///
-    /// `ctx.init.input` 已是结构化 `Input`；未知来源不可能走到 `get_steps` /
-    /// `SubtitleSource::from_state`（那些路径只会一致地回退默认 `Asr`，不会出现测试注释里
+    /// `ctx.input` 已是结构化 `Input`；未知来源不可能走到 `get_steps` /
+    /// `SubtitleSource::from_input`（那些路径只会一致地回退默认 `Asr`，不会出现测试注释里
     /// 担心的「跑哪些 step」与「读哪个字幕文件」来源错乱——两者会一起回退）。fail-fast
-    /// 已上移到 `Input` 解析（CLI/RPC 请求阶段，见 `SubtitleSource::from_state` 文档），
-    /// 且 `read_ctx_from_value` 对该错误是 lenient 兜底（保证旧/TS state.json 不崩）。
+    /// 已上移到 `Input` 解析（CLI/RPC 请求阶段，见 `SubtitleSource::from_input` 文档），
+    /// 且 `Input` 的 `steps` 字段整体缺省时回退默认值。
     /// 故此处断言**类型契约**：`Input` 反序列化直接拒绝非法值。注意混合写法 `sf-OCR` 也须被拒。
     #[test]
     fn unknown_subtitle_source_is_rejected() {

@@ -1,5 +1,5 @@
 use config_rs::root::repo_root;
-use futures::{Stream, StreamExt, stream};
+use futures::{stream, Stream, StreamExt};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 

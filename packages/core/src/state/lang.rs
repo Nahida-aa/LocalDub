@@ -8,8 +8,7 @@
 //! 从 state 推导"的故事在一个文件里讲完。纯类型模型（[`LangCode`] / [`Language`] 枚举）
 //! 留在 `const::lang`（叶子模块，不依赖 state）。
 
-use crate::r#const::lang::{Language, LangCode};
-use crate::state::State;
+use crate::r#const::lang::{LangCode, Language};
 
 /// 源语言（解析后的投影对象）。
 ///
@@ -20,14 +19,12 @@ use crate::state::State;
 pub struct SourceLang(pub LangCode);
 
 impl SourceLang {
-    pub fn from_state(s: &State) -> Self {
+    /// 入参是 `(video_dir, input)` 而非组合态：`asr_language` 是 asr 步骤的事实，
+    /// 配置侧在 `input`——两者都不需要第三个对象来传递。
+    pub fn from_video_dir(video_dir: &str, input: &crate::input::Input) -> Self {
         Self(resolve_source_language(
-            s.asr_language().as_ref(),
-            s.init
-                .input
-                .workflow
-                .as_ref()
-                .and_then(|w| w.source_lang.as_ref()),
+            crate::steps::asr::out::asr_language(video_dir).as_ref(),
+            input.workflow.as_ref().and_then(|w| w.source_lang.as_ref()),
         ))
     }
 
@@ -45,21 +42,16 @@ impl SourceLang {
 /// 解析链: `input.workflow.targetLang`（显式）> 按源语言 auto 推断（源 zh -> en，其它 -> zh）。
 ///
 /// 注意: 当前与 `steps::utils::resolve_language` 保持一致——只读取配置级 `targetLang`，
-/// 不改写也不读取已落盘的 `ctx.target_language()`（那是 translate 步骤写入的事实，由
-/// `TranslateOutput::from_ctx` 单独读取）。若未来要把"目标语言"统一走强落盘事实，
+/// 不改写也不读取已落盘的 `<translate>/out.json`（那是 translate 步骤写入的事实，由
+/// `TranslateOutput::read` 单独读取）。若未来要把"目标语言"统一走强落盘事实，
 /// 应在此处改为优先读 `s.target_language`，而非在 step 内各自现算。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TargetLang(pub Language);
 
 impl TargetLang {
-    pub fn from_state(s: &State) -> Self {
-        let src = SourceLang::from_state(s);
-        let explicit = s
-            .init
-            .input
-            .workflow
-            .as_ref()
-            .and_then(|w| w.target_lang);
+    pub fn from_video_dir(video_dir: &str, input: &crate::input::Input) -> Self {
+        let src = SourceLang::from_video_dir(video_dir, input);
+        let explicit = input.workflow.as_ref().and_then(|w| w.target_lang);
         Self(resolve_target_language(&src.0, explicit))
     }
 

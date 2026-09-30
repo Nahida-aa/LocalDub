@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use serde::{Deserialize, Serialize};
 
 use crate::steps::utils::paths::split_audio;
@@ -90,21 +88,32 @@ fn default_device() -> TtsDevice {
 ///
 /// 两个字段都是 `{video_dir}/split_audio/...` 的**约定拼法**，不读 ctx 里落定的
 /// 事实（不像 `VideoSourcePath` / `LangPath` 那种），故入口是
-/// [`from_video_dir`](Self::from_video_dir) 而不是 `from_state`——与
+/// [`new`](Self::new)`(video_dir, input)`——与
 /// [`crate::steps::utils::paths::AudioSourcePath::from_video_dir`] 同款区分：
 /// 名字本身就在说明「这是约定，不是事实」。
 pub struct TtsInput {
+    /// 任务目录（写侧 step status 需要）。
+    pub video_dir: String,
     /// 来自 split_audio 的人声目录 `{video_dir}/split_audio/vocals`（参考音来源）。
     pub split_audio_vocals_dir: split_audio::VocalsDir,
     /// 来自 split_audio 的意图时序 `{video_dir}/split_audio/timings.json`（带类型读入）。
     pub split_audio_timings_path: split_audio::TimingsPath,
+    /// 本次运行参数（`input.steps.tts`）。
+    pub args: TtsArgs,
+    /// 本次是 `action=start`（全量重跑）而非 continue：`regenIndices` 只在 continue
+    /// 生效——首次 start 必须无视它全量跑。
+    pub is_start: bool,
 }
 
 impl TtsInput {
-    pub fn from_video_dir(video_dir: impl AsRef<Path>) -> Self {
+    pub fn new(video_dir: &str, input: &crate::input::Input) -> Self {
         Self {
-            split_audio_vocals_dir: split_audio::VocalsDir::new(&video_dir),
-            split_audio_timings_path: split_audio::TimingsPath::new(&video_dir),
+            video_dir: video_dir.to_string(),
+            split_audio_vocals_dir: split_audio::VocalsDir::new(video_dir),
+            split_audio_timings_path: split_audio::TimingsPath::new(video_dir),
+            args: TtsArgs::from_input(input),
+            is_start: input.workflow.as_ref().and_then(|w| w.action)
+                == Some(crate::workflows::args::WorkflowAction::Start),
         }
     }
 }

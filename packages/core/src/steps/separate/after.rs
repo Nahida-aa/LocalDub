@@ -3,22 +3,18 @@
 //!
 //! 镜像 TS `packages/core/steps/separate/after.ts` (stepSeparateAfter), 纯 ffmpeg 编排。
 
-use crate::state::State;
-use crate::steps::asr::args::AsrArgs;
 use crate::steps::separate::after_args::SeparateAfterInput;
 use crate::steps::utils::paths::separate_after::{GatedVocalsPath, Target3VocalsMixedPath};
 use crate::steps::utils::{
     ffmpeg, now_iso, separate_after_dir, set_step_anyhow, StepPatch, StepStatus,
 };
 
-/// 读取 asr 阶段配置 (缺省用 AsrArgs::default, 对齐 TS `?? 默认值`)。
-fn read_asr_cfg(state: &State) -> AsrArgs {
-    state.init.input.steps.asr.clone()
-}
-
 /// 入口 (镜像 TS `stepSeparateAfter`)。
-pub fn step_separate_after(state: &State) -> anyhow::Result<()> {
-    let video_dir = state.init.workflow.video_dir.clone();
+///
+/// 单参 [`SeparateAfterInput`]：本步只吃 separate 的 stems（约定拼法）+ 本次 asr
+/// 参数（`SeparateAfterInput::args`），不依赖任何"拍平的全局状态"。
+pub fn step_separate_after(input: &SeparateAfterInput) -> anyhow::Result<()> {
+    let video_dir = input.video_dir.clone();
     tracing::info!(target: "separate", "start");
 
     set_step_anyhow(
@@ -31,7 +27,6 @@ pub fn step_separate_after(state: &State) -> anyhow::Result<()> {
         },
     )?;
 
-    let input = SeparateAfterInput::from_video_dir(&video_dir);
     let out_dir = separate_after_dir(&video_dir);
     std::fs::create_dir_all(&out_dir)
         .map_err(|e| anyhow::anyhow!("创建 separate_after 目录失败: {e}"))?;
@@ -73,11 +68,11 @@ pub fn step_separate_after(state: &State) -> anyhow::Result<()> {
     }
 
     // 2. 按 asr 配置生成 sidechain 混音人声
-    let asr_cfg = read_asr_cfg(state);
+    let asr_cfg = &input.args;
     let use_separated = asr_cfg.use_separated;
     let mix_mode = asr_cfg.mix_mode;
     let reduce_bgm = asr_cfg.reduce_bgm;
-    let sc = asr_cfg.sidechain_compress;
+    let sc = asr_cfg.sidechain_compress.clone();
     let use_gate = asr_cfg.use_gate;
 
     if use_separated && !matches!(mix_mode, crate::steps::asr::args::MixMode::Vocals) {
@@ -180,9 +175,7 @@ pub fn step_separate_after(state: &State) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::read_ctx_from_value;
     use crate::steps::utils::separate_dir;
-    use crate::workflows::args::StepName;
     use serde_json::json;
 
     fn ffmpeg_available() -> bool {
@@ -206,14 +199,6 @@ mod tests {
         .unwrap();
     }
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> State {
-        let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.init.workflow.video_dir = dir.to_string();
-        ctx.init.workflow.id = "t".to_string();
-        ctx.init.output_mode = "dub".to_string();
-        ctx
-    }
-
     #[test]
     fn separate_after_builds_bgm_and_sidechain() {
         if !ffmpeg_available() {
@@ -232,18 +217,18 @@ mod tests {
             make_silence_wav(&separate_dir(&dir).join(format!("target_{i}_{name}.wav")));
         }
 
-        let ctx = ctx_at(
+        let input = crate::state::write_fixture(
             &dir,
             json!({
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"steps": {"asr": {"useSeparated": true, "mixMode": "sidechain",
-                                            "reduceBgm": -12, "useGate": true}}}
+                                            "reduceBgm": -12, "useGate": true}}},
+                "output_mode": "dub"
             }),
         );
-        crate::state::write_ctx(&dir, &ctx).unwrap();
 
-        let res = step_separate_after(&ctx);
+        let res = step_separate_after(&SeparateAfterInput::new(&dir, &input));
         assert!(res.is_ok(), "separate_after 失败: {:?}", res.err());
 
         assert!(
@@ -259,8 +244,7 @@ mod tests {
             "useGate=true 时 target_3_vocals_gated.wav 应生成"
         );
 
-        let reread = crate::state::read_ctx(&dir).unwrap();
-        let st = reread.step(StepName::SeparateAfter);
+        let st = crate::state::read_step_state(&dir, "separate_after").unwrap();
         assert_eq!(st.status, StepStatus::Success);
 
         let _ = std::fs::remove_dir_all(&dir);

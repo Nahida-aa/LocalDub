@@ -66,7 +66,7 @@ pub fn scan_dir_videos(dir: &Path, wf_root: &Path, base_input: &Input) -> DirSca
                 if wf_root
                     .join(&info.group_id)
                     .join(&info.video_id)
-                    .join("init.json")
+                    .join("state.json")
                     .exists()
                 {
                     skipped += 1;
@@ -140,7 +140,7 @@ mod tests {
     }
 
     #[test]
-    fn scan_skips_existing_ctx_json() {
+    fn scan_skips_existing_state_json() {
         let dir = tmp_dir("existing");
         create_video(&dir.join("ep01.mp4"));
         let wf = config_rs::path::paths::workfolder();
@@ -148,7 +148,7 @@ mod tests {
         let dir_stem = dir.file_name().unwrap().to_str().unwrap();
         let ctx_dir = wf.join(dir_stem).join("ep01");
         std::fs::create_dir_all(&ctx_dir).unwrap();
-        std::fs::write(ctx_dir.join("init.json"), "{}").unwrap();
+        std::fs::write(ctx_dir.join("state.json"), "{}").unwrap();
 
         let out = scan_dir_videos(&dir, &wf, &Input::default());
         assert_eq!(out.result.scanned, 1);

@@ -58,9 +58,10 @@ export function VideoDetailPage(props: Props) {
       qc.invalidateQueries({
         queryKey: client.read_app_file_text.queryKey(rel),
       });
-      // state 变化（init.json / 各步骤 state.json 的续跑/运行中阶段状态流转）
-      // → 刷新任务上下文，让 step 徽章实时更新。
-      if (rel === "init.json" || rel.endsWith("/state.json")) {
+      // 状态文件变化（state.json / input.json / 各步骤 state.json 的
+      // 续跑/运行中阶段状态流转）→ 刷新任务上下文，让 step 徽章实时更新。
+      // 注意：任务根的 state.json 与各步骤的 <step>/state.json 同名，靠路径区分。
+      if (rel === "state.json" || rel === "input.json" || rel.endsWith("/state.json")) {
         qc.invalidateQueries({
           queryKey: client.get_workflow_ctx.queryKey(
             `workfolder/${props.groupId}/${props.videoId}`,
@@ -83,7 +84,9 @@ export function VideoDetailPage(props: Props) {
 
   createEffect(() => {
     const st = workflowCtxQ.status;
-    const steps = (workflowCtxQ.data?.steps ?? []).map((s) => `${s.name}:${s.status}`).join(",");
+    const steps = Object.entries(workflowCtxQ.data?.steps ?? {})
+      .map(([name, s]) => `${name}:${s.status}`)
+      .join(",");
     trace(`[TRACE-ctx] status=${st} steps=${steps}`);
   });
 
@@ -97,9 +100,11 @@ export function VideoDetailPage(props: Props) {
     defaultOpened = true;
     if (activePath()?.startsWith(videoDir)) return;
 
-    const finalRel = ctx.workflow.final_video_path
-      ? toRelPath(ctx.workflow.final_video_path)
-      : null;
+    // 成片路径是 mix_video 的产物事实，落在它的 <mix_video>/state.json facts 里。
+    const finalVideo = (
+      ctx.steps.mix_video?.facts as { final_video_path?: string | null } | undefined
+    )?.final_video_path;
+    const finalRel = finalVideo ? toRelPath(finalVideo) : null;
     const isFinal = !!finalRel?.startsWith(videoDir);
     const defaultRel = isFinal ? finalRel! : `${videoDir}/video_source.mp4`;
     addTab({ path: defaultRel, label: defaultRel.split("/").pop()! });
@@ -109,7 +114,7 @@ export function VideoDetailPage(props: Props) {
   const onVideoReady = (ref: HTMLVideoElement) => {
     setVideoRef(ref);
     setDuration(ref.duration * 1000);
-    if (workflowCtxQ.data) setFps(workflowCtxQ.data.frame_rate);
+    if (workflowCtxQ.data) setFps(workflowCtxQ.data.state.frame_rate);
     ref.addEventListener("timeupdate", () => setCurrentTime(ref.currentTime * 1000));
     ref.addEventListener("play", () => setPlaying(true));
     ref.addEventListener("pause", () => setPlaying(false));

@@ -9,7 +9,6 @@ pub mod out;
 
 use std::path::Path;
 
-use crate::state::State;
 use crate::steps::mix_audio::out::{MixAudioOutputTimings, Timing};
 use crate::steps::split_audio::out::SplitAudioTimingResult;
 use crate::steps::utils::paths::mix_audio::TimingsPath;
@@ -23,13 +22,13 @@ use args::MixAudioInput;
 pub use args::MixAudioArgs;
 
 /// 入口 (镜像 TS `stepMixAudio`)。
-pub fn step_mix_audio(state: &State) -> anyhow::Result<()> {
-    let video_dir = state.init.workflow.video_dir.clone();
+///
+/// 单参 [`MixAudioInput`]：split_audio 时序 + TTS wav 目录 + 任务目录 + 本次参数。
+pub fn step_mix_audio(input: &MixAudioInput) -> anyhow::Result<()> {
+    let video_dir = input.video_dir.clone();
     tracing::info!(target: "mix_audio", "start");
 
-    let args = MixAudioArgs::from_input(&state.init.input);
-
-    let input = MixAudioInput::from_state(state)?;
+    let args = &input.args;
     let segments = SplitAudioTimingResult::read(&input.split_audio_timings_path)?.segments;
 
     let mix_audio_dir = Path::new(&video_dir).join("mix_audio");
@@ -278,27 +277,10 @@ pub fn step_mix_audio(state: &State) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::read_ctx_from_value;
-    use serde_json::json;
-
-    fn ctx_at(dir: &str, input: serde_json::Value) -> State {
-        let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.init.workflow.video_dir = dir.to_string();
-        ctx.init.output_mode = "dub".to_string();
-        ctx
-    }
 
     #[test]
     fn args_defaults() {
-        let ctx = ctx_at(
-            "/x",
-            json!({
-                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {}
-            }),
-        );
-        let cfg = MixAudioArgs::from_input(&ctx.init.input);
+        let cfg = MixAudioArgs::from_input(&crate::input::Input::default());
         assert_eq!(cfg.max_speed, 1.35);
         assert_eq!(cfg.max_advance_ms, 500.0);
         assert_eq!(cfg.max_delay_ms, 500.0);

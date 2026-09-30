@@ -125,39 +125,23 @@ pub enum OutputMode {
 }
 
 impl OutputMode {
-    /// 从 ctx 解析 `ctx.init.output_mode`（import 落定的事实，字符串形式）。
-    ///
-    /// 与 `SubtitleSource::from_state`（读 `input.workflow.subtitleSource` 原始输入）不同，
-    /// OutputMode 已被 import 拍平进 `ctx.init.output_mode`，此处读**事实**而非重解析输入
-    /// —— 与 `LangPath::from_state`「读事实，缺失即报错」的取向一致。
-    ///
-    /// 空串按 `#[default]`（Dub）兜底（与 `read_ctx_from_value` / `WorkflowArgs` 默认一致）；
-    /// 未知值报错（fail-fast，期望列表由 `VARIANTS` 生成，加变体自动更新）。
-    pub fn from_state(state: &crate::state::State) -> anyhow::Result<Self> {
-        use strum::VariantNames;
-        let s = state.init.output_mode.trim();
-        if s.is_empty() {
-            return Ok(Self::default());
-        }
-        s.parse::<OutputMode>().map_err(|_| {
-            anyhow::anyhow!(
-                "未知的 output_mode \"{s}\"（期望 {}）",
-                Self::VARIANTS.join(" / ")
-            )
-        })
+    /// 与 `StepName::as_str` 同款：strum 的 `IntoStaticStr` 一行委托，让
+    /// `final_video_dir(output_mode.as_str(), ..)` 这类拼字符串的地方有名字可读。
+    pub fn as_str(self) -> &'static str {
+        self.into()
     }
 
-    /// 从 `input.workflow.output_mode` 解析（读**输入契约**，非 import 落定的事实）。
+    /// 从 `input.workflow.output_mode` 解析（每一步都从这里取，来源只有一个）。
     ///
-    /// 与 [`from_state`](Self::from_state)（读 `ctx.init.output_mode` 事实、未知值 fail-fast）互补：
-    /// 此处读的是 `Input` 里**结构化**的 `output_mode` 字段——它已是 `OutputMode`
+    /// 读的是 `Input` 里**结构化**的 `output_mode` 字段——它已是 `OutputMode`
     /// 枚举，不可能出现「未知值」，故返回 `Self` 而非 `Result`；`workflow` 缺失或
     /// 字段缺省时回退 `#[default]`（Dub）。
     ///
     /// 直接吃 `&Input`（而非 `&WorkflowState`），与「from_input」语义一致——只关心输入契约。
-    /// 适用：需要在 import **之前**、或从原始输入（而非拍平后的事实）取 output_mode 的场景。
-    /// 注意 `from_state` 与 `from_input` 来源不同——前者是 import 落定的事实，后者是用户传入的输入；
-    /// 正常流程里两者应一致，不一致时以 `from_state`（事实）为准。
+    ///
+    /// 此前另有一个读 `state.json` 里 `output_mode` 字符串的 `from_state`：那份字符串
+    /// 是 import 拍平的副本来源，`input` 是原源，两个来源共存时就得回答"以谁为准"。
+    /// 现在只留 `from_input`——副本（`<video_dir>` 下的 state.json）不再参与决策。
     pub fn from_input(input: &crate::input::Input) -> Self {
         input
             .workflow
@@ -207,14 +191,12 @@ impl SubtitleSource {
 
     /// 从 ctx 解析 `input.workflow.subtitleSource`。
     ///
-    /// `ctx.init.input` 已是结构化 [`Input`](crate::input::Input)（import 落定），
+    /// `ctx.input` 已是结构化 [`Input`](crate::input::Input)（import 落定），
     /// `subtitle_source` 为枚举值，不可能出现「未知来源」——该 fail-fast 已上移到
     /// `Input` 反序列化阶段（CLI/RPC 请求解析）。此处仅在 `workflow` 缺失时回退
     /// 默认 `Asr`（`#[default]`），保持与原 `unwrap_or("asr")` 一致。
-    pub fn from_state(ctx: &crate::state::State) -> anyhow::Result<Self> {
-        Ok(ctx
-            .init
-            .input
+    pub fn from_input(input: &crate::input::Input) -> anyhow::Result<Self> {
+        Ok(input
             .workflow
             .as_ref()
             .map(|w| w.subtitle_source)
@@ -341,58 +323,23 @@ mod strum_sync_tests {
     }
 
     #[test]
-    fn output_mode_from_state_reads_fact() {
-        use crate::state::read_ctx_from_value;
-        use serde_json::json;
-
-        let mk = |output_mode: Option<&str>| {
-            let mut v = json!({
-                "workflow": {"id":"t","video_dir":"/w","url":"http://e","source":"remote",
-                             "status":"running","created_at":"2024-01-01T00:00:00Z"}
-            });
-            if let Some(m) = output_mode {
-                v["output_mode"] = json!(m);
-            }
-            read_ctx_from_value(v).unwrap()
-        };
-
-        // 读事实：ctx.init.output_mode 已是 import 落定的值
-        assert_eq!(
-            OutputMode::from_state(&mk(Some("subtitle"))).unwrap(),
-            OutputMode::Subtitle
-        );
-
-        // 缺省：read_ctx_from_value 默认 dub，from_state 解析出 Dub
-        assert_eq!(mk(None).output_mode, "dub");
-        assert_eq!(OutputMode::from_state(&mk(None)).unwrap(), OutputMode::Dub);
-
-        // 未知值报错（fail-fast）
-        assert!(OutputMode::from_state(&mk(Some("karaoke"))).is_err());
-    }
-
-    #[test]
     fn output_mode_from_input_reads_typed_field() {
-        use crate::state::read_ctx_from_value;
         use serde_json::json;
 
-        let mk = |output_mode: Option<&str>| {
-            let mut v = json!({
-                "workflow": {"id":"t","video_dir":"/w","url":"http://e","source":"remote",
-                             "status":"running","created_at":"2024-01-01T00:00:00Z"}
-            });
-            if let Some(m) = output_mode {
-                v["input"] = json!({"workflow": {"output_mode": m}});
-            }
-            read_ctx_from_value(v).unwrap()
+        let input = |output_mode: Option<&str>| -> crate::input::Input {
+            let v = match output_mode {
+                Some(m) => json!({"workflow": {"output_mode": m}}),
+                None => json!({}),
+            };
+            serde_json::from_value(v).unwrap()
         };
 
-        // 读结构化输入字段（与 from_state 来源不同：这里是 input，不是拍平事实）
         assert_eq!(
-            OutputMode::from_input(&mk(Some("subtitle")).input),
+            OutputMode::from_input(&input(Some("subtitle"))),
             OutputMode::Subtitle
         );
 
         // 缺省：input.workflow 缺失也回退默认 Dub
-        assert_eq!(OutputMode::from_input(&mk(None).input), OutputMode::Dub);
+        assert_eq!(OutputMode::from_input(&input(None)), OutputMode::Dub);
     }
 }

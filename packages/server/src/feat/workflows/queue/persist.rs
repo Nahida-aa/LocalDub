@@ -47,7 +47,11 @@ pub(super) fn append_event(ev: &QueueEvent) {
             return;
         }
     };
-    let mut f = match std::fs::OpenOptions::new().create(true).append(true).open(events_path()) {
+    let mut f = match std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(events_path())
+    {
         Ok(f) => f,
         Err(e) => {
             tracing::error!("[queue] 打开事件日志失败: {e}");

@@ -7,16 +7,16 @@
 //! 失败时 warn 并保留原文 (不中断 step)。
 
 use crate::cmd::env::ensure_bin;
-use crate::state::State;
-use crate::steps::sf_ocr::fix_args::{OcrFixArgs, SfOcrFixInput};
+use crate::steps::sf_ocr::fix_args::SfOcrFixInput;
 use crate::steps::utils::paths::{sf_ocr_fix, SrtJsonPath};
 use crate::steps::utils::{now_iso, set_step_anyhow, StepPatch, StepStatus};
 use std::process::Command;
 
 /// 入口 (镜像 TS `stepSfOcrFix`)。
-pub fn step_sf_ocr_fix(state: &State) -> anyhow::Result<()> {
-    let video_dir = state.init.workflow.video_dir.clone();
-    let input = SfOcrFixInput::from_video_dir(&video_dir);
+///
+/// 单参 [`SfOcrFixInput`]：依赖（frames.json）+ 任务目录 + 本次参数都在里面。
+pub fn step_sf_ocr_fix(input: &SfOcrFixInput) -> anyhow::Result<()> {
+    let video_dir = input.video_dir.clone();
     tracing::info!(target: "sf_ocr", "start");
 
     let frames_file = input.frames_path.as_path();
@@ -33,7 +33,7 @@ pub fn step_sf_ocr_fix(state: &State) -> anyhow::Result<()> {
     std::fs::create_dir_all(out_dir.as_path())
         .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", out_dir.as_path().display(), e))?;
 
-    let args = OcrFixArgs::from_input(&state.init.input);
+    let args = &input.args;
 
     let bin = ensure_bin("subtitle_ocr_post_bin").map_err(|e| {
         anyhow::anyhow!(
@@ -89,10 +89,9 @@ pub fn step_sf_ocr_fix(state: &State) -> anyhow::Result<()> {
             .iter()
             .filter_map(|s| s.get("text").and_then(|t| t.as_str()).map(String::from))
             .collect();
-        // 源语言走统一的 `SourceLang::from_state`（ASR 实测 > 配置 sourceLang > 兜底空串）。
+        // 源语言走统一的解析（`<asr>/out.json` > 配置 sourceLang > 兜底空串）。
         // 不在这里内联回退链——否则与 `src_language` 各算各的，容易分叉。
-        let src_lang = crate::state::lang::SourceLang::from_state(state);
-        let lang_label = llm::lang_label(src_lang.code());
+        let lang_label = llm::lang_label(input.source_lang.code());
         tracing::info!(target: "sf_ocr",
             "sf_ocr_fix: LLM 修正 {} segs (model={})",
             src_texts.len(),
@@ -166,45 +165,27 @@ pub fn step_sf_ocr_fix(state: &State) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::read_ctx_from_value;
+    use crate::steps::sf_ocr::fix_args::OcrFixArgs;
     use serde_json::json;
 
-    fn ctx_at(dir: &str, input: serde_json::Value) -> State {
-        let mut ctx = read_ctx_from_value(input).unwrap();
-        ctx.init.workflow.video_dir = dir.to_string();
-        ctx.init.output_mode = "dub".to_string();
-        ctx.init.video_source_path = Some("/x/video.mp4".to_string());
-        ctx
+    fn input_at(input: serde_json::Value) -> crate::input::Input {
+        serde_json::from_value(input).unwrap()
     }
 
     #[test]
     fn args_defaults() {
-        let ctx = ctx_at(
-            "/x",
-            json!({
-                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"steps": {"sf_ocr_fix": {}}}
-            }),
-        );
-        let cfg = OcrFixArgs::from_input(&ctx.init.input);
+        let input = input_at(json!({"steps": {"sf_ocr_fix": {}}}));
+        let cfg = OcrFixArgs::from_input(&input);
         assert_eq!(cfg.adjusted_confidence_threshold, 0.45);
         assert!(!cfg.llm_fix.llm_fix);
     }
 
     #[test]
     fn args_camel_case_and_llm_fix() {
-        let ctx = ctx_at(
-            "/x",
-            json!({
-                "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"steps": {"sf_ocr_fix": {
-                    "adjustedConfidenceThreshold": 0.6, "llmFix": true
-                }}}
-            }),
-        );
-        let cfg = OcrFixArgs::from_input(&ctx.init.input);
+        let input = input_at(json!({"steps": {"sf_ocr_fix": {
+            "adjustedConfidenceThreshold": 0.6, "llmFix": true
+        }}}));
+        let cfg = OcrFixArgs::from_input(&input);
         assert_eq!(cfg.adjusted_confidence_threshold, 0.6);
         assert!(cfg.llm_fix.llm_fix);
     }
@@ -217,16 +198,8 @@ mod tests {
             .to_string();
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let ctx = ctx_at(
-            &dir,
-            json!({
-                "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
-                         "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {}
-            }),
-        );
-        crate::state::write_ctx(&dir, &ctx).unwrap();
-        let res = step_sf_ocr_fix(&ctx);
+        let input = input_at(json!({}));
+        let res = step_sf_ocr_fix(&SfOcrFixInput::new(&dir, &input));
         assert!(res.is_err());
         assert!(
             res.unwrap_err().to_string().contains("run sf_ocr first"),
