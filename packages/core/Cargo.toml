@@ -21,13 +21,14 @@ tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }
 ffmpeg-next.workspace = true
 regex.workspace = true
-voxcpm-cloud = { git = "https://github.com/Nahida-aa/vox-lab", tag = "v0.1.2" }
+voxcpm-cloud.workspace = true
 # 字幕 OCR 产物/管线类型（FrameResult/OcrSegment/OcrFramesResult/工具函数）来自
 # subtitle-ocr-types；SubtitleSegment 的权威定义只在 subtitle；OCR 后处理算法来自
 # subtitle-ocr-post。ocr-types 仅保留 OcrBoxResult，本包当前未直接使用，故不再依赖。
-subtitle-ocr-types = { git = "https://github.com/Nahida-aa/vision-lab", rev = "e2cc2a4", features = ["specta-types"] }
-subtitle = { git = "https://github.com/Nahida-aa/vision-lab", rev = "e2cc2a4", features = ["specta-types"] }
-subtitle-ocr-post = { git = "https://github.com/Nahida-aa/vision-lab", rev = "e2cc2a4", features = ["specta-types"] }
+# git rev / tag 统一收敛在根 workspace.dependencies 单处维护，这里只引用。
+subtitle-ocr-types.workspace = true
+subtitle.workspace = true
+subtitle-ocr-post.workspace = true
 pacer-rs.workspace = true
 reqwest.workspace = true
 indicatif.workspace = true
