@@ -1,4 +1,5 @@
-//! 并行执行器（实验性，`workflow.parallel = true` 启用）：按 [`StepDag`] 调度，
+//! 并行执行器（实验性并行，`workflow.parallel = true` / CLI `--parallel` 启用）：
+//! 按 [`StepDag`] 调度，
 //! **不引入 workflow 引擎**——就绪步骤起 OS 线程（每步是阻塞子进程编排，
 //! 线程即够），失败等全部在跑的步骤收尾再汇总报错。
 //!

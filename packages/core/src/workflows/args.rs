@@ -229,9 +229,10 @@ pub struct WorkflowArgs {
     /// （真源 state.json）二选一。其余 action 忽略。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub engine: Option<bool>,
-    /// 实验开关: **非 engine** 路径按步骤 DAG 并行执行（目前只有 `sf_ocr_dub`
-    /// 有 DAG 定义，见 [`crate::workflows::dag::StepDag`]；其它组合明确报错）。
-    /// 与 `engine` 互斥——同设报错（引擎恢复前设 engine 本身就会报「开发中」）。
+    /// 实验开关: **实验性并行**——非 engine 路径按步骤 DAG 并行执行（目前只有
+    /// `sf_ocr_dub` 有 DAG 定义，见 [`crate::workflows::dag::StepDag`]；其它组合
+    /// 明确报错）。与 `engine` 互斥——同设报错。并行验证成熟后将成为默认行为，
+    /// 届时本标志退役。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parallel: Option<bool>,
     /// 任务模式, dub 配音, subtitle 仅字幕

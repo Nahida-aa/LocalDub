@@ -7,7 +7,7 @@
 //! 执行路径三选一（[`crate::workflows::args::ExecPath`]）：
 //! - `engine = true`   → 引擎路径——**开发中，暂不可用**（aa-workflow 集成暂停，
 //!   见 `integration/workflow/mod.rs`；Engine 臂打印「开发中」并报错）；
-//! - `parallel = true` → 实验性 DAG 并行 [`crate::workflows::parallel::run_pipeline_parallel`]
+//! - `parallel = true` → **实验性并行** [`crate::workflows::parallel::run_pipeline_parallel`]
 //!   (真源各 `<step>/state.json`)；
 //! - 都不设 → [`crate::workflows::pipeline::run_pipeline`] (真源 state.json)。
 //! 两者同设在 [`crate::workflows::args::WorkflowArgs::exec_path`] 里报错。
@@ -43,7 +43,7 @@ pub fn start_workflow(input: &Input) -> anyhow::Result<String> {
             anyhow::bail!("workflow.engine 引擎路径开发中");
         }
         ExecPath::Parallel => {
-            println!("[cli] 并行模式 (实验, DAG 调度, 真源各 <step>/state.json)");
+            println!("[cli] 实验性并行 (DAG 调度, 真源各 <step>/state.json)");
             crate::workflows::parallel::run_pipeline_parallel(&input)
                 .context("run_pipeline_parallel 失败")?;
         }

@@ -71,7 +71,7 @@ pub fn continue_workflow(input: &Input) -> anyhow::Result<()> {
             anyhow::bail!("workflow.engine 引擎路径开发中");
         }
         ExecPath::Parallel => {
-            println!("[cli] 并行模式 (实验, DAG 调度, 按步跳过已成功步骤)");
+            println!("[cli] 实验性并行 (DAG 调度, 按步跳过已成功步骤)");
             crate::workflows::parallel::run_pipeline_parallel(input)
                 .context("run_pipeline_parallel 失败")?;
         }

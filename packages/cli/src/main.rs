@@ -81,6 +81,10 @@ enum Command {
         /// 实验开关: start/continue 走 aa-workflow 引擎 (events.jsonl 真源)。
         #[arg(long)]
         engine: bool,
+        /// 实验性并行: start/continue 按步骤 DAG 并行 (真源各 <step>/state.json)。
+        /// 验证成熟后并行将成为默认行为, 届时本标志退役。
+        #[arg(long)]
+        parallel: bool,
     },
     /// 服务器管理 (等价 input.jsonc command=servers)。
     Servers {
@@ -157,6 +161,7 @@ fn main() {
             continue_from,
             target_step,
             engine,
+            parallel,
         }) => {
             let mut workflow = input.workflow.clone().unwrap_or_default();
             if let Some(a) = action {
@@ -179,6 +184,9 @@ fn main() {
             }
             if engine {
                 workflow.engine = Some(true);
+            }
+            if parallel {
+                workflow.parallel = Some(true);
             }
             input.workflow = Some(workflow);
             input.command = InputCommand::Workflow;
