@@ -5,8 +5,8 @@
 //! (对齐 TS: start 分支忽略 videoDir, 不会续跑已有任务)。
 //!
 //! 执行路径三选一（[`crate::workflows::args::ExecPath`]）：
-//! - `engine = true`   → 引擎路径 [`crate::integration::workflow::run_workflow_engine`]
-//!   (真源 events.jsonl)；
+//! - `engine = true`   → 引擎路径——**开发中，暂不可用**（aa-workflow 集成暂停，
+//!   见 `integration/workflow/mod.rs`；Engine 臂打印「开发中」并报错）；
 //! - `parallel = true` → 实验性 DAG 并行 [`crate::workflows::parallel::run_pipeline_parallel`]
 //!   (真源各 `<step>/state.json`)；
 //! - 都不设 → [`crate::workflows::pipeline::run_pipeline`] (真源 state.json)。
@@ -31,12 +31,16 @@ pub fn start_workflow(input: &Input) -> anyhow::Result<String> {
     };
     match path {
         ExecPath::Engine => {
-            println!("[cli] 引擎模式 (aa-workflow, 真源 events.jsonl)");
-            crate::integration::workflow::run_workflow_engine(
-                &st.workflow.video_dir,
-                &crate::integration::workflow::EngineOptions::from_input(input),
-            )
-            .context("run_workflow_engine 失败")?;
+            // 引擎路径开发中（aa-workflow 集成暂停，见 integration/workflow/mod.rs）。
+            // 原接线（恢复时还原）：
+            // println!("[cli] 引擎模式 (aa-workflow, 真源 events.jsonl)");
+            // crate::integration::workflow::run_workflow_engine(
+            //     &st.workflow.video_dir,
+            //     &crate::integration::workflow::EngineOptions::from_input(input),
+            // )
+            // .context("run_workflow_engine 失败")?;
+            println!("[cli] 引擎模式开发中, 暂不可用");
+            anyhow::bail!("workflow.engine 引擎路径开发中");
         }
         ExecPath::Parallel => {
             println!("[cli] 并行模式 (实验, DAG 调度, 真源各 <step>/state.json)");
