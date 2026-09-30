@@ -16,6 +16,7 @@
 
 use crate::input::Input;
 use crate::state::write_input;
+use crate::workflows::args::ExecPath;
 use crate::workflows::continue_pipeline;
 use anyhow::Context;
 
@@ -51,20 +52,27 @@ pub fn continue_workflow(input: &Input) -> anyhow::Result<()> {
         .unwrap_or_default();
     println!("[cli] 续跑模式, video_dir = {}{}", video_dir, label);
 
-    let engine = input
-        .workflow
-        .as_ref()
-        .and_then(|w| w.engine)
-        .unwrap_or(false);
-    if engine {
-        println!("[cli] 引擎模式 (aa-workflow, 真源 events.jsonl)");
-        crate::integration::workflow::run_workflow_engine(
-            &video_dir,
-            &crate::integration::workflow::EngineOptions::from_input(input),
-        )
-        .context("run_workflow_engine 失败")?;
-    } else {
-        continue_pipeline(&video_dir, input).context("continue_pipeline 失败")?;
+    let path = match input.workflow.as_ref() {
+        Some(w) => w.exec_path()?,
+        None => ExecPath::Serial,
+    };
+    match path {
+        ExecPath::Engine => {
+            println!("[cli] 引擎模式 (aa-workflow, 真源 events.jsonl)");
+            crate::integration::workflow::run_workflow_engine(
+                &video_dir,
+                &crate::integration::workflow::EngineOptions::from_input(input),
+            )
+            .context("run_workflow_engine 失败")?;
+        }
+        ExecPath::Parallel => {
+            println!("[cli] 并行模式 (实验, DAG 调度, 按步跳过已成功步骤)");
+            crate::workflows::parallel::run_pipeline_parallel(&video_dir, input)
+                .context("run_pipeline_parallel 失败")?;
+        }
+        ExecPath::Serial => {
+            continue_pipeline(&video_dir, input).context("continue_pipeline 失败")?;
+        }
     }
     println!("[cli] 完成: {}", video_dir);
     Ok(())

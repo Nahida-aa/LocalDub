@@ -79,23 +79,9 @@ pub fn run_pipeline(video_dir: &str, input: &crate::input::Input) -> anyhow::Res
         // 每个 step 名都对应一个 run_step 分支（枚举穷尽），无需再查 handler 表。
         let step_str = step.as_str();
 
-        set_step_anyhow(
-            video_dir,
-            step_str,
-            StepPatch {
-                status: Some(StepStatus::Running),
-                started_at: Some(now_iso()),
-                last_message: Some(format!("Starting {step_str}...")),
-                ..Default::default()
-            },
-        )?;
-        // 并行下 current_step 无意义：当前活跃步骤由各 <step>/state.json 表达，
-        // 不再维护 workflow.current_step 的每步投影。
-        tracing::info!(target: "output_mode", "Running {step_str}");
-
         // 每步重读 input.json：continue / regen 会改写配置，handler 吃「此刻的配置」。
         let input = crate::state::read_input(video_dir).map_err(anyhow::Error::msg)?;
-        match run_step(*step, video_dir, &input) {
+        match run_one_step(video_dir, *step, &input) {
             Ok(()) => {
                 // 达到 targetStep 即停止 (镜像 TS)
                 if let Some(ts) = input
@@ -112,17 +98,6 @@ pub fn run_pipeline(video_dir: &str, input: &crate::input::Input) -> anyhow::Res
             }
             Err(e) => {
                 let msg = e.to_string();
-                tracing::error!(target: "output_mode", "Step {step_str} failed: {msg}");
-                set_step_anyhow(
-                    video_dir,
-                    step_str,
-                    StepPatch {
-                        status: Some(StepStatus::Failed),
-                        error_message: Some(msg.clone()),
-                        completed_at: Some(now_iso()),
-                        ..Default::default()
-                    },
-                )?;
                 set_workflow_anyhow(
                     video_dir,
                     crate::steps::utils::WorkflowPatch {
@@ -180,6 +155,51 @@ pub fn run_step(
         StepName::Tts => step_tts(&TtsInput::new(video_dir, input)),
         StepName::MixAudio => step_mix_audio(&MixAudioInput::new(video_dir, input)?),
         StepName::MixVideo => step_mix_video(&MixVideoInput::new(video_dir, input)?),
+    }
+}
+
+/// 单步执行的状态包装：置 Running → 跑 → 失败置 Failed。
+///
+/// 串行 pipeline 与并行执行器（[`crate::workflows::parallel`]）共用。
+/// 并行时两条线程各自 RMW **自己的** `<step>/state.json`（单写者原则），
+/// 互不踩——这也是并行在这里可行的结构性前提。
+pub(crate) fn run_one_step(
+    video_dir: &str,
+    step: StepName,
+    input: &crate::input::Input,
+) -> anyhow::Result<()> {
+    let step_str = step.as_str();
+    set_step_anyhow(
+        video_dir,
+        step_str,
+        StepPatch {
+            status: Some(StepStatus::Running),
+            started_at: Some(now_iso()),
+            last_message: Some(format!("Starting {step_str}...")),
+            ..Default::default()
+        },
+    )?;
+    // 并行下 current_step 无意义：当前活跃步骤由各 <step>/state.json 表达，
+    // 不再维护 workflow.current_step 的每步投影。
+    tracing::info!(target: "output_mode", "Running {step_str}");
+
+    match run_step(step, video_dir, input) {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            let msg = e.to_string();
+            tracing::error!(target: "output_mode", "Step {step_str} failed: {msg}");
+            set_step_anyhow(
+                video_dir,
+                step_str,
+                StepPatch {
+                    status: Some(StepStatus::Failed),
+                    error_message: Some(msg),
+                    completed_at: Some(now_iso()),
+                    ..Default::default()
+                },
+            )?;
+            Err(e)
+        }
     }
 }
 
