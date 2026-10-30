@@ -40,8 +40,9 @@ mdns-sd-discovery.workspace = true
 strum.workspace = true
 # mdns-sd-discovery (avahi D-Bus) 需要 tokio runtime 跑 browse
 tokio = { version = "1", default-features = false, features = ["rt", "sync", "time"] }
-# aa-workflow 的 aa_workflow_core 引擎 (独立 repo, path dep)
-aa_workflow_core = { path = "../../../../lib_ls/aa-workflow/packages/workflow_core" }
+# aa-workflow 引擎（git 源，rev 收敛在根 workspace.dependencies）。当前
+# integration/workflow 整体暂停编译，此依赖为恢复时预留。
+aa_workflow_core.workspace = true
 
 [dev-dependencies]
 futures = { version = "0.3", default-features = false, features = ["executor"] }

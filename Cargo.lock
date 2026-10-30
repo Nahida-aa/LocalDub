@@ -11,6 +11,7 @@ checksum = "fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3"
 [[package]]
 name = "aa_workflow_core"
 version = "0.2.0"
+source = "git+https://github.com/Nahida-aa/aa_workflow.git?rev=7009984c1f93758d18458e58509e2758ff0a9edc#7009984c1f93758d18458e58509e2758ff0a9edc"
 dependencies = [
  "anyhow",
  "futures-core",
