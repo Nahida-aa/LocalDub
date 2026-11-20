@@ -1115,6 +1115,24 @@
       "title": "CookieArgs",
       "description": " cookie 命令参数 (镜像 TS `CookieArgsSchema`: action=set + service=youtube + content 可选)。"
     },
+    "DemucsModel": {
+      "anyOf": [
+        {
+          "const": "htdemucs",
+          "description": " 标准 4 stems (84MB), 速度与质量平衡"
+        },
+        {
+          "const": "htdemucs_6s",
+          "description": " 6 stems (84MB), 额外分出 guitar / piano"
+        },
+        {
+          "const": "htdemucs_ft",
+          "description": " fine-tuned 4 stems (333MB), 质量最好但推理更慢"
+        }
+      ],
+      "title": "DemucsModel",
+      "description": " demucs 模型变体\n\n 取值与 demucs-burn 二进制的 `-m/--model` 参数一致 (见 demucs-core\n `model/metadata.rs` 的 `ALL_MODELS`), 故直接透传给子进程即可, 无需二次映射。\n 权重文件同名 `<id>.safetensors`, 存放在 `data/models/demucs/`。"
+    },
     "Device": {
       "anyOf": [
         {
@@ -1530,7 +1548,7 @@
         },
         "parallel": {
           "type": "boolean",
-          "description": " 实验开关: **非 engine** 路径按步骤 DAG 并行执行（目前只有 `sf_ocr_dub`\n 有 DAG 定义，见 [`crate::workflows::dag::StepDag`]；其它组合明确报错）。\n 与 `engine` 互斥——同设报错（引擎恢复前设 engine 本身就会报「开发中」）。"
+          "description": " 实验开关: **实验性并行**——非 engine 路径按步骤 DAG 并行执行（目前只有\n `sf_ocr_dub` 有 DAG 定义，见 [`crate::workflows::dag::StepDag`]；其它组合\n 明确报错）。与 `engine` 互斥——同设报错。并行验证成熟后将成为默认行为，\n 届时本标志退役。"
         },
         "output_mode": {
           "$ref": "#/$defs/OutputMode",
@@ -1627,14 +1645,24 @@
     "SeparateRuntime": {
       "anyOf": [
         {
-          "const": "burn"
+          "const": "burn",
+          "description": " Burn + wgpu/vulkan/cuda/cpu 后端 (`demucs-burn-<dev>`)"
         },
         {
-          "const": "burn-tch"
+          "const": "burn-tch",
+          "description": " Burn + tch 后端 (`demucs-burn-tch`), 默认"
+        },
+        {
+          "const": "tch",
+          "description": " 独立 tch-rs 运行时 (`demucs-tch`, 按设备分 cpu/cuda/rocm 变体)"
+        },
+        {
+          "const": "wgpu",
+          "description": " 独立自研 WGSL/Vulkan 运行时 (`demucs-wgpu`)"
         }
       ],
       "title": "SeparateRuntime",
-      "description": " separate 推理运行时\n\n TS 侧为 `z.enum([\"burn\", \"burn-tch\"])` (kebab-case), 故用 `rename_all = \"kebab-case\"`\n (`BurnTch` → `\"burn-tch\"`)。原先误用 `lowercase` 会得到 `\"burntch\"`, 与 TS 对不上,\n 导致运行时 `\"burn-tch\"` 解析失败回落默认 (see `from_input_parses_camel_case_fields`)。"
+      "description": " separate 推理运行时\n\n 四种运行时分属 vox-lab 的两个世代:\n - `burn` / `burn-tch`: Burn 框架路径 (`demucs-burn-*` 二进制), 保留作性能基线;\n - `tch` / `wgpu`: 独立运行时——`demucs-tch` 直连 tch-rs (不依赖 burn),\n   `demucs-wgpu` 走自研 WGSL/Vulkan kernel (不依赖 libtorch)。\n\n kebab-case 序列化 (`BurnTch` → `\"burn-tch\"`, `Wgpu` → `\"wgpu\"`)。原先误用\n `lowercase` 会得到 `\"burntch\"`, 故这里必须保持 kebab-case。"
     },
     "Stem": {
       "anyOf": [
@@ -1665,6 +1693,10 @@
           "$ref": "#/$defs/Device",
           "description": " torch:cuda (NVIDIA/ROCm), mps (Apple Silicon)"
         },
+        "model": {
+          "$ref": "#/$defs/DemucsModel",
+          "description": " demucs 模型变体, 透传为 demucs-burn 的 `-m <id>`; 默认 fine-tuned (沿用历史行为)"
+        },
         "always": {
           "type": "boolean",
           "description": " 效果(默认关闭): subtitle 模式下也始终分离人声, 保留 vocals 以便后续切换到 dub;\n dub 流程下始终需要分离人声以保证 tts-vc 的质量"
@@ -1680,6 +1712,7 @@
       "required": [
         "runtime",
         "device",
+        "model",
         "always",
         "stems"
       ],
@@ -2256,7 +2289,7 @@
               "type": "null"
             }
           ],
-          "description": " 实验开关: **非 engine** 路径按步骤 DAG 并行执行（目前只有 `sf_ocr_dub`\n 有 DAG 定义，见 [`crate::workflows::dag::StepDag`]；其它组合明确报错）。\n 与 `engine` 互斥——同设报错（引擎恢复前设 engine 本身就会报「开发中」）。"
+          "description": " 实验开关: **实验性并行**——非 engine 路径按步骤 DAG 并行执行（目前只有\n `sf_ocr_dub` 有 DAG 定义，见 [`crate::workflows::dag::StepDag`]；其它组合\n 明确报错）。与 `engine` 互斥——同设报错。并行验证成熟后将成为默认行为，\n 届时本标志退役。"
         },
         "output_mode": {
           "$ref": "#/$defs/OutputMode",
@@ -2327,6 +2360,10 @@
         "device": {
           "$ref": "#/$defs/Device",
           "description": " torch:cuda (NVIDIA/ROCm), mps (Apple Silicon)"
+        },
+        "model": {
+          "$ref": "#/$defs/DemucsModel",
+          "description": " demucs 模型变体, 透传为 demucs-burn 的 `-m <id>`; 默认 fine-tuned (沿用历史行为)"
         },
         "always": {
           "type": "boolean",

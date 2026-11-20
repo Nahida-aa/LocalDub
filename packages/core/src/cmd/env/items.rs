@@ -351,7 +351,7 @@ pub fn check_demucs_burn_bin(required: Option<&str>) -> CheckResult {
     CheckResult {
         key: "demucs_burn_bin".into(),
         status: CheckStatus::Fail,
-        data: json!({ "msg": "demucs-burn 仅发布 tch/wgpu 后端, 请切换 separate.runtime/device 到 burn-tch (tch) 或 burn+webgpu (wgpu)" }),
+        data: json!({ "msg": "该 demucs-burn 后端无发布资产, 请改用 separate.runtime=wgpu / tch / burn-tch" }),
         required: false,
     }
 }
@@ -414,12 +414,46 @@ pub fn check_whisper_vad() -> CheckResult {
     )
 }
 
+/// demucs 权重检查: separate 的 `model` 可选 htdemucs / htdemucs_6s / htdemucs_ft,
+/// 故只要**任一**模型已缓存即通过; 全缺才 Fail。大小阈值按文件各自给 (htdemucs 与
+/// htdemucs_6s 约 84MB, htdemucs_ft 约 333MB), 共用 300MB 会把小模型误判为偏小。
 pub fn check_demucs_pth() -> CheckResult {
-    check_model(
-        &demucs_model_dir().join("htdemucs_ft.safetensors"),
-        "demucs_pth",
-        300.0,
-    )
+    const MODELS: &[(&str, f64)] = &[
+        ("htdemucs_ft.safetensors", 300.0),
+        ("htdemucs.safetensors", 70.0),
+        ("htdemucs_6s.safetensors", 70.0),
+    ];
+    let dir = demucs_model_dir();
+
+    let mut first: Option<CheckResult> = None;
+    let mut found = Vec::new();
+    for (file, min_mb) in MODELS {
+        let r = check_model(&dir.join(file), "demucs_pth", *min_mb);
+        if r.status != CheckStatus::Fail {
+            found.push(file.trim_end_matches(".safetensors").to_string());
+            if first.is_none() {
+                first = Some(r);
+            }
+        }
+    }
+    match first {
+        Some(mut r) => {
+            r.data["models"] = serde_json::json!(found);
+            r
+        }
+        None => {
+            let expected: Vec<String> = MODELS.iter().map(|(f, _)| f.to_string()).collect();
+            CheckResult {
+                key: "demucs_pth".into(),
+                status: CheckStatus::Fail,
+                data: serde_json::json!({
+                    "path": dir.display().to_string(),
+                    "msg": format!("未找到任何 demucs 模型 (期望其一: {})", expected.join(", ")),
+                }),
+                required: false,
+            }
+        }
+    }
 }
 
 pub fn check_voxcpm2_onnx() -> CheckResult {
@@ -811,6 +845,53 @@ const DEMUCS_BURN_WGPU: ReleaseBinSpec = ReleaseBinSpec {
     stamp: ".demucs_burn_wgpu.version.json",
 };
 
+/// demucs-wgpu: 自研 WGSL/Vulkan kernel 路径 (不依赖 libtorch / ROCm 库)。
+///
+/// 单 exe, 经系统 Vulkan 运行; zip 内即 bin dir 内容。
+const DEMUCS_WGPU: ReleaseBinSpec = ReleaseBinSpec {
+    key: "demucs_wgpu_bin",
+    bin: "demucs-wgpu",
+    repo: "Nahida-aa/vox-lab",
+    tag: "demucs-wgpu-v0.1.0",
+    zip: true,
+    linux_asset: "demucs-wgpu-x86_64-unknown-linux-gnu.zip",
+    linux_sha256: "5ffce0de774f9c50a3e46d28c701c9599f36946f9d4d1bad758d847b3061c4da",
+    windows_asset: Some("demucs-wgpu-x86_64-pc-windows-msvc.zip"),
+    windows_sha256: Some("10000663d73f700c13ac7cef58c7e80e25e717954490ca2edba6853210986be4"),
+    stamp: ".demucs_wgpu.version.json",
+};
+
+/// demucs-tch: 独立 tch-rs 运行时 (不依赖 burn), 按设备分 cpu / cuda 变体。
+///
+/// **尚未发布** (`demucs-tch-v0.1.0` 在 vox-lab 侧还没有 tag/资产), 故这里只登记
+/// tag 与资产名, sha256 留空——`ensure_demucs_tch_bin` 会在发布前明确报「未发布」,
+/// 而不是给出一个假的校验值。发布后回填 sha256 即可。
+const DEMUCS_TCH_CPU: ReleaseBinSpec = ReleaseBinSpec {
+    key: "demucs_tch_cpu_bin",
+    bin: "demucs-tch-cpu",
+    repo: "Nahida-aa/vox-lab",
+    tag: "demucs-tch-v0.1.0",
+    zip: true,
+    linux_asset: "demucs-tch-cpu-x86_64-unknown-linux-gnu.zip",
+    linux_sha256: "",
+    windows_asset: Some("demucs-tch-cpu-x86_64-pc-windows-msvc.zip"),
+    windows_sha256: Some(""),
+    stamp: ".demucs_tch_cpu.version.json",
+};
+
+const DEMUCS_TCH_CUDA: ReleaseBinSpec = ReleaseBinSpec {
+    key: "demucs_tch_cuda_bin",
+    bin: "demucs-tch-cuda",
+    repo: "Nahida-aa/vox-lab",
+    tag: "demucs-tch-v0.1.0",
+    zip: true,
+    linux_asset: "demucs-tch-cuda-x86_64-unknown-linux-gnu.zip",
+    linux_sha256: "",
+    windows_asset: Some("demucs-tch-cuda-x86_64-pc-windows-msvc.zip"),
+    windows_sha256: Some(""),
+    stamp: ".demucs_tch_cuda.version.json",
+};
+
 /// whisper-vulkan (vox-lab 预编译 whisper.cpp, GGML_VULKAN)。
 ///
 /// whisper.cpp 官方 Release 只发 CPU/cublas 构建, 无 Vulkan 构建, 由 vox-lab
@@ -1112,6 +1193,18 @@ fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
             required: false,
         };
     };
+    // 空 sha256 = 该 release 尚未发布 (spec 先登记、发布后回填)。明确报未发布,
+    // 不要拿着空校验值去下载。
+    if sha256.is_empty() {
+        return CheckResult {
+            key: spec.key.to_string(),
+            status: CheckStatus::Fail,
+            data: json!({
+                "msg": format!("{} 尚未发布 ({} {} 无资产)", spec.bin, spec.repo, spec.tag),
+            }),
+            required: false,
+        };
+    }
     let bin_path = release_bin_path(spec);
     let dl_path = release_download_path(spec);
     if let Some(parent) = dl_path.parent() {
@@ -1305,11 +1398,29 @@ pub fn check_demucs_burn_tch_bin() -> CheckResult {
 pub fn check_demucs_burn_wgpu_bin() -> CheckResult {
     check_release_bin(&DEMUCS_BURN_WGPU)
 }
+pub fn check_demucs_wgpu_bin() -> CheckResult {
+    check_release_bin(&DEMUCS_WGPU)
+}
+pub fn check_demucs_tch_cpu_bin() -> CheckResult {
+    check_release_bin(&DEMUCS_TCH_CPU)
+}
+pub fn check_demucs_tch_cuda_bin() -> CheckResult {
+    check_release_bin(&DEMUCS_TCH_CUDA)
+}
 fn ensure_demucs_burn_tch_bin() -> CheckResult {
     ensure_release_bin(&DEMUCS_BURN_TCH)
 }
 fn ensure_demucs_burn_wgpu_bin() -> CheckResult {
     ensure_release_bin(&DEMUCS_BURN_WGPU)
+}
+fn ensure_demucs_wgpu_bin() -> CheckResult {
+    ensure_release_bin(&DEMUCS_WGPU)
+}
+fn ensure_demucs_tch_cpu_bin() -> CheckResult {
+    ensure_release_bin(&DEMUCS_TCH_CPU)
+}
+fn ensure_demucs_tch_cuda_bin() -> CheckResult {
+    ensure_release_bin(&DEMUCS_TCH_CUDA)
 }
 
 /// 当前平台的目标二进制路径 (供 `bin_path_from_key` 复用, 与下载路径保持一致)。
@@ -1318,6 +1429,15 @@ pub fn demucs_burn_tch_bin_path() -> PathBuf {
 }
 pub fn demucs_burn_wgpu_bin_path() -> PathBuf {
     release_bin_path(&DEMUCS_BURN_WGPU)
+}
+pub fn demucs_wgpu_bin_path() -> PathBuf {
+    release_bin_path(&DEMUCS_WGPU)
+}
+pub fn demucs_tch_cpu_bin_path() -> PathBuf {
+    release_bin_path(&DEMUCS_TCH_CPU)
+}
+pub fn demucs_tch_cuda_bin_path() -> PathBuf {
+    release_bin_path(&DEMUCS_TCH_CUDA)
 }
 
 /// whisper-vulkan 目标二进制路径 (release 下载落到 bin_dir)。
@@ -1394,6 +1514,9 @@ pub fn all_checks() -> HashMap<&'static str, fn() -> CheckResult> {
     m.insert("subtitle_ocr_post_bin", check_subtitle_ocr_post_bin);
     m.insert("demucs_burn_tch_bin", check_demucs_burn_tch_bin);
     m.insert("demucs_burn_wgpu_bin", check_demucs_burn_wgpu_bin);
+    m.insert("demucs_wgpu_bin", check_demucs_wgpu_bin);
+    m.insert("demucs_tch_cpu_bin", check_demucs_tch_cpu_bin);
+    m.insert("demucs_tch_cuda_bin", check_demucs_tch_cuda_bin);
     m.insert("cmake", check_cmake);
     m.insert("git", check_git);
     m.insert("dotenv", check_dotenv);
@@ -1411,6 +1534,9 @@ pub fn ensure_fns() -> HashMap<&'static str, fn() -> CheckResult> {
     m.insert("subtitle_ocr_post_bin", ensure_subtitle_ocr_post_bin);
     m.insert("demucs_burn_tch_bin", ensure_demucs_burn_tch_bin);
     m.insert("demucs_burn_wgpu_bin", ensure_demucs_burn_wgpu_bin);
+    m.insert("demucs_wgpu_bin", ensure_demucs_wgpu_bin);
+    m.insert("demucs_tch_cpu_bin", ensure_demucs_tch_cpu_bin);
+    m.insert("demucs_tch_cuda_bin", ensure_demucs_tch_cuda_bin);
     m.insert("whisper_bin", ensure_whisper_bin);
     m
 }

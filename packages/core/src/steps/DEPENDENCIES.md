@@ -133,8 +133,25 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | | 路径 |
 | --- | --- |
 | **读** ⚠️ | `ctx.audio_source_path`（`AudioSourcePath`，**真正喂给 demucs 的输入**） |
-| **读** | `data/bin/demucs-burn-*`、`data/models/demucs/htdemucs_ft.safetensors`（缺则下载） |
-| **写** | `separate/target_{0_drums,1_bass,2_other,3_vocals}.wav`、进度流 |
+| **读** | `data/bin/<runtime 二进制>`、`data/models/demucs/<model>.safetensors`（缺则经 env ensure 下载） |
+| **写** | 4 stem: `separate/target_{0_drums,1_bass,2_other,3_vocals}.wav`；6s 模型另加 `target_{4_guitar,5_piano}.wav`；进度流 |
+
+> **模型可选。** `separate.model` 透传为 demucs 二进制的 `-m`：`htdemucs`（84MB，4 stems）、
+> `htdemucs_6s`（84MB，6 stems）、`htdemucs_ft`（333MB，**默认**，质量最好但更慢）。
+> 取值即权重文件名主干：`data/models/demucs/<model>.safetensors`。
+
+> **运行时可选**（`SeparateRuntime::resolve` 把 runtime + device 解析成二进制）：
+>
+> | `runtime` | 二进制 | 发布 |
+> | --- | --- | --- |
+> | `burn` + `device=webgpu` | `demucs-burn-wgpu` | ✅ burn-v0.1.0 |
+> | `burn` + `cuda/cpu/vulkan/mps` | `demucs-burn-<dev>` | ❌ 无资产 |
+> | `burn-tch`（默认） | `demucs-burn-tch` | ✅ burn-v0.1.0 |
+> | `tch` + `cuda` | `demucs-tch-cuda` | ❌ 尚未发布 |
+> | `tch` + 其余 device | `demucs-tch-cpu` | ❌ 尚未发布 |
+> | `wgpu` | `demucs-wgpu` | ✅ wgpu-v0.1.0（自研 WGSL，无 libtorch） |
+>
+> 未发布的组合在 `env ensure` 会明确报「尚未发布」，不会拿空 sha256 去下载。
 
 > **依赖只声明 `audio_source_path`。** `SeparateInput::from_state` 只取
 > `AudioSourcePath::from_state`（读 ctx 事实，缺失即报错）；`separate` 已**不再**读取或

@@ -168,6 +168,33 @@ pub const ENV_ENTRIES: &[(&'static str, EnvEntry)] = &[
         },
     ),
     (
+        "demucs_wgpu_bin",
+        EnvEntry {
+            zh: "demucs-wgpu 独立运行时 (data/bin/demucs-wgpu, 自研 WGSL/Vulkan, 不依赖 libtorch)",
+            en: "demucs-wgpu standalone runtime (data/bin/demucs-wgpu, in-house WGSL/Vulkan, no libtorch)",
+            required: false,
+            category: "optional",
+        },
+    ),
+    (
+        "demucs_tch_cpu_bin",
+        EnvEntry {
+            zh: "demucs-tch cpu 变体 (data/bin/demucs-tch-cpu, 独立 tch-rs 运行时; 尚未发布)",
+            en: "demucs-tch cpu variant (data/bin/demucs-tch-cpu, standalone tch-rs; not released yet)",
+            required: false,
+            category: "optional",
+        },
+    ),
+    (
+        "demucs_tch_cuda_bin",
+        EnvEntry {
+            zh: "demucs-tch cuda 变体 (data/bin/demucs-tch-cuda, 需自备 CUDA 版 libtorch; 尚未发布)",
+            en: "demucs-tch cuda variant (data/bin/demucs-tch-cuda, needs CUDA libtorch; not released yet)",
+            required: false,
+            category: "optional",
+        },
+    ),
+    (
         "subtitle_finder_bin",
         EnvEntry {
             zh: "关键帧筛选二进制 (data/bin/subtitle-finder, 从 vision-lab GitHub Release 下载)",

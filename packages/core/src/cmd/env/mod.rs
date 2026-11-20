@@ -14,7 +14,8 @@ use std::path::PathBuf;
 
 use crate::cmd::env::input::{env_names, zh_desc};
 use crate::cmd::env::items::{
-    all_checks, demucs_burn_tch_bin_path, demucs_burn_wgpu_bin_path, ensure_fns, subtitle_ocr_post_bin_path,
+    all_checks, demucs_burn_tch_bin_path, demucs_burn_wgpu_bin_path, demucs_tch_cpu_bin_path,
+    demucs_tch_cuda_bin_path, demucs_wgpu_bin_path, ensure_fns, subtitle_ocr_post_bin_path,
     subtitle_finder_bin_path, subtitle_ocr_bin_path,
 };
 use crate::input::Input;
@@ -125,13 +126,12 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
         add("demucs_pth", &mut set);
         // demucs-burn 已迁至 vox-lab: 仅 tch/wgpu 有 release 资产;
         // 其余后端 (cpu/cuda/vulkan) 无发布资产, demucs_burn_bin 检查会报「暂无资产」。
-        let suffix = demucs_backend_suffix(steps.separate.runtime, steps.separate.device);
-        match suffix {
-            "tch" => add("demucs_burn_tch_bin", &mut set),
-            "wgpu" => add("demucs_burn_wgpu_bin", &mut set),
-            other => {
+        let bin = steps.separate.runtime.resolve(steps.separate.device);
+        match bin.env_key {
+            Some(key) => add(key, &mut set),
+            None => {
                 add("demucs_burn_bin", &mut set);
-                desired.insert("demucs_burn_bin".to_string(), other.to_string());
+                desired.insert("demucs_burn_bin".to_string(), bin.suffix.to_string());
             }
         }
         match steps.separate.device {
@@ -171,23 +171,6 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
         .map(|s| s.to_string())
         .collect();
     (targets, desired)
-}
-
-/// separate 后端后缀: bin = demucs-burn-{suffix}。runtime 优先 (burn-tch→tch), 否则按 device 映射。
-fn demucs_backend_suffix(
-    runtime: crate::steps::separate::args::SeparateRuntime,
-    device: crate::steps::separate::args::Device,
-) -> &'static str {
-    use crate::steps::separate::args::{Device as SepDevice, SeparateRuntime as SepRuntime};
-    match runtime {
-        SepRuntime::BurnTch => "tch",
-        SepRuntime::Burn => match device {
-            SepDevice::Cpu | SepDevice::Mps => "cpu",
-            SepDevice::Cuda => "cuda",
-            SepDevice::Vulkan => "vulkan",
-            SepDevice::Webgpu => "wgpu",
-        },
-    }
 }
 
 /// 解析目标: 空 → 全部; 过滤到 all_checks 中存在的 key; 过滤后空 → 全部。
@@ -249,6 +232,9 @@ fn bin_path_from_key(key: &str) -> PathBuf {
         "subtitle_ocr_post_bin" => subtitle_ocr_post_bin_path(),
         "demucs_burn_tch_bin" => demucs_burn_tch_bin_path(),
         "demucs_burn_wgpu_bin" => demucs_burn_wgpu_bin_path(),
+        "demucs_wgpu_bin" => demucs_wgpu_bin_path(),
+        "demucs_tch_cpu_bin" => demucs_tch_cpu_bin_path(),
+        "demucs_tch_cuda_bin" => demucs_tch_cuda_bin_path(),
         "whisper_bin" => crate::cmd::env::items::whisper_vulkan_bin_path(),
         _ => PathBuf::from(key), // 兜底
     }

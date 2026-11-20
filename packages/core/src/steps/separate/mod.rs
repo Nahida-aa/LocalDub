@@ -19,32 +19,13 @@ pub use after::step_separate_after;
 pub use after_args::SeparateAfterInput;
 pub use args::{SeparateArgs, SeparateInput};
 
-/// 根据 runtime + device 选择 demucs-burn 后端 (镜像 TS `separateBurn` 的 backend 派生)。
-/// `burn-tch` → tch (device 无关); `burn` → 按 device (Cpu/Mps→cpu, Cuda→cuda,
-/// Vulkan→vulkan, Webgpu→wgpu)。须与 `cmd/env` 的 `demucs_backend_suffix` 保持一致。
-fn backend_for(runtime: args::SeparateRuntime, device: args::Device) -> &'static str {
-    match runtime {
-        args::SeparateRuntime::BurnTch => "tch",
-        args::SeparateRuntime::Burn => match device {
-            args::Device::Cpu | args::Device::Mps => "cpu",
-            args::Device::Cuda => "cuda",
-            args::Device::Vulkan => "vulkan",
-            args::Device::Webgpu => "wgpu",
-        },
-    }
-}
-
-/// 定位 demucs-burn 二进制:
-/// 1. `data/bin` (release 下载, vox-lab zip 平铺);
-/// 2. `target/release`, 回退 `target/debug` (dev 下 cargo 产物)。
-fn demucs_bin_path(backend: &str) -> Option<PathBuf> {
-    let name = format!("demucs-burn-{backend}");
-    let downloaded = config_rs::path::models::bin_dir().join(&name);
-    if downloaded.exists() {
-        return Some(downloaded);
-    }
-
-    None
+/// 定位 demucs 二进制: `data/bin/<binary>` (release 下载, vox-lab zip 平铺)。
+///
+/// 源码构建的产物不放这里 (各运行时是 vox-lab 的独立 workspace, 产物在
+/// `vox-lab/packages/<pkg>/target`), 故未命中即视为未安装, 交由调用方报错。
+fn demucs_bin_path(binary: &str) -> Option<PathBuf> {
+    let p = config_rs::path::models::bin_dir().join(binary);
+    p.exists().then_some(p)
 }
 
 /// 手工解析 stdout 中的 `(xx%)` 进度 (镜像 TS `/\(\s*(\d+(?:\.\d+)?)%\)/`), 无 regex 依赖。
@@ -105,15 +86,18 @@ fn find_libtorch_lib_dir() -> Option<PathBuf> {
 fn run_demucs(
     video_dir: &str,
     bin_path: &std::path::Path,
+    model: &str,
     audio_path: &str,
     sep_dir: &std::path::Path,
 ) -> anyhow::Result<()> {
-    tracing::info!(target: "separate", "spawn {}", bin_path.display());
+    tracing::info!(target: "separate", "spawn {} (model={})", bin_path.display(), model);
 
     // tch 后端运行时依赖 LibTorch 动态库 (libtorch_cpu.so 等), 必须注入 LD_LIBRARY_PATH,
     // 否则 loader 找不到库 → exit 127 (镜像 TS wrapper.ts 的 env.LD_LIBRARY_PATH 注入)。
     let mut cmd = Command::new(bin_path);
-    cmd.arg(audio_path)
+    cmd.arg("-m")
+        .arg(model)
+        .arg(audio_path)
         .arg(sep_dir)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -276,38 +260,41 @@ pub fn step_separate(input: &SeparateInput) -> anyhow::Result<()> {
         return Err(anyhow::anyhow!("audio_source.wav not found"));
     }
 
-    let backend = backend_for(cfg.runtime, cfg.device);
-    let bin_path = match demucs_bin_path(backend) {
+    let bin = cfg.runtime.resolve(cfg.device);
+    let bin_path = match demucs_bin_path(&bin.binary) {
         Some(p) => p,
         None => {
-            // 已发布后端 (tch/wgpu): 经 env ensure 走 release 下载; 其余后端无发布资产
-            // (cpu/cuda/vulkan 源码构建路径已随 demucs_burn 迁移而移除)。
-            match backend {
-                "tch" => {
-                    let p = crate::cmd::env::ensure_bin("demucs_burn_tch_bin")?;
+            // 未下载 → 经 env ensure 走 release 下载; 该组合没有发布资产则明确报错。
+            match bin.env_key {
+                Some(key) => {
+                    let p = crate::cmd::env::ensure_bin(key)?;
                     if let Some(d) = p.parent().filter(|d| d.is_dir()) {
-                        tracing::info!(target: "separate", "demucs-burn-tch 经 release 下载: {}", d.display());
+                        tracing::info!(target: "separate", "{} 经 release 下载: {}", bin.binary, d.display());
                     }
                     p
                 }
-                "wgpu" => crate::cmd::env::ensure_bin("demucs_burn_wgpu_bin")?,
-                other => {
+                None => {
                     return Err(anyhow::anyhow!(
-                        "demucs-burn 后端 {other} 暂无发布资产。请切换 separate.runtime/device 到 \
-                         burn-tch (tch) 或 burn+webgpu (wgpu)。"
+                        "{} 暂无发布资产 (runtime={:?} device={:?})。可改用 separate.runtime=wgpu、\
+                         tch 或 burn-tch。",
+                        bin.binary,
+                        cfg.runtime,
+                        cfg.device
                     ));
                 }
             }
         }
     };
 
-    // 模型存在性检查 (镜像 TS 的 modelPath 校验)
-    let model_path = config_rs::path::models::demucs_model_dir().join("htdemucs_ft.safetensors");
+    // 模型存在性检查 (按所选模型, 而非固定 htdemucs_ft 的文件名)
+    let model_id = cfg.model.as_id();
+    let model_path =
+        config_rs::path::models::demucs_model_dir().join(format!("{model_id}.safetensors"));
     if !model_path.exists() {
         return Err(anyhow::anyhow!(
-            "Model not cached at {}. Run demucs-burn-{} first to download it.",
+            "Model '{model_id}' not cached at {}. Run {} first to download it.",
             model_path.display(),
-            backend
+            bin.binary
         ));
     }
 
@@ -316,19 +303,25 @@ pub fn step_separate(input: &SeparateInput) -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("创建 separate 目录失败: {}", e))?;
 
     tracing::info!(target: "separate",
-        "runtime={} device={:?} binary={}",
-        backend,
+        "runtime={:?} device={:?} model={} binary={}",
+        cfg.runtime,
         cfg.device,
+        model_id,
         bin_path.display()
     );
 
     let t0 = std::time::Instant::now();
-    run_demucs(&video_dir, &bin_path, &audio_path, &sep_dir)?;
+    run_demucs(&video_dir, &bin_path, model_id, &audio_path, &sep_dir)?;
     let elapsed = t0.elapsed();
     tracing::info!(target: "separate", "Processed in {:.1}s", elapsed.as_secs_f64());
 
-    // 校验 stem 产物
-    for (i, name) in ["drums", "bass", "other", "vocals"].iter().enumerate() {
+    // 校验 stem 产物 (6s 模型多出 guitar / piano)
+    let stem_names: &[&str] = if cfg.model.stem_count() == 6 {
+        &["drums", "bass", "other", "vocals", "guitar", "piano"]
+    } else {
+        &["drums", "bass", "other", "vocals"]
+    };
+    for (i, name) in stem_names.iter().enumerate() {
         let p = sep_dir.join(format!("target_{i}_{name}.wav"));
         if !p.exists() {
             tracing::info!(target: "separate", "WARN: {} not found", p.display());
@@ -379,6 +372,7 @@ mod tests {
         let cfg = SeparateArgs::from_input(&input);
         assert_eq!(cfg.runtime, args::SeparateRuntime::BurnTch);
         assert_eq!(cfg.device, args::Device::Cuda);
+        assert_eq!(cfg.model, args::DemucsModel::HtdemucsFt);
         assert!(!cfg.always);
         assert!(cfg.stems.is_empty());
     }
@@ -400,19 +394,48 @@ mod tests {
     }
 
     #[test]
-    fn backend_selection() {
-        assert_eq!(
-            backend_for(args::SeparateRuntime::Burn, args::Device::Webgpu),
-            "wgpu"
-        );
-        assert_eq!(
-            backend_for(args::SeparateRuntime::Burn, args::Device::Cuda),
-            "cuda"
-        );
-        assert_eq!(
-            backend_for(args::SeparateRuntime::BurnTch, args::Device::Cpu),
-            "tch"
-        );
+    fn model_id_matches_demucs_burn_cli() {
+        // as_id 同时是权重文件名主干; 与 demucs-burn 的 ALL_MODELS 逐一对齐
+        assert_eq!(args::DemucsModel::Htdemucs.as_id(), "htdemucs");
+        assert_eq!(args::DemucsModel::Htdemucs6s.as_id(), "htdemucs_6s");
+        assert_eq!(args::DemucsModel::HtdemucsFt.as_id(), "htdemucs_ft");
+        assert_eq!(args::DemucsModel::Htdemucs.stem_count(), 4);
+        assert_eq!(args::DemucsModel::Htdemucs6s.stem_count(), 6);
+    }
+
+    #[test]
+    fn from_input_parses_model() {
+        for (raw, want) in [
+            ("htdemucs", args::DemucsModel::Htdemucs),
+            ("htdemucs_6s", args::DemucsModel::Htdemucs6s),
+            ("htdemucs_ft", args::DemucsModel::HtdemucsFt),
+        ] {
+            let input = input_with(json!({
+                "input": {"steps": {"separate": {"model": raw}}}
+            }));
+            assert_eq!(SeparateArgs::from_input(&input).model, want, "model={raw}");
+        }
+    }
+
+    #[test]
+    fn runtime_binary_selection() {
+        use args::{Device, SeparateRuntime as R};
+        // Burn 家族: 按 device 挑 demucs-burn-<dev>
+        assert_eq!(R::Burn.resolve(Device::Webgpu).binary, "demucs-burn-wgpu");
+        assert_eq!(R::Burn.resolve(Device::Cuda).binary, "demucs-burn-cuda");
+        assert_eq!(R::Burn.resolve(Device::Cpu).binary, "demucs-burn-cpu");
+        // BurnTch: device 无关
+        assert_eq!(R::BurnTch.resolve(Device::Cpu).binary, "demucs-burn-tch");
+        assert_eq!(R::BurnTch.resolve(Device::Cuda).binary, "demucs-burn-tch");
+        // 独立 tch-rs 运行时不支持 vulkan/webgpu, 回退 cpu 变体
+        assert_eq!(R::Tch.resolve(Device::Cuda).binary, "demucs-tch-cuda");
+        assert_eq!(R::Tch.resolve(Device::Vulkan).binary, "demucs-tch-cpu");
+        assert_eq!(R::Tch.resolve(Device::Cuda).env_key, Some("demucs_tch_cuda_bin"));
+        // 自研 wgpu 运行时: 单二进制
+        assert_eq!(R::Wgpu.resolve(Device::Cuda).binary, "demucs-wgpu");
+        assert_eq!(R::Wgpu.resolve(Device::Webgpu).env_key, Some("demucs_wgpu_bin"));
+        // 无发布资产的组合 env_key 为 None
+        assert_eq!(R::Burn.resolve(Device::Cuda).env_key, None);
     }
 
     #[test]
