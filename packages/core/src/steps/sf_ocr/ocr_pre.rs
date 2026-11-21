@@ -46,10 +46,23 @@ pub fn step_sf_ocr_pre(input: &SfOcrPreInput) -> anyhow::Result<()> {
     ensure_dir(&out_dir)?;
 
     tracing::info!(target: "sf_ocr", "subtitle-finder {} --out {}", video_path.display(), out_dir.display());
-    let status = Command::new(&bin)
-        .arg(&video_path)
-        .arg("--out")
-        .arg(&out_dir)
+
+    // 二进制的 ffmpeg 等 .so 随 release zip 平铺到 bin_dir (见 env/items.rs 的
+    // extract_zip_flat); 动态链接器默认不搜二进制同目录, 故注入 LD_LIBRARY_PATH,
+    // 否则 spawn 会 exit 127 (缺 .so)。与 separate/mod.rs 注入 libtorch 同款。
+    let mut cmd = Command::new(&bin);
+    cmd.arg(&video_path).arg("--out").arg(&out_dir);
+    let bin_dir = bin.parent().unwrap_or(std::path::Path::new("."));
+    let existing = std::env::var("LD_LIBRARY_PATH").unwrap_or_default();
+    let combined = if existing.is_empty() {
+        bin_dir.to_string_lossy().into_owned()
+    } else {
+        format!("{}:{}", bin_dir.display(), existing)
+    };
+    tracing::info!(target: "sf_ocr", "注入 LD_LIBRARY_PATH={}", combined);
+    cmd.env("LD_LIBRARY_PATH", combined);
+
+    let status = cmd
         .status()
         .map_err(|e| anyhow::anyhow!("spawn subtitle-finder 失败: {e}"))?;
     if !status.success() {

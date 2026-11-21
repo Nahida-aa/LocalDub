@@ -780,14 +780,18 @@ struct ReleaseBinSpec {
     stamp: &'static str,
 }
 
+/// Linux 资产为静态链接版 zip (OpenCV 5.0 静态编进二进制, ffmpeg .so 随包平铺),
+/// 由 vision-lab 的 release-subtitle-finder-static-linux.yml 构建。运行时由
+/// `sf_ocr_pre` 注入 LD_LIBRARY_PATH=<bin dir> 找到随包 .so。
 const SUBTITLE_FINDER: ReleaseBinSpec = ReleaseBinSpec {
     key: "subtitle_finder_bin",
     bin: "subtitle-finder",
     repo: "Nahida-aa/vision-lab",
-    tag: "subtitle-finder-v0.1.0",
-    zip: false,
-    linux_asset: "subtitle-finder-x86_64-unknown-linux-gnu",
-    linux_sha256: "b08778b2e066a35f8c9b3c0457e3e05a1379a6452341b932d82c22175cba9923",
+    tag: "subtitle-finder-v0.1.1",
+    zip: true,
+    linux_asset: "subtitle-finder-x86_64-unknown-linux-gnu.zip",
+    // 由 release-subtitle-finder-static-linux.yml (run 44912342673) 实测产出
+    linux_sha256: "0faa4f3475773be3cd665051046f441648b99c78b6bc047f780ccf2ac72c58c9",
     windows_asset: Some("subtitle-finder-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some("9dece5e3cd2a9d72716d5fab5ecec256406b5113e38a479f55c76c43635396cc"),
     stamp: ".subtitle_finder.version.json",
