@@ -51,3 +51,21 @@ run-env-check:
 
 run-env-ensure:
     cargo run -p cli -- env ensure
+
+# 把某系列 workfolder/<series>/ 下各集成片拷贝到 out/<series>/<集>.mp4。
+# 无参数时列出可导出的系列；`just export-series 某某` 导出单系列；
+# `--all` 导出全部系列；`--force` 覆盖已存在的 out 文件。
+# 也可用 WORKFOLDER 环境变量指定工作目录（默认 <repo>/workfolder）。
+# 无参数时列出可导出系列: just export-series
+export-series-0:
+    bun scripts/export-series.ts
+
+# 导出单系列, 或加 --all / --force (参数间空格分隔, 含空格的系列名用引号):
+#   just export-series 剑
+#   just export-series "错位未婚妻" --force
+#   just export-series --all
+export-series *args:
+    bun scripts/export-series.ts {{args}}
+
+stats:
+    scc . --exclude-dir node_modules,dist,build,target,venv,.venv,__pycache__,.git,vendor,out,cmake-build-debug,CMakeFiles --exclude-ext lock,json,md,yaml,yml,toml,ini,conf

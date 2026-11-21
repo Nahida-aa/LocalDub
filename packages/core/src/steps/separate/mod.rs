@@ -227,11 +227,11 @@ pub fn step_separate(sc: impl StepCtxView) -> anyhow::Result<()> {
     let video_dir = sc.ctx().input().video_dir()?.to_string();
     tracing::info!(target: "separate", "start");
 
-    let cfg = SeparateArgs::from_input(sc.ctx().input());
+    let args = SeparateArgs::from_input(sc.ctx().input());
     let output_mode = OutputMode::from_input(sc.ctx().input());
 
     // subtitle 模式且未配置 always → 跳过分离
-    if output_mode == OutputMode::Subtitle && !cfg.always {
+    if output_mode == OutputMode::Subtitle && !args.always {
         tracing::info!(target: "separate", "Skipped (subtitle pipeline, set separate.always=true to force)");
         set_step_anyhow(
             &video_dir,
@@ -265,7 +265,7 @@ pub fn step_separate(sc: impl StepCtxView) -> anyhow::Result<()> {
         return Err(anyhow::anyhow!("audio_source.wav not found"));
     }
 
-    let bin = cfg.runtime.resolve(cfg.device);
+    let bin = args.runtime.resolve(args.device);
     let bin_path = match demucs_bin_path(&bin.binary) {
         Some(p) => p,
         None => {
@@ -283,8 +283,8 @@ pub fn step_separate(sc: impl StepCtxView) -> anyhow::Result<()> {
                         "{} 暂无发布资产 (runtime={:?} device={:?})。可改用 separate.runtime=wgpu、\
                          tch 或 burn-tch。",
                         bin.binary,
-                        cfg.runtime,
-                        cfg.device
+                        args.runtime,
+                        args.device
                     ));
                 }
             }
@@ -292,7 +292,7 @@ pub fn step_separate(sc: impl StepCtxView) -> anyhow::Result<()> {
     };
 
     // 模型存在性检查 (按所选模型, 而非固定 htdemucs_ft 的文件名)
-    let model_id = cfg.model.as_id();
+    let model_id = args.model.as_id();
     let model_path =
         config_rs::path::models::demucs_model_dir().join(format!("{model_id}.safetensors"));
     if !model_path.exists() {
@@ -309,8 +309,8 @@ pub fn step_separate(sc: impl StepCtxView) -> anyhow::Result<()> {
 
     tracing::info!(target: "separate",
         "runtime={:?} device={:?} model={} binary={}",
-        cfg.runtime,
-        cfg.device,
+        args.runtime,
+        args.device,
         model_id,
         bin_path.display()
     );
@@ -321,7 +321,7 @@ pub fn step_separate(sc: impl StepCtxView) -> anyhow::Result<()> {
     tracing::info!(target: "separate", "Processed in {:.1}s", elapsed.as_secs_f64());
 
     // 校验 stem 产物 (6s 模型多出 guitar / piano)
-    let stem_names: &[&str] = if cfg.model.stem_count() == 6 {
+    let stem_names: &[&str] = if args.model.stem_count() == 6 {
         &["drums", "bass", "other", "vocals", "guitar", "piano"]
     } else {
         &["drums", "bass", "other", "vocals"]
