@@ -90,13 +90,12 @@ pub struct TranslateDeps {
 }
 
 impl TranslateDeps {
-    /// 装配层构造：从 input 取任务目录，按 `subtitle_source` 选 SrtPath
-    /// （非法 → fail-fast），并读一次 `<asr>/out.json` 的实测语言。
-    /// 与现役 `TranslateInput::new` 取值一致。
-    pub fn new(input: &crate::input::Input) -> anyhow::Result<Self> {
-        let video_dir = input.video_dir()?;
-        // 顺序有讲究：先解析 subtitle_source（用户真正可能写错的字段），再读磁盘事实。
-        let srt_json_path = match SubtitleSource::from_input(input)? {
+    /// 装配层构造：从 workflow input 取任务目录，按 `subtitle_source` 选 SrtPath，
+    /// 并读一次 `<asr>/out.json` 的实测语言。`WorkflowInput` 已保证 video_dir /
+    /// subtitle_source 落定，故此处只做路径构造与磁盘事实读取，无任何校验分支。
+    pub fn new(input: &crate::input::WorkflowInput) -> Self {
+        let video_dir = input.video_dir();
+        let srt_json_path = match input.workflow.subtitle_source {
             SubtitleSource::Asr => SubtitleSourcePath::Asr(asr_fix::SrtPath::new(video_dir)),
             SubtitleSource::SfOcr => SubtitleSourcePath::SfOcr(sf_ocr_fix::SrtPath::new(video_dir)),
             SubtitleSource::AsrOcr => {
@@ -104,10 +103,10 @@ impl TranslateDeps {
             }
         };
         let asr_language = crate::steps::asr::out::asr_language(video_dir);
-        Ok(Self {
+        Self {
             srt_json_path,
             asr_language,
-        })
+        }
     }
 
     /// 规范化字幕路径（与现役 `TranslateInput::srt_path` 同款逐支 match）。

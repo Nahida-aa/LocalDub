@@ -506,13 +506,9 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let input = at(&dir, Some("zh"), json!({}));
-        let res = step_translate(
-            MyStepCtx::new(
-                "translate",
-                crate::input::WorkflowInput::try_from(input.clone()).unwrap(),
-            ),
-            args::TranslateDeps::new(&input).unwrap(),
-        );
+        let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
+        let deps = args::TranslateDeps::new(&wfi);
+        let res = step_translate(MyStepCtx::new("translate", wfi), deps);
         let err = res.expect_err("缺 srt.json 必须报错");
         let msg = err.to_string();
         assert!(
@@ -571,8 +567,8 @@ mod tests {
             .unwrap();
 
             let input = at(&dir, None, json!({"workflow": {"subtitle_source": source}}));
-            let deps =
-                args::TranslateDeps::new(&input).unwrap_or_else(|e| panic!("{source}: {e}"));
+            let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
+            let deps = args::TranslateDeps::new(&wfi);
             assert!(
                 deps.srt_path().to_string_lossy().ends_with(expected),
                 "{source} 应解析到 {expected}, 实际 {:?}",
