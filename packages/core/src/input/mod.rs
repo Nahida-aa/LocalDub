@@ -80,7 +80,7 @@ impl Default for Input {
 }
 
 impl Input {
-    /// 任务目录 = `input.workflow.videoDir`。
+    /// 任务目录 = `input.workflow.video_dir`。
     ///
     /// pipeline 入口 ([`crate::workflows::pipeline::run_pipeline`] /
     /// [`crate::workflows::continue_pipeline`] / [`crate::workflows::parallel::run_pipeline_parallel`])
@@ -90,7 +90,7 @@ impl Input {
         self.workflow
             .as_ref()
             .and_then(|w| w.video_dir.as_deref())
-            .ok_or_else(|| anyhow::anyhow!("input.workflow.videoDir 缺失 (start 由 import_video 回填, continue 必填)"))
+            .ok_or_else(|| anyhow::anyhow!("input.workflow.video_dir 缺失 (start 由 import_video 回填, continue 必填)"))
     }
 
     /// command=workflow 时 workflow 必填

@@ -1,7 +1,7 @@
 //! sf_ocr_pre: 关键帧策略前处理, 调 subtitle-finder (通过 env 管理) 找字幕关键帧。
 //!
 //! 镜像 TS `packages/core/steps/sf_ocr/ocr_pre.ts` (stepSfOcrPre)。
-//! 落盘 `<videoDir>/sf_ocr_pre/`: frames/(PNG) / mask/ / timeline.txt / keyframes.json。
+//! 落盘 `<video_dir>/sf_ocr_pre/`: frames/(PNG) / mask/ / timeline.txt / keyframes.json。
 
 use crate::cmd::env::ensure_bin_command;
 use crate::steps::sf_ocr::pre_args::SfOcrPreInput;

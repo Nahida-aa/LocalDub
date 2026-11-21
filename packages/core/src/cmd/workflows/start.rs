@@ -1,8 +1,8 @@
 //! start 派发器 (镜像 TS `packages/core/cmd/workflows/startTask.ts` 的 `cmdStartTask`)。
 //!
-//! 语义: 无论是否带 `videoDir`, 都按 `input.workflow.url` 重新 `import_video` 生成/复用
-//! 任务目录, 再从头跑完整 pipeline。`videoDir` 在此路径被忽略
-//! (对齐 TS: start 分支忽略 videoDir, 不会续跑已有任务)。
+//! 语义: 无论是否带 `video_dir`, 都按 `input.workflow.url` 重新 `import_video` 生成/复用
+//! 任务目录, 再从头跑完整 pipeline。`video_dir` 在此路径被忽略
+//! (对齐 TS: start 分支忽略 video_dir, 不会续跑已有任务)。
 //!
 //! 执行路径三选一（[`crate::workflows::args::ExecPath`]）：
 //! - `engine = true`   → 引擎路径——**开发中，暂不可用**（aa-workflow 集成暂停，

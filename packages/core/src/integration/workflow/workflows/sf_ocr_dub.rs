@@ -28,7 +28,7 @@
 //! 快照分裂），但步骤只读 state 内容、真源在盘，无碍。真相仍是盘上的
 //! state.json（Phase 3 的「state 由日志派生」是后续方向）。
 //!
-//! `video_dir` 不走参数：引擎把 `videoDir` 注入 run input（`initialize`
+//! `video_dir` 不走参数：引擎把 `video_dir` 注入 run input（`initialize`
 //! 从 `ctx.input` 取），`ctx.state` 重建后 handler 从它取一次任务目录。
 //!
 //! 驱动仍走 FsRunStore 直驱 core：`--continue-from`/`--target-step` 保留；
@@ -55,14 +55,14 @@ pub fn sf_ocr_dub() -> WorkflowDefinition<Input, serde_json::Value, WorkflowStat
             .input::<Input>()
             .state::<WorkflowState>()
             // state 不落盘：每次 start / resume 从 state.json 重建。
-            // videoDir 由引擎注入进 run input（start 路径的 input 原本没有）。
+            // video_dir 由引擎注入进 run input（start 路径的 input 原本没有）。
             .initialize(|input: &Input| {
                 let dir = input
                     .workflow
                     .as_ref()
                     .and_then(|w| w.video_dir.as_deref())
                     .ok_or_else(|| {
-                        anyhow::anyhow!("run input 缺 workflow.videoDir（引擎路径应注入）")
+                        anyhow::anyhow!("run input 缺 workflow.video_dir（引擎路径应注入）")
                     })?;
                 crate::state::read_state(dir).map_err(anyhow::Error::msg)
             }),

@@ -1,6 +1,6 @@
 //! generate_meta 命令: 用 LLM 从 `mix_video/zh.srt` 生成 `mix_video/meta.md` (视频章节摘要)。
 //!
-//! 独立 workflow action, 必要参数 `videoDir`。数据源:
+//! 独立 workflow action, 必要参数 `video_dir`。数据源:
 //! - 字幕: `{video_dir}/mix_video/zh.srt` (SRT, 含时间戳)
 //! - 视频元数据: `{video_dir}/ytdlp_info.json` (yt-dlp --dump-json, 有 title/uploader/upload_date/webpage_url)
 //!

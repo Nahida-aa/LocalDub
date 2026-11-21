@@ -23,7 +23,7 @@ pub fn setup_subtitle(dir: &str) -> crate::input::Input {
             "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
             "input": {
-                "workflow": {"output_mode": "subtitle", "videoDir": dir},
+                "workflow": {"output_mode": "subtitle", "video_dir": dir},
                 "steps": {
                     "separate": {"always": false},
                     "asr": {"enabled": false},

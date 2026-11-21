@@ -1,7 +1,7 @@
 //! check 命令 (镜像 TS `packages/cli/src/feat/command/check.ts`)。
 //!
 //! 三种检查:
-//! - `video`: 确认 `<videoDir>/media/video_source.mp4` 存在 (输出紧凑 JSON)
+//! - `video`: 确认 `<video_dir>/media/video_source.mp4` 存在 (输出紧凑 JSON)
 //! - `asr`: 诊断 ASR 结果 (asr_fix/asr_fix.json 优先, 回退 asr/asr.json), 输出 timeline + issues
 //! - `font`: 检测 CJK 字体可用性 (win32 用已知 CRT 列表, 否则 fc-list)
 //!
@@ -18,7 +18,7 @@ use crate::input::Input;
 
 /// `check` 命令参数 (镜像 TS `input.check` schema)。
 ///
-/// TS: `z.object({ videoDir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
+/// TS: `z.object({ video_dir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CheckArgs {
@@ -53,12 +53,12 @@ pub fn cmd_check(input: &Input, args: &CheckArgs) -> anyhow::Result<()> {
     }
 }
 
-/// video 检查: `<videoDir>/media/video_source.mp4` 存在性 + 大小。
+/// video 检查: `<video_dir>/media/video_source.mp4` 存在性 + 大小。
 fn check_video(args: &CheckArgs) -> anyhow::Result<()> {
     let video_dir = args
         .video_dir
         .as_deref()
-        .ok_or_else(|| fail("check video requires videoDir"))?;
+        .ok_or_else(|| fail("check video requires video_dir"))?;
     let video_path = Path::new(video_dir).join("media").join("video_source.mp4");
     if !video_path.exists() {
         return Err(fail("video_source.mp4 not found"));
@@ -83,7 +83,7 @@ fn check_asr(args: &CheckArgs) -> anyhow::Result<()> {
     let video_dir = args
         .video_dir
         .as_deref()
-        .ok_or_else(|| fail("check asr requires videoDir"))?;
+        .ok_or_else(|| fail("check asr requires video_dir"))?;
     let asr_path = Path::new(video_dir).join("asr_fix").join("asr_fix.json");
     let asr_raw_path = Path::new(video_dir).join("asr").join("asr.json");
     let asr_file = if asr_path.exists() {
@@ -275,7 +275,7 @@ mod tests {
         assert!(empty.video_dir.is_none());
 
         let full: CheckArgs =
-            serde_json::from_str(r#"{"videoDir":"/tmp/t","type":"asr"}"#).unwrap();
+            serde_json::from_str(r#"{"video_dir":"/tmp/t","type":"asr"}"#).unwrap();
         assert_eq!(full.r#type, CheckType::Asr);
         assert_eq!(full.video_dir.as_deref(), Some("/tmp/t"));
     }

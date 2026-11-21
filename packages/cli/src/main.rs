@@ -29,7 +29,7 @@ use paths::parse_repo_input;
 /// `env`/`workflow` 子命令可用命令行参数直接触发。
 ///
 /// 设计意图:
-/// - `env`/`workflow`/`check` 做成 clap 子命令: 参数是标量 (action/url/videoDir/queueId/step/type),
+/// - `env`/`workflow`/`check` 做成 clap 子命令: 参数是标量 (action/url/video_dir/queueId/step/type),
 ///   适合命令行; 显式传的参数覆盖 input.jsonc, 缺失保留 (混合回退), 因此可以完全不改 input.jsonc 操作。
 /// - steps 等嵌套配置仍靠 input.jsonc (不适合命令行)。
 /// - 其余命令 (servers/cookie/deviceInfo/listModels 等) 继续靠 input.jsonc 的 `command` 字段派发;

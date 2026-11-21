@@ -69,7 +69,7 @@ pub async fn continue_workflow(video_dir: String, from_step: String) -> Result<(
     let workflow = input_value
         .get_mut("workflow")
         .ok_or_else(|| "input 缺少 workflow 字段".to_string())?;
-    workflow["videoDir"] = serde_json::Value::String(abs_video_dir_str.clone());
+    workflow["video_dir"] = serde_json::Value::String(abs_video_dir_str.clone());
     workflow["action"] = serde_json::Value::String("continue".into());
     workflow["continueFrom"] = serde_json::Value::String(from_step);
 
@@ -123,7 +123,7 @@ pub async fn regen_tts(
     let workflow = input_value
         .get_mut("workflow")
         .ok_or_else(|| "input 缺少 workflow 字段".to_string())?;
-    workflow["videoDir"] = serde_json::Value::String(abs_video_dir_str.clone());
+    workflow["video_dir"] = serde_json::Value::String(abs_video_dir_str.clone());
     workflow["action"] = serde_json::Value::String("continue".into());
     workflow["continueFrom"] = serde_json::Value::String("tts".into());
     if continue_run {
@@ -222,8 +222,8 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
     // 后台跑完整 pipeline (不阻塞 RPC); 失败仅记日志, 任务页可续跑。
     let video_dir = abs_video_dir.clone();
     tokio::task::spawn_blocking(move || {
-        // pipeline 吃 input（video_dir 从 input.workflow.videoDir 取）：input 从
-        // import 落好的 input.json 读回，身份回填已把 videoDir 写在里面。
+        // pipeline 吃 input（video_dir 从 input.workflow.video_dir 取）：input 从
+        // import 落好的 input.json 读回，身份回填已把 video_dir 写在里面。
         match ld_core::state::read_input(&video_dir) {
             Ok(input) => {
                 if let Err(e) = ld_core::workflows::pipeline::run_pipeline(&input) {

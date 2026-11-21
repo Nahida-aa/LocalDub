@@ -41,7 +41,7 @@ use crate::workflows::step_ctx::MyStepCtx;
 
 /// 运行完整 output_mode (镜像 TS `runPipeline`)。
 ///
-/// 任务目录取自 `input.workflow.videoDir`（[`crate::input::Input::video_dir`]）。
+/// 任务目录取自 `input.workflow.video_dir`（[`crate::input::Input::video_dir`]）。
 ///
 /// 每步的入参是**该步骤自己的 `<Step>Input`**（依赖清单），统一由
 /// `<Step>Input::new(video_dir, input)` 构造——不再有「什么都装」的组合态在
@@ -256,7 +256,7 @@ mod tests {
             json!({
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"output_mode": "subtitle", "videoDir": dir},
+                "input": {"workflow": {"output_mode": "subtitle", "video_dir": dir},
                           "steps": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
                 "output_mode": "subtitle"
             }),
@@ -297,7 +297,7 @@ mod tests {
             json!({
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"output_mode": "subtitle", "targetStep": "separate", "videoDir": dir},
+                "input": {"workflow": {"output_mode": "subtitle", "targetStep": "separate", "video_dir": dir},
                           "steps": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
                 "output_mode": "subtitle"
             }),

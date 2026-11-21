@@ -245,15 +245,15 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
     });
 
     let mut input_value = serde_json::to_value(&input).map_err(anyhow::Error::msg)?;
-    // 注入 videoDir：注册表化工作流的 initialize / handler 从 run input 取
-    // 任务目录（对齐例子——videoDir 本就是 run input 的一部分；start 路径的
+    // 注入 video_dir：注册表化工作流的 initialize / handler 从 run input 取
+    // 任务目录（对齐例子——video_dir 本就是 run input 的一部分；start 路径的
     // input 原本没有，这里补上）。
     if let Some(w) = input_value
         .get_mut("workflow")
         .and_then(|w| w.as_object_mut())
     {
         w.insert(
-            "videoDir".to_string(),
+            "video_dir".to_string(),
             serde_json::Value::String(video_dir.to_string()),
         );
     }

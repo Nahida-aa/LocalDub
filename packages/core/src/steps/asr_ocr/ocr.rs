@@ -1,7 +1,7 @@
 //! asr_ocr: OCR frames extracted by asr_ocr_pre, consuming subtitle-ocr CLI.
 //!
 //! Mirrors TS `packages/core/steps/04_asr_ocr/ocr.ts` (stepAsrOcr).
-//! Writes `<videoDir>/asr_ocr/frames.json` (OcrFramesResult).
+//! Writes `<video_dir>/asr_ocr/frames.json` (OcrFramesResult).
 
 use crate::cmd::env::ensure_bin;
 use crate::steps::asr_ocr::args::AsrOcrInput;

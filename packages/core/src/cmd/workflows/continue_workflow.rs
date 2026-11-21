@@ -1,9 +1,9 @@
 //! continue 命令派发器 (镜像 TS `packages/core/cmd/workflows/continueTask.ts` 的 `cmdContinueTask`)。
 //!
 //! 语义 (对齐 TS):
-//! 1. 要求 `input.workflow.videoDir` 指定已有任务目录, 否则报错;
+//! 1. 要求 `input.workflow.video_dir` 指定已有任务目录, 否则报错;
 //! 2. `setCtx` — 把当前 `input` 写回 `input.json`
-//!    (TS `setCtx(videoDir, { input })`), 这样 `continueFrom` / `regenIndices` 等
+//!    (TS `setCtx(video_dir, { input })`), 这样 `continueFrom` / `regenIndices` 等
 //!    以当前 `input.jsonc` 为准, 而非沿用陈旧的落盘配置;
 //! 3. 读出合并后的 ctx, 交给 [`crate::workflows::continue_pipeline`] 续跑。
 //!
@@ -28,17 +28,17 @@ pub fn continue_workflow(input: &Input) -> anyhow::Result<()> {
         .as_ref()
         .and_then(|t| t.video_dir.clone())
         .ok_or_else(|| {
-            anyhow::anyhow!("continue 模式需要 input.workflow.videoDir 指定已有任务目录")
+            anyhow::anyhow!("continue 模式需要 input.workflow.video_dir 指定已有任务目录")
         })?;
 
     if !std::path::Path::new(&video_dir).join("state.json").exists() {
         return Err(anyhow::anyhow!(
-            "continue 模式找不到 {}/state.json, 确认 videoDir 正确",
+            "continue 模式找不到 {}/state.json, 确认 video_dir 正确",
             video_dir
         ));
     }
 
-    // setCtx: 当前 input 落盘到 input.json (镜像 TS setCtx(videoDir, { input }))。
+    // setCtx: 当前 input 落盘到 input.json (镜像 TS setCtx(video_dir, { input }))。
     // 落盘后不再读回——本次续跑用的就是这份 input。
     write_input(&video_dir, input)
         .map_err(|e| anyhow::anyhow!("写回 {}/input.json 失败: {e}", video_dir))?;
@@ -99,7 +99,7 @@ pub fn continue_workflow(input: &Input) -> anyhow::Result<()> {
 //
 //         // steps stub 与 fixture 一致——continue 会整体替换 ctx.input, 不能只传 engine
 //         let input: Input = serde_json::from_str(&format!(
-//             r#"{{"command":"workflow","workflow":{{"action":"continue","videoDir":"{dir}","engine":true}},
+//             r#"{{"command":"workflow","workflow":{{"action":"continue","video_dir":"{dir}","engine":true}},
 //                 "steps":{{"separate":{{"always":false}},"asr":{{"enabled":false}},"asr_fix":{{"enabled":false}},"translate":{{"enabled":false}},"mix_video":{{"enabled":false}}}}}}"#
 //         ))
 //         .unwrap();

@@ -1,7 +1,7 @@
 //! sf_ocr: 关键帧 OCR, 消费 sf_ocr_pre 落盘的关键帧, 经 subtitle-ocr CLI 批量识别。
 //!
 //! 镜像 TS `packages/core/steps/sf_ocr/ocr.ts` (stepSfOcr)。
-//! 只写出 `<videoDir>/sf_ocr/frames.json` (OcrFramesResult 原始逐帧结果);
+//! 只写出 `<video_dir>/sf_ocr/frames.json` (OcrFramesResult 原始逐帧结果);
 //! 段合并 / 时间调整 / LLM 修正由下游 sf_ocr_fix 负责。
 
 use crate::cmd::env::ensure_bin;

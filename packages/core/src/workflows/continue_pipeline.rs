@@ -16,7 +16,7 @@ use crate::workflows::pipeline::run_step;
 
 /// 续跑 output_mode (镜像 TS `continuePipeline`)。
 ///
-/// 任务目录取自 `input.workflow.videoDir`（[`crate::input::Input::video_dir`]）。
+/// 任务目录取自 `input.workflow.video_dir`（[`crate::input::Input::video_dir`]）。
 pub fn continue_pipeline(input: &Input) -> anyhow::Result<()> {
     let video_dir = input.video_dir()?;
     // 进入 workflow span: 携带 video_dir 供 WorkflowFileLayer 落盘。

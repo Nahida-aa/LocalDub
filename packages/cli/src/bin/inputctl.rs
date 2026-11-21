@@ -217,7 +217,7 @@ fn usage() -> String {
   inputctl path                打印实际解析到的 input 文件路径
 
 示例:
-  inputctl get workflow.videoDir
+  inputctl get workflow.video_dir
   inputctl set workflow.continueFrom mix_video
   inputctl set steps.tts.runtime cloud
   inputctl set steps.tts.regenIndices '[1,2,3]'

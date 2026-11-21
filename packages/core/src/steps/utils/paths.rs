@@ -89,7 +89,7 @@ pub mod separate {
         }
     }
 
-    /// separate 步骤输出的 stems 目录 `<videoDir>/separate`（drums/bass/other/vocals 四路）。
+    /// separate 步骤输出的 stems 目录 `<video_dir>/separate`（drums/bass/other/vocals 四路）。
     ///
     /// 产出方是 `separate` 步骤 (`step_separate`)，消费方是 `separate_after` 步骤
     /// (`SeparateAfterInput.stems_dir`)。归属产出方模块，与 `sf_ocr::FramesPath` 被各自
@@ -262,7 +262,7 @@ pub mod asr_fix {
 pub mod sf_ocr_pre {
     use super::*;
 
-    /// sf_ocr_pre 步骤产出的关键帧目录 `<videoDir>/sf_ocr_pre/frames`（PNG 帧）。
+    /// sf_ocr_pre 步骤产出的关键帧目录 `<video_dir>/sf_ocr_pre/frames`（PNG 帧）。
     ///
     /// 产出方是 `sf_ocr_pre` 步骤 (`step_sf_ocr_pre`)，消费方是 `sf_ocr` 步骤
     /// (`SfOcrInput.keyframes_dir`)。放在产出方模块下，与 `sf_ocr::FramesPath` 被
@@ -292,7 +292,7 @@ pub mod sf_ocr_pre {
 pub mod sf_ocr {
     use super::*;
 
-    /// sf_ocr 步骤产出的逐帧 OCR 结果 `<videoDir>/sf_ocr/frames.json`。
+    /// sf_ocr 步骤产出的逐帧 OCR 结果 `<video_dir>/sf_ocr/frames.json`。
     ///
     /// 产出方是 `sf_ocr` 步骤 (`step_sf_ocr`)，消费方是 `sf_ocr_fix` 步骤
     /// (`SfOcrFixInput.frames_path`)。放在产出方模块下，与
@@ -321,7 +321,7 @@ pub mod sf_ocr {
 pub mod sf_ocr_fix {
     use super::*;
 
-    /// sf_ocr_fix 输出目录 `<videoDir>/sf_ocr_fix`。
+    /// sf_ocr_fix 输出目录 `<video_dir>/sf_ocr_fix`。
     ///
     /// 既用于 `ensure_dir`，也作为 `--out` 传给 `subtitle-ocr-post` 二进制。
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -431,7 +431,7 @@ pub mod asr_ocr_fix {
 pub mod asr_ocr_pre {
     use super::*;
 
-    /// asr_ocr_pre 步骤产出的 ASR 切分结果 `<videoDir>/asr_ocr_pre/asr_split.json`。
+    /// asr_ocr_pre 步骤产出的 ASR 切分结果 `<video_dir>/asr_ocr_pre/asr_split.json`。
     ///
     /// 产出方是 `asr_ocr_pre` 步骤 (`step_asr_ocr_pre`)，消费方是 `asr_ocr_fix` 步骤
     /// (`AsrOcrFixInput.asr_split_path`)。归属产出方，与 `sf_ocr::FramesPath` /
@@ -455,7 +455,7 @@ pub mod asr_ocr_pre {
         }
     }
 
-    /// asr_ocr_pre 步骤抽出的帧目录 `<videoDir>/asr_ocr_pre/frames`（PNG 帧）。
+    /// asr_ocr_pre 步骤抽出的帧目录 `<video_dir>/asr_ocr_pre/frames`（PNG 帧）。
     ///
     /// 产出方是 `asr_ocr_pre` 步骤 (`step_asr_ocr_pre`)，消费方是 `asr_ocr` 步骤
     /// (`AsrOcrInput.frames_dir`)。放在产出方模块下，与 `sf_ocr_pre::KeyframesDir` /
@@ -479,7 +479,7 @@ pub mod asr_ocr_pre {
 pub mod asr_ocr {
     use super::*;
 
-    /// asr_ocr 步骤产出的逐帧 OCR 结果 `<videoDir>/asr_ocr/frames.json`。
+    /// asr_ocr 步骤产出的逐帧 OCR 结果 `<video_dir>/asr_ocr/frames.json`。
     ///
     /// 与 `sf_ocr::FramesPath` **形似但不同目录**（`sf_ocr/` vs `asr_ocr/`）——两者
     /// 类型不同、不可互换，provenance 由类型系统保证。产出方是 `asr_ocr` 步骤

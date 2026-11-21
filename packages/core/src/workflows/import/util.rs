@@ -292,7 +292,7 @@ pub fn auto_group_id_and_video_id(url: &str) -> anyhow::Result<AutoInfo> {
 
                 let video_dir = workfolder().join(&ret.group_id).join(&ret.video_id);
                 if let Err(e) = std::fs::create_dir_all(&video_dir) {
-                    warn!("[autoGroupIdAndVideoId] 创建 videoDir 失败: {e}");
+                    warn!("[autoGroupIdAndVideoId] 创建 video_dir 失败: {e}");
                 } else if let Err(e) = std::fs::write(
                     video_dir.join("ytdlp_info.json"),
                     serde_json::to_string_pretty(&info).unwrap_or_default(),

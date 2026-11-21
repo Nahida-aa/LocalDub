@@ -399,7 +399,7 @@ impl WorkflowQueue {
     }
 }
 
-/// 队列任务的日志标识: start 用 url, continue/import 用 videoDir。
+/// 队列任务的日志标识: start 用 url, continue/import 用 video_dir。
 fn entry_target(input: &Input) -> &str {
     let workflow = match input.workflow.as_ref() {
         Some(t) => t,

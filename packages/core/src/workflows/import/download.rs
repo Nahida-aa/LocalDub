@@ -47,7 +47,7 @@ pub fn import_video(input: &Input) -> anyhow::Result<(WorkflowState, Input)> {
     info!("[import] group={group_id} workflow={video_id} source={source:?}");
     let video_dir = workfolder().join(&group_id).join(&video_id);
     std::fs::create_dir_all(&video_dir)
-        .with_context(|| format!("创建 videoDir 失败: {video_dir:?}"))?;
+        .with_context(|| format!("创建 video_dir 失败: {video_dir:?}"))?;
 
     let downloaded = download_video(
         &url,
@@ -93,7 +93,7 @@ pub fn import_video(input: &Input) -> anyhow::Result<(WorkflowState, Input)> {
 
     let video_dir_str = video_dir.to_string_lossy().into_owned();
     write_state(&video_dir_str, &state).map_err(anyhow::Error::msg)?;
-    // 身份回填：input.json 与返回值里的 videoDir 都填成 import 落定的真实目录
+    // 身份回填：input.json 与返回值里的 video_dir 都填成 import 落定的真实目录
     // （start 路径的 input 原本没有它——此前只有引擎注入这一种补法）。落盘的
     // input.json 与返回的新 Input 同源同构：读盘的 = 调用方拿到的。
     let mut input = input.clone();
@@ -280,7 +280,7 @@ mod tests {
             .as_ref()
             .unwrap()
             .ends_with("video_source.mp4"));
-        // 返回的 Input 已回填 videoDir（与 input.json 落盘内容一致）
+        // 返回的 Input 已回填 video_dir（与 input.json 落盘内容一致）
         assert_eq!(
             imported
                 .workflow
@@ -320,7 +320,7 @@ mod tests {
                 .and_then(|w| w.url.clone()),
             Some(smoke.to_string())
         );
-        // input.json 落盘的也是回填过 videoDir 的版本
+        // input.json 落盘的也是回填过 video_dir 的版本
         assert_eq!(
             reread_input
                 .workflow

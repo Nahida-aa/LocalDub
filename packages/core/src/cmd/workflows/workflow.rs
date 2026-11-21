@@ -65,7 +65,7 @@ pub fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
             let video_dir = workflow
                 .video_dir
                 .clone()
-                .ok_or_else(|| anyhow::anyhow!("get_workflow_ctx 需要 input.workflow.videoDir"))?;
+                .ok_or_else(|| anyhow::anyhow!("get_workflow_ctx 需要 input.workflow.video_dir"))?;
             // 三个状态文件各有各的写者，打印时就照它们的本来面目各来一份，
             // 不拼成一个"视图形状"。
             let st = read_state(&video_dir)
@@ -84,7 +84,7 @@ pub fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
             let video_dir = workflow
                 .video_dir
                 .clone()
-                .ok_or_else(|| anyhow::anyhow!("status 需要 input.workflow.videoDir"))?;
+                .ok_or_else(|| anyhow::anyhow!("status 需要 input.workflow.video_dir"))?;
             let wf = read_state(&video_dir)
                 .map_err(|e| anyhow::anyhow!("读取 {video_dir}/state.json 失败: {e}"))?
                 .workflow;
@@ -100,7 +100,7 @@ pub fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
             let video_dir = workflow
                 .video_dir
                 .clone()
-                .ok_or_else(|| anyhow::anyhow!("generate_meta 需要 input.workflow.videoDir"))?;
+                .ok_or_else(|| anyhow::anyhow!("generate_meta 需要 input.workflow.video_dir"))?;
             crate::cmd::workflows::meta::generate_meta(&video_dir).context("generate_meta 失败")?;
         }
         None => {
