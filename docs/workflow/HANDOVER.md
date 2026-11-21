@@ -15,9 +15,14 @@ LocalDub 的 `dub_sf_ocr` 流水线（15 步，**盘真值**，自研 pipeline/p
 
 ## 2. 状态快照
 
-### aa-workflow（main，全绿，无未提交改动）
+### aa-workflow（main，领先 origin 17 提交；工作区有未提交改动）
 
-本轮 6 个提交（按依赖顺序）:
+> 状态快照 2026-11-22：HEAD `fe7cd89`，领先 origin/main 17 个提交（下表 6 个是
+> 本轮接入铺路的提交，其余为 docs/改名）。工作区另有 3 个未提交文件
+> （`examples/store_file/src/dub_sf_ocr/mod.rs` + 两个 test）——都是同款
+> `videoDir` → `video_dir` wire 改名，进行中，勿擅自提交/回滚。
+
+本轮 6 个提交（按依赖顺序，为接入铺路）:
 
 | 提交 | 内容 | 为接入铺的什么 |
 | --- | --- | --- |
@@ -48,8 +53,11 @@ AGENTS.md 的 dub 正例表述同步。
 现役执行器**未动**（`pipeline.rs` / `parallel.rs` 照旧跑全流程）；Phase 1 已迁移
 **1 / 15 步**（separate）。验证: `cargo test -p ld-core --lib` 全绿（179）。
 
-⚠️ 仓库另有**未提交的用户改动**（`justfile` / `cmd/env/items.rs` / `sf_ocr/ocr_pre.rs`）
-——与本工程无关，勿动勿提交。
+> 2026-11-22 补记：本节表格只列接入工程本身的提交。其后又完成两轮**配置 wire 名
+> 统一 snake_case**（`WorkflowArgs` 与 `steps.*` 全部子结构，含 `gen-input-schema`
+> 重生成、example / TS 表单 / server JSON / 测试夹具同步），详见 §5 陷阱 #2。
+> 这两轮改动只动配置键名，不改 Phase 1 迁移进度。本仓当前工作区干净、已与
+> origin/main 平齐。
 
 ## 3. 关键设计决策（已拍板台账——勿重新争论，完整理由见 INTEGRATION-PLAN §4）
 
