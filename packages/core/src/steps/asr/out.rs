@@ -137,7 +137,7 @@ impl AsrOutput {
 /// 「视频目录 → 实测源语言」的便利入口（`asr_language()` 直接吃 video_dir）。
 ///
 /// 解析失败一律当「没跑过 asr」返回 `None`：语言只影响字体/术语等次要决策，
-/// 让它缺位（走 `sourceLang` 配置兜底）比让整条 pipeline 崩掉合理。
+/// 让它缺位（走 `source_lang` 配置兜底）比让整条 pipeline 崩掉合理。
 pub fn asr_language(video_dir: &str) -> Option<crate::r#const::lang::LangCode> {
     AsrOutput::read(video_dir)
         .ok()

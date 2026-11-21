@@ -163,10 +163,10 @@ impl StepDag {
         self.deps.get(&step).map(|v| v.as_slice()).unwrap_or(&[])
     }
 
-    /// `target` 及其**传递上游**（targetStep 语义：跑到该步骤为止 → 只调度这个子图）。
+    /// `target` 及其**传递上游**（target_step 语义：跑到该步骤为止 → 只调度这个子图）。
     pub fn with_target_closure(&self, target: StepName) -> anyhow::Result<BTreeSet<StepName>> {
         if !self.nodes.contains(&target) {
-            bail!("targetStep {target} 不在当前 DAG 内");
+            bail!("target_step {target} 不在当前 DAG 内");
         }
         let mut seen = BTreeSet::new();
         let mut stack = vec![target];
@@ -179,7 +179,7 @@ impl StepDag {
         Ok(seen)
     }
 
-    /// `from` 的**传递下游**（continueFrom 语义：该步重跑 → 下游全部重置 pending）。
+    /// `from` 的**传递下游**（continue_from 语义：该步重跑 → 下游全部重置 pending）。
     /// 不含 `from` 本身（调用方自己把它加进重置集）。
     pub fn transitive_dependents(&self, from: StepName) -> BTreeSet<StepName> {
         let mut seen = BTreeSet::new();
@@ -247,11 +247,11 @@ mod tests {
         let dag = StepDag::sf_ocr_dub();
         use StepName::*;
 
-        // targetStep=sf_ocr → 只跑 sf_ocr_pre + sf_ocr
+        // target_step=sf_ocr → 只跑 sf_ocr_pre + sf_ocr
         let sub = dag.with_target_closure(SfOcr).unwrap();
         assert_eq!(sub, BTreeSet::from([SfOcrPre, SfOcr]));
 
-        // targetStep=mix_video → 全图（它是汇点）
+        // target_step=mix_video → 全图（它是汇点）
         assert_eq!(
             dag.with_target_closure(MixVideo).unwrap(),
             dag.nodes().clone()
@@ -260,7 +260,7 @@ mod tests {
         // 图外 target → 报错
         assert!(dag.with_target_closure(Asr).is_err());
 
-        // continueFrom=separate → 该步的传递下游全部重置
+        // continue_from=separate → 该步的传递下游全部重置
         let deps = dag.transitive_dependents(Separate);
         assert_eq!(
             deps,

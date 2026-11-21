@@ -53,7 +53,7 @@ pub struct AsrFixInput {
     pub video_dir: String,
     /// 来自 asr 步骤的识别结果 `asr/asr.json`。
     pub asr_path: AsrPath,
-    /// 源语言（`<asr>/out.json` > `input.workflow.sourceLang` > 未知）：LLM 提示词用它。
+    /// 源语言（`<asr>/out.json` > `input.workflow.source_lang` > 未知）：LLM 提示词用它。
     pub source_lang: crate::r#const::lang::LangCode,
     /// 本次运行参数（`input.steps.asr_fix`）。
     pub args: AsrFixArgs,

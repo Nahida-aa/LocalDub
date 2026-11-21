@@ -466,7 +466,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// 无 ASR (纯 OCR / subtitle 路径) 时源语言回落到 input.workflow.sourceLang,
+    /// 无 ASR (纯 OCR / subtitle 路径) 时源语言回落到 input.workflow.source_lang,
     /// 否则日语任务会被当成 zh -> 目标语言错误推断为 en。
     #[test]
     fn resolve_src_lang_falls_back_to_workflow_source_lang() {
@@ -759,7 +759,7 @@ mod tests {
             .to_string();
         let _ = std::fs::remove_dir_all(&dir);
 
-        // input 里给了 workflow.targetLang（配置），但 translate 还没落定事实——
+        // input 里给了 workflow.target_lang（配置），但 translate 还没落定事实——
         // 正是要区分的两件事。
         let input = at(&dir, None, json!({"workflow": {"target_lang": "vi"}}));
         assert!(

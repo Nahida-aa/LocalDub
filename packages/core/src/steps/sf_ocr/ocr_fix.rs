@@ -89,7 +89,7 @@ pub fn step_sf_ocr_fix(input: &SfOcrFixInput) -> anyhow::Result<()> {
             .iter()
             .filter_map(|s| s.get("text").and_then(|t| t.as_str()).map(String::from))
             .collect();
-        // 源语言走统一的解析（`<asr>/out.json` > 配置 sourceLang > 兜底空串）。
+        // 源语言走统一的解析（`<asr>/out.json` > 配置 source_lang > 兜底空串）。
         // 不在这里内联回退链——否则与 `src_language` 各算各的，容易分叉。
         let lang_label = llm::lang_label(input.source_lang.code());
         tracing::info!(target: "sf_ocr",

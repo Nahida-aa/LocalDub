@@ -1,9 +1,9 @@
 //! continue 派发器 (镜像 TS `packages/core/workflows/continue.ts` 的 `continuePipeline`)。
 //!
 //! 与 [`crate::workflows::pipeline::run_pipeline`] 的区别: 不是从序列头跑全部, 而是:
-//! - `workflow.continueFrom` 存在 → 从该 step 起把后续全部重置为 `pending` 再续跑;
+//! - `workflow.continue_from` 存在 → 从该 step 起把后续全部重置为 `pending` 再续跑;
 //! - 否则 → 跳过已 `success` 的前缀 step, 从第一个未完成 step 续跑;
-//! - `workflow.targetStep` 命中即停 (truncate 序列)。
+//! - `workflow.target_step` 命中即停 (truncate 序列)。
 //!
 //! `input` 由调用者传入 (而非内部从磁盘 `read_input`), 以保证续跑使用的是调用者
 //! 选定的那份配置 (例如 cli 从 `input.jsonc` 解析后写入的 input.json), 而不是可能
@@ -26,7 +26,7 @@ pub fn continue_pipeline(input: &Input) -> anyhow::Result<()> {
     let video_id = crate::steps::utils::video_id(video_dir).unwrap_or_default();
     let steps = crate::steps::get_steps(input)?;
 
-    // continueFrom / targetStep 从 input.workflow 读取 (镜像 TS ctx.input?.workflow)
+    // continue_from / target_step 从 input.workflow 读取 (镜像 TS ctx.input?.workflow)
     let continue_from = input
         .workflow
         .as_ref()
@@ -38,10 +38,10 @@ pub fn continue_pipeline(input: &Input) -> anyhow::Result<()> {
         .and_then(|w| w.target_step.as_ref())
         .map(|s| s.as_str().to_string());
 
-    // targetStep 不在序列中则告警忽略 (镜像 TS)
+    // target_step 不在序列中则告警忽略 (镜像 TS)
     if let Some(ts) = &target_step {
         if !steps.iter().any(|s| s.as_str() == ts) {
-            tracing::info!(target: "output_mode", "[WARN] targetStep \"{ts}\" 不在序列中, 忽略");
+            tracing::info!(target: "output_mode", "[WARN] target_step \"{ts}\" 不在序列中, 忽略");
         }
     }
 
@@ -52,7 +52,7 @@ pub fn continue_pipeline(input: &Input) -> anyhow::Result<()> {
             .iter()
             .position(|s| s.as_str() == cf)
             .ok_or_else(|| anyhow::anyhow!("Unknown step \"{cf}\""))?;
-        // 从 continueFrom 起把后续全部重置为 pending (镜像 TS for i=startIdx.. reset)。
+        // 从 continue_from 起把后续全部重置为 pending (镜像 TS for i=startIdx.. reset)。
         // 注: StepPatch 仅支持"设置"不支持"清空"可选字段, 故只改 status; 实际运行时
         // run_step 会重新写入 started_at / completed_at, 残留的旧时间戳无害。
         for i in start_idx..steps.len() {
@@ -70,7 +70,7 @@ pub fn continue_pipeline(input: &Input) -> anyhow::Result<()> {
             steps.len() - start_idx
         );
     } else {
-        // 无 continueFrom → 跳过已完成前缀, 从第一个未完成 step 续跑
+        // 无 continue_from → 跳过已完成前缀, 从第一个未完成 step 续跑
         let existing = crate::state::read_steps_state(video_dir).map_err(anyhow::Error::msg)?;
         for (i, s) in steps.iter().enumerate() {
             let done = existing

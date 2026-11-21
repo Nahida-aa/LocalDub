@@ -12,8 +12,8 @@ use crate::r#const::lang::{LangCode, Language};
 
 /// 源语言（解析后的投影对象）。
 ///
-/// 解析链: `asr_language`（ASR 实测）> `input.workflow.sourceLang` > 兜底（未知/空串）。
-/// 纯 OCR / subtitle 路径没有 ASR，`asr_language` 为 None，自动回落到配置的 sourceLang，
+/// 解析链: `asr_language`（ASR 实测）> `input.workflow.source_lang` > 兜底（未知/空串）。
+/// 纯 OCR / subtitle 路径没有 ASR，`asr_language` 为 None，自动回落到配置的 source_lang，
 /// 否则透传空串（见 [`crate::r#const::lang::default_lang`]）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceLang(pub LangCode);
@@ -39,9 +39,9 @@ impl SourceLang {
 
 /// 目标语言（解析后的投影对象）。
 ///
-/// 解析链: `input.workflow.targetLang`（显式）> 按源语言 auto 推断（源 zh -> en，其它 -> zh）。
+/// 解析链: `input.workflow.target_lang`（显式）> 按源语言 auto 推断（源 zh -> en，其它 -> zh）。
 ///
-/// 注意: 当前与 `steps::utils::resolve_language` 保持一致——只读取配置级 `targetLang`，
+/// 注意: 当前与 `steps::utils::resolve_language` 保持一致——只读取配置级 `target_lang`，
 /// 不改写也不读取已落盘的 `<translate>/out.json`（那是 translate 步骤写入的事实，由
 /// `TranslateOutput::read` 单独读取）。若未来要把"目标语言"统一走强落盘事实，
 /// 应在此处改为优先读 `s.target_language`，而非在 step 内各自现算。

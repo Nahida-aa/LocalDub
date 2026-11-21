@@ -565,22 +565,22 @@ pub fn split_audio_timings_path(video_dir: &str) -> PathBuf {
 /// 且每处 `unwrap_or(0)` 静默吞错。现在翻译产物是**带类型**读取的，解析只在
 /// 一处。需要按事实定位时：`TranslateResult::read(&LangPath::from_video_dir(video_dir)?)`。
 
-/// 解析目标语言。返回 `(srcLang, targetLang)`。
+/// 解析目标语言。返回 `(srcLang, target_lang)`。
 ///
 /// **规则**（按序）：
 /// 1. `translate.enabled == false`（直通）→ **目标语言 = 源语言**。
 ///    直通时 dst 装的是原文，产物就该以原文语言命名；否则会出现
 ///    `translate/en.json` 里装中文这种名实不符，且下游按"目标语言"
 ///    选字体时（`default_font`：非 zh → Arial）会给中文字幕配 Arial。
-/// 2. 否则 `input.workflow.targetLang`
+/// 2. 否则 `input.workflow.target_lang`
 /// 3. 否则 auto 推断（源 zh → en，其它 → zh）
 ///
-/// 直通时**无条件用源语言**，即使配了 `targetLang` 也一样——「目标语言」在
+/// 直通时**无条件用源语言**，即使配了 `target_lang` 也一样——「目标语言」在
 /// 没有翻译的前提下不成立，此时它只是"以后打算翻译成什么"的意向，不是本次
 /// 事实。本次事实由产物名与 `<translate>/out.json` 承载，必须是源语言。
 ///
 /// 目标语言是任务级概念（一个任务只有一个翻译阶段），配置入口统一为
-/// `input.workflow.targetLang`；旧 `steps.translate.targetLang` 已移除。
+/// `input.workflow.target_lang`；旧 `steps.translate.target_lang` 已移除。
 ///
 /// **本函数是纯函数**（无副作用）：只读 `input` 与 `<asr>/out.json`，不落盘。
 /// 落盘由 [`crate::steps::translate::out::TranslateOutput::write`] 完成，且只由
@@ -597,7 +597,7 @@ pub fn resolve_language(
         return Ok((src_code.clone(), src_code));
     }
 
-    // ②③ 目标语言: input.workflow.targetLang > auto 推断 (源 zh -> en, 其它 -> zh)。
+    // ②③ 目标语言: input.workflow.target_lang > auto 推断 (源 zh -> en, 其它 -> zh)。
     // 目标必须是支持的翻译语言: 显式值经 `Language` 枚举校验 (非法回落 auto)。
     // 解析委托给 `TargetLang::from_video_dir`，与各 step 共用同一套解析，避免各自内联。
     let target = crate::state::lang::TargetLang::from_video_dir(video_dir, input);
@@ -610,11 +610,11 @@ pub fn resolve_language(
 /// 各 step（`asr_fix` 的 LLM 提示词、`split_audio` 写 meta、`sf_ocr_fix` /
 /// `asr_ocr_fix` 的 LLM 修正）拿到的必然一致。
 ///
-/// 回退链：`<asr>/out.json` 的 `language`（ASR 实测）> `input.workflow.sourceLang`
+/// 回退链：`<asr>/out.json` 的 `language`（ASR 实测）> `input.workflow.source_lang`
 /// > 兜底（未知/空串）。
 ///
 /// **为什么纯 OCR / subtitle 路径依赖后两级**：那些路径没有 ASR，
-/// `<asr>/out.json` 不存在——必须回落到配置的 `sourceLang`，否则非中文任务
+/// `<asr>/out.json` 不存在——必须回落到配置的 `source_lang`，否则非中文任务
 /// 被当成 zh，进而把目标语言错误推断成 en。
 ///
 /// 源语言是开放事实（`LangCode`），不做枚举截断——列表外语言如实透传。
@@ -723,7 +723,7 @@ mod tests {
         assert_eq!(dst, "zh", "直通时目标应等于源（不是推断出的 en）");
     }
 
-    /// 直通时**无条件**用源语言——即使显式配了 `targetLang`。
+    /// 直通时**无条件**用源语言——即使显式配了 `target_lang`。
     ///
     /// 理由：「目标语言」在没有翻译的前提下不成立，配了也只是"以后打算翻译成
     /// 什么"的意向，不是本次事实。本次事实由产物名与 `<translate>/out.json`
@@ -735,7 +735,7 @@ mod tests {
                       "steps": {"translate": {"enabled": false}}}
         }));
         let (_, dst) = resolve_language("/x", &input).unwrap();
-        assert_eq!(dst, "zh", "直通时显式 targetLang 被源语言覆盖");
+        assert_eq!(dst, "zh", "直通时显式 target_lang 被源语言覆盖");
     }
 
     /// `enabled` 缺省为 true（与 `TranslateArgs` 的 serde 默认一致）→ 正常解析。
@@ -749,7 +749,7 @@ mod tests {
         assert_eq!(dst, "en", "缺省 enabled=true → 正常推断（源 zh → en）");
     }
 
-    /// 开翻译时显式 `targetLang` 优先于推断。
+    /// 开翻译时显式 `target_lang` 优先于推断。
     #[test]
     fn explicit_target_wins_when_translating() {
         let input = input_at(json!({

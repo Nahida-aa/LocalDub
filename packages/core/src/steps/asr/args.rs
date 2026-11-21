@@ -260,7 +260,7 @@ pub struct AsrInput {
     pub audio_path: AsrSourceAudioPath,
     /// 本次运行参数（`input.steps.asr`）。
     pub args: AsrArgs,
-    /// 显式指定的源语言（`input.workflow.sourceLang`）：未配置则 whisper auto 检测。
+    /// 显式指定的源语言（`input.workflow.source_lang`）：未配置则 whisper auto 检测。
     pub source_lang: Option<String>,
 }
 

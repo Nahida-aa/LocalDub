@@ -10,7 +10,7 @@ mod ocr_fix;
 pub use llm_fix_args::LlmFixArgs;
 pub use ocr_fix::{build_ocr_fix_system_prompt, ocr_llm_fix, ocr_segments_to_prompt, parse_lines};
 
-/// 语言代码 -> 展示名 (供 LLM 系统提示), 镜像 TS `t(sourceLang)`。
+/// 语言代码 -> 展示名 (供 LLM 系统提示), 镜像 TS `t(source_lang)`。
 /// 覆盖 const/lang.rs 的 23 种支持语言; 未命中时**透传语言码** ——
 /// LLM 认识 ISO 码, 硬塞"中文"会把外语原文误导成中文修正。
 pub fn lang_label(code: &str) -> String {

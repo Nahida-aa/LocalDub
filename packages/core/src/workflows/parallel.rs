@@ -21,9 +21,9 @@
 //! **按步跳过**：`action=continue` 时每步跑前读自己的 `<step>/state.json`，
 //! `Success` 就跳过——半途失败后续跑不会重跑另一分支已完成的步骤
 //! （串行 `continue_pipeline` 的前缀扫描做不到这一点）。
-//! `continueFrom` 显式重跑：该步 + 传递下游重置 pending。
+//! `continue_from` 显式重跑：该步 + 传递下游重置 pending。
 //!
-//! ## targetStep
+//! ## target_step
 //!
 //! 只调度 `target` 及其传递上游（DAG 的自然子图），比串行版"命中即停"
 //! 更精确——无关分支根本不开跑。
@@ -44,7 +44,7 @@ use crate::workflows::pipeline::run_one_step;
 /// 失败不取消在跑的分支，全部收尾后统一报错。
 ///
 /// `skip` 里的步骤视为已成功（续跑跳过已完成步骤）；
-/// `allowed` 限定调度范围（targetStep 子图；`None` = 全图，图外节点不动）。
+/// `allowed` 限定调度范围（target_step 子图；`None` = 全图，图外节点不动）。
 fn run_dag<F>(
     dag: &StepDag,
     skip: &BTreeSet<StepName>,
@@ -115,7 +115,7 @@ where
     });
 
     // 汇报范围：allowed 内仍 Pending 的都是被上游失败挡住的；范围外的本来就
-    // 不归这次运行管（targetStep 子图之外）。
+    // 不归这次运行管（target_step 子图之外）。
     let report_set: &BTreeSet<StepName> = allowed.unwrap_or(dag.nodes());
     let blocked: Vec<String> = report_set
         .iter()
@@ -147,7 +147,7 @@ where
 ///
 /// 入口语义与 [`crate::workflows::pipeline::run_pipeline`] 对齐：
 /// `action=start` 全新全量跑；`action=continue` 按步跳过已 success 的步骤，
-/// `continueFrom` 显式重跑该步及其传递下游。
+/// `continue_from` 显式重跑该步及其传递下游。
 /// 任务目录取自 `input.workflow.video_dir`（[`crate::input::Input::video_dir`]）。
 pub fn run_pipeline_parallel(input: &Input) -> anyhow::Result<()> {
     let video_dir = input.video_dir()?;
@@ -159,7 +159,7 @@ pub fn run_pipeline_parallel(input: &Input) -> anyhow::Result<()> {
     let wf = input.workflow.as_ref();
     let is_continue = wf.and_then(|w| w.action) == Some(WorkflowAction::Continue);
 
-    // continueFrom: 该步 + 传递下游重置 pending（skip-if-success 不再跳过它们）。
+    // continue_from: 该步 + 传递下游重置 pending（skip-if-success 不再跳过它们）。
     if is_continue {
         if let Some(cf) = wf.and_then(|w| w.continue_from) {
             for step in std::iter::once(cf).chain(dag.transitive_dependents(cf)) {
@@ -172,7 +172,7 @@ pub fn run_pipeline_parallel(input: &Input) -> anyhow::Result<()> {
                     },
                 )?;
             }
-            tracing::info!(target: "output_mode", "continueFrom \"{}\": 已重置该步骤及其传递下游", cf.as_str());
+            tracing::info!(target: "output_mode", "continue_from \"{}\": 已重置该步骤及其传递下游", cf.as_str());
         }
     }
 
@@ -366,7 +366,7 @@ mod tests {
         assert!(ran.contains(&Translate));
     }
 
-    /// targetStep 语义：只调度子图内的节点，图外节点不动且不算 blocked。
+    /// target_step 语义：只调度子图内的节点，图外节点不动且不算 blocked。
     #[test]
     fn allowed_restricts_schedule_scope() {
         let dag = test_dag();

@@ -74,7 +74,7 @@ pub struct SplitAudioInput {
     pub translate_path: translate::LangPath,
     /// 本次运行参数（`input.steps.split_audio`）。
     pub args: SplitAudioArgs,
-    /// 源语言（`<asr>/out.json` > `input.workflow.sourceLang` > 未知）：写 meta 用。
+    /// 源语言（`<asr>/out.json` > `input.workflow.source_lang` > 未知）：写 meta 用。
     pub source_lang: crate::r#const::lang::LangCode,
     /// 是否 dub 流程（`input.workflow.output_mode`）：决定切不切 wav 块。
     pub is_dub: bool,

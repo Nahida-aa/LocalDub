@@ -55,7 +55,7 @@ pub fn run_pipeline(input: &crate::input::Input) -> anyhow::Result<()> {
     let video_id = crate::steps::utils::video_id(video_dir).unwrap_or_default();
     let steps = get_steps(input)?;
 
-    // targetStep 不在序列中则告警忽略 (镜像 TS)
+    // target_step 不在序列中则告警忽略 (镜像 TS)
     if let Some(ts) = input
         .workflow
         .as_ref()
@@ -64,7 +64,7 @@ pub fn run_pipeline(input: &crate::input::Input) -> anyhow::Result<()> {
     {
         if !steps.iter().any(|s| s.as_str() == ts) {
             tracing::info!(target: "output_mode",
-                "[WARN] targetStep \"{ts}\" 不在 {} 序列中, 忽略",
+                "[WARN] target_step \"{ts}\" 不在 {} 序列中, 忽略",
                 crate::workflows::args::OutputMode::from_input(input).as_str()
             );
         }
@@ -87,7 +87,7 @@ pub fn run_pipeline(input: &crate::input::Input) -> anyhow::Result<()> {
         let input = crate::state::read_input(video_dir).map_err(anyhow::Error::msg)?;
         match run_one_step(video_dir, *step, &input) {
             Ok(()) => {
-                // 达到 targetStep 即停止 (镜像 TS)
+                // 达到 target_step 即停止 (镜像 TS)
                 if let Some(ts) = input
                     .workflow
                     .as_ref()
@@ -304,7 +304,7 @@ mod tests {
         );
         let res = run_pipeline(&input);
         assert!(res.is_ok(), "run_pipeline 不应失败: {:?}", res.err());
-        // targetStep=separate 命中即停
+        // target_step=separate 命中即停
         let wf = crate::state::read_workflow(&dir).unwrap();
         assert_eq!(wf.status, "success");
         let _ = std::fs::remove_dir_all(&dir);

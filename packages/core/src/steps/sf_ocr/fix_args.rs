@@ -45,7 +45,7 @@ pub struct OcrFixArgs {
     /// LLM 修正参数 (flatten, 扁平展开为 llmModel / llmApiBase / domainHint / llmFix)
     #[serde(default, flatten)]
     pub llm_fix: LlmFixArgs,
-    // 源语言已从参数移除: 统一取 `input.workflow.sourceLang` (> ASR 实测的
+    // 源语言已从参数移除: 统一取 `input.workflow.source_lang` (> ASR 实测的
     // `<asr>/out.json` > 默认 zh), 见 ocr_fix 里的解析。
 }
 
@@ -114,7 +114,7 @@ pub struct SfOcrFixInput {
     pub video_dir: String,
     /// 来自 sf_ocr 步骤的关键帧 OCR 结果 `sf_ocr/frames.json`。
     pub frames_path: sf_ocr::FramesPath,
-    /// 源语言（`<asr>/out.json` > `input.workflow.sourceLang` > 未知）：LLM 提示词用它。
+    /// 源语言（`<asr>/out.json` > `input.workflow.source_lang` > 未知）：LLM 提示词用它。
     pub source_lang: crate::r#const::lang::LangCode,
     /// 本次运行参数（`input.steps.sf_ocr_fix`）。
     pub args: OcrFixArgs,

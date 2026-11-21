@@ -214,7 +214,7 @@ pub struct WorkflowArgs {
     pub url: Option<String>,
     pub source_lang: Option<crate::r#const::lang::LangCode>,
     pub target_lang: Option<Language>,
-    /// 继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始
+    /// 继续任务专业参数, 可指定 continue_from 从某步骤开始, 不指定则从上次中断的步骤开始
     pub continue_from: Option<StepName>,
     /// 目标步骤, output_mode 跑到此步骤后自动停止, 不指定则跑完所有步骤
     pub target_step: Option<StepName>,

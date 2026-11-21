@@ -918,7 +918,7 @@ mod tests {
 
     /// `LangPath::from_video_dir` 读 `<translate>/out.json`——**已落定的事实**。
     ///
-    /// 后续步骤靠它避开 `resolve_language` 的现算：即使 `input.workflow.targetLang`
+    /// 后续步骤靠它避开 `resolve_language` 的现算：即使 `input.workflow.target_lang`
     /// 与落定的值不同，也必须以 `<translate>/out.json` 为准（那是 translate 写的）。
     #[test]
     fn lang_path_from_video_dir_uses_persisted_fact() {

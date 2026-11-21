@@ -14,7 +14,7 @@
 //! - **resume**: 同 run_id 重跑时跳过事件日志中已 `success` 的 step。
 //! - **continue_from**: 事件日志在 store 层截断到目标 step 的最新终态 checkpoint,
 //!   前缀短路、后缀重跑 (镜像 `continue_pipeline` 在 state.json 上的重置)。
-//! - **target_step**: 命中即停, 标记成功 (镜像 run_pipeline 的 targetStep)。
+//! - **target_step**: 命中即停, 标记成功 (镜像 run_pipeline 的 target_step)。
 //! - 阶段错误 → 事件日志记 StepFailed, engine 停, workflow 置 failed (失败即终局,
 //!   重试靠 continue_from / 新 run)。
 
@@ -36,16 +36,16 @@ use super::engine_store::FsRunStore;
 /// 引擎调用参数 (由调用方注入; 未显式给出的回退到 ctx.input.workflow 里的字段)。
 #[derive(Default, Debug, Clone)]
 pub struct EngineOptions {
-    /// 从该 step 起重置为 pending 续跑 (镜像 continue_pipeline 的 continueFrom)。
+    /// 从该 step 起重置为 pending 续跑 (镜像 continue_pipeline 的 continue_from)。
     pub continue_from: Option<String>,
-    /// 命中该 step 即停 (镜像 run_pipeline 的 targetStep)。
+    /// 命中该 step 即停 (镜像 run_pipeline 的 target_step)。
     pub target_step: Option<String>,
 }
 
 impl EngineOptions {
-    /// 从 `ctx.input` 填充: `workflow.continueFrom` / `workflow.targetStep`
+    /// 从 `ctx.input` 填充: `workflow.continue_from` / `workflow.target_step`
     /// (TS 续跑路径放这)。`ctx.input` 已是结构化 [`Input`](crate::input::Input)，
-    /// 故直接读类型字段（无顶层 `targetStep` 兜底——该字段本就位于 `workflow` 下）。
+    /// 故直接读类型字段（无顶层 `target_step` 兜底——该字段本就位于 `workflow` 下）。
     pub fn from_input(input: &crate::input::Input) -> Self {
         let wf = input.workflow.as_ref();
         let target_step = wf

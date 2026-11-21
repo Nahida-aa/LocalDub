@@ -444,7 +444,7 @@ pub fn step_asr_ocr_fix(input: &AsrOcrFixInput) -> Result<()> {
     let mut final_segments = fused_result.result.segments.clone();
     if args.ocr_fix.llm_fix.llm_fix {
         let src_texts: Vec<String> = final_segments.iter().map(|s| s.base.text.clone()).collect();
-        // 源语言走统一的解析（`<asr>/out.json` > 配置 sourceLang > 兜底空串）。
+        // 源语言走统一的解析（`<asr>/out.json` > 配置 source_lang > 兜底空串）。
         // 不在这里内联回退链——否则与 `src_language` 各算各的，容易分叉。
         let lang_label = llm::lang_label(input.source_lang.code());
         info!(target: "asr_ocr",

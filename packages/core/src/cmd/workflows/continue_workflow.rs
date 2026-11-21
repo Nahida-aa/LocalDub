@@ -3,13 +3,13 @@
 //! 语义 (对齐 TS):
 //! 1. 要求 `input.workflow.video_dir` 指定已有任务目录, 否则报错;
 //! 2. `setCtx` — 把当前 `input` 写回 `input.json`
-//!    (TS `setCtx(video_dir, { input })`), 这样 `continueFrom` / `regenIndices` 等
+//!    (TS `setCtx(video_dir, { input })`), 这样 `continue_from` / `regenIndices` 等
 //!    以当前 `input.jsonc` 为准, 而非沿用陈旧的落盘配置;
 //! 3. 读出合并后的 ctx, 交给 [`crate::workflows::continue_pipeline`] 续跑。
 //!
 //! `input.workflow.engine = true` 时走引擎路径——**开发中，暂不可用**
 //! （aa-workflow 集成暂停，见 `integration/workflow/mod.rs`；Engine 臂现打印
-//! 「开发中」并报错）。恢复后：`continueFrom`/`targetStep` 由
+//! 「开发中」并报错）。恢复后：`continue_from`/`target_step` 由
 //! [`crate::integration::workflow::EngineOptions::from_input`] 承载
 //! (引擎语义 = 事件日志截断 + 重放短路), input.json 的 setCtx 合并照常执行。
 //!
