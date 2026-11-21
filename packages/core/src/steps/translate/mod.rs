@@ -25,8 +25,6 @@ use crate::steps::translate::prompts::{build_preprocess_prompt, build_translate_
 use crate::steps::utils::{
     lang_name, now_iso, set_step_anyhow, translation_partial_path, StepPatch, StepStatus,
 };
-use crate::r#const::lang::LangCode;
-use crate::state::lang::{resolve_source_language, resolve_target_language};
 use crate::workflows::step_ctx::{CtxView, StepCtxView};
 use crate::utils::file_ops::write_json_pretty;
 use config_rs::env::openai_api_key;
@@ -186,18 +184,8 @@ pub fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow::Resu
     let input = sc.ctx().input();
     let args = &input.steps.translate;
     let video_dir = input.video_dir().to_string();
-
-    // "从什么翻到什么"在步骤体内算（input 有的 + Deps 的磁盘事实）：
-    // 与现役 resolve_language 同款三级回退 + 直通逻辑，零点行为差异。
-    let src = resolve_source_language(deps.asr_language.as_ref(), input.workflow.source_lang.as_ref());
-    let src_lang = src.code().to_string();
-    let target_lang = if !args.enabled {
-        src_lang.clone()
-    } else {
-        LangCode::from(resolve_target_language(&src, input.workflow.target_lang))
-            .code()
-            .to_string()
-    };
+    let src_lang = deps.src_lang.code().to_string();
+    let target_lang = deps.target_lang.code().to_string();
 
     // **本文件是全仓唯一登记 target_language 的地方**（见 `TranslateOutput::write`
     // 的说明）。放在最前：后续所有产物（translation / split_audio / mix_audio /

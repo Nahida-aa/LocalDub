@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use config_rs::env::{openai_base_url, openai_model};
 
 use crate::r#const::lang::LangCode;
+use crate::state::lang::{resolve_source_language, resolve_target_language};
 use crate::steps::utils::paths::{asr_fix, asr_ocr_fix, sf_ocr_fix, SrtJsonPath};
 use crate::workflows::args::SubtitleSource;
 
@@ -75,18 +76,20 @@ pub enum SubtitleSourcePath {
 }
 
 
-/// Phase 1 事实面：`step_translate` 的显式依赖清单（只含"光靠 input 不能确定的"）。
+/// Phase 1 事实面：`step_translate` 的显式依赖清单（由装配层算好后注入）。
 ///
-/// - `srt_json_path`：上游 fix 步骤产出的规范化字幕（虽是约定拼法，但代表的是
-///   **上游产物**——哪个产出方、产物在不在，input 决定不了）；
-/// - `asr_language`：`<asr>/out.json` 的 ASR 实测语言（`None` = 无 ASR / 文件缺失）。
-///   与 `input.workflow.source_lang` 一起在步骤体内做三级回退，得出本次 src。
+/// - `srt_json_path`：上游 fix 步骤产出的规范化字幕（代表的是**上游产物**，
+///   input 决定不了哪个产出方、产物在不在）；
+/// - `src_lang` / `target_lang`：装配层按 input 配置 + `<asr>/out.json` 实测
+///   算好的本次语言决策（三级回退 + 直通），步骤体只消费。
 ///
-/// 由装配层（`run_step`）构造；步骤函数只消费，不自己组装。
+/// `LangCode` 是开放字符串 newtype：既容纳 `Language` 枚举的所有值，也容纳
+/// 直通时可能与 src 相同的列表外语言码（如 `it`），与下游 `String` 同源。
 #[derive(Debug, Clone)]
 pub struct TranslateDeps {
     pub srt_json_path: SubtitleSourcePath,
-    pub asr_language: Option<LangCode>,
+    pub src_lang: LangCode,
+    pub target_lang: LangCode,
 }
 
 impl TranslateDeps {
@@ -103,9 +106,21 @@ impl TranslateDeps {
             }
         };
         let asr_language = crate::steps::asr::out::asr_language(video_dir);
+        // "从什么翻到什么"在装配层算好（与现役 resolve_language 同款三级回退 + 直通），
+        // 步骤体只消费——语言决策是 run 级事实，不是步骤内部现算。
+        let src_lang = resolve_source_language(
+            asr_language.as_ref(),
+            input.workflow.source_lang.as_ref(),
+        );
+        let target_lang = if !input.steps.translate.enabled {
+            src_lang.clone()
+        } else {
+            LangCode::from(resolve_target_language(&src_lang, input.workflow.target_lang))
+        };
         Self {
             srt_json_path,
-            asr_language,
+            src_lang,
+            target_lang,
         }
     }
 
