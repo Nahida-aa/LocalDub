@@ -514,7 +514,7 @@ mod tests {
         let input = at(&dir, Some("zh"), json!({}));
         let res = step_translate(
             MyStepCtx::new("translate", input.clone()),
-            args::TranslateDeps::new(&dir, &input).unwrap(),
+            args::TranslateDeps::new(&input).unwrap(),
         );
         let err = res.expect_err("缺 srt.json 必须报错");
         let msg = err.to_string();
@@ -575,7 +575,7 @@ mod tests {
 
             let input = at(&dir, None, json!({"workflow": {"subtitle_source": source}}));
             let deps =
-                args::TranslateDeps::new(&dir, &input).unwrap_or_else(|e| panic!("{source}: {e}"));
+                args::TranslateDeps::new(&input).unwrap_or_else(|e| panic!("{source}: {e}"));
             assert!(
                 deps.srt_path().to_string_lossy().ends_with(expected),
                 "{source} 应解析到 {expected}, 实际 {:?}",

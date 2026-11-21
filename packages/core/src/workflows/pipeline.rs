@@ -151,7 +151,7 @@ pub fn run_step(
         StepName::SfOcrFix => step_sf_ocr_fix(&SfOcrFixInput::new(video_dir, input)),
         StepName::Translate => step_translate(
             MyStepCtx::new(step.as_str(), input.clone()),
-            TranslateDeps::new(video_dir, input)?,
+            TranslateDeps::new(input)?,
         ),
         StepName::SplitAudio => step_split_audio(&SplitAudioInput::new(video_dir, input)?),
         StepName::Asr => step_asr(&AsrInput::new(video_dir, input)),

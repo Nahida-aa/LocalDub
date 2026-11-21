@@ -90,9 +90,11 @@ pub struct TranslateDeps {
 }
 
 impl TranslateDeps {
-    /// 装配层构造：按 `subtitle_source` 选 SrtPath（非法 → fail-fast），并读一次
-    /// `<asr>/out.json` 的实测语言。与现役 `TranslateInput::new` 取值一致。
-    pub fn new(video_dir: &str, input: &crate::input::Input) -> anyhow::Result<Self> {
+    /// 装配层构造：从 input 取任务目录，按 `subtitle_source` 选 SrtPath
+    /// （非法 → fail-fast），并读一次 `<asr>/out.json` 的实测语言。
+    /// 与现役 `TranslateInput::new` 取值一致。
+    pub fn new(input: &crate::input::Input) -> anyhow::Result<Self> {
+        let video_dir = input.video_dir()?;
         // 顺序有讲究：先解析 subtitle_source（用户真正可能写错的字段），再读磁盘事实。
         let srt_json_path = match SubtitleSource::from_input(input)? {
             SubtitleSource::Asr => SubtitleSourcePath::Asr(asr_fix::SrtPath::new(video_dir)),
