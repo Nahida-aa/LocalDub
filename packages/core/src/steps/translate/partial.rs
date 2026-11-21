@@ -11,7 +11,7 @@
 
 use std::path::Path;
 
-use serde_json::Value;
+use subtitle::SubtitleSegment;
 
 use crate::steps::translate::out::{
     TranslatePartialResult, TranslatePartialSegment, TranslateResultMeta,
@@ -50,7 +50,7 @@ pub fn read_partial(
 pub fn write_partial(
     path: &Path,
     texts: &[String],
-    srt_segments: &[Value],
+    srt_segments: &[SubtitleSegment],
     dsts: &[Option<String>],
     completed: &std::collections::HashSet<usize>,
     src_lang: &str,
@@ -67,16 +67,8 @@ pub fn write_partial(
                 dst,
                 src_lang: Some(src_lang.to_string()),
                 dst_lang: Some(target_lang.to_string()),
-                start_ms: srt_segments
-                    .get(gi)
-                    .and_then(|u| u.get("start_ms"))
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0) as u32,
-                end_ms: srt_segments
-                    .get(gi)
-                    .and_then(|u| u.get("end_ms"))
-                    .and_then(|v| v.as_u64())
-                    .unwrap_or(0) as u32,
+                start_ms: srt_segments.get(gi).map(|s| s.start_ms).unwrap_or(0),
+                end_ms: srt_segments.get(gi).map(|s| s.end_ms).unwrap_or(0),
                 batch_index: bi,
                 missing,
             }
@@ -105,9 +97,13 @@ pub fn write_partial(
 mod tests {
     use super::*;
 
-    fn segs(n: usize) -> Vec<Value> {
+    fn segs(n: usize) -> Vec<SubtitleSegment> {
         (0..n)
-            .map(|i| serde_json::json!({"start_ms": i * 100, "end_ms": i * 100 + 50}))
+            .map(|i| SubtitleSegment {
+                text: String::new(),
+                start_ms: (i * 100) as u32,
+                end_ms: (i * 100 + 50) as u32,
+            })
             .collect()
     }
 

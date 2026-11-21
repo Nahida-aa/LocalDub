@@ -230,7 +230,6 @@ pub fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow::Resu
             deps.srt_path().display()
         ));
     }
-    let srt_segments: Vec<Value> = serde_json::from_value(serde_json::to_value(&srt_segs)?)?;
     let texts: Vec<String> = srt_segs.iter().map(|s| s.text.trim().to_string()).collect();
 
     let dsts: Vec<Option<String>> = if !args.enabled {
@@ -331,7 +330,7 @@ pub fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow::Resu
                     partial::write_partial(
                         &partial_path,
                         &texts,
-                        &srt_segments,
+                        &srt_segs,
                         &dsts,
                         &completed,
                         &src_lang,
@@ -345,7 +344,7 @@ pub fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow::Resu
             partial::write_partial(
                 &partial_path,
                 &texts,
-                &srt_segments,
+                &srt_segs,
                 &dsts,
                 &completed,
                 &src_lang,
@@ -369,17 +368,17 @@ pub fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow::Resu
     };
 
     // 全部完成: 组装正式结果, 写 {lang}.json, 删除 partial
-    let segments: Vec<TranslateSegment> = srt_segments
+    let segments: Vec<TranslateSegment> = srt_segs
         .iter()
         .enumerate()
-        .map(|(idx, u)| TranslateSegment {
+        .map(|(idx, seg)| TranslateSegment {
             idx: (idx + 1) as u32, // 1-based，与 SplitAudioTiming.seg_idx 对齐
             text: texts[idx].clone(),
             dst: dsts.get(idx).cloned().flatten().unwrap_or_default(),
             src_lang: Some(src_lang.clone()),
             dst_lang: Some(target_lang.clone()),
-            start_ms: u.get("start_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
-            end_ms: u.get("end_ms").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+            start_ms: seg.start_ms,
+            end_ms: seg.end_ms,
             speaker: None,
         })
         .collect();
@@ -591,8 +590,12 @@ mod tests {
         // 51 句: batch 0 (句0..49) 全部完成; batch 1 仅句50, 缺失
         let n = 51usize;
         let texts: Vec<String> = (0..n).map(|i| format!("t{i}")).collect();
-        let srt: Vec<Value> = (0..n)
-            .map(|i| json!({"start_ms": i * 100, "end_ms": i * 100 + 50}))
+        let srt: Vec<subtitle::SubtitleSegment> = (0..n)
+            .map(|i| subtitle::SubtitleSegment {
+                text: String::new(),
+                start_ms: (i * 100) as u32,
+                end_ms: (i * 100 + 50) as u32,
+            })
             .collect();
         let mut dsts: Vec<Option<String>> = (0..n).map(|i| Some(format!("D{i}"))).collect();
         dsts[50] = None; // batch 1 那句缺失
