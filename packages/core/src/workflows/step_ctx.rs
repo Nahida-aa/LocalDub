@@ -18,7 +18,7 @@
 //! 刻意不包含（勘察结论 §5.4）：`state` 位（步骤零读取，TState 待拍板）、
 //! 便捷方法（`video_dir` 走 `ctx().input().video_dir()` 既有路径）。
 
-use crate::input::Input;
+use crate::input::WorkflowInput;
 
 /// run 级视图（镜像 `aa_workflow_core::RunCtx` 公开面）。
 pub trait CtxView {
@@ -26,7 +26,7 @@ pub trait CtxView {
     ///
     /// 语义注意：这是**工作流级事实**，经 `ctx` 限定访问；不是任何单个步骤
     /// 的参数（步骤的意图参数在 `args.rs` 的 `*Args`，事实面在 `deps`）。
-    fn input(&self) -> &Input;
+    fn input(&self) -> &WorkflowInput;
 
     /// 观测出口（**签名同 `RunCtx::emit`**：发送、不追加任何日志/文件）。
     ///
@@ -61,11 +61,11 @@ pub struct MyStepCtx {
 /// 过渡期 run 级视图实体。
 #[derive(Clone)]
 pub struct MyRunCtx {
-    pub input: Input,
+    pub input: WorkflowInput,
 }
 
 impl CtxView for MyRunCtx {
-    fn input(&self) -> &Input {
+    fn input(&self) -> &WorkflowInput {
         &self.input
     }
 
@@ -93,7 +93,7 @@ impl StepCtxView for MyStepCtx {
 
 impl MyStepCtx {
     /// `id` = 步骤名（过渡执行器无重试，attempt 恒 1）。
-    pub fn new(id: impl Into<String>, input: Input) -> Self {
+    pub fn new(id: impl Into<String>, input: WorkflowInput) -> Self {
         Self {
             ctx: MyRunCtx { input },
             id: id.into(),

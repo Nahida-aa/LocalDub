@@ -66,6 +66,12 @@ AGENTS.md 的 dub 正例表述同步。
    的**生产者**，不是图的节点）。注意 src 是**三级回退**（`<asr>/out.json` 实测 >
    `workflow.source_lang` > `unknown`），纯 OCR / subtitle 路径无 ASR 走后两级，
    Deps 应表达 `Option<LangCode>`——详见 INTEGRATION-PLAN §3 "解析计算拆半"。
+   **2026-11-22 补**：`Input`（来自 input.jsonc，video_dir 可选）与工作流 Input
+   （import 回填后 video_dir 必有）原本共用同一 Rust 类型，类型系统无法表达后者
+   的不变量，导致 `video_dir()?` 到处 `Result` + 独立传参。新增 `WorkflowInput`
+   （独立结构体，只含 workflow 非 Option + steps；`TryFrom<Input>` 校验 video_dir），
+   `video_dir()` 返回 `&str` 不返回 Result——**纯类型保障、零行为变化**。已迁移步骤
+   （separate/translate）经 `CtxView::input()` 拿它；未迁移步骤仍吃 `&Input`，逐批切换。
 2. **依赖随参数变，`DagShape` 用 union graph**——配置选择型（subtitle_source 三选一
    / output_mode 双分支）+ 磁盘存在性仲裁型（asr 回退链）在步骤级边集合上收敛为
    稳定并集；文件级仲裁留在装配层不进图。

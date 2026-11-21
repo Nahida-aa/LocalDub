@@ -104,6 +104,50 @@ impl Input {
     }
 }
 
+/// **工作流输入**——import 回填后的 run input（步骤/执行器消费的类型）。
+///
+/// 与 [`Input`] 的区别纯粹是**类型层面的保障**，零行为变化：
+/// - `Input`（来自 `input.jsonc`）：`workflow: Option<WorkflowArgs>`、
+///   `video_dir: Option<String>`——start 时用户可不填，由 import 回填；
+/// - `WorkflowInput`（import 后）：`workflow: WorkflowArgs`（非 Option）、
+///   `video_dir()` 返回 `&str`（不返回 `Result`）——import 是 run input 的生产者，
+///   步骤拿到的必然是已落定身份的事实。
+///
+/// 只保留步骤真正读的两个字段（`workflow` / `steps`）；其余命令参数
+/// （command/servers/env/cookie/check）属于 CLI/RPC 层，步骤从不读。
+#[derive(Debug, Clone)]
+pub struct WorkflowInput {
+    pub workflow: args::WorkflowArgs,
+    pub steps: steps::Steps,
+}
+
+impl WorkflowInput {
+    /// 任务目录——由 [`TryFrom<Input>`] 保证 `workflow.video_dir` 为 Some。
+    pub fn video_dir(&self) -> &str {
+        self.workflow
+            .video_dir
+            .as_deref()
+            .expect("WorkflowInput 构造时已校验 video_dir")
+    }
+}
+
+impl TryFrom<Input> for WorkflowInput {
+    type Error = String;
+
+    fn try_from(input: Input) -> Result<Self, Self::Error> {
+        let workflow = input
+            .workflow
+            .ok_or_else(|| "workflow 缺失（import_video 未产出 run input）".to_string())?;
+        if workflow.video_dir.is_none() {
+            return Err("workflow.video_dir 缺失（start 由 import_video 回填，continue 必填）".into());
+        }
+        Ok(Self {
+            workflow,
+            steps: input.steps,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

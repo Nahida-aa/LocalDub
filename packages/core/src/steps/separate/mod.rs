@@ -224,11 +224,11 @@ fn run_demucs(
 /// 工作流输入经 `sc.ctx().input()`（`ctx` 限定符标记出处——工作流级事实，非
 /// 步骤参数），观测走 `sc.ctx().emit`（Phase 2 起生效）。
 pub fn step_separate(sc: impl StepCtxView) -> anyhow::Result<()> {
-    let video_dir = sc.ctx().input().video_dir()?.to_string();
+    let video_dir = sc.ctx().input().video_dir().to_string();
     tracing::info!(target: "separate", "start");
 
-    let args = SeparateArgs::from_input(sc.ctx().input());
-    let output_mode = OutputMode::from_input(sc.ctx().input());
+    let args = sc.ctx().input().steps.separate.clone();
+    let output_mode = sc.ctx().input().workflow.output_mode;
 
     // subtitle 模式且未配置 always → 跳过分离
     if output_mode == OutputMode::Subtitle && !args.always {
@@ -460,7 +460,10 @@ mod tests {
                 "output_mode": "subtitle"
             }),
         );
-        let res = step_separate(MyStepCtx::new("separate", input));
+        let res = step_separate(MyStepCtx::new(
+            "separate",
+            crate::input::WorkflowInput::try_from(input).unwrap(),
+        ));
         assert!(res.is_ok(), "subtitle skip 不应失败: {:?}", res.err());
         let st = crate::state::read_step_state(&dir, "separate").unwrap();
         assert_eq!(st.status, StepStatus::Success);

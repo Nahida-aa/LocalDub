@@ -9,6 +9,7 @@
 //! 目前 `run_step` 已注册 separate / separate_after / sf_ocr* / translate / split_audio /
 //! asr / asr_fix / tts / mix_audio / mix_video; 后续阶段 (asr_ocr*) 移植后在此登记即可。
 
+use crate::input::WorkflowInput;
 use crate::steps::asr::args::AsrInput;
 use crate::steps::asr::fix::step_asr_fix;
 use crate::steps::asr::fix_args::AsrFixInput;
@@ -144,13 +145,21 @@ pub fn run_step(
     // 进入 step span: 携带 step 名供 WorkflowFileLayer 作为 [step] 前缀。
     let _step_guard = tracing::info_span!("step", step = step.as_str()).entered();
     match step {
-        StepName::Separate => step_separate(MyStepCtx::new(step.as_str(), input.clone())),
+        // 已迁移步骤吃 WorkflowInput（类型层保证 video_dir 已落定）；
+        // 未迁移步骤仍吃 &Input + video_dir。两者由各自的构造点转换。
+        StepName::Separate => step_separate(MyStepCtx::new(
+            step.as_str(),
+            WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?,
+        )),
         StepName::SeparateAfter => step_separate_after(&SeparateAfterInput::new(video_dir, input)),
         StepName::SfOcrPre => step_sf_ocr_pre(&SfOcrPreInput::new(video_dir, input)),
         StepName::SfOcr => step_sf_ocr(&SfOcrInput::new(video_dir, input)),
         StepName::SfOcrFix => step_sf_ocr_fix(&SfOcrFixInput::new(video_dir, input)),
         StepName::Translate => step_translate(
-            MyStepCtx::new(step.as_str(), input.clone()),
+            MyStepCtx::new(
+                step.as_str(),
+                WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?,
+            ),
             TranslateDeps::new(input)?,
         ),
         StepName::SplitAudio => step_split_audio(&SplitAudioInput::new(video_dir, input)?),
