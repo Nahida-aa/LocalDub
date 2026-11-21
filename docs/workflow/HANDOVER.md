@@ -15,12 +15,11 @@ LocalDub 的 `dub_sf_ocr` 流水线（15 步，**盘真值**，自研 pipeline/p
 
 ## 2. 状态快照
 
-### aa-workflow（main，领先 origin 17 提交；工作区有未提交改动）
+### aa-workflow（main，领先 origin 18 提交；工作区干净）
 
-> 状态快照 2026-11-22：HEAD `fe7cd89`，领先 origin/main 17 个提交（下表 6 个是
-> 本轮接入铺路的提交，其余为 docs/改名）。工作区另有 3 个未提交文件
-> （`examples/store_file/src/dub_sf_ocr/mod.rs` + 两个 test）——都是同款
-> `videoDir` → `video_dir` wire 改名，进行中，勿擅自提交/回滚。
+> 状态快照 2026-11-22：HEAD `88d6428`，领先 origin/main 18 个提交（下表 6 个是
+> 本轮接入铺路的提交，其余为 docs/改名）。末尾 `88d6428` 是同 LocalDub 配置面
+> 对齐的 `videoDir` → `video_dir` 示例/测试改名（纯改名，无逻辑变化）。
 
 本轮 6 个提交（按依赖顺序，为接入铺路）:
 
