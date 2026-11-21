@@ -98,7 +98,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | `asr` | `AsrInput` | `audio_path: AsrSourceAudioPath`（枚举：Custom / Separated{vocals, mixed, gated} / Raw） |
 | `sf_ocr_pre` | `SfOcrPreInput` | `video_source_path: VideoSourcePath` |
 | `asr_ocr_pre` | `AsrOcrPreInput` | `asr_path: AsrPath`、`video_source_path: VideoSourcePath` |
-| `translate` | `TranslateInput` | `srt_json_path: SubtitleSourcePath`、`video_dir`、`target_lang: Option<String>` |
+| `translate` | `TranslateDeps`（Phase 1 迁移后） | `srt_json_path: SubtitleSourcePath`、`asr_language: Option<LangCode>`（意图面 video_dir/args/src+target 走 `sc.ctx().input()`） |
 | `split_audio` | `SplitAudioInput` | `audio_path: SplitAudioSourcePath`、`translate_path: LangPath` |
 | `mix_audio` | `MixAudioInput` | `split_audio_timings_path: TimingsPath`、`tts_wavs_dir: WavsDir` |
 | `mix_video` | `MixVideoInput`（枚举） | `Dub{video_source_path, mix_audio_timings_path, dubbing_path, bgm_path}` / `Subtitle{video_source_path, split_audio_timings_path}` |

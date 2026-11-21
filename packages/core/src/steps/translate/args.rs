@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use config_rs::env::{openai_base_url, openai_model};
 
+use crate::r#const::lang::LangCode;
 use crate::steps::utils::paths::{asr_fix, asr_ocr_fix, sf_ocr_fix, SrtJsonPath};
 use crate::workflows::args::SubtitleSource;
 
@@ -57,7 +58,7 @@ fn default_true() -> bool {
 /// `subtitle_source` 三选一的**类型化字幕路径**。
 ///
 /// 三个变体各自包住该链 fix 步骤的 `SrtPath`（不同型，不可互换）。存在的意义是
-/// 让 [`TranslateInput`] 能用**一个字段**表达「本次读哪个来源」——否则三种路径
+/// 让 [`TranslateDeps`] 能用**一个字段**表达「本次读哪个来源」——否则三种路径
 /// 类型无法共存于同一字段，只能退回「三个变体各写一遍」。
 ///
 /// 放在这里而不是 `utils::paths`：`paths` 是**路径词汇表**（每个类型对应一个
@@ -73,44 +74,26 @@ pub enum SubtitleSourcePath {
     AsrOcr(asr_ocr_fix::SrtPath),
 }
 
-/// translate 的**输入契约**：这次要读的规范化字幕 + 本次运行的任务级上下文。
+
+/// Phase 1 事实面：`step_translate` 的显式依赖清单（只含"光靠 input 不能确定的"）。
 ///
-/// 设计要点：
-/// - **llmFix 不出现在这里**——跑没跑 LLM 修正由产出方消化（fix 步骤最后统一
-///   落 srt.json），消费者只认规范化产物。旧的 3×2 焦点文件矩阵由此消失。
-/// - **provenance 在类型里**：`srt_json_path` 的每个变体是 `paths` 命名空间的
-///   类型化路径，不是裸 `PathBuf`。
-/// - 未知 `subtitle_source` → 报错而非静默回退（fail-fast）。
+/// - `srt_json_path`：上游 fix 步骤产出的规范化字幕（虽是约定拼法，但代表的是
+///   **上游产物**——哪个产出方、产物在不在，input 决定不了）；
+/// - `asr_language`：`<asr>/out.json` 的 ASR 实测语言（`None` = 无 ASR / 文件缺失）。
+///   与 `input.workflow.source_lang` 一起在步骤体内做三级回退，得出本次 src。
+///
+/// 由装配层（`run_step`）构造；步骤函数只消费，不自己组装。
 #[derive(Debug, Clone)]
-pub struct TranslateInput {
-    /// 本次要读的字幕来源（三选一，各带自己的类型化路径）。
+pub struct TranslateDeps {
     pub srt_json_path: SubtitleSourcePath,
-    /// 任务目录。**与 [`TranslateOutput`] 必须同源**——两边都存是为了让契约
-    /// 自包含，构造时都来自 `new` 的同一个 `video_dir`，避免「读的目录」与
-    /// 「写的目录」分叉。
-    pub video_dir: String,
-    /// 本次运行的参数（`input.steps.translate`）。
-    pub args: TranslateArgs,
-    /// 本次的**源语言**（resolve_language 的推断结果，非落定事实——它可重算）。
-    pub src_lang: String,
-    /// 本次目标语言的**推断结果**（DOCTYPE 见 [`TargetLang`]）。
-    ///
-    /// 与「已落定的事实」是两件事：事实由 translate 写出、供下游定位产物文件名，
-    /// 走 `LangPath`；这里只是**本次要翻成什么**（配置 + 源语言推断），translate
-    /// 跑完后才结为事实。
-    pub target_lang: Option<String>,
+    pub asr_language: Option<LangCode>,
 }
 
-impl TranslateInput {
-    /// `(video_dir, input)` → 输入契约。`subtitle_source` 未知 → 报错（fail-fast）。
-    ///
-    /// srt.json 的存在性**不在这里检查**——它是否必须存在由
-    /// `translate.enabled` 决定（见 `step_translate`：enabled 时缺失报错，
-    /// disabled 时缺失走空直通）。
+impl TranslateDeps {
+    /// 装配层构造：按 `subtitle_source` 选 SrtPath（非法 → fail-fast），并读一次
+    /// `<asr>/out.json` 的实测语言。与现役 `TranslateInput::new` 取值一致。
     pub fn new(video_dir: &str, input: &crate::input::Input) -> anyhow::Result<Self> {
-        // **顺序有讲究**：先解析 subtitle_source，再算目标语言。
-        // 反过来的话，配置了非法 subtitle_source 时暴露的可能是后者——而用户真正
-        // 写错的是前者，报错会指向错的地方。
+        // 顺序有讲究：先解析 subtitle_source（用户真正可能写错的字段），再读磁盘事实。
         let srt_json_path = match SubtitleSource::from_input(input)? {
             SubtitleSource::Asr => SubtitleSourcePath::Asr(asr_fix::SrtPath::new(video_dir)),
             SubtitleSource::SfOcr => SubtitleSourcePath::SfOcr(sf_ocr_fix::SrtPath::new(video_dir)),
@@ -118,22 +101,14 @@ impl TranslateInput {
                 SubtitleSourcePath::AsrOcr(asr_ocr_fix::SrtPath::new(video_dir))
             }
         };
-        let (src_lang, target) =
-            crate::steps::utils::resolve_language(video_dir, input).map_err(anyhow::Error::msg)?;
+        let asr_language = crate::steps::asr::out::asr_language(video_dir);
         Ok(Self {
             srt_json_path,
-            video_dir: video_dir.to_string(),
-            args: TranslateArgs::from_input(input),
-            src_lang,
-            target_lang: Some(target),
+            asr_language,
         })
     }
 
-    /// 规范化字幕的路径。
-    ///
-    /// 逐支 match：三种 `SrtPath` 是**不同类型**，or-pattern 要求绑定同一类型。
-    /// 这正是 provenance 的代价与收益——类型系统会挡住「把 sf_ocr 的路径塞给
-    /// asr 变量」。
+    /// 规范化字幕路径（与现役 `TranslateInput::srt_path` 同款逐支 match）。
     pub fn srt_path(&self) -> &Path {
         match &self.srt_json_path {
             SubtitleSourcePath::Asr(p) => p.as_path(),

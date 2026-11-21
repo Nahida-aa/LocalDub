@@ -19,11 +19,15 @@ use std::path::Path;
 
 use serde_json::Value;
 
+use crate::steps::translate::args::TranslateDeps;
 use crate::steps::translate::out::{TranslateResult, TranslateResultMeta, TranslateSegment};
 use crate::steps::translate::prompts::{build_preprocess_prompt, build_translate_system, MetaView};
 use crate::steps::utils::{
     lang_name, now_iso, set_step_anyhow, translation_partial_path, StepPatch, StepStatus,
 };
+use crate::r#const::lang::LangCode;
+use crate::state::lang::{resolve_source_language, resolve_target_language};
+use crate::workflows::step_ctx::{CtxView, StepCtxView};
 use crate::utils::file_ops::write_json_pretty;
 use config_rs::env::openai_api_key;
 
@@ -174,16 +178,32 @@ pub fn parse_json_reply(raw: &str) -> anyhow::Result<Value> {
 
 /// 入口 (镜像 TS `stepTranslate`)。
 ///
-/// 单参 [`args::TranslateInput`]：字幕来源 + 任务目录 + 本次参数 + 本次语言决策。
-pub fn step_translate(input: &args::TranslateInput) -> anyhow::Result<()> {
+/// 双参：`sc` 提供工作流输入（意图面：`sc.ctx().input()`），`deps` 提供上游
+/// 产物事实（字幕路径 + ASR 实测语言）。src/target 在步骤体内按 input + deps 现算。
+pub fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow::Result<()> {
     tracing::info!(target: "translate", "start");
 
-    let args = &input.args;
-    let src_lang = input.src_lang.clone();
-    let target_lang = input.target_lang.clone().ok_or_else(|| {
-        anyhow::anyhow!("TranslateInput.target_lang 缺失（resolve_language 失败？）")
-    })?;
-    let video_dir = input.video_dir.clone();
+    let input = sc.ctx().input();
+    let args = &input.steps.translate;
+    let video_dir = input.video_dir()?.to_string();
+
+    // "从什么翻到什么"在步骤体内算（input 有的 + Deps 的磁盘事实）：
+    // 与现役 resolve_language 同款三级回退 + 直通逻辑，零点行为差异。
+    let src = resolve_source_language(
+        deps.asr_language.as_ref(),
+        input.workflow.as_ref().and_then(|w| w.source_lang.as_ref()),
+    );
+    let src_lang = src.code().to_string();
+    let target_lang = if !args.enabled {
+        src_lang.clone()
+    } else {
+        LangCode::from(resolve_target_language(
+            &src,
+            input.workflow.as_ref().and_then(|w| w.target_lang),
+        ))
+        .code()
+        .to_string()
+    };
 
     // **本文件是全仓唯一登记 target_language 的地方**（见 `TranslateOutput::write`
     // 的说明）。放在最前：后续所有产物（translation / split_audio / mix_audio /
@@ -198,14 +218,14 @@ pub fn step_translate(input: &args::TranslateInput) -> anyhow::Result<()> {
     // - enabled：缺失/空 → Err（要求翻译却没有可翻译的内容 = 配置或上游问题）
     // - disabled：缺失 → 空 segments 直通（上游被禁用, 本来就没有字幕）；
     //   直通把原文写进 translation.json，下游步骤从此只认这一种字幕来源。
-    let srt_exists = input.srt_path().exists();
+    let srt_exists = deps.srt_path().exists();
     let srt_segs: Vec<subtitle::SubtitleSegment> = if srt_exists {
-        crate::steps::utils::read_srt_json(input.srt_path())?
+        crate::steps::utils::read_srt_json(deps.srt_path())?
     } else if args.enabled {
         return Err(anyhow::anyhow!(
             "规范化字幕 {} 不存在；请先运行 {}（或从该步骤 continue 以重新生成）",
-            input.srt_path().display(),
-            input.producer()
+            deps.srt_path().display(),
+            deps.producer()
         ));
     } else {
         Vec::new()
@@ -213,7 +233,7 @@ pub fn step_translate(input: &args::TranslateInput) -> anyhow::Result<()> {
     if args.enabled && srt_segs.is_empty() {
         return Err(anyhow::anyhow!(
             "{} 无 segments",
-            input.srt_path().display()
+            deps.srt_path().display()
         ));
     }
     let srt_segments: Vec<Value> = serde_json::from_value(serde_json::to_value(&srt_segs)?)?;
@@ -413,6 +433,7 @@ pub fn step_translate(input: &args::TranslateInput) -> anyhow::Result<()> {
 mod tests {
     use super::*;
     use crate::steps::utils::resolve_language;
+    use crate::workflows::step_ctx::MyStepCtx;
     use serde_json::json;
 
     /// 铺任务目录：`state.json` + `input.json`（+ 可选的 asr 事实），返回 input。
@@ -491,7 +512,10 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let input = at(&dir, Some("zh"), json!({}));
-        let res = step_translate(&args::TranslateInput::new(&dir, &input).unwrap());
+        let res = step_translate(
+            MyStepCtx::new("translate", input.clone()),
+            args::TranslateDeps::new(&dir, &input).unwrap(),
+        );
         let err = res.expect_err("缺 srt.json 必须报错");
         let msg = err.to_string();
         assert!(
@@ -550,12 +574,12 @@ mod tests {
             .unwrap();
 
             let input = at(&dir, None, json!({"workflow": {"subtitle_source": source}}));
-            let ti =
-                args::TranslateInput::new(&dir, &input).unwrap_or_else(|e| panic!("{source}: {e}"));
+            let deps =
+                args::TranslateDeps::new(&dir, &input).unwrap_or_else(|e| panic!("{source}: {e}"));
             assert!(
-                ti.srt_path().to_string_lossy().ends_with(expected),
+                deps.srt_path().to_string_lossy().ends_with(expected),
                 "{source} 应解析到 {expected}, 实际 {:?}",
-                ti.srt_path()
+                deps.srt_path()
             );
         }
         let _ = std::fs::remove_dir_all(&dir);
@@ -802,8 +826,6 @@ mod tests {
         let input = at(&dir, None, json!({"workflow": {"target_lang": "vi"}}));
         out::TranslateOutput::write(&dir, "zh").unwrap();
 
-        let ti = args::TranslateInput::new(&dir, &input).expect("构造不该失败");
-
         // ① 两个来源确实可以不同（落定事实 vs 本次推断）
         let (_, resolved) = resolve_language(&dir, &input).unwrap();
         assert_eq!(
@@ -813,7 +835,6 @@ mod tests {
             "zh"
         );
         assert_eq!(resolved, "vi");
-        let _ = ti;
 
         // ② **关键**：调 resolve_language 之后，落定的事实必须**没变**。
         //    这是「纯函数」的实质保障——若有人把写回塞回 resolve_language，
