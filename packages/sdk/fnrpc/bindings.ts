@@ -17,35 +17,35 @@ export type AsrArgs_Deserialize = {
 	/**  推理设备, 默认 cuda */
 	device?: AsrDevice,
 	/**  使用分离后的人声 (target_3_vocals.wav) 而非原始视频音频 */
-	useSeparated?: boolean,
+	use_separated?: boolean,
 	/**  是否启用本阶段 (缺省 true; 设为 false 可跳过 asr, 与 translate.enabled 一致) */
 	enabled?: boolean,
 	/**  ASR 音频源 (默认 sidechain) */
-	mixMode?: MixMode,
+	mix_mode?: MixMode,
 	/**  背景音降低量(dB); raw-sum 叠加前衰减, sidechain 时压缩后额外衰减; 默认 -12 */
-	reduceBgm?: number | null,
+	reduce_bgm?: number | null,
 	/**  是否在 asr.json 中包含词级时间戳 (words), 分离场景下可能受幻觉影响; 默认关闭, 调试时开启 */
-	wordsOutput?: boolean,
+	words_output?: boolean,
 	/**  mixMode=sidechain 时侧链压缩器参数 */
-	sidechainCompress?: SidechainCompress_Deserialize,
+	sidechain_compress?: SidechainCompress_Deserialize,
 	/**  对分离后的人声应用 silence gate 过滤静音段噪声 */
-	useGate?: boolean,
+	use_gate?: boolean,
 	/**  ASR 输入的人声音频路径, 调试使用 */
-	vocalAudioPath?: string | null,
+	vocal_audio_path?: string | null,
 	/**  whisper.cpp: 启用 VAD */
 	vad?: boolean,
 	/**  whisper.cpp: VAD 模型, silero-v5 (默认) 或 silero-v6 */
-	vadModel?: VadModel | null,
+	vad_model?: VadModel | null,
 	/**  whisper.cpp: VAD 阈值, 默认 0.5 */
-	vadThreshold?: number | null,
+	vad_threshold?: number | null,
 	/**  whisper.cpp: no-speech 阈值, 默认 0.6 */
-	noSpeechThold?: number | null,
+	no_speech_thold?: number | null,
 	/**  whisper.cpp: 解码温度, 默认 0.0 */
 	temperature?: number | null,
 	/**  whisper.cpp: 最大段长(字符), 0=不限 */
-	maxLen?: number,
+	max_len?: number,
 	/**  whisper.cpp: 按词边界分割 */
-	splitOnWord?: boolean,
+	split_on_word?: boolean,
 };
 
 /**  asr 阶段参数。 */
@@ -55,35 +55,35 @@ export type AsrArgs_Serialize = {
 	/**  推理设备, 默认 cuda */
 	device: AsrDevice,
 	/**  使用分离后的人声 (target_3_vocals.wav) 而非原始视频音频 */
-	useSeparated: boolean,
+	use_separated: boolean,
 	/**  是否启用本阶段 (缺省 true; 设为 false 可跳过 asr, 与 translate.enabled 一致) */
 	enabled: boolean,
 	/**  ASR 音频源 (默认 sidechain) */
-	mixMode: MixMode,
+	mix_mode: MixMode,
 	/**  背景音降低量(dB); raw-sum 叠加前衰减, sidechain 时压缩后额外衰减; 默认 -12 */
-	reduceBgm: number | null,
+	reduce_bgm: number | null,
 	/**  是否在 asr.json 中包含词级时间戳 (words), 分离场景下可能受幻觉影响; 默认关闭, 调试时开启 */
-	wordsOutput: boolean,
+	words_output: boolean,
 	/**  mixMode=sidechain 时侧链压缩器参数 */
-	sidechainCompress: SidechainCompress_Serialize,
+	sidechain_compress: SidechainCompress_Serialize,
 	/**  对分离后的人声应用 silence gate 过滤静音段噪声 */
-	useGate: boolean,
+	use_gate: boolean,
 	/**  ASR 输入的人声音频路径, 调试使用 */
-	vocalAudioPath: string | null,
+	vocal_audio_path: string | null,
 	/**  whisper.cpp: 启用 VAD */
 	vad: boolean,
 	/**  whisper.cpp: VAD 模型, silero-v5 (默认) 或 silero-v6 */
-	vadModel: VadModel | null,
+	vad_model: VadModel | null,
 	/**  whisper.cpp: VAD 阈值, 默认 0.5 */
-	vadThreshold: number | null,
+	vad_threshold: number | null,
 	/**  whisper.cpp: no-speech 阈值, 默认 0.6 */
-	noSpeechThold: number | null,
+	no_speech_thold: number | null,
 	/**  whisper.cpp: 解码温度, 默认 0.0 */
 	temperature: number | null,
 	/**  whisper.cpp: 最大段长(字符), 0=不限 */
-	maxLen: number,
+	max_len: number,
 	/**  whisper.cpp: 按词边界分割 */
-	splitOnWord: boolean,
+	split_on_word: boolean,
 };
 
 /**  段置信度 (镜像 TS `AsrSegment.confidence`)。 */
@@ -103,7 +103,7 @@ export type AsrFixArgs = AsrFixArgs_Serialize | AsrFixArgs_Deserialize;
 /**  asr 阶段修正参数。 */
 export type AsrFixArgs_Deserialize = {
 	/**  ASR 结果文件路径, 调试使用 */
-	asrFilePath?: string | null,
+	asr_file_path?: string | null,
 	/**  是否启用本阶段 (缺省 true; 设为 false 可跳过 asr_fix) */
 	enabled?: boolean,
 } & LlmFixArgs_Deserialize;
@@ -111,7 +111,7 @@ export type AsrFixArgs_Deserialize = {
 /**  asr 阶段修正参数。 */
 export type AsrFixArgs_Serialize = {
 	/**  ASR 结果文件路径, 调试使用 */
-	asrFilePath: string | null,
+	asr_file_path: string | null,
 	/**  是否启用本阶段 (缺省 true; 设为 false 可跳过 asr_fix) */
 	enabled: boolean,
 } & LlmFixArgs_Serialize;
@@ -156,7 +156,7 @@ export type AsrOcrFixArgs = AsrOcrFixArgs_Serialize | AsrOcrFixArgs_Deserialize;
  */
 export type AsrOcrFixArgs_Deserialize = {
 	/**  是否重采样 */
-	isResample?: boolean,
+	is_resample?: boolean,
 } & OcrFixArgs_Deserialize;
 
 /**
@@ -167,7 +167,7 @@ export type AsrOcrFixArgs_Deserialize = {
  */
 export type AsrOcrFixArgs_Serialize = {
 	/**  是否重采样 */
-	isResample: boolean,
+	is_resample: boolean,
 } & OcrFixArgs_Serialize;
 
 /**
@@ -334,18 +334,18 @@ export type Capabilities = {
 /**
  *  `check` 命令参数 (镜像 TS `input.check` schema)。
  * 
- *  TS: `z.object({ videoDir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
+ *  TS: `z.object({ video_dir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
  */
 export type CheckArgs = CheckArgs_Serialize | CheckArgs_Deserialize;
 
 /**
  *  `check` 命令参数 (镜像 TS `input.check` schema)。
  * 
- *  TS: `z.object({ videoDir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
+ *  TS: `z.object({ video_dir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
  */
 export type CheckArgs_Deserialize = {
 	/**  任务目录 (video/asr 检查必需) */
-	videoDir?: string | null,
+	video_dir?: string | null,
 	/**  检查类型 (默认 video) */
 	type?: CheckType,
 };
@@ -353,11 +353,11 @@ export type CheckArgs_Deserialize = {
 /**
  *  `check` 命令参数 (镜像 TS `input.check` schema)。
  * 
- *  TS: `z.object({ videoDir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
+ *  TS: `z.object({ video_dir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
  */
 export type CheckArgs_Serialize = {
 	/**  任务目录 (video/asr 检查必需) */
-	videoDir: string | null,
+	video_dir: string | null,
 	/**  检查类型 (默认 video) */
 	type: CheckType,
 };
@@ -407,6 +407,21 @@ export type CpuInfo = {
 	cores: number,
 	speedMHz: number | null,
 };
+
+/**
+ *  demucs 模型变体
+ * 
+ *  取值与 demucs-burn 二进制的 `-m/--model` 参数一致 (见 demucs-core
+ *  `model/metadata.rs` 的 `ALL_MODELS`), 故直接透传给子进程即可, 无需二次映射。
+ *  权重文件同名 `<id>.safetensors`, 存放在 `data/models/demucs/`。
+ */
+export type DemucsModel = 
+/**  标准 4 stems (84MB), 速度与质量平衡 */
+"htdemucs" | 
+/**  6 stems (84MB), 额外分出 guitar / piano */
+"htdemucs_6s" | 
+/**  fine-tuned 4 stems (333MB), 质量最好但推理更慢 */
+"htdemucs_ft";
 
 /**  推理设备 */
 export type Device = "vulkan" | "webgpu" | "cuda" | "cpu" | "mps";
@@ -597,12 +612,12 @@ export type Input_Serialize = {
  *  - 封闭视图: 需要"支持翻译的目标语言"时改用 [`Language`] 枚举（"承诺"，必须落在
  *    支持翻译的语言内；列表外语言不是可用的翻译目标）
  */
-export type LangCode = string;
+export type LangStr = string;
 
 /**
  *  目标语言（支持翻译的封闭集合，与 TS 侧 langList 保持同步）。
  * 
- *  与源语言 [`LangCode`] 不同：目标是"承诺"——必须落在支持翻译的语言内，
+ *  与源语言 [`LangStr`] 不同：目标是"承诺"——必须落在支持翻译的语言内，
  *  故用封闭枚举建模；列表外语言不是可用的翻译目标。
  * 
  *  变体名即语言码的小写形式（`En`→`"en"`）。serde 的 `rename_all` 与 strum 的
@@ -617,25 +632,25 @@ export type LlmFixArgs = LlmFixArgs_Serialize | LlmFixArgs_Deserialize;
 /**  LLM 修正参数。 */
 export type LlmFixArgs_Deserialize = {
 	/**  LLM 模型名 */
-	llmModel?: string,
+	llm_model?: string,
 	/**  LLM API 地址 */
-	llmApiBase?: string,
+	llm_api_base?: string,
 	/**  领域提示, 帮助 LLM 理解上下文，例如"仙侠题材，角色：叶白、慧天、夜白" */
-	domainHint?: string | null,
+	domain_hint?: string | null,
 	/**  是否启用 LLM 修正 */
-	llmFix?: boolean,
+	llm_fix?: boolean,
 };
 
 /**  LLM 修正参数。 */
 export type LlmFixArgs_Serialize = {
 	/**  LLM 模型名 */
-	llmModel: string,
+	llm_model: string,
 	/**  LLM API 地址 */
-	llmApiBase: string,
+	llm_api_base: string,
 	/**  领域提示, 帮助 LLM 理解上下文，例如"仙侠题材，角色：叶白、慧天、夜白" */
-	domainHint: string | null,
+	domain_hint: string | null,
 	/**  是否启用 LLM 修正 */
-	llmFix: boolean,
+	llm_fix: boolean,
 };
 
 export type MemoryInfo = {
@@ -668,11 +683,11 @@ export type MixAudioArgs = MixAudioArgs_Serialize | MixAudioArgs_Deserialize;
  */
 export type MixAudioArgs_Deserialize = {
 	/**  TTS 音频最大变速比, 1.0=不变速; 默认 1.35 */
-	maxSpeed?: number | null,
+	max_speed?: number | null,
 	/**  字幕允许提前显示的最大毫秒数, 利用前段剩余时间; 默认 500 */
-	maxAdvanceMs?: number | null,
+	max_advance_ms?: number | null,
 	/**  字幕允许延迟显示的最大毫秒数, 借用后段留白; 默认 500 */
-	maxDelayMs?: number | null,
+	max_delay_ms?: number | null,
 };
 
 /**
@@ -687,11 +702,11 @@ export type MixAudioArgs_Deserialize = {
  */
 export type MixAudioArgs_Serialize = {
 	/**  TTS 音频最大变速比, 1.0=不变速; 默认 1.35 */
-	maxSpeed: number | null,
+	max_speed: number | null,
 	/**  字幕允许提前显示的最大毫秒数, 利用前段剩余时间; 默认 500 */
-	maxAdvanceMs: number | null,
+	max_advance_ms: number | null,
 	/**  字幕允许延迟显示的最大毫秒数, 借用后段留白; 默认 500 */
-	maxDelayMs: number | null,
+	max_delay_ms: number | null,
 };
 
 /**  `mix_audio/timings.json` (镜像 TS `MixAudioOutputTimings`)。 */
@@ -738,13 +753,13 @@ export type MixVideoArgs_Deserialize = {
 	 * 
 	 *  镜像 TS `z.number()` (允许小数, 与 ASS `FontSize` 一致)。
 	 */
-	fontSize?: number | null,
+	font_size?: number | null,
 	/**
 	 *  垂直边距(像素), 不填则自动: 竖屏 70 / 横屏 5
 	 * 
 	 *  镜像 TS `z.number().min(0)` (允许小数)。
 	 */
-	marginV?: number | null,
+	margin_v?: number | null,
 	/**  对齐位置; 默认 bottom-center */
 	alignment?: Alignment | null,
 	/**
@@ -762,13 +777,13 @@ export type MixVideoArgs_Deserialize = {
 	/**  ASS 字幕字体名 (须系统已安装), 默认 Noto Sans CJK SC */
 	font?: string | null,
 	/**  调试使用: 外部 srt 路径 */
-	srtPath?: string | null,
+	srt_path?: string | null,
 	/**  调试使用: 外部 bgm 路径 */
-	bgmPath?: string | null,
+	bgm_path?: string | null,
 	/**  背景音乐增益(dB), 0=不变, 负值=衰减; 默认 -6 */
-	bgmGain?: number | null,
+	bgm_gain?: number | null,
 	/**  配音增益(dB), 补偿合成语音偏小的听感差; 默认 3 */
-	dubGain?: number | null,
+	dub_gain?: number | null,
 	/**  是否启用本阶段 (缺省 true; 设为 false 可跳过 mix_video) */
 	enabled?: boolean,
 };
@@ -789,13 +804,13 @@ export type MixVideoArgs_Serialize = {
 	 * 
 	 *  镜像 TS `z.number()` (允许小数, 与 ASS `FontSize` 一致)。
 	 */
-	fontSize: number | null,
+	font_size: number | null,
 	/**
 	 *  垂直边距(像素), 不填则自动: 竖屏 70 / 横屏 5
 	 * 
 	 *  镜像 TS `z.number().min(0)` (允许小数)。
 	 */
-	marginV: number | null,
+	margin_v: number | null,
 	/**  对齐位置; 默认 bottom-center */
 	alignment: Alignment | null,
 	/**
@@ -813,13 +828,13 @@ export type MixVideoArgs_Serialize = {
 	/**  ASS 字幕字体名 (须系统已安装), 默认 Noto Sans CJK SC */
 	font: string | null,
 	/**  调试使用: 外部 srt 路径 */
-	srtPath: string | null,
+	srt_path: string | null,
 	/**  调试使用: 外部 bgm 路径 */
-	bgmPath: string | null,
+	bgm_path: string | null,
 	/**  背景音乐增益(dB), 0=不变, 负值=衰减; 默认 -6 */
-	bgmGain: number | null,
+	bgm_gain: number | null,
 	/**  配音增益(dB), 补偿合成语音偏小的听感差; 默认 3 */
-	dubGain: number | null,
+	dub_gain: number | null,
 	/**  是否启用本阶段 (缺省 true; 设为 false 可跳过 mix_video) */
 	enabled: boolean,
 };
@@ -893,21 +908,21 @@ export type OcrFixArgs = OcrFixArgs_Serialize | OcrFixArgs_Deserialize;
  */
 export type OcrFixArgs_Deserialize = {
 	/**  字幕段置信度阈值（0-1）：subtitle-ocr-post filter-segment 用 adjusted_confidence_threshold 过滤，低于此值丢弃；默认 0.45 */
-	adjustedConfidenceThreshold?: number | null,
+	adjusted_confidence_threshold?: number | null,
 	/**  单帧孤立惩罚的参考时间 (ms)，在此时长内无同文帧则视为完全孤立; 默认 1500 */
-	isoThresholdMs?: number | null,
+	iso_threshold_ms?: number | null,
 	/**  Y 偏移在调整置信度中的权重 (0~1); 默认 0.8 */
-	adjustYWeight?: number | null,
+	adjust_y_weight?: number | null,
 	/**  孤立程度在调整置信度中的权重 (0~1); 默认 0.2 */
-	adjustIsoWeight?: number | null,
+	adjust_iso_weight?: number | null,
 	/**  Y 偏移惩罚归一化系数: 偏移量 / (videoHeight × adjustYFactor); 越小越严格; 默认 0.08 */
-	adjustYFactor?: number | null,
+	adjust_y_factor?: number | null,
 	/**  box调整的置信度阈值: confidence < 此值则进行box调整; 默认 0.5 */
-	boxAdjustedThreshold?: number | null,
+	box_adjusted_threshold?: number | null,
 	/**  是否合并子串 */
-	isMergeSubstring?: boolean,
+	is_merge_substring?: boolean,
 	/**  dedupOverlap 的编辑距离阈值: edit_distance ≤ 此值则合并; 默认 1 */
-	dedupEditDistance?: number,
+	dedup_edit_distance?: number,
 } & LlmFixArgs_Deserialize;
 
 /**
@@ -919,21 +934,21 @@ export type OcrFixArgs_Deserialize = {
  */
 export type OcrFixArgs_Serialize = {
 	/**  字幕段置信度阈值（0-1）：subtitle-ocr-post filter-segment 用 adjusted_confidence_threshold 过滤，低于此值丢弃；默认 0.45 */
-	adjustedConfidenceThreshold: number | null,
+	adjusted_confidence_threshold: number | null,
 	/**  单帧孤立惩罚的参考时间 (ms)，在此时长内无同文帧则视为完全孤立; 默认 1500 */
-	isoThresholdMs: number | null,
+	iso_threshold_ms: number | null,
 	/**  Y 偏移在调整置信度中的权重 (0~1); 默认 0.8 */
-	adjustYWeight: number | null,
+	adjust_y_weight: number | null,
 	/**  孤立程度在调整置信度中的权重 (0~1); 默认 0.2 */
-	adjustIsoWeight: number | null,
+	adjust_iso_weight: number | null,
 	/**  Y 偏移惩罚归一化系数: 偏移量 / (videoHeight × adjustYFactor); 越小越严格; 默认 0.08 */
-	adjustYFactor: number | null,
+	adjust_y_factor: number | null,
 	/**  box调整的置信度阈值: confidence < 此值则进行box调整; 默认 0.5 */
-	boxAdjustedThreshold: number | null,
+	box_adjusted_threshold: number | null,
 	/**  是否合并子串 */
-	isMergeSubstring: boolean,
+	is_merge_substring: boolean,
 	/**  dedupOverlap 的编辑距离阈值: edit_distance ≤ 此值则合并; 默认 1 */
-	dedupEditDistance: number,
+	dedup_edit_distance: number,
 } & LlmFixArgs_Serialize;
 
 /**  OCR 推理运行时。 */
@@ -1122,7 +1137,7 @@ export type QueueEntry_Deserialize = {
 	input?: Input_Deserialize | null,
 	/**  展示: start/continue/import */
 	action?: string | null,
-	/**  展示: start=url / continue|import=videoDir */
+	/**  展示: start=url / continue|import=video_dir */
 	target?: string | null,
 };
 
@@ -1140,7 +1155,7 @@ export type QueueEntry_Serialize = {
 	input: Input_Serialize | null,
 	/**  展示: start/continue/import */
 	action: string | null,
-	/**  展示: start=url / continue|import=videoDir */
+	/**  展示: start=url / continue|import=video_dir */
 	target: string | null,
 };
 
@@ -1200,6 +1215,8 @@ export type SeparateArgs_Deserialize = {
 	runtime?: SeparateRuntime,
 	/**  torch:cuda (NVIDIA/ROCm), mps (Apple Silicon) */
 	device?: Device,
+	/**  demucs 模型变体, 透传为 demucs-burn 的 `-m <id>`; 默认 fine-tuned (沿用历史行为) */
+	model?: DemucsModel,
 	/**
 	 *  效果(默认关闭): subtitle 模式下也始终分离人声, 保留 vocals 以便后续切换到 dub;
 	 *  dub 流程下始终需要分离人声以保证 tts-vc 的质量
@@ -1220,6 +1237,8 @@ export type SeparateArgs_Serialize = {
 	runtime: SeparateRuntime,
 	/**  torch:cuda (NVIDIA/ROCm), mps (Apple Silicon) */
 	device: Device,
+	/**  demucs 模型变体, 透传为 demucs-burn 的 `-m <id>`; 默认 fine-tuned (沿用历史行为) */
+	model: DemucsModel,
 	/**
 	 *  效果(默认关闭): subtitle 模式下也始终分离人声, 保留 vocals 以便后续切换到 dub;
 	 *  dub 流程下始终需要分离人声以保证 tts-vc 的质量
@@ -1232,11 +1251,23 @@ export type SeparateArgs_Serialize = {
 /**
  *  separate 推理运行时
  * 
- *  TS 侧为 `z.enum(["burn", "burn-tch"])` (kebab-case), 故用 `rename_all = "kebab-case"`
- *  (`BurnTch` → `"burn-tch"`)。原先误用 `lowercase` 会得到 `"burntch"`, 与 TS 对不上,
- *  导致运行时 `"burn-tch"` 解析失败回落默认 (see `from_input_parses_camel_case_fields`)。
+ *  四种运行时分属 vox-lab 的两个世代:
+ *  - `burn` / `burn-tch`: Burn 框架路径 (`demucs-burn-*` 二进制), 保留作性能基线;
+ *  - `tch` / `wgpu`: 独立运行时——`demucs-tch` 直连 tch-rs (不依赖 burn),
+ *    `demucs-wgpu` 走自研 WGSL/Vulkan kernel (不依赖 libtorch)。
+ * 
+ *  kebab-case 序列化 (`BurnTch` → `"burn-tch"`, `Wgpu` → `"wgpu"`)。原先误用
+ *  `lowercase` 会得到 `"burntch"`, 故这里必须保持 kebab-case。
  */
-export type SeparateRuntime = "burn" | "burn-tch";
+export type SeparateRuntime = 
+/**  Burn + wgpu/vulkan/cuda/cpu 后端 (`demucs-burn-<dev>`) */
+"burn" | 
+/**  Burn + tch 后端 (`demucs-burn-tch`), 默认 */
+"burn-tch" | 
+/**  独立 tch-rs 运行时 (`demucs-tch`, 按设备分 cpu/cuda 变体) */
+"tch" | 
+/**  独立自研 WGSL/Vulkan 运行时 (`demucs-wgpu`) */
+"wgpu";
 
 /**
  *  服务器操作 (镜像 packages/core/servers/input.ts 的 action 枚举)
@@ -1352,11 +1383,11 @@ export type SfOcrArgs_Deserialize = {
 	/**  OCR 运行设备: cpu, cuda, directml, coreml, rocm, mps */
 	device?: OcrDevice,
 	/**  OCR 识别置信度阈值, 默认 0.45 */
-	textConfidenceThreshold?: number | null,
+	text_confidence_threshold?: number | null,
 	/**  只识别字幕区域 (Y轴裁剪); 默认 true */
-	subtitleOnly?: boolean,
+	subtitle_only?: boolean,
 	/**  步骤完成后是否删除抽出的帧图片; 默认 false (保留) */
-	cleanupFrames?: boolean,
+	cleanup_frames?: boolean,
 };
 
 /**
@@ -1372,11 +1403,11 @@ export type SfOcrArgs_Serialize = {
 	/**  OCR 运行设备: cpu, cuda, directml, coreml, rocm, mps */
 	device: OcrDevice,
 	/**  OCR 识别置信度阈值, 默认 0.45 */
-	textConfidenceThreshold: number | null,
+	text_confidence_threshold: number | null,
 	/**  只识别字幕区域 (Y轴裁剪); 默认 true */
-	subtitleOnly: boolean,
+	subtitle_only: boolean,
 	/**  步骤完成后是否删除抽出的帧图片; 默认 false (保留) */
-	cleanupFrames: boolean,
+	cleanup_frames: boolean,
 };
 
 /**  侧链压缩器参数 (镜像 TS `sidechainCompress`) */
@@ -1415,7 +1446,7 @@ export type SidechainCompress_Serialize = {
  * 
  *  注意: `#[serde(default = "fn")]` 仅在字段级反序列化时生效; 当父结构用
  *  `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`
- *  以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。
+ *  以保证两种路径下默认值一致 (vad_align=false / start_pad_ms=100 / end_pad_ms=300)。
  */
 export type SplitAudioArgs = SplitAudioArgs_Serialize | SplitAudioArgs_Deserialize;
 
@@ -1428,17 +1459,17 @@ export type SplitAudioArgs = SplitAudioArgs_Serialize | SplitAudioArgs_Deseriali
  * 
  *  注意: `#[serde(default = "fn")]` 仅在字段级反序列化时生效; 当父结构用
  *  `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`
- *  以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。
+ *  以保证两种路径下默认值一致 (vad_align=false / start_pad_ms=100 / end_pad_ms=300)。
  */
 export type SplitAudioArgs_Deserialize = {
 	/**  是否启用静音检测对齐: 修正 segments 前后静音导致的偏移 */
-	vadAlign?: boolean,
+	vad_align?: boolean,
 	/**  段落切块前缘 padding (ms), 避免语音被截断 */
-	startPadMs?: number,
+	start_pad_ms?: number,
 	/**  段落切块后缘 padding (ms), 避免语音被截断 */
-	endPadMs?: number,
+	end_pad_ms?: number,
 	/**  人声文件路径, 调试使用（作为 [`crate::steps::split_audio::SplitAudioSourcePath::Custom]） */
-	vocalsFilePath?: string | null,
+	vocals_file_path?: string | null,
 };
 
 /**
@@ -1450,17 +1481,17 @@ export type SplitAudioArgs_Deserialize = {
  * 
  *  注意: `#[serde(default = "fn")]` 仅在字段级反序列化时生效; 当父结构用
  *  `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`
- *  以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。
+ *  以保证两种路径下默认值一致 (vad_align=false / start_pad_ms=100 / end_pad_ms=300)。
  */
 export type SplitAudioArgs_Serialize = {
 	/**  是否启用静音检测对齐: 修正 segments 前后静音导致的偏移 */
-	vadAlign: boolean,
+	vad_align: boolean,
 	/**  段落切块前缘 padding (ms), 避免语音被截断 */
-	startPadMs: number,
+	start_pad_ms: number,
 	/**  段落切块后缘 padding (ms), 避免语音被截断 */
-	endPadMs: number,
+	end_pad_ms: number,
 	/**  人声文件路径, 调试使用（作为 [`crate::steps::split_audio::SplitAudioSourcePath::Custom]） */
-	vocalsFilePath: string | null,
+	vocals_file_path: string | null,
 };
 
 /**  切分片段 (镜像 TS `SplitAudioSegment` = SplitAudioTiming + split bounds) */
@@ -1629,8 +1660,8 @@ export type Timing_Serialize = {
  *  枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),
  *  这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。
  * 
- *  目标语言统一在 `input.workflow.targetLang` 配置 (任务级概念: 一个任务只有一个翻译
- *  阶段, 不需要 step 级覆盖)。旧的 `steps.translate.targetLang` 已移除,
+ *  目标语言统一在 `input.workflow.target_lang` 配置 (任务级概念: 一个任务只有一个翻译
+ *  阶段, 不需要 step 级覆盖)。旧的 `steps.translate.target_lang` 已移除,
  *  deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。
  */
 export type TranslateArgs = TranslateArgs_Serialize | TranslateArgs_Deserialize;
@@ -1641,13 +1672,13 @@ export type TranslateArgs = TranslateArgs_Serialize | TranslateArgs_Deserialize;
  *  枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),
  *  这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。
  * 
- *  目标语言统一在 `input.workflow.targetLang` 配置 (任务级概念: 一个任务只有一个翻译
- *  阶段, 不需要 step 级覆盖)。旧的 `steps.translate.targetLang` 已移除,
+ *  目标语言统一在 `input.workflow.target_lang` 配置 (任务级概念: 一个任务只有一个翻译
+ *  阶段, 不需要 step 级覆盖)。旧的 `steps.translate.target_lang` 已移除,
  *  deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。
  */
 export type TranslateArgs_Deserialize = {
 	/**  OpenAI 兼容端点 */
-	apiBase?: string,
+	api_base?: string,
 	/**  翻译模型 */
 	model?: string,
 	/**  设为 false 跳过翻译, 直接使用原始识别文本 */
@@ -1660,13 +1691,13 @@ export type TranslateArgs_Deserialize = {
  *  枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),
  *  这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。
  * 
- *  目标语言统一在 `input.workflow.targetLang` 配置 (任务级概念: 一个任务只有一个翻译
- *  阶段, 不需要 step 级覆盖)。旧的 `steps.translate.targetLang` 已移除,
+ *  目标语言统一在 `input.workflow.target_lang` 配置 (任务级概念: 一个任务只有一个翻译
+ *  阶段, 不需要 step 级覆盖)。旧的 `steps.translate.target_lang` 已移除,
  *  deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。
  */
 export type TranslateArgs_Serialize = {
 	/**  OpenAI 兼容端点 */
-	apiBase: string,
+	api_base: string,
 	/**  翻译模型 */
 	model: string,
 	/**  设为 false 跳过翻译, 直接使用原始识别文本 */
@@ -1777,14 +1808,14 @@ export type TtsArgs_Deserialize = {
 	/**  计算设备; 默认 cuda */
 	device?: TtsDevice,
 	/**  跳过已存在的段 (按 mtime 比对参考音); 默认 true */
-	skipExisting?: boolean,
+	skip_existing?: boolean,
 	/**
 	 *  continue 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。
 	 *  命中段无视 skipExisting, 强制重合成 (先删旧 wav 再生成)。None/空 = 全量按 skipExisting 走。
 	 */
-	regenIndices?: number[] | null,
+	regen_indices?: number[] | null,
 	/**  将短参考音频 (< 2500ms) 拼接一倍再送 TTS, 帮助稳定输出音色; 默认 false */
-	refAudioX2?: boolean,
+	ref_audio_x2?: boolean,
 };
 
 /**
@@ -1799,14 +1830,14 @@ export type TtsArgs_Serialize = {
 	/**  计算设备; 默认 cuda */
 	device: TtsDevice,
 	/**  跳过已存在的段 (按 mtime 比对参考音); 默认 true */
-	skipExisting: boolean,
+	skip_existing: boolean,
 	/**
 	 *  continue 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。
 	 *  命中段无视 skipExisting, 强制重合成 (先删旧 wav 再生成)。None/空 = 全量按 skipExisting 走。
 	 */
-	regenIndices: number[] | null,
+	regen_indices: number[] | null,
 	/**  将短参考音频 (< 2500ms) 拼接一倍再送 TTS, 帮助稳定输出音色; 默认 false */
-	refAudioX2: boolean,
+	ref_audio_x2: boolean,
 };
 
 /**  TTS 计算设备 (镜像 TS `packages/core/steps/07_tts/args.ts` TtsStepArgsSchema.device) */
@@ -1907,17 +1938,17 @@ export type WorkflowArgs_Deserialize = {
 	action?: WorkflowAction | null,
 	/**  本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl */
 	url?: string | null,
-	sourceLang?: LangCode | null,
-	targetLang?: Language | null,
-	/**  继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始 */
-	continueFrom?: StepName | null,
+	source_lang?: LangStr | null,
+	target_lang?: Language | null,
+	/**  继续任务专业参数, 可指定 continue_from 从某步骤开始, 不指定则从上次中断的步骤开始 */
+	continue_from?: StepName | null,
 	/**  目标步骤, output_mode 跑到此步骤后自动停止, 不指定则跑完所有步骤 */
-	targetStep?: StepName | null,
-	videoDir?: string | null,
+	target_step?: StepName | null,
+	video_dir?: string | null,
 	/**  队列任务 ID (cancel_queue 指定要取消的队列项) */
-	queueId?: bigint | null,
+	queue_id?: bigint | null,
 	/**  rerunStep 专业参数, 指定要重新运行的步骤 */
-	stepName?: StepName | null,
+	step_name?: StepName | null,
 	/**
 	 *  实验开关: start/continue 走 aa-workflow 引擎——**开发中，暂不可用**
 	 *  （集成暂停，见 `integration/workflow/mod.rs`；设了会在 ExecPath 分派时
@@ -1926,32 +1957,21 @@ export type WorkflowArgs_Deserialize = {
 	 */
 	engine?: boolean | null,
 	/**
-	 *  实验开关: **非 engine** 路径按步骤 DAG 并行执行（目前只有 `sf_ocr_dub`
-	 *  有 DAG 定义，见 [`crate::workflows::dag::StepDag`]；其它组合明确报错）。
-	 *  与 `engine` 互斥——同设报错（引擎恢复前设 engine 本身就会报「开发中」）。
+	 *  实验开关: **实验性并行**——非 engine 路径按步骤 DAG 并行执行（目前只有
+	 *  `sf_ocr_dub` 有 DAG 定义，见 [`crate::workflows::dag::StepDag`]；其它组合
+	 *  明确报错）。与 `engine` 互斥——同设报错。并行验证成熟后将成为默认行为，
+	 *  届时本标志退役。
 	 */
 	parallel?: boolean | null,
-	/**
-	 *  任务模式, dub 配音, subtitle 仅字幕
-	 * 
-	 *  **显式 `rename` 覆盖 `rename_all = "camelCase"`**：本字段的 wire 名沿用
-	 *  snake_case（`"output_mode"`），与其余 camelCase 字段不一致——这是刻意的，
-	 *  因为 state.json 侧的 `output_mode` 字段也已是 snake_case。
-	 */
+	/**  任务模式, dub 配音, subtitle 仅字幕 */
 	output_mode?: OutputMode,
-	/**
-	 *  字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)
-	 * 
-	 *  **显式 `rename` 覆盖 `rename_all = "camelCase"`**：wire 名沿用 snake_case
-	 *  （`"subtitle_source"`），与 `output_mode` 同理——input.json 与 state.json
-	 *  侧字段名保持一套风格。
-	 */
+	/**  字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合) */
 	subtitle_source?: SubtitleSource,
 	/**
 	 *  是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。
 	 *  注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。
 	 */
-	downloadSubtitles?: boolean,
+	download_subtitles?: boolean,
 };
 
 /**  workflow 参数 (镜像 workflowArgsSchema) */
@@ -1960,17 +1980,17 @@ export type WorkflowArgs_Serialize = {
 	action: WorkflowAction | null,
 	/**  本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl */
 	url: string | null,
-	sourceLang: LangCode | null,
-	targetLang: Language | null,
-	/**  继续任务专业参数, 可指定 continueFrom 从某步骤开始, 不指定则从上次中断的步骤开始 */
-	continueFrom: StepName | null,
+	source_lang: LangStr | null,
+	target_lang: Language | null,
+	/**  继续任务专业参数, 可指定 continue_from 从某步骤开始, 不指定则从上次中断的步骤开始 */
+	continue_from: StepName | null,
 	/**  目标步骤, output_mode 跑到此步骤后自动停止, 不指定则跑完所有步骤 */
-	targetStep: StepName | null,
-	videoDir: string | null,
+	target_step: StepName | null,
+	video_dir: string | null,
 	/**  队列任务 ID (cancel_queue 指定要取消的队列项) */
-	queueId: bigint | null,
+	queue_id: bigint | null,
 	/**  rerunStep 专业参数, 指定要重新运行的步骤 */
-	stepName: StepName | null,
+	step_name: StepName | null,
 	/**
 	 *  实验开关: start/continue 走 aa-workflow 引擎——**开发中，暂不可用**
 	 *  （集成暂停，见 `integration/workflow/mod.rs`；设了会在 ExecPath 分派时
@@ -1979,32 +1999,21 @@ export type WorkflowArgs_Serialize = {
 	 */
 	engine?: boolean,
 	/**
-	 *  实验开关: **非 engine** 路径按步骤 DAG 并行执行（目前只有 `sf_ocr_dub`
-	 *  有 DAG 定义，见 [`crate::workflows::dag::StepDag`]；其它组合明确报错）。
-	 *  与 `engine` 互斥——同设报错（引擎恢复前设 engine 本身就会报「开发中」）。
+	 *  实验开关: **实验性并行**——非 engine 路径按步骤 DAG 并行执行（目前只有
+	 *  `sf_ocr_dub` 有 DAG 定义，见 [`crate::workflows::dag::StepDag`]；其它组合
+	 *  明确报错）。与 `engine` 互斥——同设报错。并行验证成熟后将成为默认行为，
+	 *  届时本标志退役。
 	 */
 	parallel?: boolean,
-	/**
-	 *  任务模式, dub 配音, subtitle 仅字幕
-	 * 
-	 *  **显式 `rename` 覆盖 `rename_all = "camelCase"`**：本字段的 wire 名沿用
-	 *  snake_case（`"output_mode"`），与其余 camelCase 字段不一致——这是刻意的，
-	 *  因为 state.json 侧的 `output_mode` 字段也已是 snake_case。
-	 */
+	/**  任务模式, dub 配音, subtitle 仅字幕 */
 	output_mode: OutputMode,
-	/**
-	 *  字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)
-	 * 
-	 *  **显式 `rename` 覆盖 `rename_all = "camelCase"`**：wire 名沿用 snake_case
-	 *  （`"subtitle_source"`），与 `output_mode` 同理——input.json 与 state.json
-	 *  侧字段名保持一套风格。
-	 */
+	/**  字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合) */
 	subtitle_source: SubtitleSource,
 	/**
 	 *  是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。
 	 *  注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。
 	 */
-	downloadSubtitles: boolean,
+	download_subtitles: boolean,
 };
 
 export type WorkflowBrief = WorkflowBrief_Serialize | WorkflowBrief_Deserialize;

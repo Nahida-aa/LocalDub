@@ -212,7 +212,7 @@ pub struct WorkflowArgs {
     pub action: Option<WorkflowAction>,
     /// 本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl
     pub url: Option<String>,
-    pub source_lang: Option<crate::r#const::lang::LangCode>,
+    pub source_lang: Option<crate::r#const::lang::LangStr>,
     pub target_lang: Option<Language>,
     /// 继续任务专业参数, 可指定 continue_from 从某步骤开始, 不指定则从上次中断的步骤开始
     pub continue_from: Option<StepName>,

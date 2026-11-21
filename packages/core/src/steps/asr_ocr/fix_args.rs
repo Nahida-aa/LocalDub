@@ -59,7 +59,7 @@ pub struct AsrOcrFixInput {
     /// 来自 asr_ocr 步骤的逐帧 OCR 结果 `asr_ocr/frames.json`。
     pub ocr_frames_path: asr_ocr::FramesPath,
     /// 源语言（`<asr>/out.json` > `input.workflow.source_lang` > 未知）：LLM 提示词用它。
-    pub source_lang: crate::r#const::lang::LangCode,
+    pub source_lang: crate::r#const::lang::LangStr,
     /// 本次运行参数（`input.steps.asr_ocr_fix`）。
     pub args: AsrOcrFixArgs,
     /// fixOverlap 的最大提前量：`input.steps.mix_audio.max_advance_ms`（以 ms 为单位

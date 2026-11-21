@@ -1283,9 +1283,9 @@
       "title": "WorkflowAction",
       "description": " 任务操作 (serde 与 clap 参数值统一为 snake_case)"
     },
-    "LangCode": {
+    "LangStr": {
       "type": "string",
-      "title": "LangCode",
+      "title": "LangStr",
       "description": " 源语言标识基础类型: **内部是开放字符串（事实）**。\n\n 源语言来自 ASR 识别或用户声明，值域开放——whisper 支持约 99 种语言，\n 超出支持翻译的 [`Language`] 列表；若用封闭枚举建模，列表外语言\n (it/uk/nl/...) 会被截断丢信息。用 newtype 包字符串:\n - serde 透明（序列化为 \"it\" 这样的字符串），任何语言码原样进出\n - 封闭视图: 需要\"支持翻译的目标语言\"时改用 [`Language`] 枚举（\"承诺\"，必须落在\n   支持翻译的语言内；列表外语言不是可用的翻译目标）"
     },
     "Language": {
@@ -1361,7 +1361,7 @@
         }
       ],
       "title": "Language",
-      "description": " 目标语言（支持翻译的封闭集合，与 TS 侧 langList 保持同步）。\n\n 与源语言 [`LangCode`] 不同：目标是\"承诺\"——必须落在支持翻译的语言内，\n 故用封闭枚举建模；列表外语言不是可用的翻译目标。\n\n 变体名即语言码的小写形式（`En`→`\"en\"`）。serde 的 `rename_all` 与 strum 的\n `serialize_all` 都按 \"lowercase\" 从变体名导出码，单一事实来源仍是变体列表本身——\n 加语言只改这一处。"
+      "description": " 目标语言（支持翻译的封闭集合，与 TS 侧 langList 保持同步）。\n\n 与源语言 [`LangStr`] 不同：目标是\"承诺\"——必须落在支持翻译的语言内，\n 故用封闭枚举建模；列表外语言不是可用的翻译目标。\n\n 变体名即语言码的小写形式（`En`→`\"en\"`）。serde 的 `rename_all` 与 strum 的\n `serialize_all` 都按 \"lowercase\" 从变体名导出码，单一事实来源仍是变体列表本身——\n 加语言只改这一处。"
     },
     "StepName": {
       "anyOf": [
@@ -1469,7 +1469,7 @@
         "source_lang": {
           "anyOf": [
             {
-              "$ref": "#/$defs/LangCode"
+              "$ref": "#/$defs/LangStr"
             },
             {
               "type": "null"
@@ -1815,7 +1815,7 @@
         "vocals_file_path"
       ],
       "title": "SplitAudioArgs_Serialize",
-      "description": " split_audio 阶段参数 (镜像 TS `packages/core/steps/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 state.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。"
+      "description": " split_audio 阶段参数 (镜像 TS `packages/core/steps/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 state.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vad_align=false / start_pad_ms=100 / end_pad_ms=300)。"
     },
     "TtsRuntime": {
       "anyOf": [
@@ -2196,7 +2196,7 @@
         "source_lang": {
           "anyOf": [
             {
-              "$ref": "#/$defs/LangCode"
+              "$ref": "#/$defs/LangStr"
             },
             {
               "type": "null"
@@ -2458,7 +2458,7 @@
         }
       },
       "title": "SplitAudioArgs_Deserialize",
-      "description": " split_audio 阶段参数 (镜像 TS `packages/core/steps/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 state.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。"
+      "description": " split_audio 阶段参数 (镜像 TS `packages/core/steps/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 state.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vad_align=false / start_pad_ms=100 / end_pad_ms=300)。"
     },
     "TtsArgs_Deserialize": {
       "type": "object",
@@ -3120,7 +3120,7 @@
         }
       ],
       "title": "SplitAudioArgs",
-      "description": " split_audio 阶段参数 (镜像 TS `packages/core/steps/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 state.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。"
+      "description": " split_audio 阶段参数 (镜像 TS `packages/core/steps/06_split_audio/args.ts` SplitAudioArgsSchema)\n\n 默认值带业务含义 (startPadMs=100 / endPadMs=300)。TS 端 zod `.prefault({})`\n 在写入 state.json 前已落定默认值, 因此这里只需处理「对象存在但字段缺」:\n 用 `#[serde(default = \"…\")]` 兜底。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`\n 以保证两种路径下默认值一致 (vad_align=false / start_pad_ms=100 / end_pad_ms=300)。"
     },
     "Steps": {
       "anyOf": [

@@ -5,10 +5,10 @@
 //!
 //! 解析策略（`resolve_source_language` / `resolve_target_language`）与兜底/推断逻辑
 //! （`default_lang` / `infer_target_lang`）就放在本模块、紧贴使用它们的对象——"语言如何
-//! 从 state 推导"的故事在一个文件里讲完。纯类型模型（[`LangCode`] / [`Language`] 枚举）
+//! 从 state 推导"的故事在一个文件里讲完。纯类型模型（[`LangStr`] / [`Language`] 枚举）
 //! 留在 `const::lang`（叶子模块，不依赖 state）。
 
-use crate::r#const::lang::{LangCode, Language};
+use crate::r#const::lang::{LangStr, Language};
 
 /// 源语言（解析后的投影对象）。
 ///
@@ -16,7 +16,7 @@ use crate::r#const::lang::{LangCode, Language};
 /// 纯 OCR / subtitle 路径没有 ASR，`asr_language` 为 None，自动回落到配置的 source_lang，
 /// 否则透传空串（见 [`crate::r#const::lang::default_lang`]）。
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SourceLang(pub LangCode);
+pub struct SourceLang(pub LangStr);
 
 impl SourceLang {
     /// 入参是 `(video_dir, input)` 而非组合态：`asr_language` 是 asr 步骤的事实，
@@ -32,7 +32,7 @@ impl SourceLang {
         self.0.code()
     }
 
-    pub fn into_inner(self) -> LangCode {
+    pub fn into_inner(self) -> LangStr {
         self.0
     }
 }
@@ -68,9 +68,9 @@ impl TargetLang {
 /// 再回落到 [`default_lang`]。紧贴 [`SourceLang`] 放在本模块，使"源语言如何从 state
 /// 推导"的故事集中在一处。
 pub(crate) fn resolve_source_language(
-    asr: Option<&LangCode>,
-    source: Option<&LangCode>,
-) -> LangCode {
+    asr: Option<&LangStr>,
+    source: Option<&LangStr>,
+) -> LangStr {
     asr.cloned()
         .or_else(|| source.cloned())
         .unwrap_or_else(default_lang)
@@ -78,17 +78,17 @@ pub(crate) fn resolve_source_language(
 
 /// 解析**目标语言**（状态投影策略）：显式目标优先，否则按源语言 [`infer_target_lang`]
 /// auto 推断。紧贴 [`TargetLang`] 放在本模块。
-pub(crate) fn resolve_target_language(src: &LangCode, explicit: Option<Language>) -> Language {
+pub(crate) fn resolve_target_language(src: &LangStr, explicit: Option<Language>) -> Language {
     explicit.unwrap_or_else(|| infer_target_lang(src))
 }
 
-/// 兜底源语言（源语言未知时）。返回 [`LangCode::unknown`]（空串）；下游透传语言码，
+/// 兜底源语言（源语言未知时）。返回 [`LangStr::unknown`]（空串）；下游透传语言码，
 /// 切勿臆测成 zh。此前的 "默认 zh" 注释是误导：强制 zh 会把外语原文误修正为中文。
 ///
 /// 与 [`infer_target_lang`] 同属状态投影的兜底/推断逻辑，故放在本模块而非
 /// `const::lang`（纯类型模型）。
-pub(crate) fn default_lang() -> LangCode {
-    LangCode::unknown()
+pub(crate) fn default_lang() -> LangStr {
+    LangStr::unknown()
 }
 
 /// auto 推断目标语言: 源 zh -> en, 其它 -> zh（只看"是否 zh"）。
@@ -96,7 +96,7 @@ pub(crate) fn default_lang() -> LangCode {
 ///
 /// 与 [`default_lang`] 同属状态投影的兜底/推断逻辑，紧贴 [`resolve_target_language`]
 /// 放在本模块；纯类型模型留在 `const::lang`。
-pub(crate) fn infer_target_lang(src: &LangCode) -> Language {
+pub(crate) fn infer_target_lang(src: &LangStr) -> Language {
     if src.code() == "zh" {
         Language::En
     } else {

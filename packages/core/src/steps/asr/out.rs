@@ -138,11 +138,11 @@ impl AsrOutput {
 ///
 /// 解析失败一律当「没跑过 asr」返回 `None`：语言只影响字体/术语等次要决策，
 /// 让它缺位（走 `source_lang` 配置兜底）比让整条 pipeline 崩掉合理。
-pub fn asr_language(video_dir: &str) -> Option<crate::r#const::lang::LangCode> {
+pub fn asr_language(video_dir: &str) -> Option<crate::r#const::lang::LangStr> {
     AsrOutput::read(video_dir)
         .ok()
         .flatten()
-        .map(|o| crate::r#const::lang::LangCode::from(o.language))
+        .map(|o| crate::r#const::lang::LangStr::from(o.language))
 }
 
 // ---------------------------------------------------------------------------

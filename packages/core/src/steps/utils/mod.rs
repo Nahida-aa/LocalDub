@@ -18,7 +18,7 @@ use std::{
 use chrono::Utc;
 use serde::Serialize;
 
-use crate::r#const::lang::LangCode;
+use crate::r#const::lang::LangStr;
 use subtitle::SubtitleSegment;
 
 /// RFC3339 时间戳, 去毫秒 (镜像 TS `nowISO`, 形如 `2024-01-01T00:00:00Z`)。
@@ -617,8 +617,8 @@ pub fn resolve_language(
 /// `<asr>/out.json` 不存在——必须回落到配置的 `source_lang`，否则非中文任务
 /// 被当成 zh，进而把目标语言错误推断成 en。
 ///
-/// 源语言是开放事实（`LangCode`），不做枚举截断——列表外语言如实透传。
-pub fn src_language(video_dir: &str, input: &crate::input::Input) -> LangCode {
+/// 源语言是开放事实（`LangStr`），不做枚举截断——列表外语言如实透传。
+pub fn src_language(video_dir: &str, input: &crate::input::Input) -> LangStr {
     crate::state::lang::SourceLang::from_video_dir(video_dir, input).into_inner()
 }
 

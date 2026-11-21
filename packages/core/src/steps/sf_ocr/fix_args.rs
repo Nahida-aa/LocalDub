@@ -115,7 +115,7 @@ pub struct SfOcrFixInput {
     /// 来自 sf_ocr 步骤的关键帧 OCR 结果 `sf_ocr/frames.json`。
     pub frames_path: sf_ocr::FramesPath,
     /// 源语言（`<asr>/out.json` > `input.workflow.source_lang` > 未知）：LLM 提示词用它。
-    pub source_lang: crate::r#const::lang::LangCode,
+    pub source_lang: crate::r#const::lang::LangStr,
     /// 本次运行参数（`input.steps.sf_ocr_fix`）。
     pub args: OcrFixArgs,
 }

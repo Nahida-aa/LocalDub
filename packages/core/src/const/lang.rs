@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 /// 目标语言（支持翻译的封闭集合，与 TS 侧 langList 保持同步）。
 ///
-/// 与源语言 [`LangCode`] 不同：目标是"承诺"——必须落在支持翻译的语言内，
+/// 与源语言 [`LangStr`] 不同：目标是"承诺"——必须落在支持翻译的语言内，
 /// 故用封闭枚举建模；列表外语言不是可用的翻译目标。
 ///
 /// 变体名即语言码的小写形式（`En`→`"en"`）。serde 的 `rename_all` 与 strum 的
@@ -36,9 +36,9 @@ pub const DEFAULT_LANG: Language = Language::Zh;
 /// - 封闭视图: 需要"支持翻译的目标语言"时改用 [`Language`] 枚举（"承诺"，必须落在
 ///   支持翻译的语言内；列表外语言不是可用的翻译目标）
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, specta::Type, derive_more::Display)]
-pub struct LangCode(String);
+pub struct LangStr(String);
 
-impl LangCode {
+impl LangStr {
     pub fn new(code: impl Into<String>) -> Self {
         Self(code.into())
     }
@@ -52,23 +52,23 @@ impl LangCode {
     /// 而非臆测成 zh——否则会把外语原文误导成中文修正（见 `llm::lang_label`
     /// 的设计说明）。
     pub fn unknown() -> Self {
-        LangCode(String::new())
+        LangStr(String::new())
     }
 }
 
-impl From<Language> for LangCode {
+impl From<Language> for LangStr {
     fn from(t: Language) -> Self {
         Self(Into::<&'static str>::into(t).to_string())
     }
 }
 
-impl From<&str> for LangCode {
+impl From<&str> for LangStr {
     fn from(s: &str) -> Self {
         Self(s.to_string())
     }
 }
 
-impl From<String> for LangCode {
+impl From<String> for LangStr {
     fn from(s: String) -> Self {
         Self(s)
     }

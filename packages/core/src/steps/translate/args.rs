@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use config_rs::env::{openai_base_url, openai_model};
 
-use crate::r#const::lang::LangCode;
+use crate::r#const::lang::LangStr;
 use crate::state::lang::{resolve_source_language, resolve_target_language};
 use crate::steps::utils::paths::{asr_fix, asr_ocr_fix, sf_ocr_fix, SrtJsonPath};
 use crate::workflows::args::SubtitleSource;
@@ -83,13 +83,13 @@ pub enum SubtitleSourcePath {
 /// - `src_lang` / `target_lang`：装配层按 input 配置 + `<asr>/out.json` 实测
 ///   算好的本次语言决策（三级回退 + 直通），步骤体只消费。
 ///
-/// `LangCode` 是开放字符串 newtype：既容纳 `Language` 枚举的所有值，也容纳
+/// `LangStr` 是开放字符串 newtype：既容纳 `Language` 枚举的所有值，也容纳
 /// 直通时可能与 src 相同的列表外语言码（如 `it`），与下游 `String` 同源。
 #[derive(Debug, Clone)]
 pub struct TranslateDeps {
     pub srt_json_path: SubtitleSourcePath,
-    pub src_lang: LangCode,
-    pub target_lang: LangCode,
+    pub src_lang: LangStr,
+    pub target_lang: LangStr,
 }
 
 impl TranslateDeps {
@@ -115,7 +115,7 @@ impl TranslateDeps {
         let target_lang = if !input.steps.translate.enabled {
             src_lang.clone()
         } else {
-            LangCode::from(resolve_target_language(&src_lang, input.workflow.target_lang))
+            LangStr::from(resolve_target_language(&src_lang, input.workflow.target_lang))
         };
         Self {
             srt_json_path,

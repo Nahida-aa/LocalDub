@@ -105,7 +105,7 @@
   `<asr>/out.json` 实测 > `input.workflow.source_lang` 配置 > `unknown`（空串，
   不臆测 zh）；`asr_language()` 用 `.ok().flatten()`，读不到返回 None 不报错
   （纯 OCR / subtitle 路径没有 ASR，走后两级）。故 Deps 应表达"**可选的** ASR
-  实测语言"（`Option<LangCode>`），由装配层从 `asr_language(video_dir)` 取；
+  实测语言，由装配层从 `asr_language(video_dir)` 取并与配置算出 `src_lang`/`target_lang: LangStr` 注入；
   配置级 `source_lang` 仍在 sc 侧（已被 `sc.ctx().input()` 覆盖）。target 依赖
   src + `input.workflow.target_lang`，归 sc 侧现算。
 - **deps 多来源 = 工作流装配层注入**：dub 模式的三种工作流
