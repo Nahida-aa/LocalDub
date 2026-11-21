@@ -101,8 +101,16 @@
 - **存在性仲裁上移装配层**：asr 回退链（gated>mixed>vocals）、split_audio
   （vocals→audio_source）的仲裁从 `XxxInput::new` 移到 Deps 装配点（DAG 序保证
   上游产物此时已定）；`paths.rs` 单一产生点不变（调用点搬家）。
-- **StepCtxView trait 提案否决**：意图是过渡不是永久解耦——过渡替身按引擎
-  真实形状设计，接入日纯类型替换，无需抽象层。
+- **StepCtxView trait 提案否决（两次确认）**：库侧（单实现者 / 构造权泄漏
+  EngineRuntime / 面未定型）与 LocalDub 过渡侧（意图是过渡不是永久解耦）——
+  过渡替身按引擎真实形状设计，接入日纯类型替换，**Phase 1 只定义结构体
+  （MyStepCtx / XxxDeps），不定义特征**。
+- **「消费者自定义 view trait」的正解 = 接入后教学**：生态惯例是 context/handle
+  用具体类型（tokio Handle / Temporal ctx / axum extractor），trait 只在多实现者
+  是设计目的处由库定义（tower Service）；六边形原则下端口属于消费方——LocalDub
+  接入完成后把真实案例写成 aa-workflow 的 docs example（外部 trait + impl for
+  StepCtx + fake ctx 跑通 step 函数），库的义务收窄为「读面保持 pub 可实现」
+  （现状已满足）。进库门槛：出现第二个真实多执行者需求 + 编排面/TState 定型。
 
 ### Phase 2: emit 通道 + 投影器 + 改名（首个行为变化点）
 
@@ -158,6 +166,17 @@
 3. **store**: FileExecutionStore（aa-workflow 契约）vs LocalDub 自有 FsRunStore。
 4. **TState 形状**: 极薄身份快照（WorkflowState）还是 `()`——步骤零读取
    （§5.4 已证实），不影响步骤签名。
+
+## 6. 待重新评估（触发条件 + 届时形态）
+
+- **库侧 StepCtx view trait**：触发 = 出现第二个真实多执行者需求（非过渡性质）
+  + 编排面（gate 讨论结论）与 TState 定型。届时形态：**只读视图 trait**
+  （input / state / emit / id / attempt / 取消与预算探针），**不含构造器**
+  （引擎自造自用），`ctx.step` bound 保持具体类型——trait 只服务函数作者与
+  外部执行者，不进引擎调度路径。库的现行义务：`StepCtx` 读面保持 pub
+  （已满足，docs example 于接入后补）。
+- **过渡期替代（若单测 step 函数成为痛点）**：`#[doc(hidden)]` 测试构造器或
+  `test-util` feature——不引入抽象。
 
 ## 5. Phase 0 调查记录（2026-11-21，全部源码核实）
 
