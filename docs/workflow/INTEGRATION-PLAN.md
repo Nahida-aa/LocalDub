@@ -99,8 +99,15 @@
   video_dir，来自 run input）并入 `sc.ctx.input` 的取用；事实面（约定路径产物 /
   out.json 事实 / 依赖上游的解析）成为显式的 `XxxDeps`。**入口步骤**
   （separate / sf_ocr_pre——只依赖 import 事实）无 deps 参数。
-- **解析计算拆半**：`resolve_language` 拆开——src（依赖 `<asr>/out.json` 上游
-  事实）归 Deps 构造；target（来自配置）归 Params/sc 侧。
+- **解析计算拆半**：`resolve_language` 拆开——src 归 Deps 构造、target 归 sc 侧。
+  ⚠️ **src 不必然依赖 `<asr>/out.json`**：真源 `SourceLang::from_video_dir`
+  （`state/lang.rs:24` → `resolve_source_language:70`）是三级回退
+  `<asr>/out.json` 实测 > `input.workflow.source_lang` 配置 > `unknown`（空串，
+  不臆测 zh）；`asr_language()` 用 `.ok().flatten()`，读不到返回 None 不报错
+  （纯 OCR / subtitle 路径没有 ASR，走后两级）。故 Deps 应表达"**可选的** ASR
+  实测语言"（`Option<LangCode>`），由装配层从 `asr_language(video_dir)` 取；
+  配置级 `source_lang` 仍在 sc 侧（已被 `sc.ctx().input()` 覆盖）。target 依赖
+  src + `input.workflow.target_lang`，归 sc 侧现算。
 - **deps 多来源 = 工作流装配层注入**：dub 模式的三种工作流
   （asr / sf_ocr / asr_ocr）各自装配——`step_translate` 定义假设不知道自己在
   哪个工作流，`TranslateDeps { srt_json: NormalizedSrtPath }`（规范化字幕契约
@@ -156,9 +163,11 @@
 
 ### 已拍板
 
-1. **Input 一比一镜像 `input.jsonc`**——解析计算（7 字段）依赖上游产物
-   （`resolve_language` / `src_language` 读 `<asr>/out.json`），import 时无法
-   预构建；导入只补身份事实（`workflow.video_dir` 回填——现役实现即如此）。
+1. **Input 一比一镜像 `input.jsonc`**——部分解析字段依赖上游产物
+   （`resolve_language` / `src_language` **优先**读 `<asr>/out.json`，但三级回退中
+   该文件非必经：无 ASR 时回落到 `workflow.source_lang` → `unknown`，详见 §3
+   "解析计算拆半"），import 时无法预构建；导入只补身份事实
+   （`workflow.video_dir` 回填——现役实现即如此）。
    `TInput` = `crate::input::Input`（serde/specta 现成）。
 2. **依赖随参数变，步骤级边收敛为稳定并集**——配置选择型（subtitle_source
    三选一 / output_mode 双分支）+ 磁盘存在性仲裁型（asr 回退链 / split_audio
@@ -213,7 +222,7 @@
 | separate_after | separate/after.rs:16 | video_dir、vocals_path(约定)、stems_dir(约定)、args(**=AsrArgs** 跨步借用) | ffmpeg ×4（amix/混音/agate） | separate_after/{target_bgm,target_3_vocals_mixed,gated}.wav | ×2（:20,160） |
 | sf_ocr_pre | sf_ocr/ocr_pre.rs:17 | video_dir、video_source_path(约定) | **subtitle-finder 子进程** + ensure_bin | sf_ocr_pre/frames/、mask/、timeline.txt、keyframes.json | ×2（:21,97） |
 | sf_ocr | sf_ocr/ocr.rs:16 | video_dir、keyframes_dir(约定)、args(SfOcrArgs) | **subtitle-ocr 子进程** + ensure_bin | sf_ocr/frames.json（cleanup 时删帧目录） | ×2（:20,109） |
-| sf_ocr_fix | sf_ocr/ocr_fix.rs:18 | video_dir、frames_path(约定)、source_lang(解析：`<asr>/out.json`)、args(OcrFixArgs) | **subtitle-ocr-post 子进程** + `llm::ocr_llm_fix`（降级保留原文） | sf_ocr_fix/{segment_filter,segment_filter_llm_fix,srt}.json | ×1（:146） |
+| sf_ocr_fix | sf_ocr/ocr_fix.rs:18 | video_dir、frames_path(约定)、source_lang(解析：`<asr>/out.json` 优先，缺则 wf.source_lang/unknown)、args(OcrFixArgs) | **subtitle-ocr-post 子进程** + `llm::ocr_llm_fix`（降级保留原文） | sf_ocr_fix/{segment_filter,segment_filter_llm_fix,srt}.json | ×1（:146） |
 | translate | translate/mod.rs:178 | srt_json_path(约定，subtitle_source 三选一)、video_dir、args(TranslateArgs)、src_lang(解析)、target_lang(解析) | **LLM ×2**（preprocess :114 仅当 ytdlp_info 存在；逐 batch :136，BATCH=50） | translate/{lang}.json、partial（完成即删）、**out.json**（全仓唯一写者） | ×2（:340 每 batch / :393） |
 | split_audio | split_audio/mod.rs:47 | video_dir、audio_path(约定+存在性仲裁)、translate_path(**事实：translate/out.json**)、args、source_lang(解析)、is_dub(wf) | ffprobe + ffmpeg 逐段切块 + 可选 vad | split_audio/vocals/{:04}.wav、split_audio.json、timings.json | ×1（:161） |
 | asr | asr/mod.rs:26 | video_dir、audio_path(约定组：Custom/Separated/Raw 三选一)、args(AsrArgs)、source_lang(wf，None→auto) | ffmpeg 转码 + **whisper-vulkan 子进程**（runtime/device 硬编码 ggml/vulkan）+ astats | asr/asr.json、原始 JSON 归档、whisper-input.wav、**out.json**（实测语言） | ×2（:30,332） |
@@ -243,8 +252,10 @@
   状态的唯一接触是 `set_step` 写**自己的** `<step>/state.json`（读 `read_step_state`
   的调用点全部在 `#[cfg(test)]` 内）。
 - 读他步产物仅两种形态，均为**磁盘文件、非 state**：
-  1. `src_language` / `resolve_language` → 读 **`<asr>/out.json`**（影响 sf_ocr_fix /
-     translate / split_audio / asr_ocr_fix 的 Input 构造）；
+  1. `src_language` / `resolve_language` → **优先**读 **`<asr>/out.json`**（影响
+     sf_ocr_fix / translate / split_audio / asr_ocr_fix 的 Input 构造）；该文件
+     缺失时回落到 `workflow.source_lang` → `unknown`（`Option` 语义，非 fail-fast；
+     纯 OCR / subtitle 路径走回退）；
   2. `LangPath::from_video_dir` → 读 **`<translate>/out.json`**（影响 split_audio /
      mix_video 的 Input 构造，缺失即 Err）。
 - `new` 返回 `Result` 的步骤 5 个：separate / translate / split_audio / mix_audio /

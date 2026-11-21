@@ -60,9 +60,12 @@ AGENTS.md 的 dub 正例表述同步。
 
 ## 3. 关键设计决策（已拍板台账——勿重新争论，完整理由见 INTEGRATION-PLAN §4）
 
-1. **Input 一比一镜像 `input.jsonc`**——解析计算依赖上游产物（`resolve_language`
-   / `src_language` 读 `<asr>/out.json`），import 时无法预构建；导入只补身份事实
-   （`workflow.video_dir` 回填——import 是 run input 的**生产者**，不是图的节点）。
+1. **Input 一比一镜像 `input.jsonc`**——部分解析字段优先读上游产物
+   （`resolve_language` / `src_language` **优先**读 `<asr>/out.json`），import 时
+   无法预构建；导入只补身份事实（`workflow.video_dir` 回填——import 是 run input
+   的**生产者**，不是图的节点）。注意 src 是**三级回退**（`<asr>/out.json` 实测 >
+   `workflow.source_lang` > `unknown`），纯 OCR / subtitle 路径无 ASR 走后两级，
+   Deps 应表达 `Option<LangCode>`——详见 INTEGRATION-PLAN §3 "解析计算拆半"。
 2. **依赖随参数变，`DagShape` 用 union graph**——配置选择型（subtitle_source 三选一
    / output_mode 双分支）+ 磁盘存在性仲裁型（asr 回退链）在步骤级边集合上收敛为
    稳定并集；文件级仲裁留在装配层不进图。
@@ -85,10 +88,11 @@ AGENTS.md 的 dub 正例表述同步。
 ## 4. 待办（按优先级）
 
 1. **Phase 1 剩余 14 步批量迁移**（零行为）——顺序建议: **translate 先行**（一次验证
-   `XxxDeps` 注入 + `resolve_language` 拆半 + `NormalizedSrtPath` 三来源装配三个机制），
-   再沿依赖链铺开（sf_ocr_pre→sf_ocr→sf_ocr_fix→…）。每步: 签名改 `(sc, deps)`、
-   意图面经 `sc.ctx().input()` 现取、事实面进 `XxxDeps`、`cargo test -p ld-core --lib`
-   全绿。
+   `XxxDeps` 注入 + `resolve_language` 拆半（⚠️ src 是三级回退、非必读
+   `<asr>/out.json`，Deps 取 `Option<LangCode>`——见 §3 决策 #1）+ `NormalizedSrtPath`
+   三来源装配三个机制），再沿依赖链铺开（sf_ocr_pre→sf_ocr→sf_ocr_fix→…）。每步:
+   签名改 `(sc, deps)`、意图面经 `sc.ctx().input()` 现取、事实面进 `XxxDeps`、
+   `cargo test -p ld-core --lib` 全绿。
 2. **Phase 2**（首个行为变化点）: `state.json → view.json` 改名 + 本地 emit 通道
    （事件形状 `WorkflowEvent`）+ 投影器；**28 个 `set_step` + 3 个 `out.json` 写点
    退役**（逐点 file:line 清单见 INTEGRATION-PLAN §5.5——separate 的 5 处是模板）。
