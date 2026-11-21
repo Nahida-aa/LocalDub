@@ -14,10 +14,12 @@ use crate::steps::utils::{
     now_iso, separate_dir, set_step, set_step_anyhow, StepPatch, StepStatus,
 };
 use crate::workflows::args::OutputMode;
+use crate::steps::utils::paths::AudioSourcePath;
+use crate::workflows::step_ctx::MyStepCtx;
 
 pub use after::step_separate_after;
 pub use after_args::SeparateAfterInput;
-pub use args::{SeparateArgs, SeparateInput};
+pub use args::SeparateArgs;
 
 /// 定位 demucs 二进制: `data/bin/<binary>` (release 下载, vox-lab zip 平铺)。
 ///
@@ -216,16 +218,19 @@ fn run_demucs(
 
 /// 入口 (镜像 TS `stepSeparate`)。
 ///
-/// **单参**：本步的全部依赖已在 [`SeparateInput`] 里列清（身份 + 上游音频 + 本次
-/// 参数 + 决策用的 output_mode），不再接一个"什么都装"的组合态。
-pub fn step_separate(input: &SeparateInput) -> anyhow::Result<()> {
-    let video_dir = input.video_dir.clone();
+/// **入口步骤**：只依赖 import 事实（`audio_source.wav` 约定路径）+ run input
+/// （本次参数 / output_mode），无上游步骤产物——故无 `deps` 参数。
+/// `sc` 是引擎 `StepCtx` 的过渡镜像（见 `workflows/step_ctx.rs`）：身份与
+/// 参数取 `sc.ctx.input`，观测走 `sc.ctx.emit`（Phase 2 起生效）。
+pub fn step_separate(sc: MyStepCtx) -> anyhow::Result<()> {
+    let video_dir = sc.ctx.input.video_dir()?.to_string();
     tracing::info!(target: "separate", "start");
 
-    let cfg = &input.args;
+    let cfg = SeparateArgs::from_input(&sc.ctx.input);
+    let output_mode = OutputMode::from_input(&sc.ctx.input);
 
     // subtitle 模式且未配置 always → 跳过分离
-    if input.output_mode == OutputMode::Subtitle && !cfg.always {
+    if output_mode == OutputMode::Subtitle && !cfg.always {
         tracing::info!(target: "separate", "Skipped (subtitle pipeline, set separate.always=true to force)");
         set_step_anyhow(
             &video_dir,
@@ -251,8 +256,7 @@ pub fn step_separate(input: &SeparateInput) -> anyhow::Result<()> {
         },
     )?;
 
-    let audio_path = input
-        .audio_source_path
+    let audio_path = AudioSourcePath::from_video_dir(&video_dir)
         .as_path()
         .to_string_lossy()
         .into_owned();
@@ -450,12 +454,12 @@ mod tests {
             json!({
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"output_mode": "subtitle"},
+                "input": {"workflow": {"output_mode": "subtitle", "videoDir": dir.clone()},
                           "steps": {"separate": {"always": false}}},
                 "output_mode": "subtitle"
             }),
         );
-        let res = step_separate(&SeparateInput::new(&dir, &input).unwrap());
+        let res = step_separate(MyStepCtx::new("separate", input));
         assert!(res.is_ok(), "subtitle skip 不应失败: {:?}", res.err());
         let st = crate::state::read_step_state(&dir, "separate").unwrap();
         assert_eq!(st.status, StepStatus::Success);

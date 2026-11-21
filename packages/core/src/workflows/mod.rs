@@ -6,6 +6,7 @@ pub mod dag;
 pub mod import;
 pub mod parallel;
 pub mod pipeline;
+pub mod step_ctx;
 
 pub use args::ExecPath;
 pub use continue_pipeline::continue_pipeline;

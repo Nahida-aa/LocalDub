@@ -23,7 +23,7 @@ use crate::steps::mix_audio::step_mix_audio;
 use crate::steps::mix_video::args::MixVideoInput;
 use crate::steps::mix_video::step_mix_video;
 use crate::steps::separate::{
-    after_args::SeparateAfterInput, args::SeparateInput, step_separate, step_separate_after,
+    after_args::SeparateAfterInput, step_separate, step_separate_after,
 };
 use crate::steps::sf_ocr::args::SfOcrInput;
 use crate::steps::sf_ocr::fix_args::SfOcrFixInput;
@@ -37,6 +37,7 @@ use crate::steps::tts::args::TtsInput;
 use crate::steps::tts::step_tts;
 use crate::steps::utils::{now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
 use crate::workflows::args::StepName;
+use crate::workflows::step_ctx::MyStepCtx;
 
 /// 运行完整 output_mode (镜像 TS `runPipeline`)。
 ///
@@ -143,7 +144,7 @@ pub fn run_step(
     // 进入 step span: 携带 step 名供 WorkflowFileLayer 作为 [step] 前缀。
     let _step_guard = tracing::info_span!("step", step = step.as_str()).entered();
     match step {
-        StepName::Separate => step_separate(&SeparateInput::new(video_dir, input)?),
+        StepName::Separate => step_separate(MyStepCtx::new(step.as_str(), input.clone())),
         StepName::SeparateAfter => step_separate_after(&SeparateAfterInput::new(video_dir, input)),
         StepName::SfOcrPre => step_sf_ocr_pre(&SfOcrPreInput::new(video_dir, input)),
         StepName::SfOcr => step_sf_ocr(&SfOcrInput::new(video_dir, input)),
