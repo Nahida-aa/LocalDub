@@ -224,6 +224,34 @@ pub fn ensure_bin(key: &str) -> anyhow::Result<PathBuf> {
     Ok(bin_path_from_key(key))
 }
 
+/// 确保二进制就绪，返回**已配好运行时环境**的 [`Command`]。
+///
+/// release zip 把二进制与其 `.so` 平铺到 bin_dir (见 items.rs 的 `extract_zip_flat`),
+/// 而动态链接器默认不搜二进制同目录——故统一注入 `LD_LIBRARY_PATH=<bin_dir>`。
+/// 调用方拿到即可直接 `.args(...).status()`, 无需在业务步骤里重复处理部署细节。
+///
+/// 与 [`ensure_bin`] 的分工: 需要自行拼参数/控制 spawn 的用本函数; 只想拿路径
+/// (如检查存在性) 的仍用 `ensure_bin`。
+pub fn ensure_bin_command(key: &str) -> anyhow::Result<std::process::Command> {
+    let bin = ensure_bin(key)?;
+    let mut cmd = std::process::Command::new(&bin);
+
+    #[cfg(target_os = "linux")]
+    {
+        let bin_dir = bin.parent().unwrap_or_else(|| std::path::Path::new("."));
+        let existing = std::env::var("LD_LIBRARY_PATH").unwrap_or_default();
+        let combined = if existing.is_empty() {
+            bin_dir.to_string_lossy().into_owned()
+        } else {
+            format!("{}:{}", bin_dir.display(), existing)
+        };
+        tracing::info!(target: "env", "{} 注入 LD_LIBRARY_PATH={}", key, combined);
+        cmd.env("LD_LIBRARY_PATH", combined);
+    }
+
+    Ok(cmd)
+}
+
 /// 根据 env key 推断二进制路径 (委托 items.rs, 与下载/check 路径保持一致)。
 fn bin_path_from_key(key: &str) -> PathBuf {
     match key {

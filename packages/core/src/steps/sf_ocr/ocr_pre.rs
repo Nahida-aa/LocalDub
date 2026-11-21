@@ -3,13 +3,12 @@
 //! 镜像 TS `packages/core/steps/sf_ocr/ocr_pre.ts` (stepSfOcrPre)。
 //! 落盘 `<videoDir>/sf_ocr_pre/`: frames/(PNG) / mask/ / timeline.txt / keyframes.json。
 
-use crate::cmd::env::ensure_bin;
+use crate::cmd::env::ensure_bin_command;
 use crate::steps::sf_ocr::pre_args::SfOcrPreInput;
 use crate::steps::utils::paths::sf_ocr_pre;
 use crate::steps::utils::{
     ensure_dir, now_iso, set_step_anyhow, sf_ocr_pre_dir, StepPatch, StepStatus,
 };
-use std::process::Command;
 
 /// 入口 (镜像 TS `stepSfOcrPre`)。
 ///
@@ -36,7 +35,7 @@ pub fn step_sf_ocr_pre(input: &SfOcrPreInput) -> anyhow::Result<()> {
         ));
     }
 
-    let bin = ensure_bin("subtitle_finder_bin").map_err(|e| {
+    let mut cmd = ensure_bin_command("subtitle_finder_bin").map_err(|e| {
         anyhow::anyhow!(
             "{e}\n若下载失败, 请手动执行: cargo run -p cli -- env --action ensure --targets subtitle_finder_bin"
         )
@@ -47,20 +46,7 @@ pub fn step_sf_ocr_pre(input: &SfOcrPreInput) -> anyhow::Result<()> {
 
     tracing::info!(target: "sf_ocr", "subtitle-finder {} --out {}", video_path.display(), out_dir.display());
 
-    // 二进制的 ffmpeg 等 .so 随 release zip 平铺到 bin_dir (见 env/items.rs 的
-    // extract_zip_flat); 动态链接器默认不搜二进制同目录, 故注入 LD_LIBRARY_PATH,
-    // 否则 spawn 会 exit 127 (缺 .so)。与 separate/mod.rs 注入 libtorch 同款。
-    let mut cmd = Command::new(&bin);
     cmd.arg(&video_path).arg("--out").arg(&out_dir);
-    let bin_dir = bin.parent().unwrap_or(std::path::Path::new("."));
-    let existing = std::env::var("LD_LIBRARY_PATH").unwrap_or_default();
-    let combined = if existing.is_empty() {
-        bin_dir.to_string_lossy().into_owned()
-    } else {
-        format!("{}:{}", bin_dir.display(), existing)
-    };
-    tracing::info!(target: "sf_ocr", "注入 LD_LIBRARY_PATH={}", combined);
-    cmd.env("LD_LIBRARY_PATH", combined);
 
     let status = cmd
         .status()
@@ -165,10 +151,11 @@ mod tests {
 
         // 预置假二进制 + 版本戳, 使 check 通过而无需网络
         std::fs::write(&bin_path, b"#!/bin/sh\nexit 1\n").unwrap();
+        // 版本戳须与 SUBTITLE_FINDER spec 一致 (v0.1.1), 否则 check 判为过期触发真下载。
         let stamp = serde_json::json!({
-            "tag": "subtitle-finder-v0.1.0",
-            "sha256": "b08778b2e066a35f8c9b3c0457e3e05a1379a6452341b932d82c22175cba9923",
-            "downloaded_at": "2026-09-08T00:00:00Z",
+            "tag": "subtitle-finder-v0.1.1",
+            "sha256": "0faa4f3475773be3cd665051046f441648b99c78b6bc047f780ccf2ac72c58c9",
+            "downloaded_at": "2026-11-21T00:00:00Z",
         });
         std::fs::write(&stamp_path, serde_json::to_string_pretty(&stamp).unwrap()).unwrap();
 
