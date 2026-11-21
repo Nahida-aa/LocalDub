@@ -15,7 +15,7 @@ use crate::steps::utils::{
 };
 use crate::workflows::args::OutputMode;
 use crate::steps::utils::paths::AudioSourcePath;
-use crate::workflows::step_ctx::MyStepCtx;
+use crate::workflows::step_ctx::{CtxView, MyStepCtx, StepCtxView};
 
 pub use after::step_separate_after;
 pub use after_args::SeparateAfterInput;
@@ -218,16 +218,17 @@ fn run_demucs(
 
 /// 入口 (镜像 TS `stepSeparate`)。
 ///
-/// **入口步骤**：只依赖 import 事实（`audio_source.wav` 约定路径）+ run input
+/// **入口步骤**：只依赖 import 事实（`audio_source.wav` 约定路径）+ 工作流输入
 /// （本次参数 / output_mode），无上游步骤产物——故无 `deps` 参数。
-/// `sc` 是引擎 `StepCtx` 的过渡镜像（见 `workflows/step_ctx.rs`）：身份与
-/// 参数取 `sc.ctx.input`，观测走 `sc.ctx.emit`（Phase 2 起生效）。
-pub fn step_separate(sc: MyStepCtx) -> anyhow::Result<()> {
-    let video_dir = sc.ctx.input.video_dir()?.to_string();
+/// `sc` 是引擎 `StepCtx` 的过渡镜像（消费方端口，见 `workflows/step_ctx.rs`）：
+/// 工作流输入经 `sc.ctx().input()`（`ctx` 限定符标记出处——工作流级事实，非
+/// 步骤参数），观测走 `sc.ctx().emit`（Phase 2 起生效）。
+pub fn step_separate(sc: impl StepCtxView) -> anyhow::Result<()> {
+    let video_dir = sc.ctx().input().video_dir()?.to_string();
     tracing::info!(target: "separate", "start");
 
-    let cfg = SeparateArgs::from_input(&sc.ctx.input);
-    let output_mode = OutputMode::from_input(&sc.ctx.input);
+    let cfg = SeparateArgs::from_input(sc.ctx().input());
+    let output_mode = OutputMode::from_input(sc.ctx().input());
 
     // subtitle 模式且未配置 always → 跳过分离
     if output_mode == OutputMode::Subtitle && !cfg.always {

@@ -62,29 +62,38 @@
 
 ```rust
 // 现役：fn step_x(input: &XxxInput) -> Result<()>
-// 目标：fn step_x(sc: MyStepCtx, deps: XxxDeps) -> Result<()>
+// 目标：fn step_x(sc: impl StepCtxView, deps: XxxDeps) -> Result<()>
 ```
 
-- **`MyStepCtx` = 引擎 `StepCtx<I, S>` 的过渡镜像**——字段/方法与真实形状
-  **同名**，接入日纯类型替换（body 零改动）。**不发明便捷方法**
-  （`video_dir` 等从 `ctx.input` 取；`emit` 挂在 `ctx` 下——镜像 `RunCtx::emit`
-  的真实位置与签名）：
+- **两个 trait = 消歧机制**（消费方端口，六边形：端口归消费方；库侧不定义
+  ——构造权/单实现者/面未定三论据见 §6）：
+  - **`CtxView`**：run 级视图（镜像引擎 `RunCtx` 公开面）。**`ctx` 限定符标记
+    访问出处**：`sc.ctx().input()` 读作「工作流上下文的输入」——工作流 input
+    **不切片、不下发、不重命名**（params 切片提案否决：那会重塑 input 的身份，
+    使它看起来像步骤参数），它以工作流级事实的身份经限定路径访问；
+  - **`StepCtxView`**：step 级（`ctx()` 关联类型访问器 / `id` / `attempt`）。
 
   ```rust
-  pub struct MyStepCtx {
-      pub ctx: MyRunCtx,
-      pub id: String,          // 幂等键候选（引擎同名同义）
-      pub attempt: usize,
+  pub trait CtxView {
+      fn input(&self) -> &Input;   // 工作流输入（typed，非擦除）
+      fn emit(&self, name: impl AsRef<str>, value: serde_json::Value);  // 签名同 RunCtx::emit
   }
-  pub struct MyRunCtx {
-      pub input: Input,        // import 回填后的 run 配置（≡ RunCtx::input）
-      // state 位：TState 未拍板，且勘察证明步骤零读取——接入日由 RunCtx.state 补
-      emit: 本地通道 Sender,   // 对应引擎的 pub(crate) engine 字段位
-  }
-  impl MyRunCtx {
-      pub fn emit(&self, name: impl AsRef<str>, value: serde_json::Value) { … }
+  pub trait StepCtxView {
+      type Ctx: CtxView;           // 关联类型（非 dyn）：emit 零偏离、静态分发
+      fn ctx(&self) -> &Self::Ctx;
+      fn id(&self) -> &str;
+      fn attempt(&self) -> usize;
   }
   ```
+
+- **接入日**：`impl CtxView for RunCtx<Input, TState>` + `impl StepCtxView for
+  StepCtx<Input, TState>`（引擎字段/方法全 pub，各十行）——步骤签名与 body
+  **零改动**；引擎面演化的漂移**局部化在两个 impl 块**（不散布 15 个 body）。
+- **过渡实体**：`MyStepCtx`/`MyRunCtx`（本地执行器构造，实现两个 trait）；
+  `state` 位与便捷方法刻意缺席（§5.4 零 state 读取；`video_dir` 走
+  `ctx().input().video_dir()` 既有路径）。
+- **emit 落点**：Phase 1 no-op → Phase 2 本地通道（投影器折叠 view）→ 接入日
+  引擎 publisher（同一投影器换源）。
 
 - **`XxxDeps` = 事实面拆分**：`XxxInput` 按来源拆两半——意图面（args / wf 配置 /
   video_dir，来自 run input）并入 `sc.ctx.input` 的取用；事实面（约定路径产物 /
@@ -101,10 +110,11 @@
 - **存在性仲裁上移装配层**：asr 回退链（gated>mixed>vocals）、split_audio
   （vocals→audio_source）的仲裁从 `XxxInput::new` 移到 Deps 装配点（DAG 序保证
   上游产物此时已定）；`paths.rs` 单一产生点不变（调用点搬家）。
-- **StepCtxView trait 提案否决（两次确认）**：库侧（单实现者 / 构造权泄漏
-  EngineRuntime / 面未定型）与 LocalDub 过渡侧（意图是过渡不是永久解耦）——
-  过渡替身按引擎真实形状设计，接入日纯类型替换，**Phase 1 只定义结构体
-  （MyStepCtx / XxxDeps），不定义特征**。
+- **StepCtxView trait 提案修订记录**：初版否决（镜像 struct）→ **改判采纳
+  （消费方端口）**——决定性论据：漂移局部化（引擎面演化只修两个 impl，不散布
+  15 个 body）+ 签名稳定性（接入日零签名替换）+ 端口归消费方的六边形原则
+  （LocalDub 接入完成后成为 aa-workflow docs example 的真实素材）。库侧仍不
+  定义（构造权/单实现者/面未定三论据不变，见 §6）。
 - **「消费者自定义 view trait」的正解 = 接入后教学**：生态惯例是 context/handle
   用具体类型（tokio Handle / Temporal ctx / axum extractor），trait 只在多实现者
   是设计目的处由库定义（tower Service）；六边形原则下端口属于消费方——LocalDub
@@ -154,8 +164,10 @@
    三选一 / output_mode 双分支）+ 磁盘存在性仲裁型（asr 回退链 / split_audio
    回退），回退候选全部指向同一上游子树 → **`DagShape` 用 union graph 可行**；
    文件级仲裁留在装配层，不进图。
-3. **步骤签名两参数**（`sc: MyStepCtx, deps: XxxDeps`）+ MyStepCtx 镜像形状 +
-   装配层注入（见 §3 Phase 1）；`StepCtxView` trait 否决（过渡意图）。
+3. **步骤签名两参数**（`sc: impl StepCtxView, deps: XxxDeps`）+ 双 trait 消歧
+   （CtxView/StepCtxView，`ctx` 限定符标记工作流级出处）+ 装配层注入（见
+   §3 Phase 1）；**params 下发否决**——工作流 input 是工作流级事实，不切片
+   成步骤参数（经 ctx 限定访问保持出处）。
 
 ### 仍待拍板
 
