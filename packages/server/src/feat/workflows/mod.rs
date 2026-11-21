@@ -71,7 +71,7 @@ pub async fn continue_workflow(video_dir: String, from_step: String) -> Result<(
         .ok_or_else(|| "input 缺少 workflow 字段".to_string())?;
     workflow["video_dir"] = serde_json::Value::String(abs_video_dir_str.clone());
     workflow["action"] = serde_json::Value::String("continue".into());
-    workflow["continueFrom"] = serde_json::Value::String(from_step);
+    workflow["continue_from"] = serde_json::Value::String(from_step);
 
     let input: Input =
         serde_json::from_value(input_value).map_err(|e| format!("parse input failed: {}", e))?;
@@ -98,11 +98,11 @@ pub async fn continue_workflow(video_dir: String, from_step: String) -> Result<(
     }
 }
 
-/// 重新生成指定 TTS 段 (续跑模式: continueFrom=tts + steps.tts.regenIndices)。
+/// 重新生成指定 TTS 段 (续跑模式: continue_from=tts + steps.tts.regenIndices)。
 ///
 /// `continue_run=true` 时重生成后继续跑完整个 pipeline (镜像 input.jsonc 手工改
 /// `regenIndices` 后「从 tts 继续运行」); `false` 时只重生成, 到 tts 阶段结束即停
-/// (targetStep=tts, 供先听效果再手动继续)。
+/// (target_step=tts, 供先听效果再手动继续)。
 #[fnrpc::rpc_mutate]
 pub async fn regen_tts(
     video_dir: String,
@@ -125,13 +125,13 @@ pub async fn regen_tts(
         .ok_or_else(|| "input 缺少 workflow 字段".to_string())?;
     workflow["video_dir"] = serde_json::Value::String(abs_video_dir_str.clone());
     workflow["action"] = serde_json::Value::String("continue".into());
-    workflow["continueFrom"] = serde_json::Value::String("tts".into());
+    workflow["continue_from"] = serde_json::Value::String("tts".into());
     if continue_run {
-        // 继续跑完整个 pipeline: 清掉可能残留的 targetStep, 不中途停止。
-        workflow["targetStep"] = serde_json::Value::Null;
+        // 继续跑完整个 pipeline: 清掉可能残留的 target_step, 不中途停止。
+        workflow["target_step"] = serde_json::Value::Null;
     } else {
         // 只重生成: 跑到 tts 阶段结束即停。
-        workflow["targetStep"] = serde_json::Value::String("tts".into());
+        workflow["target_step"] = serde_json::Value::String("tts".into());
     }
 
     // 合并 regenIndices 到 steps.tts (镜像手工在 input.jsonc 里配置 regenIndices)。

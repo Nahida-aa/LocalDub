@@ -715,7 +715,7 @@ mod tests {
     #[test]
     fn passthrough_targets_source_language() {
         let input = input_at(json!({
-            "input": {"workflow": {"sourceLang": "zh"},
+            "input": {"workflow": {"source_lang": "zh"},
                       "steps": {"translate": {"enabled": false}}}
         }));
         let (src, dst) = resolve_language("/x", &input).unwrap();
@@ -731,7 +731,7 @@ mod tests {
     #[test]
     fn passthrough_overrides_explicit_target_lang() {
         let input = input_at(json!({
-            "input": {"workflow": {"sourceLang": "zh", "targetLang": "vi"},
+            "input": {"workflow": {"source_lang": "zh", "target_lang": "vi"},
                       "steps": {"translate": {"enabled": false}}}
         }));
         let (_, dst) = resolve_language("/x", &input).unwrap();
@@ -744,7 +744,7 @@ mod tests {
     /// 全部走直通，静默不翻译。
     #[test]
     fn missing_enabled_defaults_to_translating() {
-        let input = input_at(json!({"input": {"workflow": {"sourceLang": "zh"}}}));
+        let input = input_at(json!({"input": {"workflow": {"source_lang": "zh"}}}));
         let (_, dst) = resolve_language("/x", &input).unwrap();
         assert_eq!(dst, "en", "缺省 enabled=true → 正常推断（源 zh → en）");
     }
@@ -753,7 +753,7 @@ mod tests {
     #[test]
     fn explicit_target_wins_when_translating() {
         let input = input_at(json!({
-            "input": {"workflow": {"sourceLang": "zh", "targetLang": "vi"},
+            "input": {"workflow": {"source_lang": "zh", "target_lang": "vi"},
                       "steps": {"translate": {"enabled": true}}}
         }));
         let (_, dst) = resolve_language("/x", &input).unwrap();

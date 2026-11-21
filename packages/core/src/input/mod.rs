@@ -126,9 +126,9 @@ mod tests {
         );
     }
 
-    /// **wire 键名双向钉住**：`WorkflowArgs` 是 `rename_all = "camelCase"`，
-    /// 但 `output_mode` 用显式 `rename` 覆盖成 snake_case（state.json 侧同名）。
-    /// 若有人删掉那个 rename，这里会红——否则键名会静默变成 `outputMode`。
+    /// **wire 键名双向钉住**：`WorkflowArgs` 是 `rename_all = "snake_case"`，
+    /// `output_mode` 走默认规则（无显式 rename）。这里双向钉住：反序列化认
+    /// `output_mode`，序列化也产出 `output_mode`，不冒出 camelCase 变体。
     #[test]
     fn output_mode_wire_key_is_snake_case_both_ways() {
         let input: Input =
@@ -148,11 +148,11 @@ mod tests {
     }
 
     #[test]
-    fn camel_case_field_names() {
+    fn snake_case_field_names() {
         let input: Input =
-            serde_json::from_str(r#"{"workflow":{"sourceLang":"zh","targetStep":"mix_video"}}"#)
+            serde_json::from_str(r#"{"workflow":{"source_lang":"zh","target_step":"mix_video"}}"#)
                 .unwrap();
-        // sourceLang 是开放字符串 (源语言是"事实", 不受 23 种翻译目标语言限制)
+        // source_lang 是开放字符串 (源语言是"事实", 不受 23 种翻译目标语言限制)
         assert_eq!(
             input.workflow.as_ref().unwrap().source_lang,
             Some(crate::r#const::lang::LangCode::from("zh"))

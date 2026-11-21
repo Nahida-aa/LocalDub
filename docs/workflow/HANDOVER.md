@@ -94,10 +94,15 @@ AGENTS.md 的 dub 正例表述同步。
 1. **`AtomicBool` 派生 `Default` = `false`**——「缺省健康」变「缺省全故障」，库示例
    全红过一次（`ServiceHealth` 已手写 Default 并留 ⚠️ 注释）。凡「默认应为真」的
    布尔包装，Default 一律手写。
-2. **`WorkflowArgs` wire 名是 camelCase**（`rename_all = "camelCase"`；`output_mode`
-   / `subtitle_source` 是显式 snake rename 的特例）——测试夹具写 `"video_dir"`
-   从未生效过（`videoDir` 才对），旧签名显式传参把它掩盖了。写 fixture 先查
-   rename 属性。
+2. **wire 名 camelCase 是历史遗留，已改 snake_case**（2026-11-22）：`WorkflowArgs`
+   原是 `rename_all = "camelCase"`（`output_mode` / `subtitle_source` 曾靠显式 `rename`
+   覆盖成 snake_case），2026-11-22 起统一为 `rename_all = "snake_case"` 并删掉那两个
+   显式 rename；`input.schema.json` 由 `gen-input-schema` 重新生成，example / TS 表单 /
+   server 侧构造的 workflow 键同步为 snake_case（`video_dir` / `source_lang` /
+   `target_lang` / `continue_from` / `target_step` / `queue_id` / `step_name`）。
+   **注意 `steps.*` 子结构（如 `TranslateArgs.targetLang` / `CheckArgs.videoDir`）仍是
+   camelCase，不在本次改动范围。** 写 fixture / 改 wire 名前先查对应**结构体声明紧邻的**
+   `serde(rename_all)`（别拿同文件别处的属性来套）。
 3. **闭包 shadow-then-move 陷阱**: `let env = env.clone();` 之后下一个 clone 读的是
    **已移动的绑定**——多闭包消费同一 handle 时，用独立命名从稳定绑定克隆
    （同 `let st = Arc::clone(&state)` 的模式）。

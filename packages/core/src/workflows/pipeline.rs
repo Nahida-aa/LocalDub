@@ -297,7 +297,7 @@ mod tests {
             json!({
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"output_mode": "subtitle", "targetStep": "separate", "video_dir": dir},
+                "input": {"workflow": {"output_mode": "subtitle", "target_step": "separate", "video_dir": dir},
                           "steps": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}, "mix_video": {"enabled": false}}},
                 "output_mode": "subtitle"
             }),

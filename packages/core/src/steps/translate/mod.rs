@@ -475,7 +475,7 @@ mod tests {
             .to_string_lossy()
             .to_string();
         let _ = std::fs::remove_dir_all(&dir);
-        let input = at(&dir, None, json!({"workflow": {"sourceLang": "ja"}}));
+        let input = at(&dir, None, json!({"workflow": {"source_lang": "ja"}}));
         let (src, dst) = resolve_language(&dir, &input).unwrap();
         assert_eq!(src, "ja");
         assert_eq!(dst, "zh");
@@ -761,7 +761,7 @@ mod tests {
 
         // input 里给了 workflow.targetLang（配置），但 translate 还没落定事实——
         // 正是要区分的两件事。
-        let input = at(&dir, None, json!({"workflow": {"targetLang": "vi"}}));
+        let input = at(&dir, None, json!({"workflow": {"target_lang": "vi"}}));
         assert!(
             out::TranslateOutput::read(&dir).unwrap().is_none(),
             "前置条件: translate 还没写过 out.json"
@@ -799,7 +799,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
 
         // translate 落定的事实是 zh；input 里要求 vi —— resolve_language 会算出 vi。
-        let input = at(&dir, None, json!({"workflow": {"targetLang": "vi"}}));
+        let input = at(&dir, None, json!({"workflow": {"target_lang": "vi"}}));
         out::TranslateOutput::write(&dir, "zh").unwrap();
 
         let ti = args::TranslateInput::new(&dir, &input).expect("构造不该失败");

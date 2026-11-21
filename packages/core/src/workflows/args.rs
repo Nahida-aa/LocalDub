@@ -206,7 +206,7 @@ impl SubtitleSource {
 
 /// workflow 参数 (镜像 workflowArgsSchema)
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct WorkflowArgs {
     /// 任务操作: start=开始, continue=继续, status=显示状态, get_group_list=列出分组
     pub action: Option<WorkflowAction>,
@@ -236,18 +236,10 @@ pub struct WorkflowArgs {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parallel: Option<bool>,
     /// 任务模式, dub 配音, subtitle 仅字幕
-    ///
-    /// **显式 `rename` 覆盖 `rename_all = "camelCase"`**：本字段的 wire 名沿用
-    /// snake_case（`"output_mode"`），与其余 camelCase 字段不一致——这是刻意的，
-    /// 因为 state.json 侧的 `output_mode` 字段也已是 snake_case。
-    #[serde(default, rename = "output_mode")]
+    #[serde(default)]
     pub output_mode: OutputMode,
     /// 字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合)
-    ///
-    /// **显式 `rename` 覆盖 `rename_all = "camelCase"`**：wire 名沿用 snake_case
-    /// （`"subtitle_source"`），与 `output_mode` 同理——input.json 与 state.json
-    /// 侧字段名保持一套风格。
-    #[serde(default, rename = "subtitle_source")]
+    #[serde(default)]
     pub subtitle_source: SubtitleSource,
     /// 是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。
     /// 注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。

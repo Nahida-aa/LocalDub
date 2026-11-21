@@ -36,13 +36,13 @@ type FormState = {
   command: string;
   action: string;
   url: string;
-  videoDir: string;
-  continueFrom: string;
-  targetStep: string;
+  video_dir: string;
+  continue_from: string;
+  target_step: string;
   output_mode: string;
   subtitle_source: string;
-  sourceLang: string;
-  targetLang: string;
+  source_lang: string;
+  target_lang: string;
   serverAction: string;
   serverName: string;
 };
@@ -51,13 +51,13 @@ const emptyForm = (): FormState => ({
   command: "workflow",
   action: "",
   url: "",
-  videoDir: "",
-  continueFrom: "",
-  targetStep: "",
+  video_dir: "",
+  continue_from: "",
+  target_step: "",
   output_mode: "",
   subtitle_source: "",
-  sourceLang: "",
-  targetLang: "",
+  source_lang: "",
+  target_lang: "",
   serverAction: "",
   serverName: "",
 });
@@ -87,13 +87,13 @@ export function InputFormSettings() {
         set(["command"], value.command);
         set(["workflow", "action"], value.action);
         set(["workflow", "url"], value.url);
-        set(["workflow", "videoDir"], value.videoDir);
-        set(["workflow", "continueFrom"], value.continueFrom);
-        set(["workflow", "targetStep"], value.targetStep);
+        set(["workflow", "video_dir"], value.video_dir);
+        set(["workflow", "continue_from"], value.continue_from);
+        set(["workflow", "target_step"], value.target_step);
         set(["workflow", "output_mode"], value.output_mode);
         set(["workflow", "subtitle_source"], value.subtitle_source);
-        set(["workflow", "sourceLang"], value.sourceLang);
-        set(["workflow", "targetLang"], value.targetLang);
+        set(["workflow", "source_lang"], value.source_lang);
+        set(["workflow", "target_lang"], value.target_lang);
         set(["servers", "action"], value.serverAction);
         set(["servers", "name"], value.serverName);
         await writeMut.mutateAsync([INPUT_PATH, next]);
@@ -118,13 +118,13 @@ export function InputFormSettings() {
       command: typeof p.command === "string" ? p.command : "workflow",
       action: String(t.action ?? ""),
       url: String(t.url ?? ""),
-      videoDir: String(t.videoDir ?? ""),
-      continueFrom: String(t.continueFrom ?? ""),
-      targetStep: String(t.targetStep ?? ""),
+      video_dir: String(t.video_dir ?? ""),
+      continue_from: String(t.continue_from ?? ""),
+      target_step: String(t.target_step ?? ""),
       output_mode: String(t.output_mode ?? ""),
       subtitle_source: String(t.subtitle_source ?? ""),
-      sourceLang: String(t.sourceLang ?? ""),
-      targetLang: String(t.targetLang ?? ""),
+      source_lang: String(t.source_lang ?? ""),
+      target_lang: String(t.target_lang ?? ""),
       serverAction: String(s.action ?? ""),
       serverName: String(s.name ?? ""),
     });
@@ -184,10 +184,10 @@ export function InputFormSettings() {
                 />
               )}
             </form.Field>
-            <form.Field name="videoDir">
+            <form.Field name="video_dir">
               {(field) => (
                 <CardInput
-                  title="workflow.videoDir"
+                  title="workflow.video_dir"
                   description="workflow 目录 (continue / enqueue_continue / status 用)"
                   field={field}
                   placeholder="workfolder/大/90"
@@ -195,20 +195,20 @@ export function InputFormSettings() {
               )}
             </form.Field>
             <h3>续跑范围</h3>
-            <form.Field name="continueFrom">
+            <form.Field name="continue_from">
               {(field) => (
                 <CardSelect
-                  title="workflow.continueFrom"
+                  title="workflow.continue_from"
                   description="从哪个 step 开始续跑 (空 = 不指定)"
                   field={field}
                   options={STEPS}
                 />
               )}
             </form.Field>
-            <form.Field name="targetStep">
+            <form.Field name="target_step">
               {(field) => (
                 <CardSelect
-                  title="workflow.targetStep"
+                  title="workflow.target_step"
                   description="跑到此 step 后停止 (空 = 跑到最后)"
                   field={field}
                   options={STEPS}
@@ -236,10 +236,10 @@ export function InputFormSettings() {
                 />
               )}
             </form.Field>
-            <form.Field name="sourceLang">
+            <form.Field name="source_lang">
               {(field) => (
                 <CardSelect
-                  title="workflow.sourceLang"
+                  title="workflow.source_lang"
                   description="源语言 (空 = 自动; 列表外如 it/uk 需在 input.jsonc 文本页填)"
                   field={field}
                   options={LANGS}
@@ -247,10 +247,10 @@ export function InputFormSettings() {
                 />
               )}
             </form.Field>
-            <form.Field name="targetLang">
+            <form.Field name="target_lang">
               {(field) => (
                 <CardSelect
-                  title="workflow.targetLang"
+                  title="workflow.target_lang"
                   description="目标语言 (空 = 自动)"
                   field={field}
                   options={LANGS}
