@@ -68,12 +68,12 @@ pub fn step_separate_after(input: &SeparateAfterInput) -> anyhow::Result<()> {
     }
 
     // 2. 按 asr 配置生成 sidechain 混音人声
-    let asr_cfg = &input.args;
-    let use_separated = asr_cfg.use_separated;
-    let mix_mode = asr_cfg.mix_mode;
-    let reduce_bgm = asr_cfg.reduce_bgm;
-    let sc = asr_cfg.sidechain_compress.clone();
-    let use_gate = asr_cfg.use_gate;
+    let asr_args = &input.args;
+    let use_separated = asr_args.use_separated;
+    let mix_mode = asr_args.mix_mode;
+    let reduce_bgm = asr_args.reduce_bgm;
+    let sc = asr_args.sidechain_compress.clone();
+    let use_gate = asr_args.use_gate;
 
     if use_separated && !matches!(mix_mode, crate::steps::asr::args::MixMode::Vocals) {
         if !vocals_path.exists() {

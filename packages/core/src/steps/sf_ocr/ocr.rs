@@ -27,7 +27,7 @@ pub fn step_sf_ocr(input: &SfOcrInput) -> anyhow::Result<()> {
         },
     )?;
 
-    let cfg = &input.args;
+    let args = &input.args;
     let frame_dir = input.keyframes_dir.as_path();
     if !frame_dir.exists() {
         return Err(anyhow::anyhow!(
@@ -55,8 +55,8 @@ pub fn step_sf_ocr(input: &SfOcrInput) -> anyhow::Result<()> {
     cmd.arg("--dir").arg(&frame_dir);
     cmd.arg("--out").arg(frames_file.as_path());
     cmd.arg("--text-confidence-threshold");
-    cmd.arg(cfg.text_confidence_threshold.to_string());
-    if cfg.subtitle_only {
+    cmd.arg(args.text_confidence_threshold.to_string());
+    if args.subtitle_only {
         cmd.arg("--subtitle-only");
     }
 
@@ -64,8 +64,8 @@ pub fn step_sf_ocr(input: &SfOcrInput) -> anyhow::Result<()> {
         "subtitle-ocr --dir {} --out {} --text-confidence-threshold {} {}",
         frame_dir.display(),
         frames_file.as_path().display(),
-        cfg.text_confidence_threshold,
-        if cfg.subtitle_only {
+        args.text_confidence_threshold,
+        if args.subtitle_only {
             "--subtitle-only"
         } else {
             ""
@@ -101,7 +101,7 @@ pub fn step_sf_ocr(input: &SfOcrInput) -> anyhow::Result<()> {
         frames_file.as_path().display()
     );
 
-    if cfg.cleanup_frames {
+    if args.cleanup_frames {
         let _ = std::fs::remove_dir_all(&frame_dir);
         tracing::info!(target: "sf_ocr", "Keyframes cleaned up");
     }
