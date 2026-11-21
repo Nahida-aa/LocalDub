@@ -56,7 +56,55 @@
 - 调查 15 个步骤函数的接口 / 入参（字段、来源、外部调用、写点）——结果见 §5。
 - 目的: 确认「步骤 = 业务本体 + emit」改造的每一处落点；核实步骤是否零改造可搬。
 
-### Phase 1: 改名 + emit 通道 + 投影器
+### Phase 1: 步骤签名改造（**零行为改动**）
+
+步骤签名从单参数改为引擎预演形状：
+
+```rust
+// 现役：fn step_x(input: &XxxInput) -> Result<()>
+// 目标：fn step_x(sc: MyStepCtx, deps: XxxDeps) -> Result<()>
+```
+
+- **`MyStepCtx` = 引擎 `StepCtx<I, S>` 的过渡镜像**——字段/方法与真实形状
+  **同名**，接入日纯类型替换（body 零改动）。**不发明便捷方法**
+  （`video_dir` 等从 `ctx.input` 取；`emit` 挂在 `ctx` 下——镜像 `RunCtx::emit`
+  的真实位置与签名）：
+
+  ```rust
+  pub struct MyStepCtx {
+      pub ctx: MyRunCtx,
+      pub id: String,          // 幂等键候选（引擎同名同义）
+      pub attempt: usize,
+  }
+  pub struct MyRunCtx {
+      pub input: Input,        // import 回填后的 run 配置（≡ RunCtx::input）
+      // state 位：TState 未拍板，且勘察证明步骤零读取——接入日由 RunCtx.state 补
+      emit: 本地通道 Sender,   // 对应引擎的 pub(crate) engine 字段位
+  }
+  impl MyRunCtx {
+      pub fn emit(&self, name: impl AsRef<str>, value: serde_json::Value) { … }
+  }
+  ```
+
+- **`XxxDeps` = 事实面拆分**：`XxxInput` 按来源拆两半——意图面（args / wf 配置 /
+  video_dir，来自 run input）并入 `sc.ctx.input` 的取用；事实面（约定路径产物 /
+  out.json 事实 / 依赖上游的解析）成为显式的 `XxxDeps`。**入口步骤**
+  （separate / sf_ocr_pre——只依赖 import 事实）无 deps 参数。
+- **解析计算拆半**：`resolve_language` 拆开——src（依赖 `<asr>/out.json` 上游
+  事实）归 Deps 构造；target（来自配置）归 Params/sc 侧。
+- **deps 多来源 = 工作流装配层注入**：dub 模式的三种工作流
+  （asr / sf_ocr / asr_ocr）各自装配——`step_translate` 定义假设不知道自己在
+  哪个工作流，`TranslateDeps { srt_json: NormalizedSrtPath }`（规范化字幕契约
+  单一类型），由各工作流装配层 `From<asr_fix::SrtPath>` / `From<sf_ocr_fix::SrtPath>`
+  / `From<asr_ocr_fix::SrtPath>` 转换注入——**现役 `SubtitleSourcePath` 枚举 +
+  步骤内 dispatch 反转为注入替代分发**。
+- **存在性仲裁上移装配层**：asr 回退链（gated>mixed>vocals）、split_audio
+  （vocals→audio_source）的仲裁从 `XxxInput::new` 移到 Deps 装配点（DAG 序保证
+  上游产物此时已定）；`paths.rs` 单一产生点不变（调用点搬家）。
+- **StepCtxView trait 提案否决**：意图是过渡不是永久解耦——过渡替身按引擎
+  真实形状设计，接入日纯类型替换，无需抽象层。
+
+### Phase 2: emit 通道 + 投影器 + 改名（首个行为变化点）
 
 - `state.json` → `view.json`（各步 `state.json` → 投影器产物）——消除与
   ctx.state 的字面撞名。
@@ -65,14 +113,16 @@
   落盘防抖收在投影器内部）。
 - 职责边界对齐引擎: **步边界事件（Running / Success / Failed）由执行器发**；
   **步骤只发 progress / custom**（与引擎「STEP 事件在耐久边界由引擎发」同构）。
-- `set_step` / `set_workflow` / 直写文件的调用点全部退役——步骤不再碰任何
-  state 文件；`view` 文件唯一写者 = 投影器（并发写问题结构上消失）。
+- `set_step` / `set_workflow` / 直写文件的调用点全部退役（清单见 §5.5，28 处
+  set_step + 3 处 out.json）——步骤不再碰任何 state 文件；`view` 文件唯一写者
+  = 投影器（并发写问题结构上消失）。
 - 崩溃一致性: 投影器是纯函数 `fold(events) → view`，可从事件流重建
   （status 可重建；progress 瞬时，重建后归零）。
 
-### Phase 2: 接入（换源表见 §4）
+### Phase 3: 接入（换源表见 §4）
 
 - parallel.rs / StepDag 退役（`DagShape` + 引擎 dataflow 调度接管）；
+- `MyStepCtx` → `StepCtx<Input, TState>` 类型替换（body 零改动）；
 - 步骤闭包搬进 DAG 节点闭包（`spawn_blocking` 包装阻塞子进程编排）。
 
 ## 4. 接入日换源表
@@ -86,16 +136,28 @@
 | `view.json` / `init.json` / UI | 不改 | **零** |
 | `StepDag` + `parallel.rs` | 退役 | `DagShape`（dag_policies）+ 引擎调度 |
 
-### 待拍板决策
+### 已拍板
+
+1. **Input 一比一镜像 `input.jsonc`**——解析计算（7 字段）依赖上游产物
+   （`resolve_language` / `src_language` 读 `<asr>/out.json`），import 时无法
+   预构建；导入只补身份事实（`workflow.video_dir` 回填——现役实现即如此）。
+   `TInput` = `crate::input::Input`（serde/specta 现成）。
+2. **依赖随参数变，步骤级边收敛为稳定并集**——配置选择型（subtitle_source
+   三选一 / output_mode 双分支）+ 磁盘存在性仲裁型（asr 回退链 / split_audio
+   回退），回退候选全部指向同一上游子树 → **`DagShape` 用 union graph 可行**；
+   文件级仲裁留在装配层，不进图。
+3. **步骤签名两参数**（`sc: MyStepCtx, deps: XxxDeps`）+ MyStepCtx 镜像形状 +
+   装配层注入（见 §3 Phase 1）；`StepCtxView` trait 否决（过渡意图）。
+
+### 仍待拍板
 
 1. **checkpoint 内容**: 产物清单 JSON（旧 `drive_step` 的 `step_artifacts` 形状）
    或 Null（短路只看 checkpoint 存在性）。
 2. **失败语义**: 引擎调度器 fail-fast（`abort_all`）vs LocalDub 裁决
    （一分支失败不取消、全部收尾汇总）——保持裁决需调度器加选项。
-3. **shape 的配置依赖**: translate 上游随 `subtitle_source` 变、mix_video 随
-   `output_mode` 变——`DagShape` 用 union graph 是否可接受（dub 的下游闭包
-   与 config 无关，初步可行）。
-4. **store**: FileExecutionStore（aa-workflow 契约）vs LocalDub 自有 FsRunStore。
+3. **store**: FileExecutionStore（aa-workflow 契约）vs LocalDub 自有 FsRunStore。
+4. **TState 形状**: 极薄身份快照（WorkflowState）还是 `()`——步骤零读取
+   （§5.4 已证实），不影响步骤签名。
 
 ## 5. Phase 0 调查记录（2026-11-21，全部源码核实）
 
@@ -188,3 +250,23 @@
 - `TtsArgs.runtime`：serde default=Cloud 与枚举 `#[default]`=Ggml 不一致（以 serde 为准）；
 - `AsrOcrPreArgs.fps`：步骤体未消费（抽帧步长硬编码）；
 - `MixVideoArgs.srt_path`：步骤体未消费（自行拼 `{target_lang}.srt`）。
+
+### 5.8 import 生命周期（「导入不算流程中」= run input 生产者）
+
+`import_video(input) -> (WorkflowState, Input)`（`workflows/import/download.rs:34`）：
+
+| 产出 | 内容 | 去向 |
+| --- | --- | --- |
+| 物理产物 | `video_source.mp4`（下载/复制+转码）、`audio_source.wav`（抽音频） | 盘（两条根事实的实体） |
+| 身份事实 | video_id（目录名）、title（ytdlp 元数据）、source/url | `state.json` 诞生 |
+| 探测事实 | frame_rate | `state.json` |
+| **修改 Input（唯一一处）** | `input.workflow.video_dir = Some(video_dir)` 身份回填 | 回填后 `write_input` 落盘 init.json；**返回的 Input 与盘上同源同构** |
+| 元数据文件 | `ytdlp_info.json` | translate preprocess 可选读 |
+
+- **依赖导入的数据**：`video_dir`（15 步全部身份入参溯源至此）、两条根事实的
+  物理文件（所有约定路径的实体根）、`ytdlp_info.json`。
+- **链路**：`start_workflow` = `import_video` → 拿回填 Input → 按 ExecPath 分发
+  （Engine 臂开发中）——**import 是 run input 的生产者，不是图的节点**
+  （`StepName` 枚举无 import，与引擎模型一致）。
+- **接入映射**：import → 回填 Input → `start_run(input)` 冻结 → DAG 跑；
+  `sc.ctx.input` 即回填后的 Input。
