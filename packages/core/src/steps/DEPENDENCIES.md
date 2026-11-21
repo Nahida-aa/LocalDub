@@ -314,9 +314,9 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 > 前端 `TranslationTrack.tsx` 写回该文件时**按数组位置重排 idx**（插入/删除段
 > 后位置会变，不能沿用原 `raw.idx`）。
 
-> 存在性语义按 enabled 分：**enabled** 时 srt.json 缺失/空 → 报错（要求翻译
-> 却没有内容 = 上游问题）；**disabled** 时缺失 → 空 segments 直通（上游被
-> 禁用，本来就没有字幕——与旧行为「translate 被移除」的成功语义一致）。
+> 存在性语义**与 enabled 无关**：既然进入 translate，就必须有可翻译的字幕——
+> srt.json 缺失或空 segments 一律就地报错，不产出空 translation.json 把错误
+> 拖到下游。`enabled` 只决定「调 LLM 翻译」还是「原文直通」，两者都要读 srt。
 >
 > 注意：直通时 `{lang}.json` 的旧语言版本**不会被清理**。切换语言
 > 重跑会留下多份（真实数据里已有任务同时存在 `vi.json` 与

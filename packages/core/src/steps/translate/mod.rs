@@ -208,27 +208,20 @@ pub fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow::Resu
     let src_lang_name = lang_name(&src_lang);
     let dst_lang_name = lang_name(&target_lang);
 
-    // srt.json 的存在性语义按 `translate.enabled` 分：
-    // - enabled：缺失/空 → Err（要求翻译却没有可翻译的内容 = 配置或上游问题）
-    // - disabled：缺失 → 空 segments 直通（上游被禁用, 本来就没有字幕）；
-    //   直通把原文写进 translation.json，下游步骤从此只认这一种字幕来源。
-    let srt_exists = deps.srt_path().exists();
-    let srt_segs: Vec<subtitle::SubtitleSegment> = if srt_exists {
-        crate::steps::utils::read_srt_json(deps.srt_path())?
-    } else if args.enabled {
+    // 既然已进入本步骤，就必须有可翻译的字幕——与 translate.enabled 无关：
+    // enabled 只决定「调 LLM 翻译」还是「原文直通」，两者都要读上游 srt。
+    // 缺字幕就地报错，不产出空 translation.json 把错误拖到下游。
+    if !deps.srt_path().exists() {
         return Err(anyhow::anyhow!(
             "规范化字幕 {} 不存在；请先运行 {}（或从该步骤 continue 以重新生成）",
             deps.srt_path().display(),
             deps.producer()
         ));
-    } else {
-        Vec::new()
-    };
-    if args.enabled && srt_segs.is_empty() {
-        return Err(anyhow::anyhow!(
-            "{} 无 segments",
-            deps.srt_path().display()
-        ));
+    }
+    let srt_segs: Vec<subtitle::SubtitleSegment> =
+        crate::steps::utils::read_srt_json(deps.srt_path())?;
+    if srt_segs.is_empty() {
+        return Err(anyhow::anyhow!("{} 无 segments", deps.srt_path().display()));
     }
     let texts: Vec<String> = srt_segs.iter().map(|s| s.text.trim().to_string()).collect();
 
