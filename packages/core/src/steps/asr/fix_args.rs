@@ -13,7 +13,7 @@ use crate::steps::utils::paths::asr::AsrPath;
 
 /// asr 阶段修正参数。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AsrFixArgs {
     /// LLM 修正参数 (flatten, 扁平展开为 llmModel / llmApiBase / domainHint / llmFix)
     #[serde(default, flatten)]

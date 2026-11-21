@@ -317,14 +317,14 @@ mod tests {
             "workflow": { "action": "start", "output_mode": "dub", "subtitle_source": "sf_ocr" },
             "steps": {
                 "mix_video": {
-                    "fontSize": 21.4,
-                    "marginV": 45.0,
+                    "font_size": 21.4,
+                    "margin_v": 45.0,
                     "font": "Noto Sans CJK SC Medium",
                     "shadow": 1.1,
-                    "bgmGain": -9,
+                    "bgm_gain": -9,
                 },
                 "mix_audio": {
-                    "maxSpeed": 1.55,
+                    "max_speed": 1.55,
                 },
             },
         }"#;

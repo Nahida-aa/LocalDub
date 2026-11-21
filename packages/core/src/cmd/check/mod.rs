@@ -20,7 +20,7 @@ use crate::input::Input;
 ///
 /// TS: `z.object({ video_dir: z.string().optional(), type: z.enum(["video","asr","font"]).optional().default("video") })`。
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CheckArgs {
     /// 任务目录 (video/asr 检查必需)
     #[serde(default)]

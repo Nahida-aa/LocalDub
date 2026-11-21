@@ -259,12 +259,12 @@ mod tests {
     }
 
     #[test]
-    fn read_config_parses_camel_case_fields() {
+    fn read_config_parses_snake_case_fields() {
         let input = input_of(json!({"steps": {"split_audio": {
-            "vadAlign": true,
-            "startPadMs": 150,
-            "endPadMs": 400,
-            "vocalsFilePath": "/v.wav"
+            "vad_align": true,
+            "start_pad_ms": 150,
+            "end_pad_ms": 400,
+            "vocals_file_path": "/v.wav"
         }}}));
         let cfg = SplitAudioArgs::from_input(&input);
         assert!(cfg.vad_align);

@@ -552,9 +552,9 @@ mod tests {
 
     #[test]
     fn step_asr_missing_input_errors() {
-        // useSeparated=false 且 video_source 不存在 → 报错 (不静默跳过)
+        // use_separated=false 且 video_source 不存在 → 报错 (不静默跳过)
         let (dir, input) =
-            test_input(json!({"steps": {"asr": {"enabled": true, "useSeparated": false}}}));
+            test_input(json!({"steps": {"asr": {"enabled": true, "use_separated": false}}}));
         let r = step_asr(&AsrInput::new(&dir, &input));
         assert!(r.is_err(), "video source 缺失应报错");
         assert!(r.unwrap_err().to_string().contains("ASR input not found"));
@@ -572,23 +572,23 @@ mod tests {
         let (dir, _input) = test_input(json!({}));
         match AsrInput::new(
             &dir,
-            &input_of(json!({"useSeparated": true, "vocalAudioPath": "/custom/vocals.wav"})),
+            &input_of(json!({"use_separated": true, "vocal_audio_path": "/custom/vocals.wav"})),
         )
         .audio_path
         {
             AsrSourceAudioPath::Custom(p) => {
                 assert_eq!(p, std::path::PathBuf::from("/custom/vocals.wav"))
             }
-            other => panic!("useSeparated+custom 应产出 Custom, 实际 {other:?}"),
+            other => panic!("use_separated+custom 应产出 Custom, 实际 {other:?}"),
         }
 
-        match AsrInput::new(&dir, &input_of(json!({"useSeparated": true}))).audio_path {
+        match AsrInput::new(&dir, &input_of(json!({"use_separated": true}))).audio_path {
             AsrSourceAudioPath::Separated { .. } => {}
-            other => panic!("useSeparated 应产出 Separated, 实际 {other:?}"),
+            other => panic!("use_separated 应产出 Separated, 实际 {other:?}"),
         }
 
-        // useSeparated=false → 约定拼法 `{video_dir}/video_source.mp4`
-        match AsrInput::new(&dir, &input_of(json!({"useSeparated": false}))).audio_path {
+        // use_separated=false → 约定拼法 `{video_dir}/video_source.mp4`
+        match AsrInput::new(&dir, &input_of(json!({"use_separated": false}))).audio_path {
             AsrSourceAudioPath::Raw(p) => assert_eq!(
                 p.as_path(),
                 std::path::Path::new(&dir).join("video_source.mp4")

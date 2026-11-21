@@ -41,8 +41,8 @@ bun run run
       "targetLang": "vi"
     },
     "mix_video": {
-      "fontSize": 19,
-      "marginV": 34
+      "font_size": 19,
+      "margin_v": 34
     }
   }
 }

@@ -12,7 +12,7 @@ use crate::steps::utils::paths::{split_audio, tts};
 /// `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`
 /// 以保证两种路径下默认值一致 (与 `input::steps::Asr` 同款处理)。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct MixAudioArgs {
     /// TTS 音频最大变速比, 1.0=不变速; 默认 1.35
     #[serde(default = "default_max_speed")]

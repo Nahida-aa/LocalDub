@@ -16,7 +16,7 @@ use crate::steps::utils::paths::sf_ocr;
 /// `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`
 /// 以保证两种路径下默认值一致 (与 `input::steps::Asr` 同款处理)。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct OcrFixArgs {
     /// 字幕段置信度阈值（0-1）：subtitle-ocr-post filter-segment 用 adjusted_confidence_threshold 过滤，低于此值丢弃；默认 0.45
     #[serde(default = "default_adjusted_confidence_threshold")]

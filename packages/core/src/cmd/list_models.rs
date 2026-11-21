@@ -74,7 +74,7 @@ mod tests {
     fn api_base_respects_explicit_value() {
         // 显式配置时优先 (镜像 TS `apiBase || env` 首项)。
         let input: Input = serde_json::from_str(
-            r#"{"command":"listModels","steps":{"translate":{"apiBase":"http://example.com/v1"}}}"#,
+            r#"{"command":"listModels","steps":{"translate":{"api_base":"http://example.com/v1"}}}"#,
         )
         .unwrap();
         let cfg_base = &input.steps.translate.api_base;

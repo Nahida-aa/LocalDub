@@ -49,7 +49,7 @@ pub fn alignment_to_ffmpeg(alignment: Alignment) -> u8 {
 /// `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`
 /// 以保证两种路径下默认值一致 (与 `input::steps::Asr` 同款处理)。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct MixVideoArgs {
     /// 字幕字号, 不填则自动: 竖屏 12(zh)/9(其他) ← 横屏 24(zh)/18(其他)
     ///

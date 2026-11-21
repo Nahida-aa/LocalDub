@@ -166,7 +166,7 @@ mod tests {
     #[test]
     fn sf_ocr_flatten_fields_deserialize() {
         let input: Input = serde_json::from_str(
-            r#"{"steps":{"sf_ocr":{"textConfidenceThreshold":0.6},"sf_ocr_fix":{"llmFix":true,"llmModel":"x"}}}"#,
+            r#"{"steps":{"sf_ocr":{"text_confidence_threshold":0.6},"sf_ocr_fix":{"llm_fix":true,"llm_model":"x"}}}"#,
         )
         .unwrap();
         assert_eq!(input.steps.sf_ocr.text_confidence_threshold, 0.6);

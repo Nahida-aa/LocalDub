@@ -474,7 +474,7 @@ mod tests {
         assert_eq!(cfg.regen_indices, None);
 
         let cfg2 = TtsArgs::from_input(&input_at(
-            json!({"steps": {"tts": {"skipExisting": false, "refAudioX2": true, "regenIndices": [1,2,3]}}}),
+            json!({"steps": {"tts": {"skip_existing": false, "ref_audio_x2": true, "regen_indices": [1,2,3]}}}),
         ));
         assert!(!cfg2.skip_existing);
         assert!(cfg2.ref_audio_x2);

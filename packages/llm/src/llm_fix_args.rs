@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// LLM 修正参数。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct LlmFixArgs {
     /// LLM 模型名
     #[serde(default = "default_llm_model")]

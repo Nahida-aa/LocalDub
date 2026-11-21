@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// 注意: 父结构用 `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写
 /// `impl Default` 以保证默认值一致 (与 `input::steps::Asr` 同款处理)。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AsrOcrArgs {
     /// OCR 参数 (flatten, 继承 SfOcrArgs 的全部扁平字段)
     #[serde(default, flatten)]

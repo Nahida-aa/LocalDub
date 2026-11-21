@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 steps 配置推断)。
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct EnvArgs {
     /// 动作: check (默认) / ensure
     #[serde(default)]

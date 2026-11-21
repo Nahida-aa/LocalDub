@@ -437,7 +437,7 @@ mod tests {
             json!({
                 "workflow": {"id":"t","video_dir":"/x","url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"steps": {"split_audio": {"vadAlign": true}}}
+                "input": {"steps": {"split_audio": {"vad_align": true}}}
             }),
         );
         assert!(has(&steps_of(&c2), "split_audio"));

@@ -100,8 +100,10 @@ AGENTS.md 的 dub 正例表述同步。
    显式 rename；`input.schema.json` 由 `gen-input-schema` 重新生成，example / TS 表单 /
    server 侧构造的 workflow 键同步为 snake_case（`video_dir` / `source_lang` /
    `target_lang` / `continue_from` / `target_step` / `queue_id` / `step_name`）。
-   **注意 `steps.*` 子结构（如 `TranslateArgs.targetLang` / `CheckArgs.videoDir`）仍是
-   camelCase，不在本次改动范围。** 写 fixture / 改 wire 名前先查对应**结构体声明紧邻的**
+   同日 `steps.*` 全部子结构体（含 `llm::LlmFixArgs` / `CheckArgs` / `CookieArgs` /
+   `EnvArgs`）也统一为 snake_case，example / 测试夹具 / server 构造 JSON 同步。
+   **`device-rs` / `time` 里走 fnrpc bindings 的结构体仍是 camelCase**（不在 input
+   配置面，未改）。写 fixture / 改 wire 名前先查对应**结构体声明紧邻的**
    `serde(rename_all)`（别拿同文件别处的属性来套）。
 3. **闭包 shadow-then-move 陷阱**: `let env = env.clone();` 之后下一个 clone 读的是
    **已移动的绑定**——多闭包消费同一 handle 时，用独立命名从稳定绑定克隆

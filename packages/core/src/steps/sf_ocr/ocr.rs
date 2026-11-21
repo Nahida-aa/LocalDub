@@ -141,9 +141,9 @@ mod tests {
     }
 
     #[test]
-    fn args_camel_case() {
+    fn args_snake_case() {
         let input = input_at(json!({"steps": {"sf_ocr": {
-            "textConfidenceThreshold": 0.7, "subtitleOnly": false, "cleanupFrames": true
+            "text_confidence_threshold": 0.7, "subtitle_only": false, "cleanup_frames": true
         }}}));
         let cfg = SfOcrArgs::from_input(&input);
         assert_eq!(cfg.text_confidence_threshold, 0.7);

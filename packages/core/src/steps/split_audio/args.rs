@@ -12,9 +12,9 @@ use crate::steps::utils::paths::{separate, translate};
 ///
 /// 注意: `#[serde(default = "fn")]` 仅在字段级反序列化时生效; 当父结构用
 /// `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故手写 `impl Default`
-/// 以保证两种路径下默认值一致 (vadAlign=false / startPadMs=100 / endPadMs=300)。
+/// 以保证两种路径下默认值一致 (vad_align=false / start_pad_ms=100 / end_pad_ms=300)。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct SplitAudioArgs {
     /// 是否启用静音检测对齐: 修正 segments 前后静音导致的偏移
     #[serde(default)]
@@ -205,7 +205,7 @@ mod tests {
 
         let audio_path = audio_of(
             &dir,
-            serde_json::json!({"vocalsFilePath": "/tmp/my_vocals.wav"}),
+            serde_json::json!({"vocals_file_path": "/tmp/my_vocals.wav"}),
         );
         assert!(matches!(audio_path, SplitAudioSourcePath::Custom(_)));
         assert_eq!(audio_path.as_path().to_string_lossy(), "/tmp/my_vocals.wav");

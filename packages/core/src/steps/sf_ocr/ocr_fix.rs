@@ -181,9 +181,9 @@ mod tests {
     }
 
     #[test]
-    fn args_camel_case_and_llm_fix() {
+    fn args_snake_case_and_llm_fix() {
         let input = input_at(json!({"steps": {"sf_ocr_fix": {
-            "adjustedConfidenceThreshold": 0.6, "llmFix": true
+            "adjusted_confidence_threshold": 0.6, "llm_fix": true
         }}}));
         let cfg = OcrFixArgs::from_input(&input);
         assert_eq!(cfg.adjusted_confidence_threshold, 0.6);

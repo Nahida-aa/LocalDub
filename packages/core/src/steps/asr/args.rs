@@ -45,7 +45,7 @@ pub enum MixMode {
 
 /// 侧链压缩器参数 (镜像 TS `sidechainCompress`)
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct SidechainCompress {
     /// 压缩器阈值, 默认 0.1
     #[serde(default = "default_threshold")]
@@ -98,7 +98,7 @@ pub enum VadModel {
 
 /// asr 阶段参数。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct AsrArgs {
     /// 推理运行时, 默认 pytorch
     #[serde(default = "default_runtime")]

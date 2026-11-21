@@ -29,7 +29,7 @@ pub enum TtsDevice {
 /// 枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),
 /// 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct TtsArgs {
     /// 运行时后端; 默认 cloud
     #[serde(default = "default_runtime")]

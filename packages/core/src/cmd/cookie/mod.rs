@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 /// cookie 命令参数 (镜像 TS `CookieArgsSchema`: action=set + service=youtube + content 可选)。
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct CookieArgs {
     /// 动作: set (当前仅支持)
     #[serde(default)]

@@ -16,7 +16,7 @@ use crate::workflows::args::SubtitleSource;
 /// 阶段, 不需要 step 级覆盖)。旧的 `steps.translate.target_lang` 已移除,
 /// deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct TranslateArgs {
     /// OpenAI 兼容端点
     #[serde(default = "openai_base_url")]

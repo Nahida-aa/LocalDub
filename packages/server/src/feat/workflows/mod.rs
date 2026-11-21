@@ -140,10 +140,10 @@ pub async fn regen_tts(
             let tts = steps_obj
                 .entry("tts".to_string())
                 .or_insert_with(|| serde_json::json!({}));
-            tts["regenIndices"] = serde_json::json!(seg_indices);
+            tts["regen_indices"] = serde_json::json!(seg_indices);
         }
         None => {
-            input_value["steps"] = serde_json::json!({ "tts": { "regenIndices": seg_indices } });
+            input_value["steps"] = serde_json::json!({ "tts": { "regen_indices": seg_indices } });
         }
     }
 
@@ -187,18 +187,18 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
         },
         "steps": {
             "separate": {"runtime": "burn-tch", "device": "cpu", "always": true},
-            "asr": {"runtime": "ggml", "device": "vulkan", "useSeparated": true,
-                    "mixMode": "sidechain", "vad": true, "vadModel": "silero-v6", "wordsOutput": true},
-            "asr_ocr": {"runtime": "ort-rust", "textScore": 0.45},
-            "asr_ocr_fix": {"is_resample": false, "llmFix": true},
-            "asr_fix": {"llmFix": true},
-            "sf_ocr_fix": {"llmFix": true},
+            "asr": {"runtime": "ggml", "device": "vulkan", "use_separated": true,
+                    "mix_mode": "sidechain", "vad": true, "vad_model": "silero-v6", "words_output": true},
+            "asr_ocr": {"runtime": "ort-rust", "text_confidence_threshold": 0.45},
+            "asr_ocr_fix": {"is_resample": false, "llm_fix": true},
+            "asr_fix": {"llm_fix": true},
+            "sf_ocr_fix": {"llm_fix": true},
             "translate": {"enabled": true},
-            "split_audio": {"startPadMs": 100, "endPadMs": 0, "vadAlign": false},
+            "split_audio": {"start_pad_ms": 100, "end_pad_ms": 0, "vad_align": false},
             "tts": {"runtime": "cloud", "device": "cpu"},
-            "mix_audio": {"maxSpeed": 1.55, "maxAdvanceMs": 300, "maxDelayMs": 300},
-            "mix_video": {"fontSize": 21.4, "marginV": 45,
-                          "font": "Noto Sans CJK SC Medium", "shadow": 1.1, "bgmGain": -9},
+            "mix_audio": {"max_speed": 1.55, "max_advance_ms": 300, "max_delay_ms": 300},
+            "mix_video": {"font_size": 21.4, "margin_v": 45,
+                          "font": "Noto Sans CJK SC Medium", "shadow": 1.1, "bgm_gain": -9},
         }
     });
 

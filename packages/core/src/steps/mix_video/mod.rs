@@ -389,9 +389,9 @@ mod tests {
 
     #[test]
     fn mix_video_args_accepts_decimals() {
-        // 镜像 TS z.number(): fontSize/shadow/marginV/outline 支持小数
+        // 镜像 TS z.number(): font_size/shadow/margin_v/outline 支持小数
         let cfg: MixVideoArgs =
-            serde_json::from_str(r#"{"fontSize":21.4,"shadow":1.1,"marginV":45.5,"outline":0.5}"#)
+            serde_json::from_str(r#"{"font_size":21.4,"shadow":1.1,"margin_v":45.5,"outline":0.5}"#)
                 .expect("小数应可解析");
         assert_eq!(cfg.font_size, Some(21.4));
         assert_eq!(cfg.shadow, 1.1);
