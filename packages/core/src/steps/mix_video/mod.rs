@@ -30,22 +30,6 @@ pub fn step_mix_video(sc: impl StepCtxView, deps: MixVideoDeps) -> anyhow::Resul
     let video_id = crate::steps::utils::video_id(&video_dir).unwrap_or_default();
     let cfg = &input.steps.mix_video;
 
-    if !cfg.enabled {
-        tracing::info!(target: "mix_video", "disabled (mix_video.enabled=false), skipping");
-        set_step_anyhow(
-            &video_dir,
-            "mix_video",
-            StepPatch {
-                status: Some(StepStatus::Success),
-                completed_at: Some(crate::steps::utils::now_iso()),
-                progress: Some(100.0),
-                last_message: Some("Skipped".into()),
-                ..Default::default()
-            },
-        )?;
-        return Ok(());
-    }
-
     let video_file_path = deps
         .video_source_path
         .as_path()

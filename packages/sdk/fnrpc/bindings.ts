@@ -784,8 +784,6 @@ export type MixVideoArgs_Deserialize = {
 	bgm_gain?: number | null,
 	/**  配音增益(dB), 补偿合成语音偏小的听感差; 默认 3 */
 	dub_gain?: number | null,
-	/**  是否启用本阶段 (缺省 true; 设为 false 可跳过 mix_video) */
-	enabled?: boolean,
 };
 
 /**
@@ -835,8 +833,6 @@ export type MixVideoArgs_Serialize = {
 	bgm_gain: number | null,
 	/**  配音增益(dB), 补偿合成语音偏小的听感差; 默认 3 */
 	dub_gain: number | null,
-	/**  是否启用本阶段 (缺省 true; 设为 false 可跳过 mix_video) */
-	enabled: boolean,
 };
 
 /**  单个模型的加载状态 (镜像 TS `ModelStatus.status`)。 */

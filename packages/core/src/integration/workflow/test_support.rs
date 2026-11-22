@@ -28,8 +28,7 @@ pub fn setup_subtitle(dir: &str) -> crate::input::Input {
                     "separate": {"always": false},
                     "asr": {"enabled": false},
                     "asr_fix": {"enabled": false},
-                    "translate": {"enabled": false},
-                    "mix_video": {"enabled": false}
+                    "translate": {"enabled": false}
                 }
             },
             "output_mode": "subtitle"

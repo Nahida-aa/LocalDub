@@ -114,12 +114,13 @@ AGENTS.md 的 dub 正例表述同步。
 3. **Phase 3 接入**: 换源表 §4；parallel.rs / StepDag 退役（`DagShape` + 引擎调度）；
    `MyStepCtx → StepCtx<Input, TState>` 类型替换。
 4. **四个待拍板**（§4）——建议在 Phase 2 结束、Phase 3 开工前逐项定。
-5. **`mix_video.enabled=false` 是可疑设计**（2026-11-22 发现，未处理）：mix_video 是
-   最后成片步骤，"跳过"意味着跑完整条流水线却没有成片，没有正常场景需要它。
-   现状它被多个测试夹具用来「只跑到某步就停」（pipeline.rs 的两处测试、
-   integration/workflow/test_support.rs）——本质是拿配置字段当测试截断开关。
-   应改用显式的 `target_step` / `continue_from` 截断测试，然后删掉该字段与早退分支。
-   本次 Phase 1 迁移保留原行为未动（零行为原则）。
+5. **`mix_video.enabled` 已删除**（2026-11-22）：它不参与 `get_steps`（序列由
+   output_mode + subtitle_source 决定），只在步骤体内做"假成功跳过"，被测试夹具
+   当成截断开关滥用——最后成片步骤本来没有"跳过"的正常场景。字幕模式**不跳过**
+   mix_video（它照样烧字幕，只是不配音；跳过的只有 tts / mix_audio）。
+   已删字段 + `default_enabled()` + 步骤体早退分支，schema / bindings 重生成；
+   pipeline.rs 两处测试改用 `target_step: "separate"` 截断（与测试断言的意图一致），
+   test_support.rs 的死配置一并删除。
 
 ## 5. 陷阱与教训（踩过的，别再踩）
 
