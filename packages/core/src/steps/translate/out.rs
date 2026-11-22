@@ -132,6 +132,9 @@ pub struct TranslatePartialSegment {
 /// 「仅为拼错误信息」）；现在拼法收口在 `LangPath::new`，事实收口在本类型。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 pub struct TranslateOutput {
+    /// 本次落定的源语言（`<asr>/out.json` 实测 > 配置 > 未知，由装配层算好）。
+    /// `out.json` 是源/目标语言的**权威落定事实**；`{lang}.json` 的 meta 是产物自述。
+    pub src_language: String,
     /// 本次落定的目标语言。
     pub target_language: String,
     /// 译文文件路径的自我描述（`translate/{lang}.json`）。
@@ -140,23 +143,24 @@ pub struct TranslateOutput {
 
 impl TranslateOutput {
     /// **内存构造**（不落盘）：路径拼装委托给 [`LangPath::new`]。
-    pub fn for_lang(video_dir: &str, lang: &str) -> Self {
+    pub fn for_lang(video_dir: &str, src_lang: &str, target_lang: &str) -> Self {
         Self {
-            target_language: lang.to_string(),
-            file: LangPath::new(video_dir, lang).as_path().to_path_buf(),
+            src_language: src_lang.to_string(),
+            target_language: target_lang.to_string(),
+            file: LangPath::new(video_dir, target_lang).as_path().to_path_buf(),
         }
     }
 
     /// **登记**本次产物：`translate` 写出译文文件后调用（唯一写者）。
     ///
     /// 幂等：值相同不重写。
-    pub fn write(video_dir: &str, lang: &str) -> anyhow::Result<Self> {
-        let out = Self::for_lang(video_dir, lang);
+    pub fn write(video_dir: &str, src_lang: &str, target_lang: &str) -> anyhow::Result<Self> {
+        let out = Self::for_lang(video_dir, src_lang, target_lang);
         if Self::read(video_dir)?.as_ref() == Some(&out) {
             return Ok(out);
         }
         crate::state::write_step_out(video_dir, "translate", &out).map_err(anyhow::Error::msg)?;
-        tracing::info!(target: "translate", "target_language 已落盘: {lang}");
+        tracing::info!(target: "translate", "语言决策已落盘: {src_lang} → {target_lang}");
         Ok(out)
     }
 
@@ -176,6 +180,11 @@ impl TranslateOutput {
     /// 目标语言（= 落盘事实，非推断）。
     pub fn lang(&self) -> &str {
         &self.target_language
+    }
+
+    /// 源语言（= 落盘事实，非推断）。
+    pub fn src_lang(&self) -> &str {
+        &self.src_language
     }
 }
 

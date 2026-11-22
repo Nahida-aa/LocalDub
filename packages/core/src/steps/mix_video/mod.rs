@@ -292,7 +292,7 @@ mod tests {
             .to_string();
         let _ = std::fs::remove_dir_all(&dir);
         // 配置说 vi、translate 落定的事实是 zh → 以事实为准
-        crate::steps::translate::out::TranslateOutput::write(&dir, "zh").unwrap();
+        crate::steps::translate::out::TranslateOutput::write(&dir, "ja", "zh").unwrap();
 
         let lang = LangPath::from_video_dir(&dir).unwrap().lang().to_string();
         assert_eq!(lang, "zh", "应以落定的事实为准，而非 input 里的 vi");

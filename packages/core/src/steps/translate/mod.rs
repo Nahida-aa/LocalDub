@@ -187,11 +187,11 @@ pub fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow::Resu
     let src_lang = deps.src_lang.code().to_string();
     let target_lang = deps.target_lang.code().to_string();
 
-    // **本文件是全仓唯一登记 target_language 的地方**（见 `TranslateOutput::write`
-    // 的说明）。放在最前：后续所有产物（translation / split_audio / mix_audio /
-    // mix_video）都按这个语言命名，落盘后才能保证「下游读到的」与「translate
-    // 实际写的」是同一个语言。
-    out::TranslateOutput::write(&video_dir, &target_lang)?;
+    // **本文件是全仓唯一登记语言决策（src → target）的地方**（见
+    // `TranslateOutput::write`）。放在最前：后续所有产物（translation /
+    // split_audio / mix_audio / mix_video）都按这个语言命名，落盘后才能保证
+    // 「下游读到的」与「translate 实际写的」是同一个语言。
+    out::TranslateOutput::write(&video_dir, &src_lang, &target_lang)?;
 
     let src_lang_name = lang_name(&src_lang);
     let dst_lang_name = lang_name(&target_lang);
@@ -359,7 +359,7 @@ pub fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow::Resu
         },
     };
 
-    let out = out::TranslateOutput::for_lang(&video_dir, &target_lang);
+    let out = out::TranslateOutput::for_lang(&video_dir, &src_lang, &target_lang);
     if let Some(parent) = out.path().parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", parent.display(), e))?;
@@ -614,10 +614,11 @@ mod tests {
     /// `translation_file_path` 对比，后者已删）。
     #[test]
     fn translate_output_matches_canonical_path() {
-        let out = out::TranslateOutput::for_lang("/w", "vi");
+        let out = out::TranslateOutput::for_lang("/w", "zh", "vi");
         // 字面路径，防注释与实现分叉
         assert_eq!(out.path().to_string_lossy(), "/w/translate/vi.json");
         assert_eq!(out.lang(), "vi");
+        assert_eq!(out.src_lang(), "zh");
         // Display 即路径，错误信息里 {out} 的语义
         assert_eq!(out.to_string(), "/w/translate/vi.json");
     }
@@ -787,7 +788,7 @@ mod tests {
 
         // translate 落定的事实是 zh；input 里要求 vi —— resolve_language 会算出 vi。
         let input = at(&dir, None, json!({"workflow": {"target_lang": "vi"}}));
-        out::TranslateOutput::write(&dir, "zh").unwrap();
+        out::TranslateOutput::write(&dir, "ja", "zh").unwrap();
 
         // ① 两个来源确实可以不同（落定事实 vs 本次推断）
         let (_, resolved) = resolve_language(&dir, &input).unwrap();
@@ -812,7 +813,7 @@ mod tests {
         );
 
         // ③ 显式落盘才改（这是 translate 唯一的写点）
-        out::TranslateOutput::write(&dir, &resolved).unwrap();
+        out::TranslateOutput::write(&dir, "ja", &resolved).unwrap();
         assert_eq!(
             out::TranslateOutput::read(&dir)
                 .unwrap()

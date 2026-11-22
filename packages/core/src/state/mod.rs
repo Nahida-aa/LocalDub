@@ -362,7 +362,11 @@ pub fn write_fixture(video_dir: &str, json: serde_json::Value) -> Input {
         crate::steps::asr::out::AsrOutput::write(video_dir, lang).expect("fixture 写 asr/out.json");
     }
     if let Some(lang) = json.get("target_language").and_then(|v| v.as_str()) {
-        crate::steps::translate::out::TranslateOutput::write(video_dir, lang)
+        let src = json
+            .get("src_language")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+        crate::steps::translate::out::TranslateOutput::write(video_dir, src, lang)
             .expect("fixture 写 translate/out.json");
     }
     input

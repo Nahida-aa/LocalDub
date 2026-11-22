@@ -929,7 +929,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
 
         // 配置层可以写 vi，但 translate 落定的事实是 zh —— 以事实为准
-        crate::steps::translate::out::TranslateOutput::write(&dir, "zh").unwrap();
+        crate::steps::translate::out::TranslateOutput::write(&dir, "ja", "zh").unwrap();
         let p = translate::LangPath::from_video_dir(&dir).unwrap();
         assert_eq!(
             p.as_path().to_string_lossy(),
