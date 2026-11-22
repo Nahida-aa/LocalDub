@@ -28,7 +28,6 @@ use crate::steps::separate::{
 };
 use crate::steps::sf_ocr::args::SfOcrInput;
 use crate::steps::sf_ocr::fix_args::SfOcrFixInput;
-use crate::steps::sf_ocr::pre_args::SfOcrPreInput;
 use crate::steps::sf_ocr::{step_sf_ocr, step_sf_ocr_fix, step_sf_ocr_pre};
 use crate::steps::split_audio::args::SplitAudioDeps;
 use crate::steps::split_audio::step_split_audio;
@@ -152,7 +151,11 @@ pub fn run_step(
             WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?,
         )),
         StepName::SeparateAfter => step_separate_after(&SeparateAfterInput::new(video_dir, input)),
-        StepName::SfOcrPre => step_sf_ocr_pre(&SfOcrPreInput::new(video_dir, input)),
+        StepName::SfOcrPre => step_sf_ocr_pre(MyStepCtx::new(
+            step.as_str(),
+            WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?,
+        ))
+        .map(|_| ()),
         StepName::SfOcr => step_sf_ocr(&SfOcrInput::new(video_dir, input)),
         StepName::SfOcrFix => step_sf_ocr_fix(&SfOcrFixInput::new(video_dir, input)),
         StepName::Translate => {

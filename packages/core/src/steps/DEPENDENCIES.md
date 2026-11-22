@@ -86,7 +86,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | `from_video_dir` | 路径是 `{video_dir}/...` 的**约定拼法**（非 ctx 事实） | 依赖是「上游步骤产出在固定位置」，拼法由 `paths` 类型唯一产生 |
 
 > 同一事实两种取法不该并存：`from_state` 读 ctx（缺失即报错），`from_video_dir` 按约定
-> 拼（不查证存在性，交由 step 主体 `exists()` 判断）。`SfOcrPreInput` 这类同时需要
+> 拼（不查证存在性，交由 step 主体 `exists()` 判断）。`SfOcrFixInput` 这类同时需要
 > 「ctx 事实 + 约定产物」的结构，用 `from_state` 取 ctx 事实、内部再
 > `::new(video_dir)` 拼约定产物，不混用两套读法。
 > （已迁移步骤改用 `XxxDeps::from_input(&WorkflowInput)`，见下方各清单标注。）
@@ -97,7 +97,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | --- | --- | --- |
 | `separate` | `SeparateInput` | `audio_source_path: AudioSourcePath` |
 | `asr` | `AsrDeps`（Phase 1 已迁移） | `audio_path: AsrSourceAudioPath`（枚举：Custom / Separated{vocals, mixed, gated} / Raw；意图面 video_dir/args/source_lang 走 `sc.ctx().input()`） |
-| `sf_ocr_pre` | `SfOcrPreInput` | `video_source_path: VideoSourcePath` |
+| `sf_ocr_pre` | 无 deps（入口步骤，Phase 1 已迁移） | 只读 import 产出的原视频，在步骤体从 `video_dir` 拼 `VideoSourcePath` |
 | `asr_ocr_pre` | `AsrOcrPreDeps`（Phase 1 已迁移） | `asr_path: AsrPath`、`video_source_path: VideoSourcePath`（意图面 video_dir 走 sc；`args.fps` 未被步骤消费） |
 | `translate` | `TranslateDeps`（Phase 1 已迁移） | `srt_segs: Vec<SubtitleSegment>`、`src_lang: LangStr`、`target_lang: LangStr`（装配层读好/算好；意图面 video_dir/args 走 `sc.ctx().input()`） |
 | `split_audio` | `SplitAudioDeps`（Phase 1 已迁移） | `audio_path: SplitAudioSourcePath`、`translate_path: LangPath`、`source_lang: LangStr`（装配层算好；意图面 video_dir/args/is_dub 走 `sc.ctx().input()`） |

@@ -4,17 +4,30 @@
 //! 落盘 `<video_dir>/sf_ocr_pre/`: frames/(PNG) / mask/ / timeline.txt / keyframes.json。
 
 use crate::cmd::env::ensure_bin_command;
-use crate::steps::sf_ocr::pre_args::SfOcrPreInput;
-use crate::steps::utils::paths::sf_ocr_pre;
+use crate::steps::utils::paths::{sf_ocr_pre, VideoSourcePath};
 use crate::steps::utils::{
     ensure_dir, now_iso, set_step_anyhow, sf_ocr_pre_dir, StepPatch, StepStatus,
 };
+use crate::workflows::step_ctx::{CtxView, StepCtxView};
+
+/// `step_sf_ocr_pre` 的**全部产物清单**（作为步骤函数返回值，不写盘）。
+///
+/// `subtitle-finder` 把帧 / mask / 时间线 / keyframes.json 全写进 `out_dir`，
+/// 其中关键帧目录是下游 `sf_ocr` 的输入。
+#[derive(Debug, Clone, PartialEq, Eq, specta::Type)]
+pub struct SfOcrPreOutput {
+    /// subtitle-finder 的输出根目录（含 mask/ / timeline.txt / keyframes.json）。
+    pub out_dir: std::path::PathBuf,
+    /// 关键帧目录（下游 sf_ocr 的输入）。
+    pub frames_dir: std::path::PathBuf,
+}
 
 /// 入口 (镜像 TS `stepSfOcrPre`)。
 ///
-/// 单参 [`SfOcrPreInput`]：依赖（原视频）+ 任务目录都在里面。
-pub fn step_sf_ocr_pre(input: &SfOcrPreInput) -> anyhow::Result<()> {
-    let video_dir = input.video_dir.clone();
+/// **入口步骤**：只依赖 import 产出的原视频（无上游步骤产物）与工作流输入，
+/// 故无 `deps` 参数——与 `separate` 同款。视频路径按约定从 `video_dir` 拼出。
+pub fn step_sf_ocr_pre(sc: impl StepCtxView) -> anyhow::Result<SfOcrPreOutput> {
+    let video_dir = sc.ctx().input().video_dir().to_string();
     tracing::info!(target: "sf_ocr", "start");
 
     set_step_anyhow(
@@ -27,7 +40,8 @@ pub fn step_sf_ocr_pre(input: &SfOcrPreInput) -> anyhow::Result<()> {
         },
     )?;
 
-    let video_path = input.video_source_path.as_path();
+    let video_source = VideoSourcePath::from_video_dir(&video_dir);
+    let video_path = video_source.as_path();
     if !video_path.exists() {
         return Err(anyhow::anyhow!(
             "OCR input not found: {}",
@@ -92,16 +106,26 @@ pub fn step_sf_ocr_pre(input: &SfOcrPreInput) -> anyhow::Result<()> {
         },
     )?;
     tracing::info!(target: "sf_ocr", "done");
-    Ok(())
+    Ok(SfOcrPreOutput {
+        out_dir: out_dir.clone(),
+        frames_dir: frame_dir.as_path().to_path_buf(),
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// 依赖只有 video_dir（约定拼法），故夹具不需要 input.json。
-    fn input_at(dir: &str) -> SfOcrPreInput {
-        SfOcrPreInput::new(dir, &crate::input::Input::default())
+    /// 入口步骤只读 sc 的 video_dir，夹具只需带 video_dir 的 WorkflowInput。
+    fn sc_at(dir: &str) -> crate::workflows::step_ctx::MyStepCtx {
+        let input: crate::input::Input = serde_json::from_value(serde_json::json!({
+            "workflow": {"video_dir": dir}
+        }))
+        .unwrap();
+        crate::workflows::step_ctx::MyStepCtx::new(
+            "sf_ocr_pre",
+            crate::input::WorkflowInput::try_from(input).unwrap(),
+        )
     }
 
     #[test]
@@ -113,7 +137,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         // `{dir}/video_source.mp4` 不存在（import 没跑过）
-        let res = step_sf_ocr_pre(&input_at(&dir));
+        let res = step_sf_ocr_pre(sc_at(&dir));
         assert!(res.is_err());
         assert!(
             res.unwrap_err().to_string().contains("OCR input not found"),
@@ -159,7 +183,7 @@ mod tests {
         });
         std::fs::write(&stamp_path, serde_json::to_string_pretty(&stamp).unwrap()).unwrap();
 
-        let res = step_sf_ocr_pre(&input_at(&dir));
+        let res = step_sf_ocr_pre(sc_at(&dir));
 
         // 清理假二进制, 恢复现场
         let _ = std::fs::remove_file(&bin_path);
