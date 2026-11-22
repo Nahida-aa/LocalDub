@@ -173,6 +173,16 @@ AGENTS.md 的 dub 正例表述同步。
    从 `video_dir` 约定拼出——因为它与 `video_dir` 同源，不值得单独声明为依赖
    （asr_ocr_pre / mix_video 已移除该字段）。这与上面通则不矛盾：通则是"字段若存在
    就只写 provenance"，这里是"该字段不必存在"。
+10. **`mix_mode` / `reduce_bgm` / `sidechain_compress` / `use_gate` 职责归位**
+    （2026-11-22）：核对 asr 步骤体发现它**从不读**这 4 个字段——真正消费者是
+   `separate_after`（它做 sidechain 混音 / gate）。历史上挂在 `AsrArgs` 下、靠
+   `SeparateAfterInput.args = input.steps.asr.clone()` 借用，是职责错位。已把它们
+   连同 `MixMode` / `SidechainCompress` 类型搬到新 `SeparateAfterArgs`，配置位置从
+   `steps.asr.*` 改为 `steps.separate_after.*`（schema / bindings / example 同步）。
+   `use_separated` **留在 `AsrArgs`**（asr 真的用它选音源），`SeparateAfterInput`
+   单独带一个 `use_separated` 字段从 `input.steps.asr` 映射——单一真源仍在 asr。
+   ⚠️ 这是破坏性配置变更：旧 input.jsonc 若把这四个字段写在 `steps.asr` 下，
+   serde 会静默忽略（无 `deny_unknown_fields`），值回到默认——需手工迁移。
 
 ## 6. 库侧 view trait 评估结论（防重新争论，完整版 §6 of PLAN）
 

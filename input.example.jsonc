@@ -29,11 +29,13 @@
       "device": "cpu",
       "always": true,
     },
+    "separate_after": {
+      "mix_mode": "sidechain",
+    },
     "asr": {
       "runtime": "ggml",
       "device": "vulkan",
       "use_separated": true,
-      "mix_mode": "sidechain",
       "vad": true,
       "vad_model": "silero-v6",
       "words_output": true,

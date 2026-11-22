@@ -18,16 +18,8 @@ export type AsrArgs_Deserialize = {
 	device?: AsrDevice,
 	/**  使用分离后的人声 (target_3_vocals.wav) 而非原始视频音频 */
 	use_separated?: boolean,
-	/**  ASR 音频源 (默认 sidechain) */
-	mix_mode?: MixMode,
-	/**  背景音降低量(dB); raw-sum 叠加前衰减, sidechain 时压缩后额外衰减; 默认 -12 */
-	reduce_bgm?: number | null,
 	/**  是否在 asr.json 中包含词级时间戳 (words), 分离场景下可能受幻觉影响; 默认关闭, 调试时开启 */
 	words_output?: boolean,
-	/**  mixMode=sidechain 时侧链压缩器参数 */
-	sidechain_compress?: SidechainCompress_Deserialize,
-	/**  对分离后的人声应用 silence gate 过滤静音段噪声 */
-	use_gate?: boolean,
 	/**  ASR 输入的人声音频路径, 调试使用 */
 	vocal_audio_path?: string | null,
 	/**  whisper.cpp: 启用 VAD */
@@ -54,16 +46,8 @@ export type AsrArgs_Serialize = {
 	device: AsrDevice,
 	/**  使用分离后的人声 (target_3_vocals.wav) 而非原始视频音频 */
 	use_separated: boolean,
-	/**  ASR 音频源 (默认 sidechain) */
-	mix_mode: MixMode,
-	/**  背景音降低量(dB); raw-sum 叠加前衰减, sidechain 时压缩后额外衰减; 默认 -12 */
-	reduce_bgm: number | null,
 	/**  是否在 asr.json 中包含词级时间戳 (words), 分离场景下可能受幻觉影响; 默认关闭, 调试时开启 */
 	words_output: boolean,
-	/**  mixMode=sidechain 时侧链压缩器参数 */
-	sidechain_compress: SidechainCompress_Serialize,
-	/**  对分离后的人声应用 silence gate 过滤静音段噪声 */
-	use_gate: boolean,
 	/**  ASR 输入的人声音频路径, 调试使用 */
 	vocal_audio_path: string | null,
 	/**  whisper.cpp: 启用 VAD */
@@ -1185,6 +1169,48 @@ export type SegmentFrame = {
 };
 
 /**
+ *  separate_after 阶段参数（`input.steps.separate_after`）。
+ * 
+ *  混音策略的单一真源。`use_separated` 例外：它同属 asr 的音源决策，仍从
+ *  `input.steps.asr` 读取（见 [`SeparateAfterInput::new`]），不在这里重复配置。
+ */
+export type SeparateAfterArgs = SeparateAfterArgs_Serialize | SeparateAfterArgs_Deserialize;
+
+/**
+ *  separate_after 阶段参数（`input.steps.separate_after`）。
+ * 
+ *  混音策略的单一真源。`use_separated` 例外：它同属 asr 的音源决策，仍从
+ *  `input.steps.asr` 读取（见 [`SeparateAfterInput::new`]），不在这里重复配置。
+ */
+export type SeparateAfterArgs_Deserialize = {
+	/**  ASR 音频源 (默认 sidechain) */
+	mix_mode?: MixMode,
+	/**  背景音降低量(dB); raw-sum 叠加前衰减, sidechain 时压缩后额外衰减; 默认 -12 */
+	reduce_bgm?: number | null,
+	/**  mix_mode=sidechain 时侧链压缩器参数 */
+	sidechain_compress?: SidechainCompress_Deserialize,
+	/**  对分离后的人声应用 silence gate 过滤静音段噪声 */
+	use_gate?: boolean,
+};
+
+/**
+ *  separate_after 阶段参数（`input.steps.separate_after`）。
+ * 
+ *  混音策略的单一真源。`use_separated` 例外：它同属 asr 的音源决策，仍从
+ *  `input.steps.asr` 读取（见 [`SeparateAfterInput::new`]），不在这里重复配置。
+ */
+export type SeparateAfterArgs_Serialize = {
+	/**  ASR 音频源 (默认 sidechain) */
+	mix_mode: MixMode,
+	/**  背景音降低量(dB); raw-sum 叠加前衰减, sidechain 时压缩后额外衰减; 默认 -12 */
+	reduce_bgm: number | null,
+	/**  mix_mode=sidechain 时侧链压缩器参数 */
+	sidechain_compress: SidechainCompress_Serialize,
+	/**  对分离后的人声应用 silence gate 过滤静音段噪声 */
+	use_gate: boolean,
+};
+
+/**
  *  separate 阶段参数 (镜像 TS `packages/core/steps/separate/args.ts` SeparateArgsSchema)
  * 
  *  枚举/数组默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})`), 这里只需处理
@@ -1536,6 +1562,7 @@ export type Steps = Steps_Serialize | Steps_Deserialize;
  */
 export type Steps_Deserialize = {
 	separate?: SeparateArgs_Deserialize,
+	separate_after?: SeparateAfterArgs_Deserialize,
 	asr?: AsrArgs_Deserialize,
 	asr_fix?: AsrFixArgs_Deserialize,
 	sf_ocr?: SfOcrArgs_Deserialize,
@@ -1559,6 +1586,7 @@ export type Steps_Deserialize = {
  */
 export type Steps_Serialize = {
 	separate: SeparateArgs_Serialize,
+	separate_after: SeparateAfterArgs_Serialize,
 	asr: AsrArgs_Serialize,
 	asr_fix: AsrFixArgs_Serialize,
 	sf_ocr: SfOcrArgs_Serialize,

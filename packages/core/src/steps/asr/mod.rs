@@ -496,7 +496,7 @@ fn ffmpeg_bin() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::steps::asr::args::{AsrArgs, MixMode};
+    use crate::steps::asr::args::AsrArgs;
     use crate::steps::asr::fix_args::AsrFixArgs;
     use serde_json::json;
 
@@ -527,7 +527,6 @@ mod tests {
     fn asr_args_defaults() {
         let a = AsrArgs::default();
         assert!(!a.use_separated);
-        assert_eq!(a.mix_mode, MixMode::Sidechain);
         assert_eq!(a.vad_threshold, 0.5);
         assert_eq!(a.no_speech_thold, 0.6);
         assert_eq!(a.temperature, 0.0);

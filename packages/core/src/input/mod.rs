@@ -158,8 +158,11 @@ mod tests {
             serde_json::from_str(r#"{"command":"env","workflow":{"output_mode":"subtitle"}}"#)
                 .unwrap();
         assert_eq!(input.command, Command::Env);
-        assert!(input.steps.asr.mix_mode == crate::steps::asr::args::MixMode::Sidechain);
-        assert_eq!(input.steps.asr.reduce_bgm, -12.0);
+        assert!(
+            input.steps.separate_after.mix_mode
+                == crate::steps::separate::after_args::MixMode::Sidechain
+        );
+        assert_eq!(input.steps.separate_after.reduce_bgm, -12.0);
         assert_eq!(
             input.workflow.as_ref().unwrap().output_mode,
             args::OutputMode::Subtitle

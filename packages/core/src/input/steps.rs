@@ -7,7 +7,7 @@ use crate::steps::asr_ocr::fix_args::AsrOcrFixArgs;
 use crate::steps::asr_ocr::pre_args::AsrOcrPreArgs;
 use crate::steps::mix_audio::args::MixAudioArgs;
 use crate::steps::mix_video::args::MixVideoArgs;
-use crate::steps::separate::SeparateArgs;
+use crate::steps::separate::{SeparateAfterArgs, SeparateArgs};
 use crate::steps::sf_ocr::args::SfOcrArgs;
 use crate::steps::sf_ocr::fix_args::OcrFixArgs;
 use crate::steps::split_audio::SplitAudioArgs;
@@ -23,6 +23,8 @@ use crate::steps::tts::args::TtsArgs;
 pub struct Steps {
     #[serde(default)]
     pub separate: SeparateArgs,
+    #[serde(default)]
+    pub separate_after: SeparateAfterArgs,
     #[serde(default)]
     pub asr: AsrArgs,
     #[serde(default)]
@@ -53,6 +55,7 @@ impl Default for Steps {
     fn default() -> Self {
         Self {
             separate: SeparateArgs::default(),
+            separate_after: SeparateAfterArgs::default(),
             asr: AsrArgs::default(),
             asr_fix: AsrFixArgs::default(),
             sf_ocr: SfOcrArgs::default(),

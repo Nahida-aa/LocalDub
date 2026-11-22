@@ -108,7 +108,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 | step | `StepInput` | 消费的跨步骤产物（字段） |
 | --- | --- | --- |
-| `separate_after` | `SeparateAfterInput` | `vocals_path: Target3VocalsPath`、`stems_dir: StemsDir` |
+| `separate_after` | `SeparateAfterInput` | `vocals_path: Target3VocalsPath`、`stems_dir: StemsDir`；args 为步骤专属 `SeparateAfterArgs`（`input.steps.separate_after`，含 mix_mode/reduce_bgm/sidechain_compress/use_gate），`use_separated` 仍读 `input.steps.asr` |
 | `asr_fix` | `AsrFixDeps`（Phase 1 已迁移） | `asr_path: AsrPath`、`source_lang: LangStr`（三级回退算好；意图面 video_dir/args 走 `sc.ctx().input()`） |
 | `sf_ocr` | `SfOcrDeps`（Phase 1 已迁移） | `keyframes_dir: KeyframesDir`（sf_ocr_pre 产出；意图面 video_dir/args 走 `sc.ctx().input()`） |
 | `sf_ocr_fix` | `SfOcrFixDeps`（Phase 1 已迁移） | `frames_path: FramesPath`（sf_ocr 产出）、`source_lang: LangStr`（装配层算好）；意图面 video_dir/args 走 `sc.ctx().input()` |

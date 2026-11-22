@@ -3,7 +3,7 @@
 //!
 //! 镜像 TS `packages/core/steps/separate/after.ts` (stepSeparateAfter), 纯 ffmpeg 编排。
 
-use crate::steps::separate::after_args::SeparateAfterInput;
+use crate::steps::separate::after_args::{MixMode, SeparateAfterInput};
 use crate::steps::utils::paths::separate_after::{GatedVocalsPath, Target3VocalsMixedPath};
 use crate::steps::utils::{
     ffmpeg, now_iso, separate_after_dir, set_step_anyhow, StepPatch, StepStatus,
@@ -11,8 +11,8 @@ use crate::steps::utils::{
 
 /// 入口 (镜像 TS `stepSeparateAfter`)。
 ///
-/// 单参 [`SeparateAfterInput`]：本步只吃 separate 的 stems（约定拼法）+ 本次 asr
-/// 参数（`SeparateAfterInput::args`），不依赖任何"拍平的全局状态"。
+/// 单参 [`SeparateAfterInput`]：本步只吃 separate 的 stems（约定拼法）+ 本步专属
+/// 混音参数（`SeparateAfterInput::args`）与共用的 use_separated，不依赖任何"拍平的全局状态"。
 pub fn step_separate_after(input: &SeparateAfterInput) -> anyhow::Result<()> {
     let video_dir = input.video_dir.clone();
     tracing::info!(target: "separate", "start");
@@ -67,15 +67,15 @@ pub fn step_separate_after(input: &SeparateAfterInput) -> anyhow::Result<()> {
         tracing::info!(target: "separate", "No stems or BGM found, skipping BGM generation");
     }
 
-    // 2. 按 asr 配置生成 sidechain 混音人声
-    let asr_args = &input.args;
-    let use_separated = asr_args.use_separated;
-    let mix_mode = asr_args.mix_mode;
-    let reduce_bgm = asr_args.reduce_bgm;
-    let sc = asr_args.sidechain_compress.clone();
-    let use_gate = asr_args.use_gate;
+    // 2. 按本步骤专属混音参数生成 sidechain 混音人声
+    let args = &input.args;
+    let use_separated = input.use_separated; // 与 asr 共用的音源决策
+    let mix_mode = args.mix_mode;
+    let reduce_bgm = args.reduce_bgm;
+    let sc = args.sidechain_compress.clone();
+    let use_gate = args.use_gate;
 
-    if use_separated && !matches!(mix_mode, crate::steps::asr::args::MixMode::Vocals) {
+    if use_separated && !matches!(mix_mode, MixMode::Vocals) {
         if !vocals_path.exists() {
             return Err(anyhow::anyhow!(
                 "[SeparateAfter] vocals not found: {}",
@@ -89,7 +89,7 @@ pub fn step_separate_after(input: &SeparateAfterInput) -> anyhow::Result<()> {
             ));
         }
         match mix_mode {
-            crate::steps::asr::args::MixMode::RawSum => {
+            MixMode::RawSum => {
                 tracing::info!(target: "separate",
                     "[SeparateAfter] raw-sum: mixing vocals + BGM at {reduce_bgm}dB..."
                 );
@@ -107,7 +107,7 @@ pub fn step_separate_after(input: &SeparateAfterInput) -> anyhow::Result<()> {
                     mixed_dst.as_path().to_string_lossy().into_owned(),
                 ])?;
             }
-            crate::steps::asr::args::MixMode::Sidechain => {
+            MixMode::Sidechain => {
                 let sc_params = format!(
                     "threshold={}:ratio={}:attack={}:release={}",
                     sc.threshold, sc.ratio, sc.attack, sc.release
@@ -140,7 +140,7 @@ pub fn step_separate_after(input: &SeparateAfterInput) -> anyhow::Result<()> {
                     mixed_dst.as_path().to_string_lossy().into_owned(),
                 ])?;
             }
-            crate::steps::asr::args::MixMode::Vocals => unreachable!(),
+            MixMode::Vocals => unreachable!(),
         }
     }
 
