@@ -61,12 +61,17 @@ emit 是 not-persisted，改成 emit 会丢持久化语义 → 必须保留。
 
 1. **打通最小闭环**（否则 emit 是 no-op，改了等于删）：
    - `MyRunCtx::emit` 从 no-op 改为：把 `WorkflowEvent::Custom { ts, name, value }` 追加到
-     本地事件文件 `<video_dir>/workflow-engine/events.local.jsonl`（与引擎真源 `events.jsonl`
-     分开，避免污染 replay）。`ts` 由 emit 侧生成，`name`/`value` 直接来自 emit 参数——
-     Custom 已无 run_id 字段（aa-workflow `937ace8`），映射是逐字的。
-   - **不需要给 MyRunCtx 加 run_id 字段**：事件文件按 `<video_dir>` 分文件，一个文件就是
-     一个 run，run 身份靠文件路径承载——与 aa-workflow"run 身份由承载对象携带、不进事件
-     payload"的设计一致（见 aa-workflow `docs/tanstack/WorkflowEvent.md`）。
+     本地事件文件（与引擎真源 `events.jsonl` 分开，避免污染 replay）。`ts` 由 emit 侧生成，
+     `name`/`value` 直接来自 emit 参数——Custom 已无 run_id 字段（aa-workflow `937ace8`），
+     emit→Custom 映射逐字。
+   - **一个 video_dir 对应多次 run，必须按 run 分事件文件**：`run_id` 是每次新 run 时传入
+     （aa-workflow `RunWorkflowOptions.run_id: Option<RunId>`——复用即 resume、不传则生成新 id），
+     start / continue / regen 各是一次独立 run。所以事件文件必须带 run 身份，路径形如
+     `<video_dir>/workflow-engine/<run_id>/events.local.jsonl`（或文件名含 run_id），
+     不能用单一 <video_dir> 文件混装多次 run。
+   - **LocalDub 当前缺 run_id 字段**：`WorkflowArgs` 只有 `action` / `queue_id` / step 参数
+     （`workflows/args.rs:210-231`），没有 run_id。落地前要给 `MyRunCtx` 加 `run_id: String`
+     并在执行器构造各 run 时传入——这是必须补的基础设施，见待拍板。
 2. **投影器**：纯函数 `fold(events: [WorkflowEvent], prev: ViewState) -> ViewState`，
    写 `<video_dir>/view.json`。落盘防抖收在投影器内部。
    - status 从 StepStarted/Finished/Failed 折叠；progress/message 从 Custom 折叠；
@@ -91,9 +96,14 @@ emit 是 not-persisted，改成 emit 会丢持久化语义 → 必须保留。
 
 ## 5. 待拍板（写方案时未定，实现前需定）
 
-1. 事件文件路径与命名：`events.local.jsonl` vs 独立子目录？
-2. 投影器的 `ViewState` 形状：直接复用 `StepState`（7 字段）还是精简版？
-3. `emit` 是否要保留同步 fallback（比如事件文件写失败时退回写 state.json）——
+1. **run_id 从哪来、怎么传**（阻塞项）：LocalDub 当前无 run_id 概念。每次新 run
+   （start / continue / regen）要生成或传入新 run_id，复用则 resume。方案：给 `WorkflowArgs`
+   加可选 `run_id: Option<String>`，执行器据此构造 `MyRunCtx { run_id, ... }`；不传时如何
+   生成（UUID？queue_id？）需定。这直接决定事件文件怎么分目录。
+2. 事件文件路径：用 `<video_dir>/workflow-engine/<run_id>/events.local.jsonl` 还是文件名含
+   run_id？
+3. 投影器的 `ViewState` 形状：直接复用 `StepState`（7 字段）还是精简版？
+4. `emit` 是否要保留同步 fallback（比如事件文件写失败时退回写 state.json）——
    按"不留兼容层"原则建议不保留，失败就 error。
 
 ## 6. 验证方式
