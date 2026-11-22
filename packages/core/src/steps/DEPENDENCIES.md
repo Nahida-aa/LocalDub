@@ -293,7 +293,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 | | 路径 |
 | --- | --- |
-| **读** ⚠️ | 规范化字幕 `srt.json`（按 `subtitle_source` 选目录，见「规范化字幕」节；由装配层 `TranslateDeps::new(&WorkflowInput)` 读成 `srt_segs: Vec<SubtitleSegment>` 注入，缺失/空即**就地报错**） |
+| **读** ⚠️ | 规范化字幕 `srt.json`（按 `subtitle_source` 选目录，见「规范化字幕」节；由装配层 `TranslateDeps::build_from_input(&WorkflowInput)` 读成 `srt_segs: Vec<SubtitleSegment>` 注入，缺失/空即**就地报错**） |
 | **读** | `data/bin/yt-dlp` 产物（可选元信息） |
 | **写** | `translate/{lang}.json`（类型化契约 `TranslateOutput::for_lang`）、中间态 `{lang}.partial.json`（仅 LLM 路径，私有状态） |
 | **写** | `state.json` 的 `target_language`——**全仓唯一写点**（`persist_target_language`），见下 |
@@ -489,7 +489,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
   三者共同实现 `paths::SrtJsonPath`（`new` / `as_path` / `dir`）。
 - 三种 `SrtPath` 是不同类型、不可互换，`from_state` 的 match 必须逐支写
   （or-pattern 会因类型不同而编译失败——这是刻意的）。
-- 消费方由装配层保证：`TranslateDeps::new(&WorkflowInput)`（`translate/args.rs`）
+- 消费方由装配层保证：`TranslateDeps::build_from_input(&WorkflowInput)`（`translate/args.rs`）
   按 `subtitle_source` 选 asr_fix / sf_ocr_fix / asr_ocr_fix 三来源之一读成
   `srt_segs: Vec<SubtitleSegment>` 注入；srt.json 缺失或空 segments **无条件
   就地报错**（与 `translate.enabled` 无关，见 `translate` 节）。步骤内不再按

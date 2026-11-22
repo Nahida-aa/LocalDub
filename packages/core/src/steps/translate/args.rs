@@ -93,7 +93,7 @@ impl TranslateDeps {
     /// 装配层构造：选 SrtPath → 读规范化字幕（缺失/空 → 就地报错）→ 读一次
     /// `<asr>/out.json` 并算好语言决策。`WorkflowInput` 已保证 video_dir /
     /// subtitle_source 落定，剩余校验只针对上游产物是否存在。
-    pub fn new(input: &crate::input::WorkflowInput) -> anyhow::Result<Self> {
+    pub fn build_from_input(input: &crate::input::WorkflowInput) -> anyhow::Result<Self> {
         let video_dir = input.video_dir();
         let (srt_path, producer): (std::path::PathBuf, &str) = match input.workflow.subtitle_source {
             SubtitleSource::Asr => (asr_fix::SrtPath::new(video_dir).as_path().into(), "asr_fix"),

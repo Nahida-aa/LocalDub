@@ -474,7 +474,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let input = at(&dir, Some("zh"), json!({}));
         let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
-        let deps = args::TranslateDeps::new(&wfi).unwrap();
+        let deps = args::TranslateDeps::build_from_input(&wfi).unwrap();
         let res = step_translate(MyStepCtx::new("translate", wfi), deps);
         let err = res.expect_err("缺 srt.json 必须报错");
         let msg = err.to_string();
@@ -535,7 +535,7 @@ mod tests {
 
             let input = at(&dir, None, json!({"workflow": {"subtitle_source": source}}));
             let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
-            let deps = args::TranslateDeps::new(&wfi)
+            let deps = args::TranslateDeps::build_from_input(&wfi)
                 .unwrap_or_else(|e| panic!("{source} 应读到 {expected}: {e}"));
             // 只落了当前 source 的 srt.json——deps 读成功即证明它选对了产出方路径。
             assert_eq!(deps.srt_segs.len(), 1, "{source} 应读到 1 段");
