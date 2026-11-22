@@ -10,7 +10,7 @@
 | --- | --- |
 | `CtxView::emit(name, value)` 当前是 **no-op** | `workflows/step_ctx.rs:72-75` |
 | emit 签名 `(name: impl AsRef<str>, value: serde_json::Value)` | `workflows/step_ctx.rs:35` |
-| aa-workflow 有 `WorkflowEvent::Custom { ts, run_id, name, value }`，语义 **observability only / not persisted / 只到 publisher、不进日志** | `lib_ls/aa-workflow/packages/workflow_core/src/event.rs:226-234` |
+| aa-workflow 的 `WorkflowEvent::Custom { ts, name, value }`（**run_id 已于 2026-11-23 删除**，commit aa-workflow `937ace8`），语义 **observability only / not persisted / 只到 publisher、不进日志** | `lib_ls/aa-workflow/packages/workflow_core/src/event.rs:226-234`；对齐细节见 aa-workflow `docs/tanstack/WorkflowEvent.md` |
 | 步边界事件已由引擎定义：StepStarted / StepFinished / StepFailed（后两者 checkpoint-persisted） | `event.rs:129-155` |
 | `StepState` 7 字段：status / progress / started_at / completed_at / last_message / error_message | `state/mod.rs:126-139` |
 | 当前 `<step>/state.json` 由该步骤自己写（`set_step_anyhow` → `write_step_state`，read-modify-write） | `state/mod.rs:261-277` |
@@ -60,9 +60,13 @@ emit 是 not-persisted，改成 emit 会丢持久化语义 → 必须保留。
 ## 3. 落地顺序（依赖链，前一步是后一步的前提）
 
 1. **打通最小闭环**（否则 emit 是 no-op，改了等于删）：
-   - `MyRunCtx::emit` 从 no-op 改为：把 `WorkflowEvent::Custom` 追加到本地事件文件
-     `<video_dir>/workflow-engine/events.local.jsonl`（与引擎真源 `events.jsonl` 分开，避免污染 replay）。
-   - 需要 `run_id`：`MyRunCtx` 目前只有 `input`；加一个 `run_id: String` 字段，由执行器构造时传入。
+   - `MyRunCtx::emit` 从 no-op 改为：把 `WorkflowEvent::Custom { ts, name, value }` 追加到
+     本地事件文件 `<video_dir>/workflow-engine/events.local.jsonl`（与引擎真源 `events.jsonl`
+     分开，避免污染 replay）。`ts` 由 emit 侧生成，`name`/`value` 直接来自 emit 参数——
+     Custom 已无 run_id 字段（aa-workflow `937ace8`），映射是逐字的。
+   - **不需要给 MyRunCtx 加 run_id 字段**：事件文件按 `<video_dir>` 分文件，一个文件就是
+     一个 run，run 身份靠文件路径承载——与 aa-workflow"run 身份由承载对象携带、不进事件
+     payload"的设计一致（见 aa-workflow `docs/tanstack/WorkflowEvent.md`）。
 2. **投影器**：纯函数 `fold(events: [WorkflowEvent], prev: ViewState) -> ViewState`，
    写 `<video_dir>/view.json`。落盘防抖收在投影器内部。
    - status 从 StepStarted/Finished/Failed 折叠；progress/message 从 Custom 折叠；
@@ -88,9 +92,8 @@ emit 是 not-persisted，改成 emit 会丢持久化语义 → 必须保留。
 ## 5. 待拍板（写方案时未定，实现前需定）
 
 1. 事件文件路径与命名：`events.local.jsonl` vs 独立子目录？
-2. `run_id` 从哪来：用 `workflow.id` 临时代替，还是新生成一个？接入日引擎会给真实 run_id。
-3. 投影器的 `ViewState` 形状：直接复用 `StepState`（7 字段）还是精简版？
-4. `emit` 是否要保留同步 fallback（比如事件文件写失败时退回写 state.json）——
+2. 投影器的 `ViewState` 形状：直接复用 `StepState`（7 字段）还是精简版？
+3. `emit` 是否要保留同步 fallback（比如事件文件写失败时退回写 state.json）——
    按"不留兼容层"原则建议不保留，失败就 error。
 
 ## 6. 验证方式
