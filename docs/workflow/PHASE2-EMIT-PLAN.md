@@ -96,10 +96,13 @@ emit 是 not-persisted，改成 emit 会丢持久化语义 → 必须保留。
 
 ## 5. 待拍板（写方案时未定，实现前需定）
 
-1. **run_id 从哪来、怎么传**（阻塞项）：LocalDub 当前无 run_id 概念。每次新 run
-   （start / continue / regen）要生成或传入新 run_id，复用则 resume。方案：给 `WorkflowArgs`
-   加可选 `run_id: Option<String>`，执行器据此构造 `MyRunCtx { run_id, ... }`；不传时如何
-   生成（UUID？queue_id？）需定。这直接决定事件文件怎么分目录。
+1. **run_id 方案已拍板：每个 video_dir 独立自增**（用户 2026-11-23 定）：
+   run_id 形如 `run-1` / `run-2`，同一任务每次 start / continue / regen 自增一次；
+   **queue_id 不能用**——它是服务端全局队列自增（`queue/mod.rs:170`），跨视频目录。
+   - 仍需定：计数器**存在哪**（`<video_dir>/run-counter` 单独文件？还是塞进现有
+     `state.json`？后者由 import + 编排器写，加字段要评估写者冲突）；
+   - run_id 走 `WorkflowArgs` 可选字段传入（复用 = resume，不传 = 生成新号），执行器
+     构造 `MyRunCtx { run_id, ... }`。
 2. 事件文件路径：用 `<video_dir>/workflow-engine/<run_id>/events.local.jsonl` 还是文件名含
    run_id？
 3. 投影器的 `ViewState` 形状：直接复用 `StepState`（7 字段）还是精简版？
