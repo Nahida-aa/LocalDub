@@ -39,8 +39,8 @@ impl AsrOcrArgs {
 /// asr_ocr 步骤的跨步骤输入清单。
 ///
 /// 只收一条上游产物（「约定拼法」的 `{video_dir}/...`，故用
-/// [`from_video_dir`](Self::from_video_dir) 入口，与 `AsrFixInput` /
-/// `AsrOcrFixInput` 同款）：
+/// [`from_video_dir`](Self::from_video_dir) 入口，与 `AsrOcrFixInput` 同款
+/// （已迁移到 `AsrFixDeps::from_input` 的 asr_fix 不再走 from_video_dir）：
 ///
 /// - `asr_ocr_pre/frames`（帧目录，`asr_ocr_pre` 步骤产出，[`asr_ocr_pre::FramesDir`]）
 ///

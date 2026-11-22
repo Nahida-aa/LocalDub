@@ -312,7 +312,7 @@ pub fn step_asr(sc: impl StepCtxView, deps: AsrDeps) -> anyhow::Result<()> {
         },
     };
 
-    // 写回 asr/asr.json（与 AsrFixInput 共用 AsrPath::new，拼法单一来源）
+    // 写回 asr/asr.json（与 AsrFixDeps 共用 AsrPath::new，拼法单一来源）
     let asr_file = asr::AsrPath::new(&video_dir).as_path().to_path_buf();
     let json = serde_json::to_string_pretty(&asr_output)
         .map_err(|e| anyhow!("序列化 asr 结果失败: {e}"))?;

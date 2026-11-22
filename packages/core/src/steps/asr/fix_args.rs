@@ -32,32 +32,45 @@ impl Default for AsrFixArgs {
     }
 }
 
-/// asr_fix 步骤的输入契约：本步要消费的**跨步骤输入**路径。
+/// Phase 1 事实面：`step_asr_fix` 的显式依赖清单（由装配层算好后注入）。
 ///
-/// 只装真正的输入 `asr/asr.json`——asr 步骤的识别结果。其余路径
-/// （`asr_fix/` 下的产物与 `srt.json`）由步骤内部 `::new(video_dir)` 构造，拼法同样
-/// 只有一处来源。与 `SfOcrFixInput` 同款：`StepInput` 是依赖清单。
+/// - `asr_path`：来自 asr 步骤的识别结果 `asr/asr.json`（约定拼法）；
+/// - `source_lang`：源语言（`<asr>/out.json` 实测 > `input.workflow.source_lang`
+///   配置 > 未知），由装配层算好，LLM 提示词用它。
 ///
-/// 该路径是 `{video_dir}/asr/asr.json` 的**约定拼法**（非拍平的事实副本），故入口
-/// 是 [`new`](Self::new)`(video_dir, input)`。
-pub struct AsrFixInput {
-    /// 任务目录（写侧 step status 需要）。
-    pub video_dir: String,
+/// 意图面（`video_dir` / `args`）走 `sc.ctx().input()`，不进 deps。
+#[derive(Debug, Clone)]
+pub struct AsrFixDeps {
     /// 来自 asr 步骤的识别结果 `asr/asr.json`。
     pub asr_path: AsrPath,
-    /// 源语言（`<asr>/out.json` > `input.workflow.source_lang` > 未知）：LLM 提示词用它。
+    /// 源语言（三级回退算好）：LLM 提示词用它。
     pub source_lang: crate::r#const::lang::LangStr,
-    /// 本次运行参数（`input.steps.asr_fix`）。
-    pub args: AsrFixArgs,
 }
 
-impl AsrFixInput {
-    pub fn new(video_dir: &str, input: &crate::input::Input) -> Self {
+/// `step_asr_fix` 的**全部产物清单**（作为步骤函数返回值，不写盘）。
+///
+/// 两个产物都是无条件写出的：`asr_fix.json`（详细结果）+ `srt.json`
+/// （规范化字幕，下游 translate / split_audio / mix_video 的唯一契约）。
+#[derive(Debug, Clone, PartialEq, Eq, specta::Type)]
+pub struct AsrFixOutput {
+    /// 详细结果 `asr_fix/asr_fix.json`。
+    pub result_path: std::path::PathBuf,
+    /// 规范化字幕 `asr_fix/srt.json`。
+    pub srt_path: std::path::PathBuf,
+}
+
+impl AsrFixDeps {
+    pub fn from_input(input: &crate::input::WorkflowInput) -> Self {
+        let video_dir = input.video_dir();
+        // 与 translate / asr 同款三级回退，读 WorkflowInput 的 workflow 字段即可。
+        let asr_language = crate::steps::asr::out::asr_language(video_dir);
+        let source_lang = crate::state::lang::resolve_source_language(
+            asr_language.as_ref(),
+            input.workflow.source_lang.as_ref(),
+        );
         Self {
-            video_dir: video_dir.to_string(),
             asr_path: AsrPath::new(video_dir),
-            source_lang: crate::steps::utils::src_language(video_dir, input),
-            args: input.steps.asr_fix.clone(),
+            source_lang,
         }
     }
 }

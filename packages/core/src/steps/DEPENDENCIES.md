@@ -109,7 +109,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | step | `StepInput` | 消费的跨步骤产物（字段） |
 | --- | --- | --- |
 | `separate_after` | `SeparateAfterInput` | `vocals_path: Target3VocalsPath`、`stems_dir: StemsDir` |
-| `asr_fix` | `AsrFixInput` | `asr_path: AsrPath` |
+| `asr_fix` | `AsrFixDeps`（Phase 1 已迁移） | `asr_path: AsrPath`、`source_lang: LangStr`（三级回退算好；意图面 video_dir/args 走 `sc.ctx().input()`） |
 | `sf_ocr` | `SfOcrInput` | `keyframes_dir: KeyframesDir` |
 | `sf_ocr_fix` | `SfOcrFixInput` | `frames_path: FramesPath` |
 | `asr_ocr` | `AsrOcrInput` | `frames_dir: FramesDir` |

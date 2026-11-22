@@ -2,26 +2,33 @@
 
 use anyhow::{anyhow, Context};
 
-use crate::steps::asr::fix_args::AsrFixInput;
+use crate::steps::asr::fix_args::{AsrFixDeps, AsrFixOutput};
 use crate::steps::asr::out::AsrResult;
 use crate::steps::utils::paths::{asr_fix, SrtJsonPath};
 use crate::steps::utils::{ensure_dir, now_iso, set_step_anyhow, StepPatch, StepStatus};
+use crate::workflows::step_ctx::{CtxView, StepCtxView};
 
 /// 入口 (镜像 TS `stepAsrFix`)。
 ///
-/// 单参 [`AsrFixInput`]：依赖（asr 结果）+ 任务目录 + 本次参数都在里面。
-pub fn step_asr_fix(input: &AsrFixInput) -> anyhow::Result<()> {
-    let video_dir = input.video_dir.clone();
-    let args = &input.args;
+/// 意图面经 `sc.ctx().input()` 取（args / video_dir），事实面由装配层算好注入
+/// [`AsrFixDeps`]（asr 产物路径 + 算好的源语言）。
+pub fn step_asr_fix(
+    sc: impl StepCtxView,
+    deps: AsrFixDeps,
+) -> anyhow::Result<AsrFixOutput> {
+    let input = sc.ctx().input();
+    let video_dir = input.video_dir().to_string();
+    let args = &input.steps.asr_fix;
     // asr_fix 目录平级于 video_dir (镜像 TS `join(video_dir, "asr_fix")`),
     // 与权威字幕路径 (utils::subtitle_path 的 video_dir/asr_fix) 保持一致。
     let asr_fix_dir = std::path::Path::new(&video_dir).join("asr_fix");
     let asr_file = args
         .asr_file_path
         .clone()
-        .unwrap_or_else(|| input.asr_path.as_path().to_string_lossy().to_string());
-    // 源语言独立解析（三级回退），与目标语言无关——本步骤只用它做 LLM 提示词标签。
-    let src_lang = input.source_lang.code().to_string();
+        .unwrap_or_else(|| deps.asr_path.as_path().to_string_lossy().to_string());
+    // 源语言由装配层按三级回退算好（deps.source_lang），与目标语言无关——本步骤
+    // 只用它做 LLM 提示词标签。
+    let src_lang = deps.source_lang.code().to_string();
 
     if !std::path::Path::new(&asr_file).exists() {
         return Err(anyhow!(
@@ -124,7 +131,8 @@ pub fn step_asr_fix(input: &AsrFixInput) -> anyhow::Result<()> {
             end_ms: s.end_ms,
         })
         .collect();
-    crate::steps::utils::write_srt_json(asr_fix::SrtPath::new(&video_dir).as_path(), &srt_segs)?;
+    let srt_path = asr_fix::SrtPath::new(&video_dir);
+    crate::steps::utils::write_srt_json(srt_path.as_path(), &srt_segs)?;
 
     tracing::info!(target: "asr",
         "Written {} segs to asr_fix.json",
@@ -147,7 +155,10 @@ pub fn step_asr_fix(input: &AsrFixInput) -> anyhow::Result<()> {
         },
     )?;
 
-    Ok(())
+    Ok(AsrFixOutput {
+        result_path: srt_file,
+        srt_path: srt_path.as_path().to_path_buf(),
+    })
 }
 
 /// 语言码 -> 展示名 (镜像 TS `t(srcLang)`)。

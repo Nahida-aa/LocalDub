@@ -176,7 +176,7 @@ pub mod separate_after {
 ///
 /// 字段私有：路径只能经 [`AsrPath::new`] 构造，拼法只有一个来源，
 /// 与 `sf_ocr::FramesPath` / `asr_fix::SrtPath` 同款 provenance 设计。
-/// 产出方 (`step_asr`) 与消费者 (`AsrFixInput`) 共用同一 `new`，避免拼法分叉。
+/// 产出方 (`step_asr`) 与消费者 (`AsrFixDeps`) 共用同一 `new`，避免拼法分叉。
 pub mod asr {
     use super::*;
 

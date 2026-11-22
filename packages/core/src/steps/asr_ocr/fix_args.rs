@@ -42,8 +42,8 @@ impl AsrOcrFixArgs {
 /// asr_ocr_fix 步骤的跨步骤输入清单。
 ///
 /// 只收两条上游产物（均为「约定拼法」的 `{video_dir}/...`，故用
-/// [`from_video_dir`](Self::from_video_dir) 入口，与 `AsrFixInput` / `SfOcrFixInput`
-/// 同款）：
+/// [`from_video_dir`](Self::from_video_dir) 入口，与 `SfOcrFixInput` 同款
+/// （已迁移到 `AsrFixDeps::from_input` 的 asr_fix 不再走 from_video_dir）：
 ///
 /// - `asr_ocr_pre/asr_split.json`（`asr_ocr_pre` 步骤，[`asr_ocr_pre::AsrSplitPath`]）——
 ///   原始 ASR 段数已记入其 `meta.original_segments_count`，故本步**不再**回读
