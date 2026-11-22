@@ -81,7 +81,7 @@ AGENTS.md 的 dub 正例表述同步。
    不是步骤的参数。**工作流 input 不切片、不下发、不重命名**（params 下发否决）。
 4. **deps 按消费语义定义，工作流装配层注入**——`TranslateDeps { srt_segs:
    Vec<SubtitleSegment>, src_lang: LangStr, target_lang: LangStr }`：装配层
-   `TranslateDeps::build_from_input(&WorkflowInput)` 按 `subtitle_source` 选 asr/sf_ocr/asr_ocr
+   `TranslateDeps::from_input(&WorkflowInput)` 按 `subtitle_source` 选 asr/sf_ocr/asr_ocr
    三来源之一读规范化字幕（缺失/空即就地报错），并用三级回退 + 直通算好本次
    `src_lang`/`target_lang`；步骤体只消费这三份算好的事实，不再读 srt / 现算语言。
    步骤内 dispatch 已反转为装配层注入；存在性仲裁上移装配层。
