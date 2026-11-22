@@ -26,6 +26,24 @@ pub struct TtsSegmentsResult {
     pub segments: Vec<TtsSegment>,
 }
 
+/// `step_tts` 的**全部产物清单**（作为步骤函数返回值，不写盘）。
+///
+/// 与 [`TtsSegmentsResult`] 的分工：后者只是 `tts.json` 的**内容类型**，本类型
+/// 是本步骤**产出了哪些文件**的清单——tts.json + 逐段配音 wav 目录 +（可选）
+/// 参考音翻倍拼接目录。
+///
+/// `ref_doubled_dir` 用 `Option` 表达「本次是否真的产出」：只有 `ref_audio_x2`
+/// 打开时才创建 `doubled/`。
+#[derive(Debug, Clone, PartialEq, Eq, specta::Type)]
+pub struct TtsOutput {
+    /// 逐段结果 `tts/tts.json`。
+    pub result_path: std::path::PathBuf,
+    /// 逐段配音 wav 目录 `tts/wavs/`。
+    pub wavs_dir: std::path::PathBuf,
+    /// 参考音翻倍拼接目录 `tts/doubled/`——仅 `ref_audio_x2` 产出。
+    pub ref_doubled_dir: Option<std::path::PathBuf>,
+}
+
 impl TtsSegmentsResult {
     /// 从 [`TtsPath`] 读出**带类型**的 tts 结果。
     ///

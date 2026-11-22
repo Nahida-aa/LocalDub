@@ -163,7 +163,7 @@ pub fn run_step(
         StepName::SplitAudio => {
             let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
             let deps = SplitAudioDeps::from_input(&wfi)?;
-            step_split_audio(MyStepCtx::new(step.as_str(), wfi), deps)
+            step_split_audio(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
         }
         StepName::Asr => step_asr(&AsrInput::new(video_dir, input)),
         StepName::AsrFix => step_asr_fix(&AsrFixInput::new(video_dir, input)),
@@ -173,7 +173,7 @@ pub fn run_step(
         StepName::Tts => {
             let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
             let deps = TtsDeps::from_input(&wfi);
-            step_tts(MyStepCtx::new(step.as_str(), wfi), deps)
+            step_tts(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
         }
         StepName::MixAudio => step_mix_audio(&MixAudioInput::new(video_dir, input)?),
         StepName::MixVideo => step_mix_video(&MixVideoInput::new(video_dir, input)?),

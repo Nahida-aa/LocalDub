@@ -17,7 +17,9 @@ pub mod vad_align;
 use std::fs;
 use std::path::Path;
 
-use crate::steps::split_audio::out::{SplitAudioResult, SplitAudioSegment, SplitAudioTimingResult};
+use crate::steps::split_audio::out::{
+    SplitAudioOutput, SplitAudioResult, SplitAudioSegment, SplitAudioTimingResult,
+};
 use crate::steps::split_audio::pad_segment::{pad_segments, SegmentBounds};
 use crate::steps::translate::out::{TranslateResult, TranslateSegment};
 use crate::steps::utils::{
@@ -45,7 +47,10 @@ impl SegmentBounds for TranslateSegment {
 ///
 /// 意图面经 `sc.ctx().input()` 取（args / video_dir / is_dub），事实面由装配层
 /// 算好注入 [`SplitAudioDeps`]（audio_path / translate_path / source_lang）。
-pub fn step_split_audio(sc: impl StepCtxView, deps: args::SplitAudioDeps) -> anyhow::Result<()> {
+pub fn step_split_audio(
+    sc: impl StepCtxView,
+    deps: args::SplitAudioDeps,
+) -> anyhow::Result<SplitAudioOutput> {
     let input = sc.ctx().input();
     let video_dir = input.video_dir().to_string();
     tracing::info!(target: "split_audio", "start");
@@ -157,7 +162,11 @@ pub fn step_split_audio(sc: impl StepCtxView, deps: args::SplitAudioDeps) -> any
         },
     )?;
     tracing::info!(target: "split_audio", "done");
-    Ok(())
+    Ok(SplitAudioOutput {
+        result_path: split_path,
+        timings_path,
+        vocals_dir: is_dub.then_some(vocals_segment_dir),
+    })
 }
 
 /// dub 模式切块：把人声按 `split_segments` 切到 `vocals_segment_dir`。

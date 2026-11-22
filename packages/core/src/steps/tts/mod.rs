@@ -21,7 +21,7 @@ use crate::steps::split_audio::out::SplitAudioTimingResult;
 use crate::steps::tts::args::{TtsDeps, TtsRuntime};
 use crate::workflows::args::WorkflowAction;
 use crate::workflows::step_ctx::{CtxView, StepCtxView};
-use crate::steps::tts::out::{TtsSegment, TtsSegmentsResult};
+use crate::steps::tts::out::{TtsOutput, TtsSegment, TtsSegmentsResult};
 use crate::steps::tts::util::{
     ensure_no_failed_segments, pick_voxcpm_bin, should_skip_segment, write_silent_wav,
 };
@@ -44,7 +44,7 @@ const MIN_TTS_DURATION_MS: u64 = 100;
 ///
 /// 意图面经 `sc.ctx().input()` 取（args / video_dir / is_start），事实面由装配层
 /// 算好注入 [`TtsDeps`]（split_audio 的两个产物）。
-pub fn step_tts(sc: impl StepCtxView, deps: TtsDeps) -> anyhow::Result<()> {
+pub fn step_tts(sc: impl StepCtxView, deps: TtsDeps) -> anyhow::Result<TtsOutput> {
     let input = sc.ctx().input();
     let video_dir = input.video_dir().to_string();
     tracing::info!(target: "tts", "start");
@@ -457,7 +457,13 @@ pub fn step_tts(sc: impl StepCtxView, deps: TtsDeps) -> anyhow::Result<()> {
         },
     )?;
     tracing::info!(target: "tts", "done");
-    Ok(())
+    Ok(TtsOutput {
+        result_path: tts_path.as_path().to_path_buf(),
+        wavs_dir: tts_wavs_dir.as_path().to_path_buf(),
+        ref_doubled_dir: args
+            .ref_audio_x2
+            .then(|| ref_doubled_dir.as_path().to_path_buf()),
+    })
 }
 
 #[cfg(test)]

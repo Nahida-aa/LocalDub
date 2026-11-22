@@ -32,6 +32,25 @@ pub struct SplitAudioTimingResult {
     pub segments: Vec<TranslateSegment>,
 }
 
+/// `step_split_audio` 的**全部产物清单**（作为步骤函数返回值，不写盘）。
+///
+/// 与 [`SplitAudioResult`] / [`SplitAudioTimingResult`] 的分工：后两者是单个
+/// JSON 文件的**内容类型**，本类型是本步骤**产出了哪些文件**的清单——
+/// 一个步骤有多个产物（两个 json + 人声块目录），散在 `paths` 模块里靠拼法
+/// 推导；这里把它们收口成一个返回值，让产物契约在类型上可见。
+///
+/// `vocals_dir` 用 `Option` 表达「本次是否真的产出」：只有 dub 模式切人声块，
+/// subtitle 模式只产出两个时序文件。
+#[derive(Debug, Clone, PartialEq, Eq, specta::Type)]
+pub struct SplitAudioOutput {
+    /// padding 后时序 `split_audio/split_audio.json`。
+    pub result_path: std::path::PathBuf,
+    /// 意图时序 `split_audio/timings.json`。
+    pub timings_path: std::path::PathBuf,
+    /// 人声块目录 `split_audio/vocals/`——仅 dub 模式产出。
+    pub vocals_dir: Option<std::path::PathBuf>,
+}
+
 impl SplitAudioTimingResult {
     /// 从 [`split_audio::TimingsPath`] 读出**带类型**的意图时序。
     ///
