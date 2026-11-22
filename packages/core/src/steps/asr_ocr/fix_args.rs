@@ -50,9 +50,9 @@ impl AsrOcrFixArgs {
 /// 意图面（`video_dir` / `args` / `max_advance_ms`）走 `sc.ctx().input()`，不进 deps。
 #[derive(Debug, Clone)]
 pub struct AsrOcrFixDeps {
-    /// asr_ocr_pre 步骤产出的 ASR 切分结果。
+    /// asr_ocr_pre 步骤产出的 ASR 切分结果。 asr_ocr_pre/asr_split.json
     pub asr_ocr_pre_asr_split_path: asr_ocr_pre::AsrSplitPath,
-    /// asr_ocr 步骤产出的逐帧 OCR 结果。
+    /// asr_ocr 步骤产出的逐帧 OCR 结果。 asr_ocr/frames.json
     pub ocr_frames_path: asr_ocr::FramesPath,
     /// 装配层算好的源语言（LLM 提示词用）。
     pub source_lang: crate::r#const::lang::LangStr,
