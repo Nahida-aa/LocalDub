@@ -40,7 +40,7 @@ pub struct AsrSplitResultMeta {
     /// 切分前的原始 ASR 段数（来自 `asr/asr.json`）。
     ///
     /// 下游 `asr_ocr_fix` 直接把它当 `asr_raw_len` 用（fusion 遥测 / 日志），所以本步
-    /// 写它时顺手记下，下游无需回读 `asr/asr.json`——这也是 `AsrOcrFixInput` 能去掉
+    /// 写它时顺手记下，下游无需回读 `asr/asr.json`——这也是 `AsrOcrFixDeps` 能去掉
     /// `asr_path` 依赖的前提。
     pub original_segments_count: usize,
     /// 切分后的段数。

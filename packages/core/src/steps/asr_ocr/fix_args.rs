@@ -39,44 +39,62 @@ impl AsrOcrFixArgs {
     }
 }
 
-/// asr_ocr_fix 步骤的跨步骤输入清单。
+/// Phase 1 事实面：`step_asr_ocr_fix` 的显式依赖清单（由装配层算好后注入）。
 ///
-/// 只收两条上游产物（均为「约定拼法」的 `{video_dir}/...`，故用
-/// [`from_video_dir`](Self::from_video_dir) 入口，与 `SfOcrFixInput` 同款
-/// （已迁移到 `AsrFixDeps::from_input` 的 asr_fix 不再走 from_video_dir）：
+/// 装本步消费的三条上游产物 / 事实（各字段注释标明生产者）：
+/// - `asr_ocr_pre` 产出的 `asr_split.json`——原始 ASR 段数已记入其
+///   `meta.original_segments_count`，故本步不回读 `asr/asr.json`；
+/// - `asr_ocr` 产出的 `frames.json`（逐帧 OCR 结果）；
+/// - `source_lang`：装配层按三级回退算好的源语言，LLM 提示词用。
 ///
-/// - `asr_ocr_pre/asr_split.json`（`asr_ocr_pre` 步骤，[`asr_ocr_pre::AsrSplitPath`]）——
-///   原始 ASR 段数已记入其 `meta.original_segments_count`，故本步**不再**回读
-///   `asr/asr.json`（那是 `asr_ocr_pre` 的输入，不是本步该直接碰的）
-/// - `asr_ocr/frames.json`（`asr_ocr` 步骤，[`asr_ocr::FramesPath`]）
-///
-/// 自身产物 `asr_ocr_fix/srt.json` 不在此列——那是输出，非输入。
-pub struct AsrOcrFixInput {
-    /// 任务目录（写侧 step status 需要）。
-    pub video_dir: String,
-    /// 来自 asr_ocr_pre 步骤的 ASR 切分结果 `asr_ocr_pre/asr_split.json`。
+/// 意图面（`video_dir` / `args` / `max_advance_ms`）走 `sc.ctx().input()`，不进 deps。
+#[derive(Debug, Clone)]
+pub struct AsrOcrFixDeps {
+    /// asr_ocr_pre 步骤产出的 ASR 切分结果。
     pub asr_ocr_pre_asr_split_path: asr_ocr_pre::AsrSplitPath,
-    /// 来自 asr_ocr 步骤的逐帧 OCR 结果 `asr_ocr/frames.json`。
+    /// asr_ocr 步骤产出的逐帧 OCR 结果。
     pub ocr_frames_path: asr_ocr::FramesPath,
-    /// 源语言（`<asr>/out.json` > `input.workflow.source_lang` > 未知）：LLM 提示词用它。
+    /// 装配层算好的源语言（LLM 提示词用）。
     pub source_lang: crate::r#const::lang::LangStr,
-    /// 本次运行参数（`input.steps.asr_ocr_fix`）。
-    pub args: AsrOcrFixArgs,
-    /// fixOverlap 的最大提前量：`input.steps.mix_audio.max_advance_ms`（以 ms 为单位
-    /// 的字幕提前容忍限度，与配音对齐用同一个值）。
-    pub max_advance_ms: f64,
 }
 
-impl AsrOcrFixInput {
-    /// 按约定拼法构造：`{video_dir}/asr_ocr_pre/asr_split.json` 等两条。
-    pub fn new(video_dir: &str, input: &crate::input::Input) -> Self {
+/// `step_asr_ocr_fix` 的**全部产物清单**（作为步骤函数返回值，不写盘）。
+///
+/// 所有写出的 json 全列（含两个条件产物）：中间态五个 + `asr_ocr_merged` /
+/// `fused` / 规范化字幕 `srt.json` 是无条件写出的；`ocr_frames.json` 与
+/// `resampled_frames/` 仅 is_resample 且真的有新候选帧时产出，
+/// `asr_ocr_fused_llm_fix.json` 仅 llmFix 调用成功时写。
+#[derive(Debug, Clone, PartialEq, Eq, specta::Type)]
+pub struct AsrOcrFixOutput {
+    pub frames_box_adjust_path: std::path::PathBuf,
+    pub frames_box_filter_path: std::path::PathBuf,
+    pub frames_merged_path: std::path::PathBuf,
+    pub segment_adjust_path: std::path::PathBuf,
+    pub segment_filter_path: std::path::PathBuf,
+    /// is_resample 且真的有新候选帧时产出的重采样合并帧。
+    pub ocr_frames_path: Option<std::path::PathBuf>,
+    /// 同上：重采样抽出的帧目录。
+    pub resampled_frames_dir: Option<std::path::PathBuf>,
+    pub asr_ocr_merged_path: std::path::PathBuf,
+    pub asr_ocr_fused_path: std::path::PathBuf,
+    /// llmFix 调用成功时产出。
+    pub asr_ocr_fused_llm_fix_path: Option<std::path::PathBuf>,
+    /// 规范化字幕（下游唯一契约）。
+    pub srt_path: std::path::PathBuf,
+}
+
+impl AsrOcrFixDeps {
+    pub fn from_input(input: &crate::input::WorkflowInput) -> Self {
+        let video_dir = input.video_dir();
+        let asr_language = crate::steps::asr::out::asr_language(video_dir);
+        let source_lang = crate::state::lang::resolve_source_language(
+            asr_language.as_ref(),
+            input.workflow.source_lang.as_ref(),
+        );
         Self {
-            video_dir: video_dir.to_string(),
             asr_ocr_pre_asr_split_path: asr_ocr_pre::AsrSplitPath::new(video_dir),
             ocr_frames_path: asr_ocr::FramesPath::new(video_dir),
-            source_lang: crate::steps::utils::src_language(video_dir, input),
-            args: input.steps.asr_ocr_fix.clone(),
-            max_advance_ms: input.steps.mix_audio.max_advance_ms,
+            source_lang,
         }
     }
 }

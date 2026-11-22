@@ -8,12 +8,13 @@
 //!   5. Optional LLM fix (step 8)
 
 use crate::cmd::env::ensure_bin;
-use crate::steps::asr_ocr::fix_args::{AsrOcrFixArgs, AsrOcrFixInput};
+use crate::steps::asr_ocr::fix_args::{AsrOcrFixArgs, AsrOcrFixDeps, AsrOcrFixOutput};
 use crate::steps::asr_ocr::pre_out::AsrSplitResult;
 use crate::steps::utils::paths::{asr_ocr_fix, SrtJsonPath};
 use crate::steps::utils::{
     asr_ocr_fix_dir, now_iso, probe_video_resolution, set_step_anyhow, StepPatch, StepStatus,
 };
+use crate::workflows::step_ctx::{CtxView, StepCtxView};
 use anyhow::Result;
 // 字幕 OCR 产物/管线类型（FrameResult / OcrSegment / OcrFramesResult / compute_box_* /
 // edit_distance）已迁到 subtitle-ocr-types；纯字幕领域 SubtitleSegment 的权威来源是
@@ -92,9 +93,10 @@ fn maybe_resample(
     ocr_frames: &OcrFramesResult,
     out_dir: &Path,
     args: &AsrOcrFixArgs,
-) -> Result<OcrFramesResult> {
+) -> Result<(OcrFramesResult, bool)> {
+    // bool = 是否实际执行了重采样（决定了 ocr_frames.json / resampled_frames/ 是否产出）
     if !args.is_resample {
-        return Ok(ocr_frames.clone());
+        return Ok((ocr_frames.clone(), false));
     }
 
     // Collect candidate timestamps (from resample.ts logic)
@@ -136,7 +138,7 @@ fn maybe_resample(
         .collect();
     if new_ts.is_empty() {
         info!(target: "asr_ocr", "Resample: no new candidates");
-        return Ok(ocr_frames.clone());
+        return Ok((ocr_frames.clone(), false));
     }
     new_ts.sort_unstable();
 
@@ -166,7 +168,7 @@ fn maybe_resample(
     info!(target: "asr_ocr", "Resample: extracted {} frames", extract_count);
 
     if extract_count == 0 {
-        return Ok(ocr_frames.clone());
+        return Ok((ocr_frames.clone(), false));
     }
 
     // OCR the resampled frames using subtitle-ocr bin
@@ -198,7 +200,7 @@ fn maybe_resample(
     };
     write_json_file(&out_dir.join("ocr_frames.json"), &merged)?;
 
-    Ok(merged)
+    Ok((merged, true))
 }
 
 /// Final dedup: adjacent same text within 2000ms → merge.
@@ -221,9 +223,14 @@ fn final_dedup(segs: Vec<OcrSegment>) -> Vec<OcrSegment> {
 
 /// Entry point (mirrors TS `stepAsrOcrFix`).
 ///
-/// 单参 [`AsrOcrFixInput`]：两条上游产物 + 任务目录 + 本次参数都在里面。
-pub fn step_asr_ocr_fix(input: &AsrOcrFixInput) -> Result<()> {
-    let video_dir = input.video_dir.clone();
+/// 意图面经 `sc.ctx().input()` 取（args / video_dir / max_advance_ms），事实面由装配层
+/// 算好注入 [`AsrOcrFixDeps`]（两条上游产物 + 算好的 source_lang）。
+pub fn step_asr_ocr_fix(
+    sc: impl StepCtxView,
+    deps: AsrOcrFixDeps,
+) -> Result<AsrOcrFixOutput> {
+    let input = sc.ctx().input();
+    let video_dir = input.video_dir().to_string();
     info!(target: "asr_ocr", "step_asr_ocr_fix: start");
 
     set_step_anyhow(
@@ -236,29 +243,29 @@ pub fn step_asr_ocr_fix(input: &AsrOcrFixInput) -> Result<()> {
         },
     )?;
 
-    let args = &input.args;
+    let args = &input.steps.asr_ocr_fix;
     let out_dir = asr_ocr_fix_dir(&video_dir);
     fs::create_dir_all(&out_dir)?;
 
-    if !input.asr_ocr_pre_asr_split_path.as_path().exists() {
+    if !deps.asr_ocr_pre_asr_split_path.as_path().exists() {
         return Err(anyhow::anyhow!(
             "asr_split.json not found, run asr_ocr_pre first"
         ));
     }
-    if !input.ocr_frames_path.as_path().exists() {
+    if !deps.ocr_frames_path.as_path().exists() {
         return Err(anyhow::anyhow!("frames.json not found, run asr_ocr first"));
     }
 
     let asr_split_data: AsrSplitResult =
-        AsrSplitResult::read(input.asr_ocr_pre_asr_split_path.as_path())?;
-    let ocr_frames_data: OcrFramesResult = read_json_file(input.ocr_frames_path.as_path())?;
+        AsrSplitResult::read(deps.asr_ocr_pre_asr_split_path.as_path())?;
+    let ocr_frames_data: OcrFramesResult = read_json_file(deps.ocr_frames_path.as_path())?;
 
     // 原始 ASR 段数由 asr_ocr_pre 顺手记进了 split 的 meta，无需回读 `asr/asr.json`。
     let asr_raw_len = asr_split_data.meta.original_segments_count;
     let asr_segs = asr_split_data.result.segments.clone();
 
     // Step 1: Optional resample
-    let ocr_frames = maybe_resample(&video_dir, &ocr_frames_data, &out_dir, &args)?;
+    let (ocr_frames, did_resample) = maybe_resample(&video_dir, &ocr_frames_data, &out_dir, &args)?;
     let frames = &ocr_frames.frames;
 
     // --- Pipeline: adjust-box → filter-box → merge → adjust-segment → filter-segment ---
@@ -401,7 +408,7 @@ pub fn step_asr_ocr_fix(input: &AsrOcrFixInput) -> Result<()> {
     write_json_file(&out_dir.join("asr_ocr_merged.json"), &merged_result)?;
 
     // === Step 7: fixOverlap + final dedup ===
-    let max_advance_ms = input.max_advance_ms as u32;
+    let max_advance_ms = input.steps.mix_audio.max_advance_ms as u32;
     // Convert OcrSegmentWithAdjust to OcrSegment for fix_overlap
     let ocr_segs_for_fix: Vec<OcrSegment> = seg_filter
         .result
@@ -442,11 +449,12 @@ pub fn step_asr_ocr_fix(input: &AsrOcrFixInput) -> Result<()> {
 
     // === Step 8 (optional): LLM fix ===
     let mut final_segments = fused_result.result.segments.clone();
+    let mut llm_fix_written = false;
     if args.ocr_fix.llm_fix.llm_fix {
         let src_texts: Vec<String> = final_segments.iter().map(|s| s.base.text.clone()).collect();
         // 源语言走统一的解析（`<asr>/out.json` > 配置 source_lang > 兜底空串）。
         // 不在这里内联回退链——否则与 `src_language` 各算各的，容易分叉。
-        let lang_label = llm::lang_label(input.source_lang.code());
+        let lang_label = llm::lang_label(deps.source_lang.code());
         info!(target: "asr_ocr",
             "asr_ocr_fix: LLM fix {} segs (model={})", src_texts.len(), args.ocr_fix.llm_fix.llm_model
         );
@@ -467,6 +475,7 @@ pub fn step_asr_ocr_fix(input: &AsrOcrFixInput) -> Result<()> {
                     }
                 });
                 write_json_file(&out_dir.join("asr_ocr_fused_llm_fix.json"), &llm_result)?;
+                llm_fix_written = true;
             }
             Err(e) => {
                 tracing::warn!(target: "asr_ocr", "asr_ocr_fix LLM fix failed, keeping original: {e}");
@@ -503,7 +512,20 @@ pub fn step_asr_ocr_fix(input: &AsrOcrFixInput) -> Result<()> {
         },
     )?;
     info!(target: "asr_ocr", "done");
-    Ok(())
+    Ok(AsrOcrFixOutput {
+        frames_box_adjust_path: out_dir.join("frames_box_adjust.json"),
+        frames_box_filter_path: out_dir.join("frames_box_filter.json"),
+        frames_merged_path: out_dir.join("frames_merged.json"),
+        segment_adjust_path: out_dir.join("segment_adjust.json"),
+        segment_filter_path: out_dir.join("segment_filter.json"),
+        ocr_frames_path: did_resample.then(|| out_dir.join("ocr_frames.json")),
+        resampled_frames_dir: did_resample.then(|| out_dir.join("resampled_frames")),
+        asr_ocr_merged_path: out_dir.join("asr_ocr_merged.json"),
+        asr_ocr_fused_path: out_dir.join("asr_ocr_fused.json"),
+        asr_ocr_fused_llm_fix_path: llm_fix_written
+            .then(|| out_dir.join("asr_ocr_fused_llm_fix.json")),
+        srt_path: asr_ocr_fix::SrtPath::new(&video_dir).as_path().to_path_buf(),
+    })
 }
 
 #[cfg(test)]
