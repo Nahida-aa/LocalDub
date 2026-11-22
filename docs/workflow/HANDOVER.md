@@ -126,12 +126,11 @@ AGENTS.md 的 dub 正例表述同步。
      `step_asr_missing_input_errors` 夹具里的死配置；`AsrInput` 那个从未被 step 体
      消费的 `source_lang` 字段也随迁移删除（改从 `sc.ctx().input().workflow` 现取）。
    每次均重生成 schema / bindings，test_support.rs 的死配置同步清理。
-6. **`run_step` 的 `video_dir` 参数已成死参数**（Phase 1 完成后暴露）：全部 15 步迁移后，
-   没有任何步骤再需要 `run_step(step, video_dir, input)` 的 `video_dir`——各步从
-   `sc.ctx().input().video_dir()` 取。cargo check 报 `unused variable: video_dir`
-   （pipeline.rs:141）。应删该参数并同步 pipeline.rs / continue_pipeline.rs 两处活跃
-   调用（integration/workflow/engine.rs 那处在注释模块里，可一并清理）。属 Phase 1
-   收尾清理，无行为变化。
+6. **`run_step` 的 `video_dir` 死参数已删除**（Phase 1 收尾）：全部 15 步迁移后，
+   没有任何步骤再需要它——各步从 `sc.ctx().input().video_dir()` 取。已从签名删除，
+   并同步 pipeline.rs / continue_pipeline.rs 两处活跃调用。`integration/workflow/engine.rs`
+   里那处调用在整体注释的模块里（`mod.rs` 的 `// pub mod engine;`），按"恢复参考"惯例
+   保持原样，未清理。无行为变化。
 
 ## 5. 陷阱与教训（踩过的，别再踩）
 

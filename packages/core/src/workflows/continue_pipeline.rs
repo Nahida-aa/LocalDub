@@ -133,7 +133,7 @@ pub fn continue_pipeline(input: &Input) -> anyhow::Result<()> {
 
         // 每步重读 input.json：前序步骤可能改配置（continue 也可能中途改过）。
         let input = crate::state::read_input(video_dir).map_err(anyhow::Error::msg)?;
-        match run_step(step, video_dir, &input) {
+        match run_step(step, &input) {
             Ok(()) => {
                 if let Some(ts) = &target_step {
                     if step_str == ts {

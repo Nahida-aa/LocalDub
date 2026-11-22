@@ -130,15 +130,14 @@ pub fn run_pipeline(input: &crate::input::Input) -> anyhow::Result<()> {
 
 /// 按 step 名分派到具体 handler (镜像 TS `STEP_HANDLERS`)。
 ///
-/// **入参是 [`StepName`] + `(video_dir, input)`**（镜像 TS `runStep` 的
-/// `readCtx(sp)` 结果）：每个分支自己用 `<Step>Input::new` 取依赖清单——步骤之间
-/// 不再传一个共享的大对象，谁读什么写在各自的 Input 里。
+/// **入参是 [`StepName`] + `input`**：各步骤已迁移到 `(sc, deps)`，从
+/// `sc.ctx().input()` 取工作流输入，装配层构造 `XxxDeps`，派发层无需再单独传
+/// `video_dir`。
 ///
 /// **入参是 [`StepName`] 而非 `&str`**：`match` 因此是穷尽的——将来给枚举加
 /// 变体却不在这里登记 handler，会**编译失败**，而不是静默跳过。
 pub fn run_step(
     step: StepName,
-    video_dir: &str,
     input: &crate::input::Input,
 ) -> anyhow::Result<()> {
     // 进入 step span: 携带 step 名供 WorkflowFileLayer 作为 [step] 前缀。
@@ -248,7 +247,7 @@ pub(crate) fn run_one_step(
     // 不再维护 workflow.current_step 的每步投影。
     tracing::info!(target: "output_mode", "Running {step_str}");
 
-    match run_step(step, video_dir, input) {
+    match run_step(step, input) {
         Ok(()) => Ok(()),
         Err(e) => {
             let msg = e.to_string();
