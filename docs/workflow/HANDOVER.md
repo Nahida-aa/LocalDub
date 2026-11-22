@@ -166,9 +166,11 @@ AGENTS.md 的 dub 正例表述同步。
    并在步骤文档标注。要真正支持 fps 配置是行为变化，需单独规划。
 9. **`XxxDeps` 字段注释只写 provenance**（2026-11-22 确立）：每个字段注明"从哪个
    步骤 / action 产出"，**不写**"约定拼法 / 能算出来 / 存在性谁查"——后者是
-   `paths` newtype 带来的能力，不是字段存在的理由。例：`video_source_path` 是
-   import action 的产物，这与能否用 `from_video_dir` 拼出它是两回事。8 处 deps
-   注释已按此统一。
+   `paths` newtype 带来的能力，不是字段存在的理由。8 处 deps 注释已按此统一。
+   补充：用户后续决定 `video_source_path`（import 产物）**不进 deps**，由步骤体
+   从 `video_dir` 约定拼出——因为它与 `video_dir` 同源，不值得单独声明为依赖
+   （asr_ocr_pre / mix_video 已移除该字段）。这与上面通则不矛盾：通则是"字段若存在
+   就只写 provenance"，这里是"该字段不必存在"。
 
 ## 6. 库侧 view trait 评估结论（防重新争论，完整版 §6 of PLAN）
 

@@ -12,6 +12,7 @@ use anyhow::anyhow;
 use crate::steps::mix_audio::out::MixAudioOutputTimings;
 use crate::steps::mix_video::args::{Alignment, MixVideoArgs, MixVideoBranch, MixVideoDeps};
 use crate::steps::split_audio::out::SplitAudioTimingResult;
+use crate::steps::utils::paths::VideoSourcePath;
 use crate::steps::utils::srt::SubtitleSegments;
 use crate::steps::utils::{
     default_font, ensure_dir, ffmpeg_timeout, final_video_dir, probe_video_resolution,
@@ -23,22 +24,20 @@ use crate::workflows::step_ctx::{CtxView, StepCtxView};
 ///
 /// 意图面经 `sc.ctx().input()` 取（video_dir / video_id / output_mode /
 /// no_translate / subtitle_source / args），事实面由装配层算好注入
-/// [`MixVideoDeps`]（video_source_path / target_lang / branch）。
+/// [`MixVideoDeps`]（target_lang / branch）。原视频路径由 video_dir 约定拼出。
 pub fn step_mix_video(sc: impl StepCtxView, deps: MixVideoDeps) -> anyhow::Result<()> {
     let input = sc.ctx().input();
     let video_dir = input.video_dir().to_string();
     let video_id = crate::steps::utils::video_id(&video_dir).unwrap_or_default();
     let cfg = &input.steps.mix_video;
 
-    let video_file_path = deps
-        .video_source_path
-        .as_path()
-        .to_string_lossy()
-        .into_owned();
+    // 原视频路径由 video_dir 约定拼出（import 产出，不单独进 deps）
+    let video_source_path = VideoSourcePath::from_video_dir(&video_dir);
+    let video_file_path = video_source_path.as_path().to_string_lossy().into_owned();
     let mix_video = std::path::Path::new(&video_dir).join("mix_video");
     ensure_dir(&mix_video)?;
 
-    if !deps.video_source_path.as_path().exists() {
+    if !video_source_path.as_path().exists() {
         return Err(anyhow!("video_source.mp4 not found: {video_file_path}"));
     }
 

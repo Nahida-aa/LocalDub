@@ -98,11 +98,11 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | `separate` | `SeparateInput` | `audio_source_path: AudioSourcePath` |
 | `asr` | `AsrDeps`（Phase 1 已迁移） | `audio_path: AsrSourceAudioPath`（枚举：Custom / Separated{vocals, mixed, gated} / Raw；意图面 video_dir/args/source_lang 走 `sc.ctx().input()`） |
 | `sf_ocr_pre` | 无 deps（入口步骤，Phase 1 已迁移） | 只读 import 产出的原视频，在步骤体从 `video_dir` 拼 `VideoSourcePath` |
-| `asr_ocr_pre` | `AsrOcrPreDeps`（Phase 1 已迁移） | `asr_path: AsrPath`、`video_source_path: VideoSourcePath`（意图面 video_dir 走 sc；`args.fps` 未被步骤消费） |
+| `asr_ocr_pre` | `AsrOcrPreDeps`（Phase 1 已迁移） | `asr_path: AsrPath`（原视频路径由 video_dir 在步骤体内拼，不进 deps；意图面 video_dir 走 sc；`args.fps` 未被步骤消费） |
 | `translate` | `TranslateDeps`（Phase 1 已迁移） | `srt_segs: Vec<SubtitleSegment>`、`src_lang: LangStr`、`target_lang: LangStr`（装配层读好/算好；意图面 video_dir/args 走 `sc.ctx().input()`） |
 | `split_audio` | `SplitAudioDeps`（Phase 1 已迁移） | `audio_path: SplitAudioSourcePath`、`translate_path: LangPath`、`source_lang: LangStr`（装配层算好；意图面 video_dir/args/is_dub 走 `sc.ctx().input()`） |
 | `mix_audio` | `MixAudioDeps`（Phase 1 已迁移） | `split_audio_timings_path: TimingsPath`、`tts_wavs_dir: WavsDir`（构造时做存在性校验；意图面 video_dir/args 走 `sc.ctx().input()`） |
-| `mix_video` | `MixVideoDeps`（Phase 1 已迁移） | `video_source_path` + `target_lang`（translate/out.json 事实）+ `branch: MixVideoBranch`（`Dub{mix_audio_timings_path, dubbing_path, bgm_path}` / `Subtitle{split_audio_timings_path}`）；意图面 video_dir/video_id/output_mode/no_translate/subtitle_source/args 走 `sc.ctx().input()` |
+| `mix_video` | `MixVideoDeps`（Phase 1 已迁移） | `target_lang`（translate/out.json 事实）+ `branch: MixVideoBranch`（`Dub{mix_audio_timings_path, dubbing_path, bgm_path}` / `Subtitle{split_audio_timings_path}`）；原视频路径由 video_dir 在步骤体内拼，不进 deps；意图面 video_dir/video_id/output_mode/no_translate/subtitle_source/args 走 `sc.ctx().input()` |
 
 ### `from_video_dir`（约定拼法，非 ctx 事实）
 

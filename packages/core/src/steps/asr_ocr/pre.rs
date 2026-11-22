@@ -7,7 +7,7 @@ use crate::steps::asr_ocr::pre_out::{
     AsrOcrPreOutput, AsrSplitResult, AsrSplitResultBody, AsrSplitResultMeta,
 };
 use crate::steps::utils::ffmpeg;
-use crate::steps::utils::paths::asr_ocr_pre;
+use crate::steps::utils::paths::{asr_ocr_pre, VideoSourcePath};
 use crate::steps::utils::{asr_ocr_pre_dir, now_iso, set_step_anyhow, StepPatch, StepStatus};
 use crate::workflows::step_ctx::{CtxView, StepCtxView};
 use anyhow::Result;
@@ -154,7 +154,9 @@ pub fn step_asr_ocr_pre(sc: impl StepCtxView, deps: AsrOcrPreDeps) -> Result<Asr
         },
     )?;
 
-    let video_source = deps.video_source_path.as_path();
+    // 原视频路径由 video_dir 约定拼出（与 deps 的 asr_path 同源，不单独进 deps）
+    let video_source_path = VideoSourcePath::from_video_dir(&video_dir);
+    let video_source = video_source_path.as_path();
     if !video_source.exists() {
         return Err(anyhow::anyhow!(
             "Video not found: {}",

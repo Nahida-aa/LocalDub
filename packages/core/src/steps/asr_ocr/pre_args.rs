@@ -1,6 +1,6 @@
 //! asr_ocr 阶段预处理参数 (镜像 TS `packages/core/steps/04_asr_ocr/pre_args.ts`)。
 
-use crate::steps::utils::paths::{asr, VideoSourcePath};
+use crate::steps::utils::paths::asr;
 use serde::{Deserialize, Serialize};
 
 /// asr_ocr 阶段预处理参数。
@@ -28,12 +28,11 @@ fn default_fps() -> f64 {
 
 /// Phase 1 事实面：`step_asr_ocr_pre` 的显式依赖清单（由装配层算好后注入）。
 ///
-/// 装本步消费的两条跨步骤产物（各字段注释标明其生产者）：
-/// - `asr_path`：asr 步骤产出的 `asr/asr.json`——本步据此做 ASR 切分；
-/// - `video_source_path`：import action 产出的原视频——ffmpeg 抽帧的输入。
+/// 装本步消费的跨步骤产物：`asr_path`——asr 步骤产出的 `asr/asr.json`，本步据此
+/// 做 ASR 切分。
 ///
-/// "从哪里来"是字段的 provenance；路径能按 `{video_dir}/...` 约定拼出、
-/// 存在性由步骤体查证，都是 `paths` newtype 带来的能力，不是这里要声明的东西。
+/// 原视频路径（import 产出）由步骤体从 `video_dir` 约定拼出，不进 deps——它与
+/// `video_dir` 同源，不需要单独声明为依赖。
 ///
 /// 意图面（`video_dir`）走 `sc.ctx().input()`，不进 deps。
 /// 本步的产出（`asr_ocr_pre/asr_split.json` / `frames/`）见 `pre_out::AsrOcrPreOutput`。
@@ -41,16 +40,12 @@ fn default_fps() -> f64 {
 pub struct AsrOcrPreDeps {
     /// asr 步骤产出的识别结果 `asr/asr.json`。
     pub asr_path: asr::AsrPath,
-    /// import action 产出的原视频文件。
-    pub video_source_path: VideoSourcePath,
 }
 
 impl AsrOcrPreDeps {
     pub fn from_input(input: &crate::input::WorkflowInput) -> Self {
-        let video_dir = input.video_dir();
         Self {
-            asr_path: asr::AsrPath::new(video_dir),
-            video_source_path: VideoSourcePath::from_video_dir(video_dir),
+            asr_path: asr::AsrPath::new(input.video_dir()),
         }
     }
 }

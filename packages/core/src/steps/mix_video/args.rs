@@ -2,9 +2,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::steps::utils::paths::{
-    mix_audio, separate_after, split_audio, translate, VideoSourcePath,
-};
+use crate::steps::utils::paths::{mix_audio, separate_after, split_audio, translate};
 use crate::workflows::args::OutputMode;
 
 /// 字幕对齐位置 (镜像 TS `packages/core/steps/mix_video/args.ts` alignmentList)
@@ -172,17 +170,15 @@ pub enum MixVideoBranch {
 
 /// Phase 1 事实面：`step_mix_video` 的显式依赖清单（由装配层算好后注入）。
 ///
-/// - `video_source_path`：import action 产出的原视频；
 /// - `target_lang`：translate 步骤写入 `<translate>/out.json` 的落定语言；
 /// - `branch`：按 `output_mode` 二选一的产物读集（Dub 要配音轨 + BGM +
 ///   mix_audio 对齐时序；Subtitle 只要 split_audio 意图时序）。
 ///
+/// 原视频路径（import 产出）由步骤体从 `video_dir` 约定拼出，不进 deps。
 /// 意图面（`video_dir` / `video_id` / `output_mode` / `no_translate` /
 /// `subtitle_source` / `args`）走 `sc.ctx().input()`，不进 deps。
 #[derive(Debug, Clone)]
 pub struct MixVideoDeps {
-    /// import action 产出的原视频。
-    pub video_source_path: VideoSourcePath,
     /// translate 步骤写入 `<translate>/out.json` 的落定语言。
     pub target_lang: String,
     /// 分支专属的读集（各变体注释标明生产者）。
@@ -194,7 +190,6 @@ impl MixVideoDeps {
     /// 算好；路径全部交给 `paths` 里各类型的构造函数，本函数不自己拼字符串。
     pub fn from_input(input: &crate::input::WorkflowInput) -> anyhow::Result<Self> {
         let video_dir = input.video_dir();
-        let video_source_path = VideoSourcePath::from_video_dir(video_dir);
         let branch = match input.workflow.output_mode {
             OutputMode::Dub => {
                 let bgm_path = match &input.steps.mix_video.bgm_path {
@@ -212,7 +207,6 @@ impl MixVideoDeps {
             },
         };
         Ok(Self {
-            video_source_path,
             target_lang: translate::LangPath::from_video_dir(video_dir)?
                 .lang()
                 .to_string(),
