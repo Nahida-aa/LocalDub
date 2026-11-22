@@ -66,9 +66,16 @@ emit 是 not-persisted，改成 emit 会丢持久化语义 → 必须保留。
      emit→Custom 映射逐字。
    - **一个 video_dir 对应多次 run，必须按 run 分事件文件**：`run_id` 是每次新 run 时传入
      （aa-workflow `RunWorkflowOptions.run_id: Option<RunId>`——复用即 resume、不传则生成新 id），
-     start / continue / regen 各是一次独立 run。所以事件文件必须带 run 身份，路径形如
-     `<video_dir>/workflow-engine/<run_id>/events.local.jsonl`（或文件名含 run_id），
-     不能用单一 <video_dir> 文件混装多次 run。
+     start / continue / regen 各是一次独立 run。事件文件路径：
+     `<video_dir>/workflow-engine/<run_id>/events.local.jsonl`，不能用单一 <video_dir> 文件
+     混装多次 run。
+   - **目录名本身就是自增记录，不需要单独 counter 文件**（用户 2026-11-23 定）：新 run 的
+     run_id = 扫 `<video_dir>/workflow-engine/` 下已有的 `<run_id>` 目录取最大 +1（`run-1` /
+     `run-2`…）。目录存在即记录，重启可续，省掉一个状态文件。边界：目录被整体清理后会
+     从 `run-1` 重来——此时旧目录也不在了，不会冲突。
+   - ⚠️ **与现成 `events.jsonl` 的分工**：现成的 `<video_dir>/workflow-engine/events.jsonl`
+     是 FsRunStore 真源（**单文件、不按 run 分**，resume 靠它），本次新增的是按 run 分的
+     `events.local.jsonl`（观测用、不参与 replay）。两者并存，不是替换。
    - **LocalDub 当前缺 run_id 字段**：`WorkflowArgs` 只有 `action` / `queue_id` / step 参数
      （`workflows/args.rs:210-231`），没有 run_id。落地前要给 `MyRunCtx` 加 `run_id: String`
      并在执行器构造各 run 时传入——这是必须补的基础设施，见待拍板。
@@ -96,15 +103,13 @@ emit 是 not-persisted，改成 emit 会丢持久化语义 → 必须保留。
 
 ## 5. 待拍板（写方案时未定，实现前需定）
 
-1. **run_id 方案已拍板：每个 video_dir 独立自增**（用户 2026-11-23 定）：
+1. **run_id 方案已拍板：每个 video_dir 独立自增，目录名即记录**（用户 2026-11-23 定）：
    run_id 形如 `run-1` / `run-2`，同一任务每次 start / continue / regen 自增一次；
-   **queue_id 不能用**——它是服务端全局队列自增（`queue/mod.rs:170`），跨视频目录。
-   - 仍需定：计数器**存在哪**（`<video_dir>/run-counter` 单独文件？还是塞进现有
-     `state.json`？后者由 import + 编排器写，加字段要评估写者冲突）；
-   - run_id 走 `WorkflowArgs` 可选字段传入（复用 = resume，不传 = 生成新号），执行器
-     构造 `MyRunCtx { run_id, ... }`。
-2. 事件文件路径：用 `<video_dir>/workflow-engine/<run_id>/events.local.jsonl` 还是文件名含
-   run_id？
+   新号 = 扫 `<video_dir>/workflow-engine/` 下已有 `<run_id>` 目录取最大 +1，不另设
+   counter 文件。**queue_id 不能用**（服务端全局队列自增，跨视频目录）。
+   run_id 走 `WorkflowArgs` 可选字段传入（复用 = resume，不传 = 生成新号），执行器
+   构造 `MyRunCtx { run_id, ... }`。
+2. 事件文件路径已定：`<video_dir>/workflow-engine/<run_id>/events.local.jsonl`。
 3. 投影器的 `ViewState` 形状：直接复用 `StepState`（7 字段）还是精简版？
 4. `emit` 是否要保留同步 fallback（比如事件文件写失败时退回写 state.json）——
    按"不留兼容层"原则建议不保留，失败就 error。
