@@ -180,6 +180,25 @@ core engine 有 `exec_pause`（park）+ `find_resume`（取回 payload）+ 信�
 证明 core 自己就能"投递信号→恢复 run"。TanStack `runtime-model.md:31` 也把
 `waitForEvent`/`sleep`/`approve` 列为 **core 拥有的原语**。
 
+**"投递信号"不是 runtime 独有能力——core 就有两种写法**（别把 `deliverSignal`
+当成 runtime 相对 core 的增量）：
+- **一步**：`RunWorkflowOptions.signal_delivery(SignalDelivery)`——drive 开头引擎
+  自己定位等待点、去重、落 `SignalResolved`、继续重放（`engine/mod.rs:2831-2835`
+  注释 + `signal_delivery_option_resumes_in_one_step` 测试）；
+- **两步**：注释里叫 `deliver_signal`——调用方先把信号写进 store 日志，之后某次
+  drive 才看到（`run_workflow.rs:327` / `engine/mod.rs:3`）。它不是一个公开的
+  `run_workflow` 函数，而是 core 设计里就有的 durable 等待机制。
+  runtime 的 `deliverSignal` 只是把这些能力**包一层挂到 execution store 上**，
+  能力本身 core 具备。
+
+**排除定时（sweep）后，runtime 相对 core 真正多的只有两样**：
+1. **执行所有权 / lease**——多 worker 互斥、崩溃后 stale lease recovery 接管；
+   core 是 headless 单进程模型，没有"多个执行者竞争同一 run"的概念
+   （`runtime-model.md:150-162`）；
+2. **定时驱动**（timer/cron sweep，见下条并发模型）。
+在"驱动一个 run 前进"这件事上，runtime 就是 core 的 thin wrapper——不要再把
+"投递信号"或"store 接口方法多"当成它的增量。
+
 **runId 约束（精确边界）**：
 - `RunId = string`（`workflow-core/src/types/index.ts:350`），无 UUID 约束；
 - 引擎缺省生成 `run_${Date.now()}_${random}`（`run-workflow.ts:264,1743`）——
@@ -207,7 +226,8 @@ core engine 有 `exec_pause`（park）+ `find_resume`（取回 payload）+ 信�
 
 **对 LocalDub 的落点**：当前 15 步同步跑完、无 sleep/approve/崩溃接管需求 →
 **只用 core + 中间件（dag_policies），runtime 保持观察**。一旦出现"run 暂停后稍后恢复"
-的需求，再上 runtime；届时补的是租约/timer/投递这些**引擎能力**及其持久化，
+的需求，再上 runtime；届时补的是租约/timer 调度这些**引擎能力**及其持久化
+（投递本身 core 已具备，不是缺口），
 不是"接个队列"。LocalDub queue ≈ 手写 execution store（run 级状态 + 串行驱动），
 但没有 paused/wakeAt/lease/timer。
 
