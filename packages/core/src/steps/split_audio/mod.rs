@@ -17,9 +17,7 @@ pub mod vad_align;
 use std::fs;
 use std::path::Path;
 
-use crate::steps::split_audio::out::{
-    SplitAudioResult, SplitAudioSegment, SplitAudioTimingResult, TranslateResultMeta,
-};
+use crate::steps::split_audio::out::{SplitAudioResult, SplitAudioSegment, SplitAudioTimingResult};
 use crate::steps::split_audio::pad_segment::{pad_segments, SegmentBounds};
 use crate::steps::translate::out::{TranslateResult, TranslateSegment};
 use crate::steps::utils::{
@@ -61,7 +59,6 @@ pub fn step_split_audio(sc: impl StepCtxView, deps: args::SplitAudioDeps) -> any
     //
     // 目标语言读**已落定的事实**（翻译步骤写的），不现算；
     // 源语言独立解析（它有自己的三级回退，与目标语言无关）。
-    let src_lang = deps.source_lang.code().to_string();
     let trans = TranslateResult::read(&translate_path).map_err(|e| {
         anyhow::anyhow!("{e}; 请先运行 translate（或从该步骤 continue 以重新生成）")
     })?;
@@ -120,19 +117,6 @@ pub fn step_split_audio(sc: impl StepCtxView, deps: args::SplitAudioDeps) -> any
         )?;
     }
 
-    // meta 与 translate 产物的 meta 对齐：src/target 都取**产物自述**的值
-    // （`trans` 在函数开头已读入），而不是重新解析——本步骤处理的就是那份
-    // segments，meta 理应与之逐字一致。
-    let meta = TranslateResultMeta {
-        // 产物 meta 为空串时回退到独立解析（老产物可能没写过该字段）
-        src_lang: if trans.meta.src_lang.is_empty() {
-            src_lang.clone()
-        } else {
-            trans.meta.src_lang.clone()
-        },
-        target_lang: translate_path.lang().to_string(),
-    };
-
     // VAD alignment (可选)：原地修正 split_segments 与 segments 的时序。
     // 是否实际修正由内部决定，这里不需要它的返回值——
     // 最终态在下方统一各写一次盘（corrected 与否内容一致，省掉一次冗余写盘）。
@@ -150,7 +134,6 @@ pub fn step_split_audio(sc: impl StepCtxView, deps: args::SplitAudioDeps) -> any
     // split_audio.json：总是写最终（可能经 VAD 修正）的切块时序。
     let split_result = SplitAudioResult {
         segments: split_segments.clone(),
-        meta: meta.clone(),
     };
     let split_path = split_audio_path(&video_dir);
     write_json_pretty(&split_path, &split_result)?;

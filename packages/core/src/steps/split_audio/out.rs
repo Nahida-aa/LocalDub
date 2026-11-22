@@ -5,13 +5,6 @@ use crate::steps::utils::paths::split_audio;
 use crate::steps::utils::srt::SubtitleSegments;
 use subtitle::SubtitleSegment;
 
-/// 翻译结果 meta (镜像 TS `packages/core/steps/05_translate/out.ts` TranslateResultMeta)
-#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
-pub struct TranslateResultMeta {
-    pub src_lang: String,
-    pub target_lang: String,
-}
-
 /// 意图时序片段 (镜像 TS `SplitAudioTiming`, 继承 TranslateSegment + SubtitleSegment)
 // #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 pub type SplitAudioTiming = TranslateSegment;
@@ -27,11 +20,10 @@ pub struct SplitAudioSegment {
     pub split_end_ms: u32,
 }
 
-/// `split_audio/split_audio.json` (padSegments 后时序 + meta)
+/// `split_audio/split_audio.json` (padSegments 后时序)
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 pub struct SplitAudioResult {
     pub segments: Vec<SplitAudioSegment>,
-    pub meta: TranslateResultMeta,
 }
 
 /// `split_audio/timings.json` (意图时序)

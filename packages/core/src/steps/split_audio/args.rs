@@ -2,8 +2,6 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::r#const::lang::LangStr;
-use crate::state::lang::resolve_source_language;
 use crate::steps::utils::paths::{separate, translate};
 
 /// split_audio 阶段参数 (镜像 TS `packages/core/steps/06_split_audio/args.ts` SplitAudioArgsSchema)
@@ -68,9 +66,7 @@ fn default_end_pad_ms() -> u32 {
 /// - `audio_path`：切块音频源，已按优先级仲裁（vocalsFilePath 覆盖 → 人声
 ///   stem → 原始音频）；存在性判断留在构造里，类型只表达结论；
 /// - `translate_path`：translate 落定的产物路径（`<translate>/out.json` 事实），
-///   步骤体据此读 `TranslateResult`、取 `lang()` 作 target_lang、比较 mtime；
-/// - `source_lang`：源语言（`<asr>/out.json` > `input.workflow.source_lang` >
-///   未知），写 meta 用。
+///   步骤体据此读 `TranslateResult` 与比较 mtime。
 ///
 /// 意图面（`args` / `video_dir` / `is_dub`）走 `sc.ctx().input()`，不进 deps。
 #[derive(Debug, Clone)]
@@ -79,8 +75,6 @@ pub struct SplitAudioDeps {
     pub audio_path: SplitAudioSourcePath,
     /// 字幕时序来源（意图时序 + 文本 + 译文）。
     pub translate_path: translate::LangPath,
-    /// 源语言：写 meta 用（产物 meta 为空串时回退到它）。
-    pub source_lang: crate::r#const::lang::LangStr,
 }
 
 /// 切块用的音频源（三选一）。
@@ -122,7 +116,7 @@ pub enum SplitAudioSourcePath {
 
 impl SplitAudioDeps {
     /// 装配层构造：先定音频源（按 `SplitAudioSourcePath` 的优先级），再取
-    /// translate 落定的产物路径（`<translate>/out.json`）与源语言。
+    /// translate 落定的产物路径（`<translate>/out.json`）。
     /// `WorkflowInput` 已保证 video_dir 落定，意图面留在步骤体从 `sc` 取。
     ///
     /// **优先级与存在性检查的现状对齐**（`step_split_audio` 原有逻辑）：
@@ -138,18 +132,9 @@ impl SplitAudioDeps {
     pub fn from_input(input: &crate::input::WorkflowInput) -> anyhow::Result<Self> {
         let video_dir = input.video_dir();
         let args = &input.steps.split_audio;
-        // 源语言与 translate 同款三级回退：`asr_language(video_dir)` 实测 >
-        // `input.workflow.source_lang` 配置 > unknown。这里读 WorkflowInput 的
-        // workflow 字段即可，不必回头构造 &Input。
-        let asr_language = crate::steps::asr::out::asr_language(video_dir);
-        let source_lang: LangStr = resolve_source_language(
-            asr_language.as_ref(),
-            input.workflow.source_lang.as_ref(),
-        );
         Ok(Self {
             audio_path: Self::audio_source(video_dir, args),
             translate_path: translate::LangPath::from_video_dir(video_dir)?,
-            source_lang,
         })
     }
 
