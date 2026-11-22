@@ -2,7 +2,7 @@
 //!
 //! 与产物级依赖清单（各 `<Step>Input`）的分工：`XxxInput` 声明**读哪些文件**，
 //! 这里声明**等哪些步骤**。两份清单说的是同一件事的两个层面——
-//! `SplitAudioInput` 读 translate 产物 + separate 的 vocals stem，
+//! `SplitAudioDeps` 读 translate 产物 + separate 的 vocals stem，
 //! 本文件里 `split_audio` 的上游就是 `[translate, separate]`。改了 Input 的
 //! 读集而忘了改这里（或反过来）目前靠人工对齐 + 防漂移测试
 //! （[`sf_ocr_dub_edges_are_topo_consistent_with_serial_constant`]）。

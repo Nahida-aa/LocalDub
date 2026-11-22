@@ -99,7 +99,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | `sf_ocr_pre` | `SfOcrPreInput` | `video_source_path: VideoSourcePath` |
 | `asr_ocr_pre` | `AsrOcrPreInput` | `asr_path: AsrPath`、`video_source_path: VideoSourcePath` |
 | `translate` | `TranslateDeps`（Phase 1 已迁移） | `srt_segs: Vec<SubtitleSegment>`、`src_lang: LangStr`、`target_lang: LangStr`（装配层读好/算好；意图面 video_dir/args 走 `sc.ctx().input()`） |
-| `split_audio` | `SplitAudioInput` | `audio_path: SplitAudioSourcePath`、`translate_path: LangPath` |
+| `split_audio` | `SplitAudioDeps`（Phase 1 已迁移） | `audio_path: SplitAudioSourcePath`、`translate_path: LangPath`、`source_lang: LangStr`（装配层算好；意图面 video_dir/args/is_dub 走 `sc.ctx().input()`） |
 | `mix_audio` | `MixAudioInput` | `split_audio_timings_path: TimingsPath`、`tts_wavs_dir: WavsDir` |
 | `mix_video` | `MixVideoInput`（枚举） | `Dub{video_source_path, mix_audio_timings_path, dubbing_path, bgm_path}` / `Subtitle{video_source_path, split_audio_timings_path}` |
 
@@ -392,33 +392,34 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | **读** | `audio_source.wav`（没有人声 stem 时回退；类型化 `AudioSourcePath`） |
 | **写** | `split_audio/split_audio.json`、`timings.json`、`vocals/*.wav` |
 
-> **输入契约 `SplitAudioInput::from_state`**（`split_audio/args.rs`）：
+> **事实面 `SplitAudioDeps::from_input(&WorkflowInput)`**（`split_audio/args.rs`，
+> Phase 1 已迁移）：
 >
 > ```rust
-> pub struct SplitAudioInput {
->     pub audio_path: SplitAudioSourcePath,      // 切哪个音频
->     pub translate: LangPath,          // 字幕时序从哪读
+> pub struct SplitAudioDeps {
+>     pub audio_path: SplitAudioSourcePath,  // 切哪个音频（已仲裁）
+>     pub translate_path: LangPath,           // 字幕时序从哪读（translate 落定事实）
+>     pub source_lang: LangStr,               // 写 meta 用（三级回退算好）
 > }
 > ```
+>
+> 意图面（`args` / `video_dir` / `is_dub`）走 `sc.ctx().input()`，不进 deps。
 >
 > `SplitAudioSourcePath` 的**顺序即优先级**（与 step 原有逻辑一致）：
 > 1. `Custom` —— `splitAudio.vocalsFilePath` 显式指定
 > 2. `Vocals` —— `separate/target_3_vocals.wav` **存在**时用它
 > 3. `SourceAudio` —— 否则 `audio_source.wav`
 >
-> 存在性检查留在 `from_state` 里（不进类型）：subtitle 模式不做 separate，
+> 存在性检查留在 `from_input` 的仲裁里（不进类型）：subtitle 模式不做 separate，
 > 没有 vocals 是**正常路径**而非错误。
 >
 > **注意 `Vocals` 指向 `separate/`，不是 `separate_after/`**——用**原始**人声，
 > 不是混音后的（后者是给 `asr` 用的）。这一条曾被草稿写错。
 >
-> **契约尚未接线**（`step_split_audio` 仍用旧逻辑）：旧 fallback `video_source.mp4`
-> 与契约的 `audio_source.wav`（纯音频）是**同一段音频**——后者由 import 的
-> `extract_audio(video_source.mp4)` 产出（pcm_s16le / 44100），且旧代码里 mp4 实际只
-> 喂给 `probe_duration_ms`（时长一致），`cut_audio_range` 只在有 vocals 时对
-> `separate/target_3_vocals.wav` 调用。故接线**不改变产物**。
-> 契约与现状现已一致：`source_file_path` 调试覆盖已从 `SplitAudioArgs` 移除
-> （见 `args.rs` 该结构注释），仅保留 `vocals_file_path` → `Custom`。
+> `source_file_path` 调试覆盖已从 `SplitAudioArgs` 移除（见 `args.rs` 该结构注释），
+> 仅保留 `vocals_file_path` → `Custom`。旧 fallback `video_source.mp4` 与
+> `audio_source.wav` 是同一段音频（后者由 import 的 `extract_audio` 产出），
+> 故迁移**不改变产物**。
 >
 > **`{lang}.json` 是带类型读取的**：`TranslateResult::read(&LangPath)`。
 > 意图时序（`timings.json` 的 segments）就是**翻译 segments 的原样搬运**——

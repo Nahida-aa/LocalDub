@@ -30,7 +30,7 @@ use crate::steps::sf_ocr::args::SfOcrInput;
 use crate::steps::sf_ocr::fix_args::SfOcrFixInput;
 use crate::steps::sf_ocr::pre_args::SfOcrPreInput;
 use crate::steps::sf_ocr::{step_sf_ocr, step_sf_ocr_fix, step_sf_ocr_pre};
-use crate::steps::split_audio::args::SplitAudioInput;
+use crate::steps::split_audio::args::SplitAudioDeps;
 use crate::steps::split_audio::step_split_audio;
 use crate::steps::translate::args::TranslateDeps;
 use crate::steps::translate::step_translate;
@@ -160,7 +160,11 @@ pub fn run_step(
             let deps = TranslateDeps::from_input(&wfi)?;
             step_translate(MyStepCtx::new(step.as_str(), wfi), deps)
         }
-        StepName::SplitAudio => step_split_audio(&SplitAudioInput::new(video_dir, input)?),
+        StepName::SplitAudio => {
+            let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
+            let deps = SplitAudioDeps::from_input(&wfi)?;
+            step_split_audio(MyStepCtx::new(step.as_str(), wfi), deps)
+        }
         StepName::Asr => step_asr(&AsrInput::new(video_dir, input)),
         StepName::AsrFix => step_asr_fix(&AsrFixInput::new(video_dir, input)),
         StepName::AsrOcrPre => step_asr_ocr_pre(&AsrOcrPreInput::new(video_dir, input)),

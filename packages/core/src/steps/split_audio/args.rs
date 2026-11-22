@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::r#const::lang::LangStr;
+use crate::state::lang::resolve_source_language;
 use crate::steps::utils::paths::{separate, translate};
 
 /// split_audio 阶段参数 (镜像 TS `packages/core/steps/06_split_audio/args.ts` SplitAudioArgsSchema)
@@ -61,23 +63,24 @@ fn default_end_pad_ms() -> u32 {
     300
 }
 
-/// split_audio 的**输入契约**：切块要用的音频源 + 字幕时序来源 + 切块参数。
+/// Phase 1 事实面：`step_split_audio` 的显式依赖清单（由装配层算好后注入）。
 ///
-/// 消费者只需读这里，不必再自己去 ctx 里拼路径 / 判断文件存在性。
+/// - `audio_path`：切块音频源，已按优先级仲裁（vocalsFilePath 覆盖 → 人声
+///   stem → 原始音频）；存在性判断留在构造里，类型只表达结论；
+/// - `translate_path`：translate 落定的产物路径（`<translate>/out.json` 事实），
+///   步骤体据此读 `TranslateResult`、取 `lang()` 作 target_lang、比较 mtime；
+/// - `source_lang`：源语言（`<asr>/out.json` > `input.workflow.source_lang` >
+///   未知），写 meta 用。
+///
+/// 意图面（`args` / `video_dir` / `is_dub`）走 `sc.ctx().input()`，不进 deps。
 #[derive(Debug, Clone)]
-pub struct SplitAudioInput {
-    /// 任务目录（写侧 step status 需要）。
-    pub video_dir: String,
+pub struct SplitAudioDeps {
     /// 切块时要切哪个音频。
     pub audio_path: SplitAudioSourcePath,
     /// 字幕时序来源（意图时序 + 文本 + 译文）。
     pub translate_path: translate::LangPath,
-    /// 本次运行参数（`input.steps.split_audio`）。
-    pub args: SplitAudioArgs,
-    /// 源语言（`<asr>/out.json` > `input.workflow.source_lang` > 未知）：写 meta 用。
+    /// 源语言：写 meta 用（产物 meta 为空串时回退到它）。
     pub source_lang: crate::r#const::lang::LangStr,
-    /// 是否 dub 流程（`input.workflow.output_mode`）：决定切不切 wav 块。
-    pub is_dub: bool,
 }
 
 /// 切块用的音频源（三选一）。
@@ -89,7 +92,7 @@ pub struct SplitAudioInput {
 ///
 /// **为什么 `Vocals` 是「可能不存在」的**：subtitle 模式不做 separate，没有
 /// 人声 stem，此时回退到原始音频是**正常路径**而非错误。所以存在性检查留在
-/// 选择逻辑里（[`SplitAudioInput::audio_source`]），不进类型。
+/// 选择逻辑里（[`SplitAudioDeps::audio_source`]），不进类型。
 ///
 /// **历史说明（已核实：不构成产物差异）**：`step_split_audio` 旧逻辑的 fallback 是
 /// `video_source_path(ctx)`（`video_source.mp4`）。但 `audio_source.wav` 本就是
@@ -117,9 +120,10 @@ pub enum SplitAudioSourcePath {
     Custom(PathBuf),
 }
 
-impl SplitAudioInput {
-    /// 音乐源解析：`(video_dir, input)` → 先定音频源（按 `SplitAudioSourcePath`
-    /// 的优先级），再取翻译产物路径（`<translate>/out.json`）。
+impl SplitAudioDeps {
+    /// 装配层构造：先定音频源（按 `SplitAudioSourcePath` 的优先级），再取
+    /// translate 落定的产物路径（`<translate>/out.json`）与源语言。
+    /// `WorkflowInput` 已保证 video_dir 落定，意图面留在步骤体从 `sc` 取。
     ///
     /// **优先级与存在性检查的现状对齐**（`step_split_audio` 原有逻辑）：
     ///
@@ -131,16 +135,21 @@ impl SplitAudioInput {
     /// 回退到原始音频是**正常路径**。故存在性判断留在这里，类型只表达结论。
     ///
     /// `translate` 没跑过时 `<translate>/out.json` 不存在 → Err（无从知道该读哪个文件）。
-    pub fn new(video_dir: &str, input: &crate::input::Input) -> anyhow::Result<Self> {
-        let args = SplitAudioArgs::from_input(input);
+    pub fn from_input(input: &crate::input::WorkflowInput) -> anyhow::Result<Self> {
+        let video_dir = input.video_dir();
+        let args = &input.steps.split_audio;
+        // 源语言与 translate 同款三级回退：`asr_language(video_dir)` 实测 >
+        // `input.workflow.source_lang` 配置 > unknown。这里读 WorkflowInput 的
+        // workflow 字段即可，不必回头构造 &Input。
+        let asr_language = crate::steps::asr::out::asr_language(video_dir);
+        let source_lang: LangStr = resolve_source_language(
+            asr_language.as_ref(),
+            input.workflow.source_lang.as_ref(),
+        );
         Ok(Self {
-            video_dir: video_dir.to_string(),
-            audio_path: Self::audio_source(video_dir, &args),
+            audio_path: Self::audio_source(video_dir, args),
             translate_path: translate::LangPath::from_video_dir(video_dir)?,
-            args,
-            source_lang: crate::steps::utils::src_language(video_dir, input),
-            is_dub: crate::workflows::args::OutputMode::from_input(input)
-                == crate::workflows::args::OutputMode::Dub,
+            source_lang,
         })
     }
 
@@ -183,13 +192,13 @@ mod tests {
     use super::*;
 
     /// 只验证**音频源优先级**的测试不需要 translate 产物，故走
-    /// [`SplitAudioInput::audio_source`] 而不构造完整的 `SplitAudioInput`
+    /// [`SplitAudioDeps::audio_source`] 而不构造完整的 `SplitAudioDeps`
     /// （后者要求 `<translate>/out.json` 已存在）。
     fn audio_of(dir: &str, split_audio_cfg: serde_json::Value) -> SplitAudioSourcePath {
         let input: crate::input::Input =
             serde_json::from_value(serde_json::json!({"steps": {"split_audio": split_audio_cfg}}))
                 .unwrap();
-        SplitAudioInput::audio_source(dir, &SplitAudioArgs::from_input(&input))
+        SplitAudioDeps::audio_source(dir, &SplitAudioArgs::from_input(&input))
     }
 
     /// 优先级 1：`vocalsFilePath` 显式指定 → 用它，**无视其它**。
@@ -289,8 +298,12 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
 
-        let input: crate::input::Input = serde_json::from_value(serde_json::json!({})).unwrap();
-        let err = SplitAudioInput::new(&dir, &input).expect_err("translate 没跑过应报错");
+        let input: crate::input::Input = serde_json::from_value(serde_json::json!({
+            "workflow": {"video_dir": dir}
+        }))
+        .unwrap();
+        let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
+        let err = SplitAudioDeps::from_input(&wfi).expect_err("translate 没跑过应报错");
         assert!(
             err.to_string().contains("translate"),
             "错误应点名缺失的 translate 产物: {err}"

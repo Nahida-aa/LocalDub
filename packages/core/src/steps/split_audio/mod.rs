@@ -27,6 +27,8 @@ use crate::steps::utils::{
     split_audio_timings_path, StepPatch, StepStatus,
 };
 use crate::utils::file_ops::write_json_pretty;
+use crate::workflows::args::OutputMode;
+use crate::workflows::step_ctx::{CtxView, StepCtxView};
 
 pub use args::SplitAudioArgs;
 
@@ -43,21 +45,23 @@ impl SegmentBounds for TranslateSegment {
 /// 入口 (镜像 TS `stepSplitAudio`)。
 /// 本步骤耗时在 0~2s, 对于流程中的步骤来说没有必要考虑 如何设计成 与 某些步骤并行
 ///
-/// 单参 [`SplitAudioInput`]：切块音频源 + 翻译产物路径 + 任务目录 + 本次参数。
-pub fn step_split_audio(input: &args::SplitAudioInput) -> anyhow::Result<()> {
-    let video_dir = input.video_dir.clone();
+/// 意图面经 `sc.ctx().input()` 取（args / video_dir / is_dub），事实面由装配层
+/// 算好注入 [`SplitAudioDeps`]（audio_path / translate_path / source_lang）。
+pub fn step_split_audio(sc: impl StepCtxView, deps: args::SplitAudioDeps) -> anyhow::Result<()> {
+    let input = sc.ctx().input();
+    let video_dir = input.video_dir().to_string();
     tracing::info!(target: "split_audio", "start");
 
-    let args = &input.args;
-    let audio_path = &input.audio_path;
-    let translate_path = &input.translate_path;
+    let args = &input.steps.split_audio;
+    let audio_path = &deps.audio_path;
+    let translate_path = &deps.translate_path;
 
     // 字幕时间轴 + 文本：**统一来自 translate 的产物**（translate 恒执行；
     // enabled=false 时 dst=原文直通）。焦点文件不再是下游输入。
     //
     // 目标语言读**已落定的事实**（翻译步骤写的），不现算；
     // 源语言独立解析（它有自己的三级回退，与目标语言无关）。
-    let src_lang = input.source_lang.code().to_string();
+    let src_lang = deps.source_lang.code().to_string();
     let trans = TranslateResult::read(&translate_path).map_err(|e| {
         anyhow::anyhow!("{e}; 请先运行 translate（或从该步骤 continue 以重新生成）")
     })?;
@@ -65,18 +69,18 @@ pub fn step_split_audio(input: &args::SplitAudioInput) -> anyhow::Result<()> {
         return Err(anyhow::anyhow!("translation 无 segments"));
     }
 
-    // 切块源：已在 `SplitAudioInput::new` 内按优先级解析
+    // 切块源：已在装配层 `SplitAudioDeps::from_input` 内按优先级解析
     // （vocalsFilePath 覆盖 → 人声 stem → 原始音频），此处不再手拼。
     // NB: 旧逻辑曾支持 `sourceFilePath` 调试覆盖，但它被 vocals 检查遮蔽，
     // 实际只对「无 vocals + vad_align」窄路径生效且与 `vocalsFilePath` 概念混淆，
     // 已从 `SplitAudioArgs` 移除（自定义切块源走 `vocalsFilePath`）。
     let source_audio = audio_path.as_path().to_string_lossy().into_owned();
 
-    // 是否 dub 流程由 **output_mode 输入契约**决定（已在 `SplitAudioInput::new` 里
-    // 定好），不再靠「源文件是否碰巧存在」推断——后者把「有没有 separate 产物」
+    // 是否 dub 流程由 **output_mode 输入契约**决定（从 `sc.ctx().input()` 取），
+    // 不再靠「源文件是否碰巧存在」推断——后者把「有没有 separate 产物」
     // 当成了流程模式，是个副作用推断（subtitle 模式若残留了旧的 vocals stem，
     // 就会误判成 dub）。
-    let is_dub = input.is_dub;
+    let is_dub = input.workflow.output_mode == OutputMode::Dub;
 
     // 意图时序 =  translate 的 segments **原样搬运**。
     //

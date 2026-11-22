@@ -67,7 +67,7 @@ impl MixAudioInput {
     /// mix_audio 阶段的两个产物依赖：split_audio 意图时序 + TTS 各段 wav 目录。
     ///
     /// 顺便做前向校验：时序文件存在且非空、每段 TTS 文件存在。这样 step 主体不必
-    /// 再手写「文件不存在」判断——失败得早、错得清楚（与 `SplitAudioInput::new`
+    /// 再手写「文件不存在」判断——失败得早、错得清楚（与 `SplitAudioDeps::from_input`
     /// 同款思路：输入契约在入口一次性查干净）。
     pub fn new(video_dir: &str, input: &crate::input::Input) -> anyhow::Result<Self> {
         let split_audio_timings_path = split_audio::TimingsPath::new(video_dir);
