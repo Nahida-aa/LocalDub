@@ -50,7 +50,7 @@ AGENTS.md 的 dub 正例表述同步。
 | `aa9c88aa` | **双特征落地**（`CtxView` / `StepCtxView`）+ separate 迁移到 trait 签名 |
 
 现役执行器**未动**（`pipeline.rs` / `parallel.rs` 照旧跑全流程）；Phase 1 已迁移
-**1 / 15 步**（separate）。验证: `cargo test -p ld-core --lib` 全绿（179）。
+**2 / 15 步**（separate、translate）。验证: `cargo test -p ld-core --lib` 全绿（179）。
 
 > 2026-11-22 补记：本节表格只列接入工程本身的提交。其后又完成两轮**配置 wire 名
 > 统一 snake_case**（`WorkflowArgs` 与 `steps.*` 全部子结构，含 `gen-input-schema`
@@ -79,9 +79,13 @@ AGENTS.md 的 dub 正例表述同步。
    `CtxView`（run 级: input/emit）/ `StepCtxView`（`ctx()` 关联类型访问器 / id /
    attempt）。`ctx` 限定符标记出处: `sc.ctx().input()` 读作「工作流上下文的输入」，
    不是步骤的参数。**工作流 input 不切片、不下发、不重命名**（params 下发否决）。
-4. **deps 按消费语义定义，工作流装配层注入**——`TranslateDeps { srt_json:
-   NormalizedSrtPath }`，三种工作流（asr/sf_ocr/asr_ocr dub）各自 `From` 转换注入
-   （`SubtitleSourcePath` 枚举 + 步骤内 dispatch 反转为注入）；存在性仲裁上移装配层。
+4. **deps 按消费语义定义，工作流装配层注入**——`TranslateDeps { srt_segs:
+   Vec<SubtitleSegment>, src_lang: LangStr, target_lang: LangStr }`：装配层
+   `TranslateDeps::new(&WorkflowInput)` 按 `subtitle_source` 选 asr/sf_ocr/asr_ocr
+   三来源之一读规范化字幕（缺失/空即就地报错），并用三级回退 + 直通算好本次
+   `src_lang`/`target_lang`；步骤体只消费这三份算好的事实，不再读 srt / 现算语言。
+   步骤内 dispatch 已反转为装配层注入；存在性仲裁上移装配层。
+   （旧 `SubtitleSourcePath` 枚举、`srt_json: NormalizedSrtPath` 设计已废弃。）
 5. **入口步骤无 deps**（separate / sf_ocr_pre——只依赖 import 事实）。
 6. **state.json ≠ ctx.state**；方向已定: 改名 `view.json` + 步骤去 patch 改 emit +
    投影器折叠事件流（事件形状用 `WorkflowEvent`，LocalDub 已依赖 aa_workflow_core）。
@@ -93,12 +97,12 @@ AGENTS.md 的 dub 正例表述同步。
 
 ## 4. 待办（按优先级）
 
-1. **Phase 1 剩余 14 步批量迁移**（零行为）——顺序建议: **translate 先行**（一次验证
-   `XxxDeps` 注入 + `resolve_language` 拆半（⚠️ src 是三级回退、非必读
-   `<asr>/out.json`，Deps 取算好的 `src_lang`/`target_lang: LangStr`——见 §3 决策 #1）+ `NormalizedSrtPath`
-   三来源装配三个机制），再沿依赖链铺开（sf_ocr_pre→sf_ocr→sf_ocr_fix→…）。每步:
-   签名改 `(sc, deps)`、意图面经 `sc.ctx().input()` 现取、事实面进 `XxxDeps`、
-   `cargo test -p ld-core --lib` 全绿。
+1. **Phase 1 剩余 13 步批量迁移**（零行为）——**separate + translate 已迁移**
+   （translate 一次验证了 `XxxDeps` 注入 + `resolve_language` 拆半（⚠️ src 三级回退、
+   非必读 `<asr>/out.json`，Deps 取算好的 `src_lang`/`target_lang: LangStr`——见 §3
+   决策 #1）+ 三来源字幕装配三个机制）。继续沿依赖链铺开
+   （sf_ocr_pre→sf_ocr→sf_ocr_fix→…）。每步: 签名改 `(sc, deps)`、意图面经
+   `sc.ctx().input()` 现取、事实面进 `XxxDeps`、`cargo test -p ld-core --lib` 全绿。
 2. **Phase 2**（首个行为变化点）: `state.json → view.json` 改名 + 本地 emit 通道
    （事件形状 `WorkflowEvent`）+ 投影器；**28 个 `set_step` + 3 个 `out.json` 写点
    退役**（逐点 file:line 清单见 INTEGRATION-PLAN §5.5——separate 的 5 处是模板）。

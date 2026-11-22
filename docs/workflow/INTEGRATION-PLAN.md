@@ -110,10 +110,11 @@
   src + `input.workflow.target_lang`，归 sc 侧现算。
 - **deps 多来源 = 工作流装配层注入**：dub 模式的三种工作流
   （asr / sf_ocr / asr_ocr）各自装配——`step_translate` 定义假设不知道自己在
-  哪个工作流，`TranslateDeps { srt_json: NormalizedSrtPath }`（规范化字幕契约
-  单一类型），由各工作流装配层 `From<asr_fix::SrtPath>` / `From<sf_ocr_fix::SrtPath>`
-  / `From<asr_ocr_fix::SrtPath>` 转换注入——**现役 `SubtitleSourcePath` 枚举 +
-  步骤内 dispatch 反转为注入替代分发**。
+  哪个工作流。`TranslateDeps::new(&WorkflowInput)` 按 `subtitle_source` 选
+  asr_fix / sf_ocr_fix / asr_ocr_fix 三来源之一读规范化字幕，缺失/空即就地
+  报错；字幕段以 `srt_segs: Vec<SubtitleSegment>` 直接注入（**不再**是
+  `srt_json: NormalizedSrtPath` 路径 + 步骤内 dispatch，旧 `SubtitleSourcePath`
+  枚举已废弃），步骤体只读这三份算好的事实。
 - **存在性仲裁上移装配层**：asr 回退链（gated>mixed>vocals）、split_audio
   （vocals→audio_source）的仲裁从 `XxxInput::new` 移到 Deps 装配点（DAG 序保证
   上游产物此时已定）；`paths.rs` 单一产生点不变（调用点搬家）。
