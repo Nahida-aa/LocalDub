@@ -10,7 +10,7 @@
 //! asr / asr_fix / tts / mix_audio / mix_video; 后续阶段 (asr_ocr*) 移植后在此登记即可。
 
 use crate::input::WorkflowInput;
-use crate::steps::asr::args::AsrInput;
+use crate::steps::asr::args::AsrDeps;
 use crate::steps::asr::fix::step_asr_fix;
 use crate::steps::asr::fix_args::AsrFixInput;
 use crate::steps::asr::step_asr;
@@ -165,7 +165,11 @@ pub fn run_step(
             let deps = SplitAudioDeps::from_input(&wfi)?;
             step_split_audio(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
         }
-        StepName::Asr => step_asr(&AsrInput::new(video_dir, input)),
+        StepName::Asr => {
+            let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
+            let deps = AsrDeps::from_input(&wfi);
+            step_asr(MyStepCtx::new(step.as_str(), wfi), deps)
+        }
         StepName::AsrFix => step_asr_fix(&AsrFixInput::new(video_dir, input)),
         StepName::AsrOcrPre => step_asr_ocr_pre(&AsrOcrPreInput::new(video_dir, input)),
         StepName::AsrOcr => step_asr_ocr(&AsrOcrInput::new(video_dir, input)),
@@ -283,7 +287,7 @@ mod tests {
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"workflow": {"output_mode": "subtitle", "target_step": "separate", "video_dir": dir},
-                          "steps": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}}},
+                          "steps": {"separate": {"always": false}, "translate": {"enabled": false}}},
                 "output_mode": "subtitle"
             }),
         );
@@ -324,7 +328,7 @@ mod tests {
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
                 "input": {"workflow": {"output_mode": "subtitle", "target_step": "separate", "video_dir": dir},
-                          "steps": {"separate": {"always": false}, "asr": {"enabled": false}, "asr_fix": {"enabled": false}, "translate": {"enabled": false}}},
+                          "steps": {"separate": {"always": false}, "translate": {"enabled": false}}},
                 "output_mode": "subtitle"
             }),
         );

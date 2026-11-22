@@ -86,7 +86,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | `from_video_dir` | 路径是 `{video_dir}/...` 的**约定拼法**（非 ctx 事实） | 依赖是「上游步骤产出在固定位置」，拼法由 `paths` 类型唯一产生 |
 
 > 同一事实两种取法不该并存：`from_state` 读 ctx（缺失即报错），`from_video_dir` 按约定
-> 拼（不查证存在性，交由 step 主体 `exists()` 判断）。`AsrInput` 这类同时需要
+> 拼（不查证存在性，交由 step 主体 `exists()` 判断）。`SfOcrPreInput` 这类同时需要
 > 「ctx 事实 + 约定产物」的结构，用 `from_state` 取 ctx 事实、内部再
 > `::new(video_dir)` 拼约定产物，不混用两套读法。
 > （已迁移步骤改用 `XxxDeps::from_input(&WorkflowInput)`，见下方各清单标注。）
@@ -96,7 +96,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | step | `StepInput` | 消费的跨步骤产物（字段） |
 | --- | --- | --- |
 | `separate` | `SeparateInput` | `audio_source_path: AudioSourcePath` |
-| `asr` | `AsrInput` | `audio_path: AsrSourceAudioPath`（枚举：Custom / Separated{vocals, mixed, gated} / Raw） |
+| `asr` | `AsrDeps`（Phase 1 已迁移） | `audio_path: AsrSourceAudioPath`（枚举：Custom / Separated{vocals, mixed, gated} / Raw；意图面 video_dir/args/source_lang 走 `sc.ctx().input()`） |
 | `sf_ocr_pre` | `SfOcrPreInput` | `video_source_path: VideoSourcePath` |
 | `asr_ocr_pre` | `AsrOcrPreInput` | `asr_path: AsrPath`、`video_source_path: VideoSourcePath` |
 | `translate` | `TranslateDeps`（Phase 1 已迁移） | `srt_segs: Vec<SubtitleSegment>`、`src_lang: LangStr`、`target_lang: LangStr`（装配层读好/算好；意图面 video_dir/args 走 `sc.ctx().input()`） |
@@ -182,7 +182,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | **读** | `data/models/whisper/*`（缺则下载） |
 | **写** | `asr/asr.json` |
 
-> **音源是「三选一」**，由 `AsrInput::from_state` 按 `AsrArgs` 一次性解析：
+> **音源是「三选一」**，由 `AsrDeps::from_input` 按 `AsrArgs` 一次性解析：
 > `Custom`（调试覆盖）> `Separated`（`useSeparated=true`，gated→mixed→vocals 回退链）>
 > `Raw`（否则用 `video_source.mp4`）。`AsrSourceAudioPath` 枚举把这条读集收口，避免把
 > 多个候选音源散落在 step 主体里。

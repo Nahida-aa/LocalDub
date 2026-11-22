@@ -154,7 +154,7 @@ impl BgmPath {
 
 /// mix_video 的两条分支**各自需要的路径**。
 ///
-/// 与 `AsrInput` 的 `AsrSourceAudioPath` 同款：分支不同 → 读集不同，用枚举表达，
+/// 与 `AsrDeps` 的 `AsrSourceAudioPath` 同款：分支不同 → 读集不同，用枚举表达，
 /// 让 step 体的 `match` 是穷尽的。共享部分（身份 / 语言 / 参数）在
 /// [`MixVideoDeps`] 与 `sc.ctx().input()` 里，不放进枚举——否则两条分支各存一份、
 /// 还要写访问器。

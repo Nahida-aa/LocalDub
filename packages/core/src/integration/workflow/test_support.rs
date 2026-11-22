@@ -26,17 +26,16 @@ pub fn setup_subtitle(dir: &str) -> crate::input::Input {
                 "workflow": {"output_mode": "subtitle", "video_dir": dir},
                 "steps": {
                     "separate": {"always": false},
-                    "asr": {"enabled": false},
-                    "asr_fix": {"enabled": false},
                     "translate": {"enabled": false}
                 }
             },
             "output_mode": "subtitle"
         }),
     );
-    // split_audio 会读 translate 产物；本 stub 禁用了 asr/asr_fix，translate 直通
-    // 无内容可搬会写出空产物，split_audio 随即 fail-fast。故给 translate 的
-    // **输入**（subtitle_source=asr → asr_fix/srt.json）造假数据，直通原样带出。
+    // split_audio 会读 translate 产物；本 stub 不跑 asr/asr_fix（subtitle 序列或
+    // target_step 已排除），translate 直通无内容可搬会写出空产物，split_audio 随即
+    // fail-fast。故给 translate 的**输入**（subtitle_source=asr → asr_fix/srt.json）
+    // 造假数据，直通原样带出。
     let p = std::path::Path::new(dir).join("asr_fix").join("srt.json");
     std::fs::create_dir_all(p.parent().unwrap()).unwrap();
     crate::steps::utils::write_srt_json(

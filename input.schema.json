@@ -139,10 +139,6 @@
           "type": "boolean",
           "description": " 使用分离后的人声 (target_3_vocals.wav) 而非原始视频音频"
         },
-        "enabled": {
-          "type": "boolean",
-          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr, 与 translate.enabled 一致)"
-        },
         "mix_mode": {
           "$ref": "#/$defs/MixMode",
           "description": " ASR 音频源 (默认 sidechain)"
@@ -216,7 +212,6 @@
         "runtime",
         "device",
         "use_separated",
-        "enabled",
         "mix_mode",
         "reduce_bgm",
         "words_output",
@@ -271,10 +266,6 @@
         "use_separated": {
           "type": "boolean",
           "description": " 使用分离后的人声 (target_3_vocals.wav) 而非原始视频音频"
-        },
-        "enabled": {
-          "type": "boolean",
-          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr, 与 translate.enabled 一致)"
         },
         "mix_mode": {
           "$ref": "#/$defs/MixMode",
@@ -392,10 +383,6 @@
           ],
           "description": " ASR 结果文件路径, 调试使用"
         },
-        "enabled": {
-          "type": "boolean",
-          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr_fix)"
-        },
         "llm_model": {
           "type": "string",
           "description": " LLM 模型名"
@@ -422,7 +409,6 @@
       },
       "required": [
         "asr_file_path",
-        "enabled",
         "llm_model",
         "llm_api_base",
         "domain_hint",
@@ -444,10 +430,6 @@
             }
           ],
           "description": " ASR 结果文件路径, 调试使用"
-        },
-        "enabled": {
-          "type": "boolean",
-          "description": " 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr_fix)"
         },
         "llm_model": {
           "type": "string",

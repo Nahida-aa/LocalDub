@@ -41,7 +41,7 @@ pub fn step_separate_after(input: &SeparateAfterInput) -> anyhow::Result<()> {
     ];
     let vocals_path = stems[3].1.clone();
     let bgm_dst = out_dir.join("target_bgm.wav");
-    // 产出路径走 separate_after 的 newtype, 拼法单一来源 (消费者 AsrInput 同款)。
+    // 产出路径走 separate_after 的 newtype, 拼法单一来源 (消费者 AsrDeps 同款)。
     let mixed_dst = Target3VocalsMixedPath::new(&video_dir);
 
     // 1. 由 stems 重建 target_bgm.wav (修复 amix normalize bug)

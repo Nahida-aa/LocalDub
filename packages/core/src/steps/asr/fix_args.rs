@@ -21,13 +21,6 @@ pub struct AsrFixArgs {
     /// ASR 结果文件路径, 调试使用
     #[serde(default)]
     pub asr_file_path: Option<String>,
-    /// 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr_fix)
-    #[serde(default = "default_enabled")]
-    pub enabled: bool,
-}
-
-fn default_enabled() -> bool {
-    true
 }
 
 impl Default for AsrFixArgs {
@@ -35,7 +28,6 @@ impl Default for AsrFixArgs {
         Self {
             llm_fix: LlmFixArgs::default(),
             asr_file_path: None,
-            enabled: default_enabled(),
         }
     }
 }

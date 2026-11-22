@@ -109,9 +109,6 @@ pub struct AsrArgs {
     /// 使用分离后的人声 (target_3_vocals.wav) 而非原始视频音频
     #[serde(default)]
     pub use_separated: bool,
-    /// 是否启用本阶段 (缺省 true; 设为 false 可跳过 asr, 与 translate.enabled 一致)
-    #[serde(default = "default_enabled")]
-    pub enabled: bool,
     /// ASR 音频源 (默认 sidechain)
     #[serde(default = "default_mix_mode")]
     pub mix_mode: MixMode,
@@ -159,7 +156,6 @@ impl Default for AsrArgs {
             runtime: default_runtime(),
             device: default_device(),
             use_separated: false,
-            enabled: default_enabled(),
             mix_mode: default_mix_mode(),
             reduce_bgm: default_reduce_bgm(),
             words_output: false,
@@ -196,10 +192,6 @@ fn default_mix_mode() -> MixMode {
     MixMode::Sidechain
 }
 
-fn default_enabled() -> bool {
-    true
-}
-
 fn default_reduce_bgm() -> f64 {
     -12.0
 }
@@ -230,7 +222,7 @@ use crate::steps::utils::paths::{separate, separate_after, VideoSourcePath};
 /// (`useSeparated` / `vocalAudioPath`) 决定。把「可能的跨步骤音源」穷举成枚举,
 /// 既如实反映 DAG 读集(import / separate / separate_after), 又让 step 体内只做一次
 /// 存在性仲裁(见 `step_asr`)。
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AsrSourceAudioPath {
     /// 调试覆盖路径(`cfg.vocalAudioPath`), 非跨步骤产物, 手工指定。
     Custom(PathBuf),
@@ -249,30 +241,28 @@ pub enum AsrSourceAudioPath {
     Raw(VideoSourcePath),
 }
 
-/// asr 步骤的跨步骤依赖清单(代码即 DAG 视角)。
+/// Phase 1 事实面：`step_asr` 的显式依赖清单（由装配层算好后注入）。
 ///
-/// 与 `AsrOcrPreInput` 等兄弟 `*Input` 同款定位: 只声明**被消费的跨步骤产物**与
-/// 本次运行参数，自身的输出(`asr/asr.json`)不在清单内。此处因音源是「多选一」,
-/// 用枚举而非扁平字段表达读集。
-pub struct AsrInput {
-    /// 任务目录（写侧 step status 与 `<asr>/out.json` 需要）。
-    pub video_dir: String,
+/// 只声明**被消费的跨步骤音源**（import / separate / separate_after 三选一），
+/// 自身的输出（`asr/asr.json`）不在清单内。音源是「多选一」，用枚举表达读集，
+/// 让 step 体内只做一次存在性仲裁（gated > mixed > vocals）。
+///
+/// 意图面（`video_dir` / `args` / `source_lang`）走 `sc.ctx().input()`，不进 deps。
+#[derive(Debug, Clone)]
+pub struct AsrDeps {
     pub audio_path: AsrSourceAudioPath,
-    /// 本次运行参数（`input.steps.asr`）。
-    pub args: AsrArgs,
-    /// 显式指定的源语言（`input.workflow.source_lang`）：未配置则 whisper auto 检测。
-    pub source_lang: Option<String>,
 }
 
-impl AsrInput {
+impl AsrDeps {
     /// 纯声明: 仅依据 `args` 选枚举分支, 不触碰磁盘(存在性仲裁留给 step 体)。
     ///
     /// `vocalAudioPath` 仅在 `useSeparated=true` 时生效(覆盖 separate 的人声),
     /// 与 `stepAsr` 原逻辑一致; `useSeparated=false` 时忽略它、走 `video_source`。
-    pub fn new(video_dir: &str, input: &crate::input::Input) -> Self {
-        let args = AsrArgs::from_input(input);
+    pub fn from_input(input: &crate::input::WorkflowInput) -> Self {
+        let video_dir = input.video_dir();
+        let args = &input.steps.asr;
         let audio_path = if args.use_separated {
-            if let Some(p) = args.vocal_audio_path.clone() {
+            if let Some(p) = &args.vocal_audio_path {
                 AsrSourceAudioPath::Custom(PathBuf::from(p))
             } else {
                 AsrSourceAudioPath::Separated {
@@ -284,15 +274,6 @@ impl AsrInput {
         } else {
             AsrSourceAudioPath::Raw(VideoSourcePath::from_video_dir(video_dir))
         };
-        Self {
-            video_dir: video_dir.to_string(),
-            audio_path,
-            args,
-            source_lang: input
-                .workflow
-                .as_ref()
-                .and_then(|w| w.source_lang.as_ref())
-                .map(|l| l.code().to_string()),
-        }
+        Self { audio_path }
     }
 }

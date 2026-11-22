@@ -18,8 +18,6 @@ export type AsrArgs_Deserialize = {
 	device?: AsrDevice,
 	/**  使用分离后的人声 (target_3_vocals.wav) 而非原始视频音频 */
 	use_separated?: boolean,
-	/**  是否启用本阶段 (缺省 true; 设为 false 可跳过 asr, 与 translate.enabled 一致) */
-	enabled?: boolean,
 	/**  ASR 音频源 (默认 sidechain) */
 	mix_mode?: MixMode,
 	/**  背景音降低量(dB); raw-sum 叠加前衰减, sidechain 时压缩后额外衰减; 默认 -12 */
@@ -56,8 +54,6 @@ export type AsrArgs_Serialize = {
 	device: AsrDevice,
 	/**  使用分离后的人声 (target_3_vocals.wav) 而非原始视频音频 */
 	use_separated: boolean,
-	/**  是否启用本阶段 (缺省 true; 设为 false 可跳过 asr, 与 translate.enabled 一致) */
-	enabled: boolean,
 	/**  ASR 音频源 (默认 sidechain) */
 	mix_mode: MixMode,
 	/**  背景音降低量(dB); raw-sum 叠加前衰减, sidechain 时压缩后额外衰减; 默认 -12 */
@@ -104,16 +100,12 @@ export type AsrFixArgs = AsrFixArgs_Serialize | AsrFixArgs_Deserialize;
 export type AsrFixArgs_Deserialize = {
 	/**  ASR 结果文件路径, 调试使用 */
 	asr_file_path?: string | null,
-	/**  是否启用本阶段 (缺省 true; 设为 false 可跳过 asr_fix) */
-	enabled?: boolean,
 } & LlmFixArgs_Deserialize;
 
 /**  asr 阶段修正参数。 */
 export type AsrFixArgs_Serialize = {
 	/**  ASR 结果文件路径, 调试使用 */
 	asr_file_path: string | null,
-	/**  是否启用本阶段 (缺省 true; 设为 false 可跳过 asr_fix) */
-	enabled: boolean,
 } & LlmFixArgs_Serialize;
 
 /**

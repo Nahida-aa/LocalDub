@@ -13,10 +13,6 @@ use crate::steps::utils::{ensure_dir, now_iso, set_step_anyhow, StepPatch, StepS
 pub fn step_asr_fix(input: &AsrFixInput) -> anyhow::Result<()> {
     let video_dir = input.video_dir.clone();
     let args = &input.args;
-    if !args.enabled {
-        tracing::info!(target: "asr", "disabled (asr_fix.enabled=false), skipping");
-        return Ok(());
-    }
     // asr_fix 目录平级于 video_dir (镜像 TS `join(video_dir, "asr_fix")`),
     // 与权威字幕路径 (utils::subtitle_path 的 video_dir/asr_fix) 保持一致。
     let asr_fix_dir = std::path::Path::new(&video_dir).join("asr_fix");
