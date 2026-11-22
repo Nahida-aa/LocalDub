@@ -157,7 +157,7 @@ pub fn run_step(
         StepName::SfOcrFix => step_sf_ocr_fix(&SfOcrFixInput::new(video_dir, input)),
         StepName::Translate => {
             let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
-            let deps = TranslateDeps::new(&wfi);
+            let deps = TranslateDeps::new(&wfi)?;
             step_translate(MyStepCtx::new(step.as_str(), wfi), deps)
         }
         StepName::SplitAudio => step_split_audio(&SplitAudioInput::new(video_dir, input)?),

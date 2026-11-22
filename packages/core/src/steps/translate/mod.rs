@@ -196,21 +196,8 @@ pub fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow::Resu
     let src_lang_name = lang_name(&src_lang);
     let dst_lang_name = lang_name(&target_lang);
 
-    // 既然已进入本步骤，就必须有可翻译的字幕——与 translate.enabled 无关：
-    // enabled 只决定「调 LLM 翻译」还是「原文直通」，两者都要读上游 srt。
-    // 缺字幕就地报错，不产出空 translation.json 把错误拖到下游。
-    if !deps.srt_path().exists() {
-        return Err(anyhow::anyhow!(
-            "规范化字幕 {} 不存在；请先运行 {}（或从该步骤 continue 以重新生成）",
-            deps.srt_path().display(),
-            deps.producer()
-        ));
-    }
-    let srt_segs: Vec<subtitle::SubtitleSegment> =
-        crate::steps::utils::read_srt_json(deps.srt_path())?;
-    if srt_segs.is_empty() {
-        return Err(anyhow::anyhow!("{} 无 segments", deps.srt_path().display()));
-    }
+    // srt_segs 由装配层读好并保证非空（缺字幕在 deps 构造时就地报错）。
+    let srt_segs = &deps.srt_segs;
     let texts: Vec<String> = srt_segs.iter().map(|s| s.text.trim().to_string()).collect();
 
     let dsts: Vec<Option<String>> = if !args.enabled {
@@ -487,7 +474,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let input = at(&dir, Some("zh"), json!({}));
         let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
-        let deps = args::TranslateDeps::new(&wfi);
+        let deps = args::TranslateDeps::new(&wfi).unwrap();
         let res = step_translate(MyStepCtx::new("translate", wfi), deps);
         let err = res.expect_err("缺 srt.json 必须报错");
         let msg = err.to_string();
@@ -548,12 +535,11 @@ mod tests {
 
             let input = at(&dir, None, json!({"workflow": {"subtitle_source": source}}));
             let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
-            let deps = args::TranslateDeps::new(&wfi);
-            assert!(
-                deps.srt_path().to_string_lossy().ends_with(expected),
-                "{source} 应解析到 {expected}, 实际 {:?}",
-                deps.srt_path()
-            );
+            let deps = args::TranslateDeps::new(&wfi)
+                .unwrap_or_else(|e| panic!("{source} 应读到 {expected}: {e}"));
+            // 只落了当前 source 的 srt.json——deps 读成功即证明它选对了产出方路径。
+            assert_eq!(deps.srt_segs.len(), 1, "{source} 应读到 1 段");
+            assert_eq!(deps.srt_segs[0].text, "t");
         }
         let _ = std::fs::remove_dir_all(&dir);
     }

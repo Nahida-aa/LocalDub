@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use serde::{Deserialize, Serialize};
 
 use config_rs::env::{openai_base_url, openai_model};
@@ -78,8 +76,7 @@ pub enum SubtitleSourcePath {
 
 /// Phase 1 事实面：`step_translate` 的显式依赖清单（由装配层算好后注入）。
 ///
-/// - `srt_json_path`：上游 fix 步骤产出的规范化字幕（代表的是**上游产物**，
-///   input 决定不了哪个产出方、产物在不在）；
+/// - `srt_segs`：上游 fix 步骤产出的规范化字幕段（已读出，非空由构造保证）；
 /// - `src_lang` / `target_lang`：装配层按 input 配置 + `<asr>/out.json` 实测
 ///   算好的本次语言决策（三级回退 + 直通），步骤体只消费。
 ///
@@ -87,24 +84,33 @@ pub enum SubtitleSourcePath {
 /// 直通时可能与 src 相同的列表外语言码（如 `it`），与下游 `String` 同源。
 #[derive(Debug, Clone)]
 pub struct TranslateDeps {
-    pub srt_json_path: SubtitleSourcePath,
+    pub srt_segs: Vec<subtitle::SubtitleSegment>,
     pub src_lang: LangStr,
     pub target_lang: LangStr,
 }
 
 impl TranslateDeps {
-    /// 装配层构造：从 workflow input 取任务目录，按 `subtitle_source` 选 SrtPath，
-    /// 并读一次 `<asr>/out.json` 的实测语言。`WorkflowInput` 已保证 video_dir /
-    /// subtitle_source 落定，故此处只做路径构造与磁盘事实读取，无任何校验分支。
-    pub fn new(input: &crate::input::WorkflowInput) -> Self {
+    /// 装配层构造：选 SrtPath → 读规范化字幕（缺失/空 → 就地报错）→ 读一次
+    /// `<asr>/out.json` 并算好语言决策。`WorkflowInput` 已保证 video_dir /
+    /// subtitle_source 落定，剩余校验只针对上游产物是否存在。
+    pub fn new(input: &crate::input::WorkflowInput) -> anyhow::Result<Self> {
         let video_dir = input.video_dir();
-        let srt_json_path = match input.workflow.subtitle_source {
-            SubtitleSource::Asr => SubtitleSourcePath::Asr(asr_fix::SrtPath::new(video_dir)),
-            SubtitleSource::SfOcr => SubtitleSourcePath::SfOcr(sf_ocr_fix::SrtPath::new(video_dir)),
-            SubtitleSource::AsrOcr => {
-                SubtitleSourcePath::AsrOcr(asr_ocr_fix::SrtPath::new(video_dir))
-            }
+        let (srt_path, producer): (std::path::PathBuf, &str) = match input.workflow.subtitle_source {
+            SubtitleSource::Asr => (asr_fix::SrtPath::new(video_dir).as_path().into(), "asr_fix"),
+            SubtitleSource::SfOcr => (sf_ocr_fix::SrtPath::new(video_dir).as_path().into(), "sf_ocr_fix"),
+            SubtitleSource::AsrOcr => (asr_ocr_fix::SrtPath::new(video_dir).as_path().into(), "asr_ocr_fix"),
         };
+        if !srt_path.exists() {
+            anyhow::bail!(
+                "规范化字幕 {} 不存在；请先运行 {}（或从该步骤 continue 以重新生成）",
+                srt_path.display(),
+                producer
+            );
+        }
+        let srt_segs = crate::steps::utils::read_srt_json(&srt_path)?;
+        if srt_segs.is_empty() {
+            anyhow::bail!("{} 无 segments", srt_path.display());
+        }
         let asr_language = crate::steps::asr::out::asr_language(video_dir);
         // "从什么翻到什么"在装配层算好（与现役 resolve_language 同款三级回退 + 直通），
         // 步骤体只消费——语言决策是 run 级事实，不是步骤内部现算。
@@ -117,28 +123,11 @@ impl TranslateDeps {
         } else {
             LangStr::from(resolve_target_language(&src_lang, input.workflow.target_lang))
         };
-        Self {
-            srt_json_path,
+        Ok(Self {
+            srt_segs,
             src_lang,
             target_lang,
-        }
+        })
     }
 
-    /// 规范化字幕路径（与现役 `TranslateInput::srt_path` 同款逐支 match）。
-    pub fn srt_path(&self) -> &Path {
-        match &self.srt_json_path {
-            SubtitleSourcePath::Asr(p) => p.as_path(),
-            SubtitleSourcePath::SfOcr(p) => p.as_path(),
-            SubtitleSourcePath::AsrOcr(p) => p.as_path(),
-        }
-    }
-
-    /// 产出方 step 名（报错提示用）。
-    pub fn producer(&self) -> &'static str {
-        match self.srt_json_path {
-            SubtitleSourcePath::Asr(_) => "asr_fix",
-            SubtitleSourcePath::SfOcr(_) => "sf_ocr_fix",
-            SubtitleSourcePath::AsrOcr(_) => "asr_ocr_fix",
-        }
-    }
 }
