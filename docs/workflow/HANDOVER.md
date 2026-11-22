@@ -6,6 +6,8 @@
 > 主计划: [INTEGRATION-PLAN.md](./INTEGRATION-PLAN.md)——**先读它**（Phase 0-3 /
 > 拍板台账 / 15 步接口勘察 §5）。本文是给接手人的状态快照与下一步入口，
 > 不重复计划内容。
+> Phase 2（emit 通道 + 投影器）详细实施方案: [PHASE2-EMIT-PLAN.md](./PHASE2-EMIT-PLAN.md)
+> （**待审**，progress/message 改 emit + 步边界归执行器 + out.json 保留写盘）。
 
 ## 1. 项目一句话
 
