@@ -100,7 +100,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | `asr_ocr_pre` | `AsrOcrPreInput` | `asr_path: AsrPath`、`video_source_path: VideoSourcePath` |
 | `translate` | `TranslateDeps`（Phase 1 已迁移） | `srt_segs: Vec<SubtitleSegment>`、`src_lang: LangStr`、`target_lang: LangStr`（装配层读好/算好；意图面 video_dir/args 走 `sc.ctx().input()`） |
 | `split_audio` | `SplitAudioDeps`（Phase 1 已迁移） | `audio_path: SplitAudioSourcePath`、`translate_path: LangPath`、`source_lang: LangStr`（装配层算好；意图面 video_dir/args/is_dub 走 `sc.ctx().input()`） |
-| `mix_audio` | `MixAudioInput` | `split_audio_timings_path: TimingsPath`、`tts_wavs_dir: WavsDir` |
+| `mix_audio` | `MixAudioDeps`（Phase 1 已迁移） | `split_audio_timings_path: TimingsPath`、`tts_wavs_dir: WavsDir`（构造时做存在性校验；意图面 video_dir/args 走 `sc.ctx().input()`） |
 | `mix_video` | `MixVideoInput`（枚举） | `Dub{video_source_path, mix_audio_timings_path, dubbing_path, bgm_path}` / `Subtitle{video_source_path, split_audio_timings_path}` |
 
 ### `from_video_dir`（约定拼法，非 ctx 事实）

@@ -39,6 +39,23 @@ pub struct MixAudioOutputTimings {
     pub segments: Vec<Timing>,
 }
 
+/// `step_mix_audio` 的**全部产物清单**（作为步骤函数返回值，不写盘）。
+///
+/// 与 [`MixAudioOutputTimings`] 的分工：后者只是 `timings.json` 的**内容类型**，
+/// 本类型是本步骤**产出了哪些文件**的清单。四个产物都是无条件创建的（拉伸 /
+/// 静音目录即使该段不需要拉伸也存在为空目录），故不用 `Option`。
+#[derive(Debug, Clone, PartialEq, Eq, specta::Type)]
+pub struct MixAudioOutput {
+    /// 配音成片 `mix_audio/audio_dubbing.wav`（主产物）。
+    pub dubbing_path: std::path::PathBuf,
+    /// 对齐时序 `mix_audio/timings.json`。
+    pub timings_path: std::path::PathBuf,
+    /// 变速拉伸中间态目录 `mix_audio/stretched/`。
+    pub stretched_dir: std::path::PathBuf,
+    /// 静音填充中间态目录 `mix_audio/silences/`。
+    pub silences_dir: std::path::PathBuf,
+}
+
 impl MixAudioOutputTimings {
     /// 从 [`TimingsPath`] 读出**带类型**的对齐时序。
     ///

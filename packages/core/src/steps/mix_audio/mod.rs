@@ -9,7 +9,7 @@ pub mod out;
 
 use std::path::Path;
 
-use crate::steps::mix_audio::out::{MixAudioOutputTimings, Timing};
+use crate::steps::mix_audio::out::{MixAudioOutput, MixAudioOutputTimings, Timing};
 use crate::steps::split_audio::out::SplitAudioTimingResult;
 use crate::steps::utils::paths::mix_audio::TimingsPath;
 use crate::steps::utils::{
@@ -17,19 +17,26 @@ use crate::steps::utils::{
     StepStatus,
 };
 
-use args::MixAudioInput;
+use crate::workflows::step_ctx::{CtxView, StepCtxView};
+
+use args::MixAudioDeps;
 
 pub use args::MixAudioArgs;
 
 /// 入口 (镜像 TS `stepMixAudio`)。
 ///
-/// 单参 [`MixAudioInput`]：split_audio 时序 + TTS wav 目录 + 任务目录 + 本次参数。
-pub fn step_mix_audio(input: &MixAudioInput) -> anyhow::Result<()> {
-    let video_dir = input.video_dir.clone();
+/// 意图面经 `sc.ctx().input()` 取（args / video_dir），事实面由装配层算好注入
+/// [`MixAudioDeps`]（split_audio 时序 + TTS wav 目录，构造时已做存在性校验）。
+pub fn step_mix_audio(
+    sc: impl StepCtxView,
+    deps: MixAudioDeps,
+) -> anyhow::Result<MixAudioOutput> {
+    let input = sc.ctx().input();
+    let video_dir = input.video_dir().to_string();
     tracing::info!(target: "mix_audio", "start");
 
-    let args = &input.args;
-    let segments = SplitAudioTimingResult::read(&input.split_audio_timings_path)?.segments;
+    let args = &input.steps.mix_audio;
+    let segments = SplitAudioTimingResult::read(&deps.split_audio_timings_path)?.segments;
 
     let mix_audio_dir = Path::new(&video_dir).join("mix_audio");
     let timings_path = TimingsPath::new(&video_dir);
@@ -45,7 +52,7 @@ pub fn step_mix_audio(input: &MixAudioInput) -> anyhow::Result<()> {
         .iter()
         .enumerate()
         .map(|(i, _)| {
-            input
+            deps
                 .tts_wavs_dir
                 .segment_path(i)
                 .to_string_lossy()
@@ -271,7 +278,12 @@ pub fn step_mix_audio(input: &MixAudioInput) -> anyhow::Result<()> {
         },
     )?;
     tracing::info!(target: "mix_audio", "done");
-    Ok(())
+    Ok(MixAudioOutput {
+        dubbing_path: dubbing_file,
+        timings_path: timings_path.as_path().to_path_buf(),
+        stretched_dir,
+        silences_dir: silence_dir,
+    })
 }
 
 #[cfg(test)]

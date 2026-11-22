@@ -54,22 +54,22 @@ fn default_max_delay_ms() -> f64 {
     500.0
 }
 
-pub struct MixAudioInput {
-    /// 任务目录（写侧 step status 需要）。
-    pub video_dir: String,
+/// Phase 1 事实面：`step_mix_audio` 的显式依赖清单（由装配层算好后注入）。
+///
+/// 两个产物依赖：split_audio 意图时序 + TTS 各段 wav 目录。意图面
+/// （`video_dir` / `args`）走 `sc.ctx().input()`，不进 deps。
+#[derive(Debug, Clone)]
+pub struct MixAudioDeps {
     pub split_audio_timings_path: split_audio::TimingsPath,
     pub tts_wavs_dir: tts::WavsDir,
-    /// 本次运行参数（`input.steps.mix_audio`）。
-    pub args: MixAudioArgs,
 }
 
-impl MixAudioInput {
-    /// mix_audio 阶段的两个产物依赖：split_audio 意图时序 + TTS 各段 wav 目录。
-    ///
-    /// 顺便做前向校验：时序文件存在且非空、每段 TTS 文件存在。这样 step 主体不必
-    /// 再手写「文件不存在」判断——失败得早、错得清楚（与 `SplitAudioDeps::from_input`
-    /// 同款思路：输入契约在入口一次性查干净）。
-    pub fn new(video_dir: &str, input: &crate::input::Input) -> anyhow::Result<Self> {
+impl MixAudioDeps {
+    /// 装配层构造：除了定路径，还做前向校验——时序文件存在且非空、每段 TTS
+    /// 文件存在。失败得早、错得清楚（与 `SplitAudioDeps::from_input` 同款思路：
+    /// 输入契约在入口一次性查干净）。
+    pub fn from_input(input: &crate::input::WorkflowInput) -> anyhow::Result<Self> {
+        let video_dir = input.video_dir();
         let split_audio_timings_path = split_audio::TimingsPath::new(video_dir);
         let tts_wavs_dir = tts::WavsDir::new(video_dir);
 
@@ -87,10 +87,8 @@ impl MixAudioInput {
             }
         }
         Ok(Self {
-            video_dir: video_dir.to_string(),
             split_audio_timings_path,
             tts_wavs_dir,
-            args: MixAudioArgs::from_input(input),
         })
     }
 }

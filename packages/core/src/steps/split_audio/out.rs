@@ -56,7 +56,7 @@ impl SplitAudioTimingResult {
     ///
     /// 与 [`crate::steps::translate::out::TranslateResult::read`] 同款：
     /// 解析只在「这里」一处，字段缺失/类型不对会直接失败，而不是被静默吞成 0。
-    /// `MixAudioInput::new` 直接用它拿类型化时序。
+    /// `MixAudioDeps::from_input` 与 `step_mix_audio` 直接用它拿类型化时序。
     pub fn read(path: &split_audio::TimingsPath) -> anyhow::Result<Self> {
         let p = path.as_path();
         let raw = std::fs::read_to_string(p)
