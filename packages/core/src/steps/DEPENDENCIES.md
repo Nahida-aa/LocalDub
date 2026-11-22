@@ -86,10 +86,11 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | `from_video_dir` | 路径是 `{video_dir}/...` 的**约定拼法**（非 ctx 事实） | 依赖是「上游步骤产出在固定位置」，拼法由 `paths` 类型唯一产生 |
 
 > 同一事实两种取法不该并存：`from_state` 读 ctx（缺失即报错），`from_video_dir` 按约定
-> 拼（不查证存在性，交由 step 主体 `exists()` 判断）。`SeparateAfterInput` 这类同时需要
-> 「ctx 事实 + 约定产物」的结构，用 `from_state` 取 ctx 事实、内部再
-> `::new(video_dir)` 拼约定产物，不混用两套读法。
-> （已迁移步骤改用 `XxxDeps::from_input(&WorkflowInput)`，见下方各清单标注。）
+> 拼（不查证存在性，交由 step 主体 `exists()` 判断）。早期同时需要「ctx 事实 + 约定
+> 产物」的结构，用 `from_state` 取 ctx 事实、内部再 `::new(video_dir)` 拼约定产物，
+> 不混用两套读法。
+> （**全部 15 步已迁移**，改用 `XxxDeps::from_input(&WorkflowInput)`；本节仅留作旧模型
+> 留档，见下方各清单标注。）
 
 ### `from_state`（读 ctx 事实，缺失即报错）
 
@@ -108,7 +109,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 | step | `StepInput` | 消费的跨步骤产物（字段） |
 | --- | --- | --- |
-| `separate_after` | `SeparateAfterInput` | `vocals_path: Target3VocalsPath`、`stems_dir: StemsDir`；args 为步骤专属 `SeparateAfterArgs`（`input.steps.separate_after`，含 mix_mode/reduce_bgm/sidechain_compress/use_gate），`use_separated` 仍读 `input.steps.asr` |
+| `separate_after` | `SeparateAfterDeps`（Phase 1 已迁移） | `vocals_path: Target3VocalsPath`、`stems_dir: StemsDir`；意图面 `SeparateAfterArgs`（`input.steps.separate_after`）+ `use_separated`（`input.steps.asr`）+ video_dir 走 `sc.ctx().input()` |
 | `asr_fix` | `AsrFixDeps`（Phase 1 已迁移） | `asr_path: AsrPath`、`source_lang: LangStr`（三级回退算好；意图面 video_dir/args 走 `sc.ctx().input()`） |
 | `sf_ocr` | `SfOcrDeps`（Phase 1 已迁移） | `keyframes_dir: KeyframesDir`（sf_ocr_pre 产出；意图面 video_dir/args 走 `sc.ctx().input()`） |
 | `sf_ocr_fix` | `SfOcrFixDeps`（Phase 1 已迁移） | `frames_path: FramesPath`（sf_ocr 产出）、`source_lang: LangStr`（装配层算好）；意图面 video_dir/args 走 `sc.ctx().input()` |

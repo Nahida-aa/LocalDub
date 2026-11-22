@@ -92,7 +92,7 @@ pub mod separate {
     /// separate 步骤输出的 stems 目录 `<video_dir>/separate`（drums/bass/other/vocals 四路）。
     ///
     /// 产出方是 `separate` 步骤 (`step_separate`)，消费方是 `separate_after` 步骤
-    /// (`SeparateAfterInput.stems_dir`)。归属产出方模块，与 `sf_ocr::FramesPath` 被各自
+    /// (`SeparateAfterDeps.stems_dir`)。归属产出方模块，与 `sf_ocr::FramesPath` 被各自
     /// 消费方引用的 provenance 模式同款：跨步骤路径类型归属产出方，消费方只引用。
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct StemsDir(PathBuf);

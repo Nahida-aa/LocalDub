@@ -68,7 +68,7 @@ fn default_release() -> f64 {
 /// separate_after 阶段参数（`input.steps.separate_after`）。
 ///
 /// 混音策略的单一真源。`use_separated` 例外：它同属 asr 的音源决策，仍从
-/// `input.steps.asr` 读取（见 [`SeparateAfterInput::new`]），不在这里重复配置。
+/// `input.steps.asr` 读取（见 `step_separate_after`），不在这里重复配置。
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub struct SeparateAfterArgs {
@@ -109,39 +109,42 @@ fn default_sidechain_compress() -> SidechainCompress {
     SidechainCompress::default()
 }
 
-/// separate_after 步骤的跨步骤依赖清单。
+/// Phase 1 事实面：`step_separate_after` 的显式依赖清单（由装配层算好后注入）。
 ///
-/// 沿袭兄弟 `*Input` 的定位: 只声明**被消费的跨步骤产物**,
-/// 自身输出(stems / bgm / mixed / gated)不在清单内。
-///
-/// separate_after 直接对 `separate` 的人声/背景声做二次混音, 故其输入全部来自
-/// `separate` 步骤产出的 stems 目录(均为 `{video_dir}/separate/...` 的**约定拼法**,
-/// 非拍平的全局状态):
+/// 装 separate 步骤产出的两条路径:
 /// - `vocals_path`: `target_3_vocals.wav`(纯人声), 混音 / gate 的输入;
 /// - `stems_dir`:   `separate/` 目录, BGM 重建(drums/bass/other 三路)的来源。
+///
+/// 意图面（`video_dir` / `args` / `use_separated`）走 `sc.ctx().input()`，不进 deps。
 #[derive(Debug, Clone)]
-pub struct SeparateAfterInput {
-    /// 任务目录（写侧 step status 与产出路径需要）。
-    pub video_dir: String,
+pub struct SeparateAfterDeps {
     /// separate 步骤输出的 vocals stem（人声），混音 / gate 的输入。
     pub vocals_path: separate::Target3VocalsPath,
     /// separate 步骤输出的 stems 目录（drums/bass/other/vocals），BGM 重建的来源。
     pub stems_dir: separate::StemsDir,
-    /// 混音策略参数（`input.steps.separate_after`，本步骤专属）。
-    pub args: SeparateAfterArgs,
-    /// 是否用分离人声——与 asr 共用的音源决策（`input.steps.asr.use_separated`）。
-    pub use_separated: bool,
 }
 
-impl SeparateAfterInput {
-    /// stems 全为 `{video_dir}/separate/...` 的约定拼法，故只需 `(video_dir, input)`。
-    pub fn new(video_dir: &str, input: &crate::input::Input) -> Self {
+/// `step_separate_after` 的**全部产物清单**（作为步骤函数返回值，不写盘）。
+///
+/// 三个产物都是条件性的: bgm（stems 齐全才重建）、mixed（use_separated 且
+/// mix_mode≠Vocals）、gated（use_gate 且 mixed 已产出）。末尾以文件是否实际存在
+/// 为准填入 Option，精确反映本次真实产出。
+#[derive(Debug, Clone, PartialEq, Eq, specta::Type)]
+pub struct SeparateAfterOutput {
+    /// 重建的 BGM `separate_after/target_bgm.wav`。
+    pub bgm_path: Option<std::path::PathBuf>,
+    /// sidechain / raw-sum 混音人声 `separate_after/target_3_vocals_mixed.wav`。
+    pub mixed_path: Option<std::path::PathBuf>,
+    /// silence gate 后的混音人声 `separate_after/target_3_vocals_gated.wav`。
+    pub gated_path: Option<std::path::PathBuf>,
+}
+
+impl SeparateAfterDeps {
+    pub fn from_input(input: &crate::input::WorkflowInput) -> Self {
+        let video_dir = input.video_dir();
         Self {
-            video_dir: video_dir.to_string(),
             vocals_path: separate::Target3VocalsPath::new(video_dir),
             stems_dir: separate::StemsDir::new(video_dir),
-            args: input.steps.separate_after.clone(),
-            use_separated: input.steps.asr.use_separated,
         }
     }
 }

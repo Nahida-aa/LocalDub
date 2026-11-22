@@ -3,18 +3,25 @@
 //!
 //! 镜像 TS `packages/core/steps/separate/after.ts` (stepSeparateAfter), 纯 ffmpeg 编排。
 
-use crate::steps::separate::after_args::{MixMode, SeparateAfterInput};
+use crate::steps::separate::after_args::{
+    MixMode, SeparateAfterDeps, SeparateAfterOutput,
+};
 use crate::steps::utils::paths::separate_after::{GatedVocalsPath, Target3VocalsMixedPath};
 use crate::steps::utils::{
     ffmpeg, now_iso, separate_after_dir, set_step_anyhow, StepPatch, StepStatus,
 };
+use crate::workflows::step_ctx::{CtxView, StepCtxView};
 
 /// 入口 (镜像 TS `stepSeparateAfter`)。
 ///
-/// 单参 [`SeparateAfterInput`]：本步只吃 separate 的 stems（约定拼法）+ 本步专属
-/// 混音参数（`SeparateAfterInput::args`）与共用的 use_separated，不依赖任何"拍平的全局状态"。
-pub fn step_separate_after(input: &SeparateAfterInput) -> anyhow::Result<()> {
-    let video_dir = input.video_dir.clone();
+/// 意图面经 `sc.ctx().input()` 取（args / video_dir / use_separated），事实面由装配层
+/// 算好注入 [`SeparateAfterDeps`]（separate 产出的 vocals_path / stems_dir）。
+pub fn step_separate_after(
+    sc: impl StepCtxView,
+    deps: SeparateAfterDeps,
+) -> anyhow::Result<SeparateAfterOutput> {
+    let input = sc.ctx().input();
+    let video_dir = input.video_dir().to_string();
     tracing::info!(target: "separate", "start");
 
     set_step_anyhow(
@@ -31,13 +38,13 @@ pub fn step_separate_after(input: &SeparateAfterInput) -> anyhow::Result<()> {
     std::fs::create_dir_all(&out_dir)
         .map_err(|e| anyhow::anyhow!("创建 separate_after 目录失败: {e}"))?;
 
-    // stems 来自 separate 步骤的输出目录(见 `SeparateAfterInput`)。
-    let sep_dir = input.stems_dir.as_path().to_path_buf();
+    // stems 来自 separate 步骤的输出目录(见 `SeparateAfterDeps`)。
+    let sep_dir = deps.stems_dir.as_path().to_path_buf();
     let stems = [
         ("drums", sep_dir.join("target_0_drums.wav")),
         ("bass", sep_dir.join("target_1_bass.wav")),
         ("other", sep_dir.join("target_2_other.wav")),
-        ("vocals", input.vocals_path.as_path().to_path_buf()),
+        ("vocals", deps.vocals_path.as_path().to_path_buf()),
     ];
     let vocals_path = stems[3].1.clone();
     let bgm_dst = out_dir.join("target_bgm.wav");
@@ -68,8 +75,8 @@ pub fn step_separate_after(input: &SeparateAfterInput) -> anyhow::Result<()> {
     }
 
     // 2. 按本步骤专属混音参数生成 sidechain 混音人声
-    let args = &input.args;
-    let use_separated = input.use_separated; // 与 asr 共用的音源决策
+    let args = &input.steps.separate_after;
+    let use_separated = input.steps.asr.use_separated; // 与 asr 共用的音源决策
     let mix_mode = args.mix_mode;
     let reduce_bgm = args.reduce_bgm;
     let sc = args.sidechain_compress.clone();
@@ -169,7 +176,14 @@ pub fn step_separate_after(input: &SeparateAfterInput) -> anyhow::Result<()> {
         },
     )?;
     tracing::info!(target: "separate", "done");
-    Ok(())
+    // 以文件是否实际存在为准，精确反映本次产出了哪些（bgm 可能沿用旧文件）。
+    let mixed_path = Target3VocalsMixedPath::new(&video_dir);
+    let gated_path = GatedVocalsPath::new(&video_dir);
+    Ok(SeparateAfterOutput {
+        bgm_path: bgm_dst.exists().then_some(bgm_dst),
+        mixed_path: mixed_path.as_path().exists().then(|| mixed_path.as_path().to_path_buf()),
+        gated_path: gated_path.as_path().exists().then(|| gated_path.as_path().to_path_buf()),
+    })
 }
 
 #[cfg(test)]
@@ -222,13 +236,20 @@ mod tests {
             json!({
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"steps": {"asr": {"use_separated": true, "mix_mode": "sidechain",
-                                            "reduce_bgm": -12, "use_gate": true}}},
+                "input": {"steps": {
+                    "asr": {"use_separated": true},
+                    "separate_after": {"mix_mode": "sidechain", "reduce_bgm": -12, "use_gate": true}
+                }},
                 "output_mode": "dub"
             }),
         );
 
-        let res = step_separate_after(&SeparateAfterInput::new(&dir, &input));
+        let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
+        let deps = SeparateAfterDeps::from_input(&wfi);
+        let res = step_separate_after(
+            crate::workflows::step_ctx::MyStepCtx::new("separate_after", wfi),
+            deps,
+        );
         assert!(res.is_ok(), "separate_after 失败: {:?}", res.err());
 
         assert!(

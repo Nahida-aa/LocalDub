@@ -18,7 +18,7 @@ use crate::steps::utils::paths::AudioSourcePath;
 use crate::workflows::step_ctx::{CtxView, MyStepCtx, StepCtxView};
 
 pub use after::step_separate_after;
-pub use after_args::{SeparateAfterArgs, SeparateAfterInput};
+pub use after_args::SeparateAfterArgs;
 pub use args::SeparateArgs;
 
 /// 定位 demucs 二进制: `data/bin/<binary>` (release 下载, vox-lab zip 平铺)。

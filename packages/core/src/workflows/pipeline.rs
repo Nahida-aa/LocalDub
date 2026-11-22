@@ -24,7 +24,7 @@ use crate::steps::mix_audio::step_mix_audio;
 use crate::steps::mix_video::args::MixVideoDeps;
 use crate::steps::mix_video::step_mix_video;
 use crate::steps::separate::{
-    after_args::SeparateAfterInput, step_separate, step_separate_after,
+    after_args::SeparateAfterDeps, step_separate, step_separate_after,
 };
 use crate::steps::sf_ocr::args::SfOcrDeps;
 use crate::steps::sf_ocr::fix_args::SfOcrFixDeps;
@@ -150,7 +150,11 @@ pub fn run_step(
             step.as_str(),
             WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?,
         )),
-        StepName::SeparateAfter => step_separate_after(&SeparateAfterInput::new(video_dir, input)),
+        StepName::SeparateAfter => {
+            let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
+            let deps = SeparateAfterDeps::from_input(&wfi);
+            step_separate_after(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
+        }
         StepName::SfOcrPre => step_sf_ocr_pre(MyStepCtx::new(
             step.as_str(),
             WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?,

@@ -1172,7 +1172,7 @@ export type SegmentFrame = {
  *  separate_after 阶段参数（`input.steps.separate_after`）。
  * 
  *  混音策略的单一真源。`use_separated` 例外：它同属 asr 的音源决策，仍从
- *  `input.steps.asr` 读取（见 [`SeparateAfterInput::new`]），不在这里重复配置。
+ *  `input.steps.asr` 读取（见 `step_separate_after`），不在这里重复配置。
  */
 export type SeparateAfterArgs = SeparateAfterArgs_Serialize | SeparateAfterArgs_Deserialize;
 
@@ -1180,7 +1180,7 @@ export type SeparateAfterArgs = SeparateAfterArgs_Serialize | SeparateAfterArgs_
  *  separate_after 阶段参数（`input.steps.separate_after`）。
  * 
  *  混音策略的单一真源。`use_separated` 例外：它同属 asr 的音源决策，仍从
- *  `input.steps.asr` 读取（见 [`SeparateAfterInput::new`]），不在这里重复配置。
+ *  `input.steps.asr` 读取（见 `step_separate_after`），不在这里重复配置。
  */
 export type SeparateAfterArgs_Deserialize = {
 	/**  ASR 音频源 (默认 sidechain) */
@@ -1197,7 +1197,7 @@ export type SeparateAfterArgs_Deserialize = {
  *  separate_after 阶段参数（`input.steps.separate_after`）。
  * 
  *  混音策略的单一真源。`use_separated` 例外：它同属 asr 的音源决策，仍从
- *  `input.steps.asr` 读取（见 [`SeparateAfterInput::new`]），不在这里重复配置。
+ *  `input.steps.asr` 读取（见 `step_separate_after`），不在这里重复配置。
  */
 export type SeparateAfterArgs_Serialize = {
 	/**  ASR 音频源 (默认 sidechain) */

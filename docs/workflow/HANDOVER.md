@@ -50,7 +50,7 @@ AGENTS.md 的 dub 正例表述同步。
 | `aa9c88aa` | **双特征落地**（`CtxView` / `StepCtxView`）+ separate 迁移到 trait 签名 |
 
 现役执行器**未动**（`pipeline.rs` / `parallel.rs` 照旧跑全流程）；Phase 1 已迁移
-**14 / 15 步**（separate、translate、split_audio、tts、mix_audio、mix_video、asr、asr_fix、asr_ocr_pre、asr_ocr、asr_ocr_fix、sf_ocr_pre、sf_ocr、sf_ocr_fix）。验证: `cargo test -p ld-core --lib` 全绿（179）。
+**15 / 15 步**（全部：separate、translate、split_audio、tts、mix_audio、mix_video、asr、asr_fix、asr_ocr_pre、asr_ocr、asr_ocr_fix、sf_ocr_pre、sf_ocr、sf_ocr_fix、separate_after）——**Phase 1 迁移完成**。验证: `cargo test -p ld-core --lib` 全绿（179）。
 
 > 2026-11-22 补记：本节表格只列接入工程本身的提交。其后又完成两轮**配置 wire 名
 > 统一 snake_case**（`WorkflowArgs` 与 `steps.*` 全部子结构，含 `gen-input-schema`
@@ -97,25 +97,18 @@ AGENTS.md 的 dub 正例表述同步。
 
 ## 4. 待办（按优先级）
 
-1. **Phase 1 剩余 1 步批量迁移**（零行为）——**separate + translate + split_audio
-   + tts + mix_audio + mix_video + asr + asr_fix + asr_ocr_pre + asr_ocr +
-   asr_ocr_fix + sf_ocr_pre + sf_ocr + sf_ocr_fix 已迁移**（translate 验证了 `XxxDeps`
-   注入 + `resolve_language` 拆半（⚠️ src 三级回退、非必读 `<asr>/out.json`，Deps 取
-   算好的 `src_lang`/`target_lang: LangStr`——见 §3 决策 #1）+ 三来源字幕装配；
-   split_audio 验证了带存在性仲裁的 deps + 意图面拆到 sc；tts 是第二个纯约定产物 deps；
-   mix_audio 验证了 deps 构造时前置校验 + 承接两条已迁移产物边；mix_video 验证了
-   `branch` 按 output_mode 在装配层二选一；asr 验证了音源三选一的 deps + `source_lang`
-   走 sc 现取；asr_fix 验证了源文件路径 + 三级回退算好的 source_lang 进 deps；
-   asr_ocr_pre 验证了纯约定路径 deps；asr_ocr 验证了单目录产物 deps；asr_ocr_fix 验证了
-   多产物（11 个文件，含 3 个条件产物）清单 + `max_advance_ms` 跨步骤配置走 sc；
-   sf_ocr_pre 验证了决策 #5「入口步骤无 deps」（与 separate 同款，删 `pre_args.rs`，
-   视频路径在步骤体从 video_dir 拼）；sf_ocr 验证了单文件产物 deps + 关键帧目录消费；
-   sf_ocr_fix 验证了中间态目录 + 条件 llmFix 产物的清单）。split_audio / tts /
-   mix_audio / asr_fix / asr_ocr_pre / asr_ocr / asr_ocr_fix / sf_ocr_pre / sf_ocr /
-   sf_ocr_fix 的产物清单以 `XxxOutput` 作为步骤返回值（不写盘，类型即文档）；mix_video /
-   asr 已有各自的 `<step>/out.json`，暂不加返回值（见待办 #5）。
-   最后一步 separate_after 沿依赖链收尾。每步: 签名改 `(sc, deps)`、意图面经
-   `sc.ctx().input()` 现取、事实面进 `XxxDeps`、`cargo test -p ld-core --lib` 全绿。
+1. **Phase 1 迁移已完成（15/15，零行为）**——全部步骤改为 `sc` / `(sc, deps)` 签名:
+   translate 验证了 `XxxDeps` 注入 + `resolve_language` 拆半（⚠️ src 三级回退、非必读
+   `<asr>/out.json`，Deps 取算好的 `src_lang`/`target_lang: LangStr`——见 §3 决策 #1）
+   + 三来源字幕装配；split_audio 验证了带存在性仲裁的 deps；mix_audio 验证了 deps
+   构造时前置校验 + 承接两条产物边；mix_video 验证了 `branch` 按 output_mode 在装配层
+   二选一；asr 验证了音源三选一；asr_fix / asr_ocr_fix / sf_ocr_fix 验证了三级回退
+   source_lang 进 deps + 多产物/中间态/条件产物清单；asr_ocr_pre / asr_ocr / sf_ocr_pre /
+   sf_ocr 验证了入口步骤与单产物 deps（sf_ocr_pre 按决策 #5 无 deps）；separate_after
+   验证了全条件产物清单（以文件实际存在填 Option）。12 个步骤的产物清单以 `XxxOutput`
+   作为步骤返回值（不写盘，类型即文档）；mix_video / asr 已有各自的 `<step>/out.json`
+   不加返回值（见待办 #5）。`video_source_path` 不进 deps、由步骤体从 video_dir 拼
+   （见 §5 #9）；混音字段已从 AsrArgs 归位到 SeparateAfterArgs（见 §5 #10）。
 2. **Phase 2**（首个行为变化点）: `state.json → view.json` 改名 + 本地 emit 通道
    （事件形状 `WorkflowEvent`）+ 投影器；**28 个 `set_step` + 3 个 `out.json` 写点
    退役**（逐点 file:line 清单见 INTEGRATION-PLAN §5.5——separate 的 5 处是模板）。
@@ -133,6 +126,12 @@ AGENTS.md 的 dub 正例表述同步。
      `step_asr_missing_input_errors` 夹具里的死配置；`AsrInput` 那个从未被 step 体
      消费的 `source_lang` 字段也随迁移删除（改从 `sc.ctx().input().workflow` 现取）。
    每次均重生成 schema / bindings，test_support.rs 的死配置同步清理。
+6. **`run_step` 的 `video_dir` 参数已成死参数**（Phase 1 完成后暴露）：全部 15 步迁移后，
+   没有任何步骤再需要 `run_step(step, video_dir, input)` 的 `video_dir`——各步从
+   `sc.ctx().input().video_dir()` 取。cargo check 报 `unused variable: video_dir`
+   （pipeline.rs:141）。应删该参数并同步 pipeline.rs / continue_pipeline.rs 两处活跃
+   调用（integration/workflow/engine.rs 那处在注释模块里，可一并清理）。属 Phase 1
+   收尾清理，无行为变化。
 
 ## 5. 陷阱与教训（踩过的，别再踩）
 
