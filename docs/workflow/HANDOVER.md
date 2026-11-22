@@ -50,7 +50,7 @@ AGENTS.md 的 dub 正例表述同步。
 | `aa9c88aa` | **双特征落地**（`CtxView` / `StepCtxView`）+ separate 迁移到 trait 签名 |
 
 现役执行器**未动**（`pipeline.rs` / `parallel.rs` 照旧跑全流程）；Phase 1 已迁移
-**12 / 15 步**（separate、translate、split_audio、tts、mix_audio、mix_video、asr、asr_fix、asr_ocr_pre、asr_ocr、asr_ocr_fix、sf_ocr_pre）。验证: `cargo test -p ld-core --lib` 全绿（179）。
+**13 / 15 步**（separate、translate、split_audio、tts、mix_audio、mix_video、asr、asr_fix、asr_ocr_pre、asr_ocr、asr_ocr_fix、sf_ocr_pre、sf_ocr）。验证: `cargo test -p ld-core --lib` 全绿（179）。
 
 > 2026-11-22 补记：本节表格只列接入工程本身的提交。其后又完成两轮**配置 wire 名
 > 统一 snake_case**（`WorkflowArgs` 与 `steps.*` 全部子结构，含 `gen-input-schema`
@@ -97,9 +97,9 @@ AGENTS.md 的 dub 正例表述同步。
 
 ## 4. 待办（按优先级）
 
-1. **Phase 1 剩余 3 步批量迁移**（零行为）——**separate + translate + split_audio
+1. **Phase 1 剩余 2 步批量迁移**（零行为）——**separate + translate + split_audio
    + tts + mix_audio + mix_video + asr + asr_fix + asr_ocr_pre + asr_ocr +
-   asr_ocr_fix + sf_ocr_pre 已迁移**（translate 验证了 `XxxDeps` 注入 +
+   asr_ocr_fix + sf_ocr_pre + sf_ocr 已迁移**（translate 验证了 `XxxDeps` 注入 +
    `resolve_language` 拆半（⚠️ src 三级回退、非必读 `<asr>/out.json`，Deps 取算好的
    `src_lang`/`target_lang: LangStr`——见 §3 决策 #1）+ 三来源字幕装配；split_audio
    验证了带存在性仲裁的 deps + 意图面拆到 sc；tts 是第二个纯约定产物 deps；mix_audio
@@ -109,10 +109,11 @@ AGENTS.md 的 dub 正例表述同步。
    纯约定路径 deps；asr_ocr 验证了单目录产物 deps；asr_ocr_fix 验证了多产物（11 个
    文件，含 3 个条件产物）清单 + `max_advance_ms` 跨步骤配置走 sc；sf_ocr_pre 验证了
    决策 #5「入口步骤无 deps」（与 separate 同款，删 `pre_args.rs`，视频路径在步骤体
-   从 video_dir 拼））。split_audio / tts / mix_audio / asr_fix / asr_ocr_pre /
-   asr_ocr / asr_ocr_fix / sf_ocr_pre 的产物清单以 `XxxOutput` 作为步骤返回值（不写盘，
-   类型即文档）；mix_video / asr 已有各自的 `<step>/out.json`，暂不加返回值（见待办 #5）。
-   继续沿依赖链铺开（sf_ocr→sf_ocr_fix→separate_after 收尾）。每步: 签名改 `(sc, deps)`、
+   从 video_dir 拼）；sf_ocr 验证了单文件产物 deps + 关键帧目录消费）。split_audio /
+   tts / mix_audio / asr_fix / asr_ocr_pre / asr_ocr / asr_ocr_fix / sf_ocr_pre /
+   sf_ocr 的产物清单以 `XxxOutput` 作为步骤返回值（不写盘，类型即文档）；mix_video /
+   asr 已有各自的 `<step>/out.json`，暂不加返回值（见待办 #5）。
+   继续沿依赖链铺开（sf_ocr_fix→separate_after 收尾）。每步: 签名改 `(sc, deps)`、
    意图面经 `sc.ctx().input()` 现取、事实面进 `XxxDeps`、`cargo test -p ld-core --lib` 全绿。
 2. **Phase 2**（首个行为变化点）: `state.json → view.json` 改名 + 本地 emit 通道
    （事件形状 `WorkflowEvent`）+ 投影器；**28 个 `set_step` + 3 个 `out.json` 写点

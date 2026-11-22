@@ -110,7 +110,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | --- | --- | --- |
 | `separate_after` | `SeparateAfterInput` | `vocals_path: Target3VocalsPath`、`stems_dir: StemsDir` |
 | `asr_fix` | `AsrFixDeps`（Phase 1 已迁移） | `asr_path: AsrPath`、`source_lang: LangStr`（三级回退算好；意图面 video_dir/args 走 `sc.ctx().input()`） |
-| `sf_ocr` | `SfOcrInput` | `keyframes_dir: KeyframesDir` |
+| `sf_ocr` | `SfOcrDeps`（Phase 1 已迁移） | `keyframes_dir: KeyframesDir`（sf_ocr_pre 产出；意图面 video_dir/args 走 `sc.ctx().input()`） |
 | `sf_ocr_fix` | `SfOcrFixInput` | `frames_path: FramesPath` |
 | `asr_ocr` | `AsrOcrDeps`（Phase 1 已迁移） | `frames_dir: FramesDir`（asr_ocr_pre 产出；意图面 video_dir/args 走 `sc.ctx().input()`） |
 | `asr_ocr_fix` | `AsrOcrFixDeps`（Phase 1 已迁移） | `asr_ocr_pre_asr_split_path: AsrSplitPath`、`ocr_frames_path: FramesPath`、`source_lang: LangStr`（装配层算好）；意图面 video_dir/args/max_advance_ms 走 `sc.ctx().input()` |

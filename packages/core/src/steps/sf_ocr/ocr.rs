@@ -5,16 +5,19 @@
 //! 段合并 / 时间调整 / LLM 修正由下游 sf_ocr_fix 负责。
 
 use crate::cmd::env::ensure_bin;
-use crate::steps::sf_ocr::args::SfOcrInput;
+use crate::steps::sf_ocr::args::{SfOcrDeps, SfOcrOutput};
 use crate::steps::utils::paths::sf_ocr;
 use crate::steps::utils::{now_iso, set_step_anyhow, StepPatch, StepStatus};
+use crate::workflows::step_ctx::{CtxView, StepCtxView};
 use std::process::Command;
 
 /// 入口 (镜像 TS `stepSfOcr`)。
 ///
-/// 单参 [`SfOcrInput`]：依赖（关键帧目录）+ 任务目录 + 本次参数都在里面。
-pub fn step_sf_ocr(input: &SfOcrInput) -> anyhow::Result<()> {
-    let video_dir = input.video_dir.clone();
+/// 意图面经 `sc.ctx().input()` 取（args / video_dir），事实面由装配层算好注入
+/// [`SfOcrDeps`]（sf_ocr_pre 产出的关键帧目录）。
+pub fn step_sf_ocr(sc: impl StepCtxView, deps: SfOcrDeps) -> anyhow::Result<SfOcrOutput> {
+    let input = sc.ctx().input();
+    let video_dir = input.video_dir().to_string();
     tracing::info!(target: "sf_ocr", "start");
 
     set_step_anyhow(
@@ -27,8 +30,8 @@ pub fn step_sf_ocr(input: &SfOcrInput) -> anyhow::Result<()> {
         },
     )?;
 
-    let args = &input.args;
-    let frame_dir = input.keyframes_dir.as_path();
+    let args = &input.steps.sf_ocr;
+    let frame_dir = deps.keyframes_dir.as_path();
     if !frame_dir.exists() {
         return Err(anyhow::anyhow!(
             "Keyframe dir not found: {} — run sf_ocr_pre first",
@@ -118,7 +121,9 @@ pub fn step_sf_ocr(input: &SfOcrInput) -> anyhow::Result<()> {
         },
     )?;
     tracing::info!(target: "sf_ocr", "done");
-    Ok(())
+    Ok(SfOcrOutput {
+        frames_path: frames_file.as_path().to_path_buf(),
+    })
 }
 
 #[cfg(test)]
@@ -159,8 +164,13 @@ mod tests {
             .to_string();
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let input = input_at(json!({}));
-        let res = step_sf_ocr(&SfOcrInput::new(&dir, &input));
+        let input: crate::input::Input = serde_json::from_value(json!({
+            "workflow": {"video_dir": dir}
+        }))
+        .unwrap();
+        let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
+        let deps = SfOcrDeps::from_input(&wfi);
+        let res = step_sf_ocr(crate::workflows::step_ctx::MyStepCtx::new("sf_ocr", wfi), deps);
         assert!(res.is_err());
         assert!(
             res.unwrap_err()

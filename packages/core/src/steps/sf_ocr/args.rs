@@ -93,29 +93,29 @@ fn default_true() -> bool {
     true
 }
 
-/// sf_ocr 步骤的输入契约（**依赖清单**）：本步**消费**的路径。
+/// Phase 1 事实面：`step_sf_ocr` 的显式依赖清单（由装配层算好后注入）。
 ///
-/// 只装依赖——来自 `sf_ocr_pre` 的关键帧目录。本步产出 `frames.json`
-/// （`sf_ocr::FramesPath`）属于「产出」而非「依赖」，不在此清单内。与
-/// `SfOcrFixInput` / `TtsDeps` 同款：`StepInput` 是依赖清单，不是路径袋。
+/// 只装依赖——`sf_ocr_pre` 产出的关键帧目录。本步产出 `frames.json`
+/// （`sf_ocr::FramesPath`）属于「产出」而非「依赖」，不在此清单内。
 ///
-/// 路径是 `{video_dir}/...` 的**约定拼法**，不读 ctx 里落定的事实，故入口是
-/// [`from_video_dir`](Self::from_video_dir)。
-pub struct SfOcrInput {
-    /// 任务目录（写侧 step status 需要）。
-    pub video_dir: String,
-    /// 来自 sf_ocr_pre 的关键帧目录 `<video_dir>/sf_ocr_pre/frames`。
+/// 意图面（`video_dir` / `args`）走 `sc.ctx().input()`，不进 deps。
+#[derive(Debug, Clone)]
+pub struct SfOcrDeps {
+    /// sf_ocr_pre 步骤产出的关键帧目录。
     pub keyframes_dir: sf_ocr_pre::KeyframesDir,
-    /// 本次运行参数（`input.steps.sf_ocr`）。
-    pub args: SfOcrArgs,
 }
 
-impl SfOcrInput {
-    pub fn new(video_dir: &str, input: &crate::input::Input) -> Self {
+/// `step_sf_ocr` 的**全部产物清单**（作为步骤函数返回值，不写盘）。
+#[derive(Debug, Clone, PartialEq, Eq, specta::Type)]
+pub struct SfOcrOutput {
+    /// OCR 结果 `sf_ocr/frames.json`。
+    pub frames_path: std::path::PathBuf,
+}
+
+impl SfOcrDeps {
+    pub fn from_input(input: &crate::input::WorkflowInput) -> Self {
         Self {
-            video_dir: video_dir.to_string(),
-            keyframes_dir: sf_ocr_pre::KeyframesDir::new(video_dir),
-            args: SfOcrArgs::from_input(input),
+            keyframes_dir: sf_ocr_pre::KeyframesDir::new(input.video_dir()),
         }
     }
 }

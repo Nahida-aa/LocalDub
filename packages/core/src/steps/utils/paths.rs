@@ -265,7 +265,7 @@ pub mod sf_ocr_pre {
     /// sf_ocr_pre 步骤产出的关键帧目录 `<video_dir>/sf_ocr_pre/frames`（PNG 帧）。
     ///
     /// 产出方是 `sf_ocr_pre` 步骤 (`step_sf_ocr_pre`)，消费方是 `sf_ocr` 步骤
-    /// (`SfOcrInput.keyframes_dir`)。放在产出方模块下，与 `sf_ocr::FramesPath` 被
+    /// (`SfOcrDeps.keyframes_dir`)。放在产出方模块下，与 `sf_ocr::FramesPath` 被
     /// `sf_ocr_fix` 消费的 provenance 模式同款：跨步骤路径类型归属产出方。
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct KeyframesDir(PathBuf);
