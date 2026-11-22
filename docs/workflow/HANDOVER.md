@@ -8,6 +8,8 @@
 > 不重复计划内容。
 > Phase 2（emit 通道 + 投影器）详细实施方案: [PHASE2-EMIT-PLAN.md](./PHASE2-EMIT-PLAN.md)
 > （**待审**，progress/message 改 emit + 步边界归执行器 + out.json 保留写盘）。
+> core vs runtime 接入判断 + runId 约束 + 方法论纠正（能力挂引擎非 store）:
+> [INTEGRATION-PLAN.md §4.1](./INTEGRATION-PLAN.md#41-core-vs-runtime-判断依据2026-11-23-源码核对)。
 
 ## 1. 项目一句话
 

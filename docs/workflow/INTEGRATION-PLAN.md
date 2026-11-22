@@ -162,6 +162,55 @@
 | `view.json` / `init.json` / UI | 不改 | **零** |
 | `StepDag` + `parallel.rs` | 退役 | `DagShape`（dag_policies）+ 引擎调度 |
 
+### 4.1 core vs runtime 判断依据（2026-11-23 源码核对）
+
+> 这几轮讨论反复纠正，结论写在这里固定；**真源是本地 TanStack checkout**
+> （`lib_ls/learn_ls/workflow`），不是 aa-workflow 的注释，也不是 in-memory 实现。
+
+**方法论（最容易错的一条）：能力挂在引擎，不挂在 store 接口。**
+`deliverSignal` 是 runtime 引擎的函数（`workflow-runtime/src/runtime-driver.ts:52`），
+它内部才调 `config.store.deliverSignal(...)`（:274/:341）。所以
+"某方法只出现在 `WorkflowExecutionStore`" **不能**推出"该能力只有 runtime 有"——
+store 接口只是**引擎要求实现者提供的持久化操作清单**，不是能力清单。
+"用 store 接口差集推断能力边界"是错误推理（本次讨论多次因此绕圈）。
+
+**core 自带 durable 等待闭环**（不是"只能 replay 已完成 step"）：
+core engine 有 `exec_pause`（park）+ `find_resume`（取回 payload）+ 信号消费路径，
+`wait_for_event_fulfilled_by_deliver_signal` 测试（`workflow_core/src/engine/mod.rs:2776`）
+证明 core 自己就能"投递信号→恢复 run"。TanStack `runtime-model.md:31` 也把
+`waitForEvent`/`sleep`/`approve` 列为 **core 拥有的原语**。
+
+**runId 约束（精确边界）**：
+- `RunId = string`（`workflow-core/src/types/index.ts:350`），无 UUID 约束；
+- 引擎缺省生成 `run_${Date.now()}_${random}`（`run-workflow.ts:264,1743`）——
+  不是密码学保证，**不要求全局唯一**；
+- 唯一约束来自 API 形状：`loadRun(runId) → 单个`（`runtime/types.ts:324`）+
+  `CreateRunResult.kind: 'existing'`（:73-75）——**同一 store 内一个 runId 至多一个
+  execution**；跨 store 实例可重复（接口无全局协调）。
+- 注意：这个 1:1 是 API 隐含约束，不是 in-memory 的 `Map` 强加的——存储结构
+  （表/文件/文档）由实现者自由决定，对外呈现 1:1 即可。
+- **LocalDub**：每 video_dir 是独立 store 作用域，`run-1`/`run-2` 自增（见
+  PHASE2-EMIT-PLAN §5）在该作用域内唯一，跨目录重复合法，无需 UUID。
+
+**两个 store 的关系**：`RunStore`（core）存 state 快照 + append-only 事件日志；
+`WorkflowExecutionStore`（runtime）extends `WorkflowRunStoreAdapterStore`（≈ 前者），
+额外加执行编排操作：run 生命周期记录、claim/lease/stale sweep、timer、signal/approval
+投递、schedule。真实实现（`in-memory-store.ts` / `workflow-store-drizzle-postgres`）显示
+两份 RunState 并存（core 视角的 replay 状态 + runtime 视角的执行记录），
+不能合并成一个 store——职责/生命周期/并发语义不同（core 刻意 headless：
+"not a scheduler/queue"）。
+
+**runtime 并发模型**：单个 `sweep()` 串行——while 循环每次 `claimStaleRuns({limit:1})`
+→ `await driveClaimedRun` → 下一个（`runtime-driver.ts:471`）；并行来自**多 worker 各跑
+串行 sweep**，靠 lease claim 分工（`runtime-model.md:150-162`）。单个 run 内部的 step
+并发属于 core DAG 层，不是 runtime。
+
+**对 LocalDub 的落点**：当前 15 步同步跑完、无 sleep/approve/崩溃接管需求 →
+**只用 core + 中间件（dag_policies），runtime 保持观察**。一旦出现"run 暂停后稍后恢复"
+的需求，再上 runtime；届时补的是租约/timer/投递这些**引擎能力**及其持久化，
+不是"接个队列"。LocalDub queue ≈ 手写 execution store（run 级状态 + 串行驱动），
+但没有 paused/wakeAt/lease/timer。
+
 ### 已拍板
 
 1. **Input 一比一镜像 `input.jsonc`**——部分解析字段依赖上游产物
