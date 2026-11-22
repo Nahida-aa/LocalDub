@@ -50,7 +50,7 @@ AGENTS.md 的 dub 正例表述同步。
 | `aa9c88aa` | **双特征落地**（`CtxView` / `StepCtxView`）+ separate 迁移到 trait 签名 |
 
 现役执行器**未动**（`pipeline.rs` / `parallel.rs` 照旧跑全流程）；Phase 1 已迁移
-**9 / 15 步**（separate、translate、split_audio、tts、mix_audio、mix_video、asr、asr_fix、asr_ocr_pre）。验证: `cargo test -p ld-core --lib` 全绿（179）。
+**10 / 15 步**（separate、translate、split_audio、tts、mix_audio、mix_video、asr、asr_fix、asr_ocr_pre、asr_ocr）。验证: `cargo test -p ld-core --lib` 全绿（179）。
 
 > 2026-11-22 补记：本节表格只列接入工程本身的提交。其后又完成两轮**配置 wire 名
 > 统一 snake_case**（`WorkflowArgs` 与 `steps.*` 全部子结构，含 `gen-input-schema`
@@ -97,19 +97,19 @@ AGENTS.md 的 dub 正例表述同步。
 
 ## 4. 待办（按优先级）
 
-1. **Phase 1 剩余 6 步批量迁移**（零行为）——**separate + translate + split_audio
-   + tts + mix_audio + mix_video + asr + asr_fix + asr_ocr_pre 已迁移**（translate
-   验证了 `XxxDeps` 注入 + `resolve_language` 拆半（⚠️ src 三级回退、非必读
-   `<asr>/out.json`，Deps 取算好的 `src_lang`/`target_lang: LangStr`——见 §3 决策 #1）
-   + 三来源字幕装配；split_audio 验证了带存在性仲裁的 deps + 意图面拆到 sc；tts 是
-   第二个纯约定产物 deps；mix_audio 验证了 deps 构造时前置校验 + 承接两条已迁移产物
-   边；mix_video 验证了 `branch` 按 output_mode 在装配层二选一；asr 验证了音源三选一
-   的 deps + `source_lang` 走 sc 现取；asr_fix 验证了源文件路径 + 三级回退算好的
-   source_lang 进 deps；asr_ocr_pre 验证了纯约定路径 deps）。split_audio / tts /
-   mix_audio / asr_fix / asr_ocr_pre 的产物清单以 `XxxOutput` 作为步骤返回值
-   （不写盘，类型即文档）；mix_video / asr 已有各自的 `<step>/out.json`，暂不加
-   返回值（见待办 #5）。
-   继续沿依赖链铺开（asr_ocr→asr_ocr_fix→sf_ocr_pre→…）。每步: 签名改 `(sc, deps)`、
+1. **Phase 1 剩余 5 步批量迁移**（零行为）——**separate + translate + split_audio
+   + tts + mix_audio + mix_video + asr + asr_fix + asr_ocr_pre + asr_ocr 已迁移**
+   （translate 验证了 `XxxDeps` 注入 + `resolve_language` 拆半（⚠️ src 三级回退、
+   非必读 `<asr>/out.json`，Deps 取算好的 `src_lang`/`target_lang: LangStr`——见
+   §3 决策 #1）+ 三来源字幕装配；split_audio 验证了带存在性仲裁的 deps + 意图面拆到
+   sc；tts 是第二个纯约定产物 deps；mix_audio 验证了 deps 构造时前置校验 + 承接两条
+   已迁移产物边；mix_video 验证了 `branch` 按 output_mode 在装配层二选一；asr 验证了
+   音源三选一的 deps + `source_lang` 走 sc 现取；asr_fix 验证了源文件路径 + 三级回退
+   算好的 source_lang 进 deps；asr_ocr_pre 验证了纯约定路径 deps；asr_ocr 验证了
+   单目录产物的 deps）。split_audio / tts / mix_audio / asr_fix / asr_ocr_pre /
+   asr_ocr 的产物清单以 `XxxOutput` 作为步骤返回值（不写盘，类型即文档）；
+   mix_video / asr 已有各自的 `<step>/out.json`，暂不加返回值（见待办 #5）。
+   继续沿依赖链铺开（asr_ocr_fix→sf_ocr_pre→sf_ocr→…）。每步: 签名改 `(sc, deps)`、
    意图面经 `sc.ctx().input()` 现取、事实面进 `XxxDeps`、`cargo test -p ld-core --lib` 全绿。
 2. **Phase 2**（首个行为变化点）: `state.json → view.json` 改名 + 本地 emit 通道
    （事件形状 `WorkflowEvent`）+ 投影器；**28 个 `set_step` + 3 个 `out.json` 写点

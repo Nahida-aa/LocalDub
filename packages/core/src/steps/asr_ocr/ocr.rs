@@ -4,18 +4,21 @@
 //! Writes `<video_dir>/asr_ocr/frames.json` (OcrFramesResult).
 
 use crate::cmd::env::ensure_bin;
-use crate::steps::asr_ocr::args::AsrOcrInput;
+use crate::steps::asr_ocr::args::{AsrOcrDeps, AsrOcrOutput};
 use crate::steps::utils::paths::asr_ocr;
 use crate::steps::utils::{asr_ocr_dir, now_iso, set_step_anyhow, StepPatch, StepStatus};
+use crate::workflows::step_ctx::{CtxView, StepCtxView};
 use anyhow::Result;
 use std::fs;
 use std::process::Command;
 
 /// Entry point (mirrors TS `stepAsrOcr`).
 ///
-/// 单参 [`AsrOcrInput`]：依赖（帧目录）+ 任务目录 + 本次参数都在里面。
-pub fn step_asr_ocr(input: &AsrOcrInput) -> Result<()> {
-    let video_dir = input.video_dir.clone();
+/// 意图面经 `sc.ctx().input()` 取（args / video_dir），事实面由装配层算好注入
+/// [`AsrOcrDeps`]（asr_ocr_pre 产出的帧目录）。
+pub fn step_asr_ocr(sc: impl StepCtxView, deps: AsrOcrDeps) -> Result<AsrOcrOutput> {
+    let input = sc.ctx().input();
+    let video_dir = input.video_dir().to_string();
     tracing::info!(target: "asr_ocr", "step_asr_ocr: start");
 
     set_step_anyhow(
@@ -28,8 +31,8 @@ pub fn step_asr_ocr(input: &AsrOcrInput) -> Result<()> {
         },
     )?;
 
-    let cfg = &input.args;
-    let frame_dir = input.frames_dir.as_path();
+    let cfg = &input.steps.asr_ocr;
+    let frame_dir = deps.frames_dir.as_path();
     if !frame_dir.exists() {
         return Err(anyhow::anyhow!(
             "Frame directory not found: {} — run asr_ocr_pre first",
@@ -108,7 +111,9 @@ pub fn step_asr_ocr(input: &AsrOcrInput) -> Result<()> {
         },
     )?;
     tracing::info!(target: "asr_ocr", "done");
-    Ok(())
+    Ok(AsrOcrOutput {
+        frames_path: out_file.as_path().to_path_buf(),
+    })
 }
 
 #[cfg(test)]
@@ -123,9 +128,14 @@ mod tests {
             .to_string();
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
-        // 本步不读 state.json，故 input 用默认即可（帧目录缺失是最先被拦的条件）
-        let input = crate::input::Input::default();
-        let res = step_asr_ocr(&AsrOcrInput::new(&dir, &input));
+        // 帧目录缺失是最先被拦的条件（早于任何 OCR 二进制调用）
+        let input: crate::input::Input = serde_json::from_value(serde_json::json!({
+            "workflow": {"video_dir": dir}
+        }))
+        .unwrap();
+        let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
+        let deps = AsrOcrDeps::from_input(&wfi);
+        let res = step_asr_ocr(crate::workflows::step_ctx::MyStepCtx::new("asr_ocr", wfi), deps);
         assert!(res.is_err());
         assert!(
             res.unwrap_err()

@@ -112,7 +112,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | `asr_fix` | `AsrFixDeps`（Phase 1 已迁移） | `asr_path: AsrPath`、`source_lang: LangStr`（三级回退算好；意图面 video_dir/args 走 `sc.ctx().input()`） |
 | `sf_ocr` | `SfOcrInput` | `keyframes_dir: KeyframesDir` |
 | `sf_ocr_fix` | `SfOcrFixInput` | `frames_path: FramesPath` |
-| `asr_ocr` | `AsrOcrInput` | `frames_dir: FramesDir` |
+| `asr_ocr` | `AsrOcrDeps`（Phase 1 已迁移） | `frames_dir: FramesDir`（asr_ocr_pre 产出；意图面 video_dir/args 走 `sc.ctx().input()`） |
 | `asr_ocr_fix` | `AsrOcrFixInput` | `asr_ocr_pre_asr_split_path: AsrSplitPath`、`ocr_frames_path: FramesPath` |
 | `tts` | `TtsDeps`（Phase 1 已迁移） | `split_audio_vocals_dir: VocalsDir`、`split_audio_timings_path: TimingsPath`（意图面 video_dir/args/is_start 走 `sc.ctx().input()`） |
 

@@ -14,7 +14,7 @@ use crate::steps::asr::args::AsrDeps;
 use crate::steps::asr::fix::step_asr_fix;
 use crate::steps::asr::fix_args::AsrFixDeps;
 use crate::steps::asr::step_asr;
-use crate::steps::asr_ocr::args::AsrOcrInput;
+use crate::steps::asr_ocr::args::AsrOcrDeps;
 use crate::steps::asr_ocr::fix_args::AsrOcrFixInput;
 use crate::steps::asr_ocr::pre_args::AsrOcrPreDeps;
 use crate::steps::asr_ocr::{fix::step_asr_ocr_fix, ocr::step_asr_ocr, pre::step_asr_ocr_pre};
@@ -180,7 +180,11 @@ pub fn run_step(
             let deps = AsrOcrPreDeps::from_input(&wfi);
             step_asr_ocr_pre(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
         }
-        StepName::AsrOcr => step_asr_ocr(&AsrOcrInput::new(video_dir, input)),
+        StepName::AsrOcr => {
+            let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
+            let deps = AsrOcrDeps::from_input(&wfi);
+            step_asr_ocr(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
+        }
         StepName::AsrOcrFix => step_asr_ocr_fix(&AsrOcrFixInput::new(video_dir, input)),
         StepName::Tts => {
             let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;

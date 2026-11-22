@@ -36,32 +36,30 @@ impl AsrOcrArgs {
     }
 }
 
-/// asr_ocr 步骤的跨步骤输入清单。
+/// Phase 1 事实面：`step_asr_ocr` 的显式依赖清单（由装配层算好后注入）。
 ///
-/// 只收一条上游产物（「约定拼法」的 `{video_dir}/...`，故用
-/// [`from_video_dir`](Self::from_video_dir) 入口，与 `AsrOcrFixInput` 同款
-/// （已迁移到 `AsrFixDeps::from_input` 的 asr_fix 不再走 from_video_dir）：
-///
-/// - `asr_ocr_pre/frames`（帧目录，`asr_ocr_pre` 步骤产出，[`asr_ocr_pre::FramesDir`]）
-///
-/// 该目录是交给 `subtitle-ocr` 二进制做 OCR 的输入（`--dir`），不是 JSON 产物；
+/// 只装一条上游产物：`asr_ocr_pre` 步骤产出的帧目录
+/// [`asr_ocr_pre::FramesDir`]——交给 `subtitle-ocr` 二进制做 OCR 的输入（`--dir`）。
 /// 自身产物 `asr_ocr/frames.json` 不在此列——那是输出，非输入。
-pub struct AsrOcrInput {
-    /// 任务目录（写侧 step status 需要）。
-    pub video_dir: String,
-    /// 来自 asr_ocr_pre 步骤的帧目录 `asr_ocr_pre/frames`。
+///
+/// 意图面（`video_dir` / `args`）走 `sc.ctx().input()`，不进 deps。
+#[derive(Debug, Clone)]
+pub struct AsrOcrDeps {
+    /// asr_ocr_pre 步骤产出的帧目录。
     pub frames_dir: asr_ocr_pre::FramesDir,
-    /// 本次运行参数（`input.steps.asr_ocr`）。
-    pub args: AsrOcrArgs,
 }
 
-impl AsrOcrInput {
-    /// 按约定拼法构造：`{video_dir}/asr_ocr_pre/frames`。
-    pub fn new(video_dir: &str, input: &crate::input::Input) -> Self {
+/// `step_asr_ocr` 的**全部产物清单**（作为步骤函数返回值，不写盘）。
+#[derive(Debug, Clone, PartialEq, Eq, specta::Type)]
+pub struct AsrOcrOutput {
+    /// OCR 结果 `asr_ocr/frames.json`。
+    pub frames_path: std::path::PathBuf,
+}
+
+impl AsrOcrDeps {
+    pub fn from_input(input: &crate::input::WorkflowInput) -> Self {
         Self {
-            video_dir: video_dir.to_string(),
-            frames_dir: asr_ocr_pre::FramesDir::new(video_dir),
-            args: input.steps.asr_ocr.clone(),
+            frames_dir: asr_ocr_pre::FramesDir::new(input.video_dir()),
         }
     }
 }

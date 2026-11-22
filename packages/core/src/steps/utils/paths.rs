@@ -458,7 +458,7 @@ pub mod asr_ocr_pre {
     /// asr_ocr_pre 步骤抽出的帧目录 `<video_dir>/asr_ocr_pre/frames`（PNG 帧）。
     ///
     /// 产出方是 `asr_ocr_pre` 步骤 (`step_asr_ocr_pre`)，消费方是 `asr_ocr` 步骤
-    /// (`AsrOcrInput.frames_dir`)。放在产出方模块下，与 `sf_ocr_pre::KeyframesDir` /
+    /// (`AsrOcrDeps.frames_dir`)。放在产出方模块下，与 `sf_ocr_pre::KeyframesDir` /
     /// `sf_ocr::FramesPath` 被各自消费方引用的 provenance 模式同款——跨步骤路径类型
     /// 归属产出方，消费方只引用。
     #[derive(Debug, Clone, PartialEq, Eq)]
