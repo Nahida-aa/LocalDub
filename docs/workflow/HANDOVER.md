@@ -50,7 +50,7 @@ AGENTS.md 的 dub 正例表述同步。
 | `aa9c88aa` | **双特征落地**（`CtxView` / `StepCtxView`）+ separate 迁移到 trait 签名 |
 
 现役执行器**未动**（`pipeline.rs` / `parallel.rs` 照旧跑全流程）；Phase 1 已迁移
-**5 / 15 步**（separate、translate、split_audio、tts、mix_audio）。验证: `cargo test -p ld-core --lib` 全绿（179）。
+**6 / 15 步**（separate、translate、split_audio、tts、mix_audio、mix_video）。验证: `cargo test -p ld-core --lib` 全绿（179）。
 
 > 2026-11-22 补记：本节表格只列接入工程本身的提交。其后又完成两轮**配置 wire 名
 > 统一 snake_case**（`WorkflowArgs` 与 `steps.*` 全部子结构，含 `gen-input-schema`
@@ -97,13 +97,15 @@ AGENTS.md 的 dub 正例表述同步。
 
 ## 4. 待办（按优先级）
 
-1. **Phase 1 剩余 10 步批量迁移**（零行为）——**separate + translate + split_audio
-   + tts + mix_audio 已迁移**（translate 验证了 `XxxDeps` 注入 + `resolve_language` 拆半
-   （⚠️ src 三级回退、非必读 `<asr>/out.json`，Deps 取算好的 `src_lang`/`target_lang:
-   LangStr`——见 §3 决策 #1）+ 三来源字幕装配；split_audio 验证了带存在性仲裁的 deps
-   + 意图面拆到 sc；tts 是第二个纯约定产物 deps；mix_audio 验证了 deps 构造时前置
-   校验 + 承接两条已迁移产物边）。split_audio / tts / mix_audio 的产物清单以
-   `XxxOutput` 作为步骤返回值（不写盘，类型即文档）。
+1. **Phase 1 剩余 9 步批量迁移**（零行为）——**separate + translate + split_audio
+   + tts + mix_audio + mix_video 已迁移**（translate 验证了 `XxxDeps` 注入 +
+   `resolve_language` 拆半（⚠️ src 三级回退、非必读 `<asr>/out.json`，Deps 取算好的
+   `src_lang`/`target_lang: LangStr`——见 §3 决策 #1）+ 三来源字幕装配；split_audio
+   验证了带存在性仲裁的 deps + 意图面拆到 sc；tts 是第二个纯约定产物 deps；
+   mix_audio 验证了 deps 构造时前置校验 + 承接两条已迁移产物边；mix_video 验证了
+   `branch` 按 output_mode 在装配层二选一）。split_audio / tts / mix_audio 的产物清单
+   以 `XxxOutput` 作为步骤返回值（不写盘，类型即文档）；mix_video 因有 disabled 早退
+   + 已有 `<mix_video>/out.json`，暂不加返回值（见待办 #5）。
    继续沿依赖链铺开（sf_ocr_pre→sf_ocr→sf_ocr_fix→…）。每步: 签名改 `(sc, deps)`、
    意图面经 `sc.ctx().input()` 现取、事实面进 `XxxDeps`、`cargo test -p ld-core --lib` 全绿。
 2. **Phase 2**（首个行为变化点）: `state.json → view.json` 改名 + 本地 emit 通道
@@ -112,6 +114,12 @@ AGENTS.md 的 dub 正例表述同步。
 3. **Phase 3 接入**: 换源表 §4；parallel.rs / StepDag 退役（`DagShape` + 引擎调度）；
    `MyStepCtx → StepCtx<Input, TState>` 类型替换。
 4. **四个待拍板**（§4）——建议在 Phase 2 结束、Phase 3 开工前逐项定。
+5. **`mix_video.enabled=false` 是可疑设计**（2026-11-22 发现，未处理）：mix_video 是
+   最后成片步骤，"跳过"意味着跑完整条流水线却没有成片，没有正常场景需要它。
+   现状它被多个测试夹具用来「只跑到某步就停」（pipeline.rs 的两处测试、
+   integration/workflow/test_support.rs）——本质是拿配置字段当测试截断开关。
+   应改用显式的 `target_step` / `continue_from` 截断测试，然后删掉该字段与早退分支。
+   本次 Phase 1 迁移保留原行为未动（零行为原则）。
 
 ## 5. 陷阱与教训（踩过的，别再踩）
 

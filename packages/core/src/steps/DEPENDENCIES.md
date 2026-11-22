@@ -86,9 +86,10 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | `from_video_dir` | 路径是 `{video_dir}/...` 的**约定拼法**（非 ctx 事实） | 依赖是「上游步骤产出在固定位置」，拼法由 `paths` 类型唯一产生 |
 
 > 同一事实两种取法不该并存：`from_state` 读 ctx（缺失即报错），`from_video_dir` 按约定
-> 拼（不查证存在性，交由 step 主体 `exists()` 判断）。`AsrInput` / `MixVideoInput` 这类
-> 同时需要「ctx 事实 + 约定产物」的结构，用 `from_state` 取 ctx 事实、内部再
+> 拼（不查证存在性，交由 step 主体 `exists()` 判断）。`AsrInput` 这类同时需要
+> 「ctx 事实 + 约定产物」的结构，用 `from_state` 取 ctx 事实、内部再
 > `::new(video_dir)` 拼约定产物，不混用两套读法。
+> （已迁移步骤改用 `XxxDeps::from_input(&WorkflowInput)`，见下方各清单标注。）
 
 ### `from_state`（读 ctx 事实，缺失即报错）
 
@@ -101,7 +102,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | `translate` | `TranslateDeps`（Phase 1 已迁移） | `srt_segs: Vec<SubtitleSegment>`、`src_lang: LangStr`、`target_lang: LangStr`（装配层读好/算好；意图面 video_dir/args 走 `sc.ctx().input()`） |
 | `split_audio` | `SplitAudioDeps`（Phase 1 已迁移） | `audio_path: SplitAudioSourcePath`、`translate_path: LangPath`、`source_lang: LangStr`（装配层算好；意图面 video_dir/args/is_dub 走 `sc.ctx().input()`） |
 | `mix_audio` | `MixAudioDeps`（Phase 1 已迁移） | `split_audio_timings_path: TimingsPath`、`tts_wavs_dir: WavsDir`（构造时做存在性校验；意图面 video_dir/args 走 `sc.ctx().input()`） |
-| `mix_video` | `MixVideoInput`（枚举） | `Dub{video_source_path, mix_audio_timings_path, dubbing_path, bgm_path}` / `Subtitle{video_source_path, split_audio_timings_path}` |
+| `mix_video` | `MixVideoDeps`（Phase 1 已迁移） | `video_source_path` + `target_lang`（translate/out.json 事实）+ `branch: MixVideoBranch`（`Dub{mix_audio_timings_path, dubbing_path, bgm_path}` / `Subtitle{split_audio_timings_path}`）；意图面 video_dir/video_id/output_mode/no_translate/subtitle_source/args 走 `sc.ctx().input()` |
 
 ### `from_video_dir`（约定拼法，非 ctx 事实）
 

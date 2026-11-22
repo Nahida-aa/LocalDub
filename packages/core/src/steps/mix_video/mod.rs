@@ -10,21 +10,25 @@ pub mod out;
 use anyhow::anyhow;
 
 use crate::steps::mix_audio::out::MixAudioOutputTimings;
-use crate::steps::mix_video::args::{Alignment, MixVideoArgs, MixVideoBranch, MixVideoInput};
+use crate::steps::mix_video::args::{Alignment, MixVideoArgs, MixVideoBranch, MixVideoDeps};
 use crate::steps::split_audio::out::SplitAudioTimingResult;
 use crate::steps::utils::srt::SubtitleSegments;
 use crate::steps::utils::{
     default_font, ensure_dir, ffmpeg_timeout, final_video_dir, probe_video_resolution,
     set_step_anyhow, StepPatch, StepStatus,
 };
+use crate::workflows::step_ctx::{CtxView, StepCtxView};
 
 /// 入口 (镜像 TS `stepMixVideo`)。
 ///
-/// 单参 [`MixVideoInput`]：分支读集 + 身份 + 语言事实 + 本次参数都在里面。
-pub fn step_mix_video(input: &MixVideoInput) -> anyhow::Result<()> {
-    let video_dir = input.video_dir.clone();
-    let video_id = input.video_id.clone();
-    let cfg = &input.args;
+/// 意图面经 `sc.ctx().input()` 取（video_dir / video_id / output_mode /
+/// no_translate / subtitle_source / args），事实面由装配层算好注入
+/// [`MixVideoDeps`]（video_source_path / target_lang / branch）。
+pub fn step_mix_video(sc: impl StepCtxView, deps: MixVideoDeps) -> anyhow::Result<()> {
+    let input = sc.ctx().input();
+    let video_dir = input.video_dir().to_string();
+    let video_id = crate::steps::utils::video_id(&video_dir).unwrap_or_default();
+    let cfg = &input.steps.mix_video;
 
     if !cfg.enabled {
         tracing::info!(target: "mix_video", "disabled (mix_video.enabled=false), skipping");
@@ -42,7 +46,7 @@ pub fn step_mix_video(input: &MixVideoInput) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let video_file_path = input
+    let video_file_path = deps
         .video_source_path
         .as_path()
         .to_string_lossy()
@@ -50,18 +54,19 @@ pub fn step_mix_video(input: &MixVideoInput) -> anyhow::Result<()> {
     let mix_video = std::path::Path::new(&video_dir).join("mix_video");
     ensure_dir(&mix_video)?;
 
-    if !input.video_source_path.as_path().exists() {
+    if !deps.video_source_path.as_path().exists() {
         return Err(anyhow!("video_source.mp4 not found: {video_file_path}"));
     }
 
-    let output_mode = input.output_mode;
+    let output_mode = input.workflow.output_mode;
     // 目标语言读**已落定的事实**（翻译步骤写的），不再现算：
     // `resolve_language` 是现算，推断逻辑一变就会与产物不一致。
-    let target_lang = input.target_lang.clone();
+    let target_lang = deps.target_lang.clone();
 
-    let subtitle_source = input.subtitle_source.as_str();
+    let subtitle_source = input.workflow.subtitle_source.as_str();
+    let no_translate = !input.steps.translate.enabled;
 
-    let final_dir_name = final_video_dir(output_mode.as_str(), subtitle_source, input.no_translate);
+    let final_dir_name = final_video_dir(output_mode.as_str(), subtitle_source, no_translate);
     let final_video_dir = mix_video.join(&final_dir_name);
     ensure_dir(&final_video_dir)?;
     let final_video = final_video_dir.join(format!("{video_id}.mp4"));
@@ -73,7 +78,7 @@ pub fn step_mix_video(input: &MixVideoInput) -> anyhow::Result<()> {
     let sub_path = mix_video.join(format!("{target_lang}.srt"));
     let style = probe_style(&video_file_path, &target_lang, &cfg, alignment_num);
 
-    match &input.branch {
+    match &deps.branch {
         // 字幕时间轴统一取 split_audio 的**意图时序** `timings.json`：
         // `split_audio.json` 里 padding 后的切块区间是给切音频用的，不是字幕显示
         // 时间。vad_align 打开时 timings.json 本身已含 VAD 修正，无需再分支。

@@ -145,6 +145,7 @@ fn default_dub_gain() -> f64 {
 /// | --- | --- |
 /// | [`Separate`](Self::Separate) | 默认：`separate_after/target_bgm.wav`（demucs 分离产物） |
 /// | [`Custom`](Self::Custom) | `mix_video.bgmPath` 调试覆盖指定的任意路径 |
+#[derive(Debug, Clone)]
 pub enum BgmPath {
     Separate(separate_after::TargetBgmPath),
     Custom(PathBuf),
@@ -163,7 +164,9 @@ impl BgmPath {
 ///
 /// 与 `AsrInput` 的 `AsrSourceAudioPath` 同款：分支不同 → 读集不同，用枚举表达，
 /// 让 step 体的 `match` 是穷尽的。共享部分（身份 / 语言 / 参数）在
-/// [`MixVideoInput`] 里，不放进枚举——否则两条分支各存一份、还要写访问器。
+/// [`MixVideoDeps`] 与 `sc.ctx().input()` 里，不放进枚举——否则两条分支各存一份、
+/// 还要写访问器。
+#[derive(Debug, Clone)]
 pub enum MixVideoBranch {
     Dub {
         mix_audio_timings_path: mix_audio::TimingsPath,
@@ -175,39 +178,34 @@ pub enum MixVideoBranch {
     },
 }
 
-/// mix_video 步骤的输入契约。
-pub struct MixVideoInput {
-    /// 任务目录（写侧 step status 与 `<mix_video>/out.json` 需要）。
-    pub video_dir: String,
-    /// 任务 id（成片文件名用它）——与 [`crate::steps::utils::video_id`] 同源。
-    pub video_id: String,
+/// Phase 1 事实面：`step_mix_video` 的显式依赖清单（由装配层算好后注入）。
+///
+/// - `video_source_path`：import 事实（约定拼法）；
+/// - `target_lang`：`<translate>/out.json` 的落定事实，不现算；
+/// - `branch`：按 `output_mode` 二选一的产物读集（Dub 要配音轨 + BGM +
+///   mix_audio 对齐时序；Subtitle 只要 split_audio 意图时序）。
+///
+/// 意图面（`video_dir` / `video_id` / `output_mode` / `no_translate` /
+/// `subtitle_source` / `args`）走 `sc.ctx().input()`，不进 deps。
+#[derive(Debug, Clone)]
+pub struct MixVideoDeps {
     pub video_source_path: VideoSourcePath,
-    /// 任务模式（决定走哪条分支、成片目录名）。
-    pub output_mode: OutputMode,
     /// 目标语言（`<translate>/out.json` 的**落定事实**，不现算）。
     pub target_lang: String,
-    /// `!input.steps.translate.enabled`（直通）：成片目录名的一部分。
-    pub no_translate: bool,
-    /// 字幕来源（`input.workflow.subtitle_source`）：成片目录名的一部分。
-    pub subtitle_source: String,
-    /// 本次运行参数（`input.steps.mix_video`）。
-    pub args: MixVideoArgs,
     /// 分支专属的读集。
     pub branch: MixVideoBranch,
 }
 
-impl MixVideoInput {
-    /// 分支由 `OutputMode` 决定，两条分支**需要的输入不同**：
-    /// Dub 要配音轨 + BGM + mix_audio 对齐时序；Subtitle 只要 split_audio 意图时序。
-    ///
-    /// 路径全部交给 `paths` 里各类型的构造函数，本函数不自己拼字符串；
-    /// `video_source_path` 走 [`VideoSourcePath::from_video_dir`] 的约定拼法。
-    pub fn new(video_dir: &str, input: &crate::input::Input) -> anyhow::Result<Self> {
-        let args = MixVideoArgs::from_input(input);
+impl MixVideoDeps {
+    /// 装配层构造：分支由 `output_mode` 决定，读 `input.workflow` / `input.steps`
+    /// 算好；`video_source_path` 走 [`VideoSourcePath::from_video_dir`] 的约定拼法。
+    /// 路径全部交给 `paths` 里各类型的构造函数，本函数不自己拼字符串。
+    pub fn from_input(input: &crate::input::WorkflowInput) -> anyhow::Result<Self> {
+        let video_dir = input.video_dir();
         let video_source_path = VideoSourcePath::from_video_dir(video_dir);
-        let branch = match OutputMode::from_input(input) {
+        let branch = match input.workflow.output_mode {
             OutputMode::Dub => {
-                let bgm_path = match &args.bgm_path {
+                let bgm_path = match &input.steps.mix_video.bgm_path {
                     Some(p) => BgmPath::Custom(PathBuf::from(p)),
                     None => BgmPath::Separate(separate_after::TargetBgmPath::new(video_dir)),
                 };
@@ -222,21 +220,10 @@ impl MixVideoInput {
             },
         };
         Ok(Self {
-            video_dir: video_dir.to_string(),
-            video_id: crate::steps::utils::video_id(video_dir).unwrap_or_default(),
             video_source_path,
-            output_mode: OutputMode::from_input(input),
             target_lang: translate::LangPath::from_video_dir(video_dir)?
                 .lang()
                 .to_string(),
-            no_translate: !input.steps.translate.enabled,
-            subtitle_source: input
-                .workflow
-                .as_ref()
-                .map(|w| w.subtitle_source.as_str())
-                .unwrap_or("asr")
-                .to_string(),
-            args,
             branch,
         })
     }

@@ -21,7 +21,7 @@ use crate::steps::asr_ocr::{fix::step_asr_ocr_fix, ocr::step_asr_ocr, pre::step_
 use crate::steps::get_steps;
 use crate::steps::mix_audio::args::MixAudioDeps;
 use crate::steps::mix_audio::step_mix_audio;
-use crate::steps::mix_video::args::MixVideoInput;
+use crate::steps::mix_video::args::MixVideoDeps;
 use crate::steps::mix_video::step_mix_video;
 use crate::steps::separate::{
     after_args::SeparateAfterInput, step_separate, step_separate_after,
@@ -180,7 +180,11 @@ pub fn run_step(
             let deps = MixAudioDeps::from_input(&wfi)?;
             step_mix_audio(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
         }
-        StepName::MixVideo => step_mix_video(&MixVideoInput::new(video_dir, input)?),
+        StepName::MixVideo => {
+            let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
+            let deps = MixVideoDeps::from_input(&wfi)?;
+            step_mix_video(MyStepCtx::new(step.as_str(), wfi), deps)
+        }
     }
 }
 
