@@ -63,17 +63,17 @@ fn default_end_pad_ms() -> u32 {
 
 /// Phase 1 事实面：`step_split_audio` 的显式依赖清单（由装配层算好后注入）。
 ///
-/// - `audio_path`：切块音频源，已按优先级仲裁（vocalsFilePath 覆盖 → 人声
-///   stem → 原始音频）；存在性判断留在构造里，类型只表达结论；
-/// - `translate_path`：translate 落定的产物路径（`<translate>/out.json` 事实），
+/// - `audio_path`：切块音频源，来自 override / separate 人声 / import 原音频
+///   （三选一，装配层按优先级仲裁）；
+/// - `translate_path`：translate 步骤落定的产物（`<translate>/out.json` 事实），
 ///   步骤体据此读 `TranslateResult` 与比较 mtime。
 ///
 /// 意图面（`args` / `video_dir` / `is_dub`）走 `sc.ctx().input()`，不进 deps。
 #[derive(Debug, Clone)]
 pub struct SplitAudioDeps {
-    /// 切块时要切哪个音频。
+    /// 切块音频源：override / separate 人声 / import 原音频三选一（装配层仲裁好）。
     pub audio_path: SplitAudioSourcePath,
-    /// 字幕时序来源（意图时序 + 文本 + 译文）。
+    /// translate 步骤落定的产物（意图时序 + 文本 + 译文）。
     pub translate_path: translate::LangPath,
 }
 

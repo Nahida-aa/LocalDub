@@ -34,7 +34,7 @@ impl Default for AsrFixArgs {
 
 /// Phase 1 事实面：`step_asr_fix` 的显式依赖清单（由装配层算好后注入）。
 ///
-/// - `asr_path`：来自 asr 步骤的识别结果 `asr/asr.json`（约定拼法）；
+/// - `asr_path`：asr 步骤产出的识别结果 `asr/asr.json`；
 /// - `source_lang`：源语言（`<asr>/out.json` 实测 > `input.workflow.source_lang`
 ///   配置 > 未知），由装配层算好，LLM 提示词用它。
 ///

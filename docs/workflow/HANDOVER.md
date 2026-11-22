@@ -161,6 +161,11 @@ AGENTS.md 的 dub 正例表述同步。
    在 input schema / serde 默认值里存在，但 `step_asr_ocr_pre` 函数体从不读它——
    帧时间戳走 end2fps 固定策略。迁移时特意不从 sc 取 args（代码读什么就取什么），
    并在步骤文档标注。要真正支持 fps 配置是行为变化，需单独规划。
+9. **`XxxDeps` 字段注释只写 provenance**（2026-11-22 确立）：每个字段注明"从哪个
+   步骤 / action 产出"，**不写**"约定拼法 / 能算出来 / 存在性谁查"——后者是
+   `paths` newtype 带来的能力，不是字段存在的理由。例：`video_source_path` 是
+   import action 的产物，这与能否用 `from_video_dir` 拼出它是两回事。8 处 deps
+   注释已按此统一。
 
 ## 6. 库侧 view trait 评估结论（防重新争论，完整版 §6 of PLAN）
 

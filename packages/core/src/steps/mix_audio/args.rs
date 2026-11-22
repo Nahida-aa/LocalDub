@@ -60,7 +60,9 @@ fn default_max_delay_ms() -> f64 {
 /// （`video_dir` / `args`）走 `sc.ctx().input()`，不进 deps。
 #[derive(Debug, Clone)]
 pub struct MixAudioDeps {
+    /// split_audio 步骤产出的意图时序。
     pub split_audio_timings_path: split_audio::TimingsPath,
+    /// tts 步骤产出的逐段配音 wav 目录。
     pub tts_wavs_dir: tts::WavsDir,
 }
 

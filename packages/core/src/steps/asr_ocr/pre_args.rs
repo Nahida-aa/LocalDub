@@ -28,17 +28,20 @@ fn default_fps() -> f64 {
 
 /// Phase 1 事实面：`step_asr_ocr_pre` 的显式依赖清单（由装配层算好后注入）。
 ///
-/// 装两条路径，都是 `{video_dir}/...` 的约定拼法：
-/// - `asr_path`：`asr/asr.json`（asr 步骤产出）——本步据此做 ASR 切分；
-/// - `video_source_path`：原视频（import 产出）——ffmpeg 抽帧的输入。
+/// 装本步消费的两条跨步骤产物（各字段注释标明其生产者）：
+/// - `asr_path`：asr 步骤产出的 `asr/asr.json`——本步据此做 ASR 切分；
+/// - `video_source_path`：import action 产出的原视频——ffmpeg 抽帧的输入。
 ///
-/// 意图面（`video_dir` / `args`）走 `sc.ctx().input()`，不进 deps。
+/// "从哪里来"是字段的 provenance；路径能按 `{video_dir}/...` 约定拼出、
+/// 存在性由步骤体查证，都是 `paths` newtype 带来的能力，不是这里要声明的东西。
+///
+/// 意图面（`video_dir`）走 `sc.ctx().input()`，不进 deps。
 /// 本步的产出（`asr_ocr_pre/asr_split.json` / `frames/`）见 `pre_out::AsrOcrPreOutput`。
 #[derive(Debug, Clone)]
 pub struct AsrOcrPreDeps {
-    /// 来自 asr 步骤的识别结果 `asr/asr.json`。
+    /// asr 步骤产出的识别结果 `asr/asr.json`。
     pub asr_path: asr::AsrPath,
-    /// 原视频文件（任务级输入，由 import 产出）。
+    /// import action 产出的原视频文件。
     pub video_source_path: VideoSourcePath,
 }
 

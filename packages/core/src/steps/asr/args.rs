@@ -250,6 +250,7 @@ pub enum AsrSourceAudioPath {
 /// 意图面（`video_dir` / `args` / `source_lang`）走 `sc.ctx().input()`，不进 deps。
 #[derive(Debug, Clone)]
 pub struct AsrDeps {
+    /// 音源：import 原视频 / separate 人声 / 调试 override 三选一（装配层按 args 选好）。
     pub audio_path: AsrSourceAudioPath,
 }
 

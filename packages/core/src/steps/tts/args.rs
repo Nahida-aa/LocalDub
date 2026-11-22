@@ -84,12 +84,11 @@ fn default_device() -> TtsDevice {
 ///
 /// Phase 1 事实面：`step_tts` 的显式依赖清单（由装配层算好后注入）。
 ///
-/// 只装依赖——来自 `split_audio` 的两个产物。本步的**产出**（逐段配音 wav /
-/// 翻倍参考音 / `tts.json`）属于「产出」而非「依赖」，由步骤体自行构造。
+/// 只装依赖——`split_audio` 步骤产出的两个产物（见各字段注释的来源）。本步的
+/// **产出**（逐段配音 wav / 翻倍参考音 / `tts.json`）属于「产出」而非「依赖」，
+/// 由步骤体自行构造。
 ///
-/// 两个字段都是 `{video_dir}/split_audio/...` 的**约定拼法**，不读 ctx 里落定的
-/// 事实（不像 `VideoSourcePath` / `LangPath` 那种）。意图面（`video_dir` / `args` /
-/// `is_start`）走 `sc.ctx().input()`，不进 deps。
+/// 意图面（`video_dir` / `args` / `is_start`）走 `sc.ctx().input()`，不进 deps。
 #[derive(Debug, Clone)]
 pub struct TtsDeps {
     /// 来自 split_audio 的人声目录 `{video_dir}/split_audio/vocals`（参考音来源）。
