@@ -27,7 +27,7 @@ use crate::steps::separate::{
     after_args::SeparateAfterInput, step_separate, step_separate_after,
 };
 use crate::steps::sf_ocr::args::SfOcrDeps;
-use crate::steps::sf_ocr::fix_args::SfOcrFixInput;
+use crate::steps::sf_ocr::fix_args::SfOcrFixDeps;
 use crate::steps::sf_ocr::{step_sf_ocr, step_sf_ocr_fix, step_sf_ocr_pre};
 use crate::steps::split_audio::args::SplitAudioDeps;
 use crate::steps::split_audio::step_split_audio;
@@ -161,7 +161,11 @@ pub fn run_step(
             let deps = SfOcrDeps::from_input(&wfi);
             step_sf_ocr(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
         }
-        StepName::SfOcrFix => step_sf_ocr_fix(&SfOcrFixInput::new(video_dir, input)),
+        StepName::SfOcrFix => {
+            let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
+            let deps = SfOcrFixDeps::from_input(&wfi);
+            step_sf_ocr_fix(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
+        }
         StepName::Translate => {
             let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
             let deps = TranslateDeps::from_input(&wfi)?;

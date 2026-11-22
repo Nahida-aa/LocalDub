@@ -86,7 +86,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | `from_video_dir` | 路径是 `{video_dir}/...` 的**约定拼法**（非 ctx 事实） | 依赖是「上游步骤产出在固定位置」，拼法由 `paths` 类型唯一产生 |
 
 > 同一事实两种取法不该并存：`from_state` 读 ctx（缺失即报错），`from_video_dir` 按约定
-> 拼（不查证存在性，交由 step 主体 `exists()` 判断）。`SfOcrFixInput` 这类同时需要
+> 拼（不查证存在性，交由 step 主体 `exists()` 判断）。`SeparateAfterInput` 这类同时需要
 > 「ctx 事实 + 约定产物」的结构，用 `from_state` 取 ctx 事实、内部再
 > `::new(video_dir)` 拼约定产物，不混用两套读法。
 > （已迁移步骤改用 `XxxDeps::from_input(&WorkflowInput)`，见下方各清单标注。）
@@ -111,7 +111,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | `separate_after` | `SeparateAfterInput` | `vocals_path: Target3VocalsPath`、`stems_dir: StemsDir` |
 | `asr_fix` | `AsrFixDeps`（Phase 1 已迁移） | `asr_path: AsrPath`、`source_lang: LangStr`（三级回退算好；意图面 video_dir/args 走 `sc.ctx().input()`） |
 | `sf_ocr` | `SfOcrDeps`（Phase 1 已迁移） | `keyframes_dir: KeyframesDir`（sf_ocr_pre 产出；意图面 video_dir/args 走 `sc.ctx().input()`） |
-| `sf_ocr_fix` | `SfOcrFixInput` | `frames_path: FramesPath` |
+| `sf_ocr_fix` | `SfOcrFixDeps`（Phase 1 已迁移） | `frames_path: FramesPath`（sf_ocr 产出）、`source_lang: LangStr`（装配层算好）；意图面 video_dir/args 走 `sc.ctx().input()` |
 | `asr_ocr` | `AsrOcrDeps`（Phase 1 已迁移） | `frames_dir: FramesDir`（asr_ocr_pre 产出；意图面 video_dir/args 走 `sc.ctx().input()`） |
 | `asr_ocr_fix` | `AsrOcrFixDeps`（Phase 1 已迁移） | `asr_ocr_pre_asr_split_path: AsrSplitPath`、`ocr_frames_path: FramesPath`、`source_lang: LangStr`（装配层算好）；意图面 video_dir/args/max_advance_ms 走 `sc.ctx().input()` |
 | `tts` | `TtsDeps`（Phase 1 已迁移） | `split_audio_vocals_dir: VocalsDir`、`split_audio_timings_path: TimingsPath`（意图面 video_dir/args/is_start 走 `sc.ctx().input()`） |

@@ -295,7 +295,7 @@ pub mod sf_ocr {
     /// sf_ocr 步骤产出的逐帧 OCR 结果 `<video_dir>/sf_ocr/frames.json`。
     ///
     /// 产出方是 `sf_ocr` 步骤 (`step_sf_ocr`)，消费方是 `sf_ocr_fix` 步骤
-    /// (`SfOcrFixInput.frames_path`)。放在产出方模块下，与
+    /// (`SfOcrFixDeps.frames_path`)。放在产出方模块下，与
     /// `split_audio::VocalsDir` 被 `tts` 消费同款 provenance：跨步骤的路径类型
     /// 归属产出方，消费方只引用。
     #[derive(Debug, Clone, PartialEq, Eq)]

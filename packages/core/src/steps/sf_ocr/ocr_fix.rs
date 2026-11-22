@@ -7,19 +7,25 @@
 //! 失败时 warn 并保留原文 (不中断 step)。
 
 use crate::cmd::env::ensure_bin;
-use crate::steps::sf_ocr::fix_args::SfOcrFixInput;
+use crate::steps::sf_ocr::fix_args::{SfOcrFixDeps, SfOcrFixOutput};
 use crate::steps::utils::paths::{sf_ocr_fix, SrtJsonPath};
 use crate::steps::utils::{now_iso, set_step_anyhow, StepPatch, StepStatus};
+use crate::workflows::step_ctx::{CtxView, StepCtxView};
 use std::process::Command;
 
 /// 入口 (镜像 TS `stepSfOcrFix`)。
 ///
-/// 单参 [`SfOcrFixInput`]：依赖（frames.json）+ 任务目录 + 本次参数都在里面。
-pub fn step_sf_ocr_fix(input: &SfOcrFixInput) -> anyhow::Result<()> {
-    let video_dir = input.video_dir.clone();
+/// 意图面经 `sc.ctx().input()` 取（args / video_dir），事实面由装配层算好注入
+/// [`SfOcrFixDeps`]（frames.json + 算好的 source_lang）。
+pub fn step_sf_ocr_fix(
+    sc: impl StepCtxView,
+    deps: SfOcrFixDeps,
+) -> anyhow::Result<SfOcrFixOutput> {
+    let input = sc.ctx().input();
+    let video_dir = input.video_dir().to_string();
     tracing::info!(target: "sf_ocr", "start");
 
-    let frames_file = input.frames_path.as_path();
+    let frames_file = deps.frames_path.as_path();
     if !frames_file.exists() {
         return Err(anyhow::anyhow!(
             "frames.json not found: {}; run sf_ocr first",
@@ -33,7 +39,7 @@ pub fn step_sf_ocr_fix(input: &SfOcrFixInput) -> anyhow::Result<()> {
     std::fs::create_dir_all(out_dir.as_path())
         .map_err(|e| anyhow::anyhow!("创建 {} 失败: {}", out_dir.as_path().display(), e))?;
 
-    let args = &input.args;
+    let args = &input.steps.sf_ocr_fix;
 
     let bin = ensure_bin("subtitle_ocr_post_bin").map_err(|e| {
         anyhow::anyhow!(
@@ -91,7 +97,7 @@ pub fn step_sf_ocr_fix(input: &SfOcrFixInput) -> anyhow::Result<()> {
             .collect();
         // 源语言走统一的解析（`<asr>/out.json` > 配置 source_lang > 兜底空串）。
         // 不在这里内联回退链——否则与 `src_language` 各算各的，容易分叉。
-        let lang_label = llm::lang_label(input.source_lang.code());
+        let lang_label = llm::lang_label(deps.source_lang.code());
         tracing::info!(target: "sf_ocr",
             "sf_ocr_fix: LLM 修正 {} segs (model={})",
             src_texts.len(),
@@ -159,7 +165,14 @@ pub fn step_sf_ocr_fix(input: &SfOcrFixInput) -> anyhow::Result<()> {
         },
     )?;
     tracing::info!(target: "sf_ocr", "done");
-    Ok(())
+    Ok(SfOcrFixOutput {
+        out_dir: out_dir.as_path().to_path_buf(),
+        llm_fix_path: args
+            .llm_fix
+            .llm_fix
+            .then(|| llm_fix_file.as_path().to_path_buf()),
+        srt_path: sf_ocr_fix::SrtPath::new(&video_dir).as_path().to_path_buf(),
+    })
 }
 
 #[cfg(test)]
@@ -198,8 +211,16 @@ mod tests {
             .to_string();
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let input = input_at(json!({}));
-        let res = step_sf_ocr_fix(&SfOcrFixInput::new(&dir, &input));
+        let input: crate::input::Input = serde_json::from_value(json!({
+            "workflow": {"video_dir": dir}
+        }))
+        .unwrap();
+        let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
+        let deps = SfOcrFixDeps::from_input(&wfi);
+        let res = step_sf_ocr_fix(
+            crate::workflows::step_ctx::MyStepCtx::new("sf_ocr_fix", wfi),
+            deps,
+        );
         assert!(res.is_err());
         assert!(
             res.unwrap_err().to_string().contains("run sf_ocr first"),

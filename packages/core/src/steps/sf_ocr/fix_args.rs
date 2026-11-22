@@ -100,34 +100,47 @@ fn default_dedup_edit_distance() -> u32 {
     1
 }
 
-/// sf_ocr_fix 步骤的输入契约：本步要消费的**跨步骤输入**路径。
+/// Phase 1 事实面：`step_sf_ocr_fix` 的显式依赖清单（由装配层算好后注入）。
 ///
-/// 与 `TtsDeps` 不同，这里只装真正的输入 `frames_path`——sf_ocr_fix 不回读自己的
-/// 任何输出（`srt.json` / 中间产物写完即弃），故无需把输出路径也塞进 struct。
-/// 其余路径（`OutDir` / `FilterPath` / `LlmFixPath` / `SrtPath`）仍在 `paths` 模块
-/// 类型化、由步骤内部 `::new(video_dir)` 构造，拼法同样只有一处来源。
+/// 装本步消费的上游产物与事实：
+/// - `frames_path`：sf_ocr 产出的关键帧 OCR 结果 `sf_ocr/frames.json`；
+/// - `source_lang`：装配层按三级回退算好的源语言，LLM 提示词用。
 ///
-/// 所有路径都是 `{video_dir}/...` 的**约定拼法**，不读 ctx 里落定的事实，故入口是
-/// [`from_video_dir`](Self::from_video_dir)（约定拼法的入口；不同于已迁移到
-/// `TtsDeps::from_input` 的 tts——后者走装配层）。
-pub struct SfOcrFixInput {
-    /// 任务目录（写侧 step status 需要）。
-    pub video_dir: String,
-    /// 来自 sf_ocr 步骤的关键帧 OCR 结果 `sf_ocr/frames.json`。
+/// 自身产物（`srt.json` / 中间产物）不在此列——由步骤体构造
+/// [`SfOcrFixOutput`] 表达。意图面（`video_dir` / `args`）走 `sc.ctx().input()`。
+#[derive(Debug, Clone)]
+pub struct SfOcrFixDeps {
+    /// sf_ocr 步骤产出的关键帧 OCR 结果。
     pub frames_path: sf_ocr::FramesPath,
-    /// 源语言（`<asr>/out.json` > `input.workflow.source_lang` > 未知）：LLM 提示词用它。
+    /// 装配层算好的源语言（LLM 提示词用）。
     pub source_lang: crate::r#const::lang::LangStr,
-    /// 本次运行参数（`input.steps.sf_ocr_fix`）。
-    pub args: OcrFixArgs,
 }
 
-impl SfOcrFixInput {
-    pub fn new(video_dir: &str, input: &crate::input::Input) -> Self {
+/// `step_sf_ocr_fix` 的**全部产物清单**（作为步骤函数返回值，不写盘）。
+///
+/// 中间态由 `subtitle-ocr-post` 写进 `out_dir`（多个 json，不逐个列）；
+/// `segment_filter_llm_fix.json` 仅 llmFix 时写；`srt.json` 是无条件写出的最终契约。
+#[derive(Debug, Clone, PartialEq, Eq, specta::Type)]
+pub struct SfOcrFixOutput {
+    /// 中间产物目录 `sf_ocr_fix/`（subtitle-ocr-post 的各级 json）。
+    pub out_dir: std::path::PathBuf,
+    /// LLM 修正产物 `sf_ocr_fix/segment_filter_llm_fix.json`，仅 llmFix 时产出。
+    pub llm_fix_path: Option<std::path::PathBuf>,
+    /// 规范化字幕（下游唯一契约）。
+    pub srt_path: std::path::PathBuf,
+}
+
+impl SfOcrFixDeps {
+    pub fn from_input(input: &crate::input::WorkflowInput) -> Self {
+        let video_dir = input.video_dir();
+        let asr_language = crate::steps::asr::out::asr_language(video_dir);
+        let source_lang = crate::state::lang::resolve_source_language(
+            asr_language.as_ref(),
+            input.workflow.source_lang.as_ref(),
+        );
         Self {
-            video_dir: video_dir.to_string(),
             frames_path: sf_ocr::FramesPath::new(video_dir),
-            source_lang: crate::steps::utils::src_language(video_dir, input),
-            args: OcrFixArgs::from_input(input),
+            source_lang,
         }
     }
 }
