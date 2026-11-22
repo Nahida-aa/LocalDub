@@ -18,7 +18,9 @@ use std::path::Path;
 use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::steps::split_audio::out::SplitAudioTimingResult;
-use crate::steps::tts::args::{TtsInput, TtsRuntime};
+use crate::steps::tts::args::{TtsDeps, TtsRuntime};
+use crate::workflows::args::WorkflowAction;
+use crate::workflows::step_ctx::{CtxView, StepCtxView};
 use crate::steps::tts::out::{TtsSegment, TtsSegmentsResult};
 use crate::steps::tts::util::{
     ensure_no_failed_segments, pick_voxcpm_bin, should_skip_segment, write_silent_wav,
@@ -40,12 +42,14 @@ const MIN_TTS_DURATION_MS: u64 = 100;
 
 /// 入口 (镜像 TS `stepTts`)。
 ///
-/// 单参 [`TtsInput`]：只读 split_audio 的两个产物 + 任务目录 + 本次参数。
-pub fn step_tts(input: &TtsInput) -> anyhow::Result<()> {
-    let video_dir = input.video_dir.clone();
+/// 意图面经 `sc.ctx().input()` 取（args / video_dir / is_start），事实面由装配层
+/// 算好注入 [`TtsDeps`]（split_audio 的两个产物）。
+pub fn step_tts(sc: impl StepCtxView, deps: TtsDeps) -> anyhow::Result<()> {
+    let input = sc.ctx().input();
+    let video_dir = input.video_dir().to_string();
     tracing::info!(target: "tts", "start");
 
-    let args = &input.args;
+    let args = &input.steps.tts;
     let tts_wavs_dir = crate::steps::utils::paths::tts::WavsDir::new(&video_dir);
     let ref_doubled_dir = crate::steps::utils::paths::tts::RefDoubledDir::new(&video_dir);
     let tts_path = crate::steps::utils::paths::tts::TtsPath::new(&video_dir);
@@ -56,7 +60,7 @@ pub fn step_tts(input: &TtsInput) -> anyhow::Result<()> {
 
     // 意图时序**带类型**读入：字段缺失/类型不对在这里就失败，不再被 `unwrap_or(0)`
     // 静默吞成 0（此前逐字段 `item.get(..)` 等于手写一个 serde）。
-    let timings = SplitAudioTimingResult::read(&input.split_audio_timings_path)?;
+    let timings = SplitAudioTimingResult::read(&deps.split_audio_timings_path)?;
     let segments = &timings.segments;
     if segments.is_empty() {
         return Err(anyhow::anyhow!("split_audio/timings.json 无 segments"));
@@ -93,7 +97,7 @@ pub fn step_tts(input: &TtsInput) -> anyhow::Result<()> {
     // - 首次 start 时强制忽略, 全量跑; 仅 continue 重跑时用。
     // - 列表内的段: 无视 skipExisting, 强制重新合成 (先删旧 wav 再生成)。
     // - 列表外的段: 保留旧结果 —— 优先复用 tts.json 已有记录, 无旧记录才写合法静音占位。
-    let is_start = input.is_start;
+    let is_start = input.workflow.action == Some(WorkflowAction::Start);
     let regen_indices: Option<Vec<u32>> = if is_start {
         None
     } else {
@@ -106,7 +110,7 @@ pub fn step_tts(input: &TtsInput) -> anyhow::Result<()> {
 
     // 找第一个非静音 vocals 作为 fallback 参考音
     let fallback_ref: Option<String> = (0..segments.len())
-        .map(|i| input.split_audio_vocals_dir.segment_path(i))
+        .map(|i| deps.split_audio_vocals_dir.segment_path(i))
         .find(|p| p.exists() && fs::metadata(p).map(|m| m.len()).unwrap_or(0) > MIN_REF_BYTES)
         .map(|p| p.to_string_lossy().into_owned());
 
@@ -170,7 +174,7 @@ pub fn step_tts(input: &TtsInput) -> anyhow::Result<()> {
         let item_text = item.text.clone();
 
         // 参考音: 优先本段 vocals, 否则 fallback
-        let mut ref_wav = input.split_audio_vocals_dir.segment_path(i);
+        let mut ref_wav = deps.split_audio_vocals_dir.segment_path(i);
         if !ref_wav.exists() || fs::metadata(&ref_wav).map(|m| m.len()).unwrap_or(0) < MIN_REF_BYTES
         {
             if let Some(fb) = &fallback_ref {
@@ -489,8 +493,10 @@ mod tests {
             .to_string();
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let input = input_at(json!({}));
-        let res = step_tts(&TtsInput::new(&dir, &input));
+        let input = input_at(json!({"workflow": {"video_dir": dir}}));
+        let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
+        let deps = TtsDeps::from_input(&wfi);
+        let res = step_tts(crate::workflows::step_ctx::MyStepCtx::new("tts", wfi), deps);
         assert!(res.is_err());
         assert!(
             res.unwrap_err().to_string().contains("timings.json"),

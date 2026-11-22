@@ -97,7 +97,7 @@ fn default_true() -> bool {
 ///
 /// 只装依赖——来自 `sf_ocr_pre` 的关键帧目录。本步产出 `frames.json`
 /// （`sf_ocr::FramesPath`）属于「产出」而非「依赖」，不在此清单内。与
-/// `SfOcrFixInput` / `TtsInput` 同款：`StepInput` 是依赖清单，不是路径袋。
+/// `SfOcrFixInput` / `TtsDeps` 同款：`StepInput` 是依赖清单，不是路径袋。
 ///
 /// 路径是 `{video_dir}/...` 的**约定拼法**，不读 ctx 里落定的事实，故入口是
 /// [`from_video_dir`](Self::from_video_dir)。

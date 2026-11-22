@@ -6,7 +6,7 @@ use crate::steps::utils::paths::VideoSourcePath;
 ///
 /// 只装依赖——原视频文件 `video_source.mp4`。本步产出（`sf_ocr_pre/` 下的
 /// frames/ mask/ keyframes.json）属于「产出」而非「依赖」，不在此清单内。与
-/// `SeparateAfterInput` / `TtsInput` 同款：`StepInput` 是依赖清单。
+/// `SeparateAfterInput` / `TtsDeps` 同款：`StepInput` 是依赖清单。
 ///
 /// 视频源是**约定拼法**（import 固定落在 `{video_dir}/video_source.mp4`），故入口
 /// 是 [`new`](Self::new)`(video_dir, input)` 而非从状态里读副本——与

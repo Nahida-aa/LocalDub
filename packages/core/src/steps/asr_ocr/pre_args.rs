@@ -39,7 +39,7 @@ fn default_fps() -> f64 {
 /// [`new`](Self::new)`(video_dir, input)`。
 ///
 /// 本步的产出（`asr_ocr_pre/asr_split.json` / `asr_ocr_pre/frames/`）属于「产出」而非
-/// 「依赖」，不在此清单内。与 `SfOcrPreInput` / `TtsInput` 同款：
+/// 「依赖」，不在此清单内。与 `SfOcrPreInput` / `TtsDeps` 同款：
 /// `StepInput` 是依赖清单。
 pub struct AsrOcrPreInput {
     /// 任务目录（写侧 step status 需要）。

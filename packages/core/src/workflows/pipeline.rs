@@ -34,7 +34,7 @@ use crate::steps::split_audio::args::SplitAudioDeps;
 use crate::steps::split_audio::step_split_audio;
 use crate::steps::translate::args::TranslateDeps;
 use crate::steps::translate::step_translate;
-use crate::steps::tts::args::TtsInput;
+use crate::steps::tts::args::TtsDeps;
 use crate::steps::tts::step_tts;
 use crate::steps::utils::{now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
 use crate::workflows::args::StepName;
@@ -170,7 +170,11 @@ pub fn run_step(
         StepName::AsrOcrPre => step_asr_ocr_pre(&AsrOcrPreInput::new(video_dir, input)),
         StepName::AsrOcr => step_asr_ocr(&AsrOcrInput::new(video_dir, input)),
         StepName::AsrOcrFix => step_asr_ocr_fix(&AsrOcrFixInput::new(video_dir, input)),
-        StepName::Tts => step_tts(&TtsInput::new(video_dir, input)),
+        StepName::Tts => {
+            let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
+            let deps = TtsDeps::from_input(&wfi);
+            step_tts(MyStepCtx::new(step.as_str(), wfi), deps)
+        }
         StepName::MixAudio => step_mix_audio(&MixAudioInput::new(video_dir, input)?),
         StepName::MixVideo => step_mix_video(&MixVideoInput::new(video_dir, input)?),
     }

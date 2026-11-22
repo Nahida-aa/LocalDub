@@ -102,13 +102,14 @@ fn default_dedup_edit_distance() -> u32 {
 
 /// sf_ocr_fix 步骤的输入契约：本步要消费的**跨步骤输入**路径。
 ///
-/// 与 `TtsInput` 不同，这里只装真正的输入 `frames_path`——sf_ocr_fix 不回读自己的
+/// 与 `TtsDeps` 不同，这里只装真正的输入 `frames_path`——sf_ocr_fix 不回读自己的
 /// 任何输出（`srt.json` / 中间产物写完即弃），故无需把输出路径也塞进 struct。
 /// 其余路径（`OutDir` / `FilterPath` / `LlmFixPath` / `SrtPath`）仍在 `paths` 模块
 /// 类型化、由步骤内部 `::new(video_dir)` 构造，拼法同样只有一处来源。
 ///
 /// 所有路径都是 `{video_dir}/...` 的**约定拼法**，不读 ctx 里落定的事实，故入口是
-/// [`from_video_dir`](Self::from_video_dir)（同 `TtsInput::from_video_dir`）。
+/// [`from_video_dir`](Self::from_video_dir)（约定拼法的入口；不同于已迁移到
+/// `TtsDeps::from_input` 的 tts——后者走装配层）。
 pub struct SfOcrFixInput {
     /// 任务目录（写侧 step status 需要）。
     pub video_dir: String,

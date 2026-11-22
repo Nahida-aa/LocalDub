@@ -50,7 +50,7 @@ AGENTS.md 的 dub 正例表述同步。
 | `aa9c88aa` | **双特征落地**（`CtxView` / `StepCtxView`）+ separate 迁移到 trait 签名 |
 
 现役执行器**未动**（`pipeline.rs` / `parallel.rs` 照旧跑全流程）；Phase 1 已迁移
-**3 / 15 步**（separate、translate、split_audio）。验证: `cargo test -p ld-core --lib` 全绿（179）。
+**4 / 15 步**（separate、translate、split_audio、tts）。验证: `cargo test -p ld-core --lib` 全绿（179）。
 
 > 2026-11-22 补记：本节表格只列接入工程本身的提交。其后又完成两轮**配置 wire 名
 > 统一 snake_case**（`WorkflowArgs` 与 `steps.*` 全部子结构，含 `gen-input-schema`
@@ -97,10 +97,11 @@ AGENTS.md 的 dub 正例表述同步。
 
 ## 4. 待办（按优先级）
 
-1. **Phase 1 剩余 12 步批量迁移**（零行为）——**separate + translate + split_audio
-   已迁移**（translate 验证了 `XxxDeps` 注入 + `resolve_language` 拆半（⚠️ src 三级回退、
+1. **Phase 1 剩余 11 步批量迁移**（零行为）——**separate + translate + split_audio
+   + tts 已迁移**（translate 验证了 `XxxDeps` 注入 + `resolve_language` 拆半（⚠️ src 三级回退、
    非必读 `<asr>/out.json`，Deps 取算好的 `src_lang`/`target_lang: LangStr`——见 §3
-   决策 #1）+ 三来源字幕装配；split_audio 验证了带存在性仲裁的 deps + 意图面拆到 sc）。
+   决策 #1）+ 三来源字幕装配；split_audio 验证了带存在性仲裁的 deps + 意图面拆到 sc；
+   tts 是第二个纯约定产物 deps，验证沿用 split_audio 同款范式）。
    继续沿依赖链铺开（sf_ocr_pre→sf_ocr→sf_ocr_fix→…）。每步: 签名改 `(sc, deps)`、
    意图面经 `sc.ctx().input()` 现取、事实面进 `XxxDeps`、`cargo test -p ld-core --lib` 全绿。
 2. **Phase 2**（首个行为变化点）: `state.json → view.json` 改名 + 本地 emit 通道

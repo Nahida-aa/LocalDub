@@ -113,7 +113,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | `sf_ocr_fix` | `SfOcrFixInput` | `frames_path: FramesPath` |
 | `asr_ocr` | `AsrOcrInput` | `frames_dir: FramesDir` |
 | `asr_ocr_fix` | `AsrOcrFixInput` | `asr_ocr_pre_asr_split_path: AsrSplitPath`、`ocr_frames_path: FramesPath` |
-| `tts` | `TtsInput` | `split_audio_vocals_dir: VocalsDir`、`split_audio_timings_path: TimingsPath` |
+| `tts` | `TtsDeps`（Phase 1 已迁移） | `split_audio_vocals_dir: VocalsDir`、`split_audio_timings_path: TimingsPath`（意图面 video_dir/args/is_start 走 `sc.ctx().input()`） |
 
 > **`import` 不在上表**：它是独立的 action（见「输入」节），没有跨步骤上游，故无
 > `StepInput`；它产出的 `video_source_path` / `audio_source_path` 是上面所有 `from_state`
