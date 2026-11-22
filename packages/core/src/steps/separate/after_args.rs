@@ -5,7 +5,7 @@ use crate::steps::utils::paths::separate;
 
 /// separate_after 步骤的跨步骤依赖清单。
 ///
-/// 与 `AsrOcrPreInput` 等兄弟 `*Input` 同款定位: 只声明**被消费的跨步骤产物**,
+/// 与 `SfOcrPreInput` 等兄弟 `*Input` 同款定位: 只声明**被消费的跨步骤产物**,
 /// 自身输出(stems / bgm / mixed / gated)不在清单内，`AsrArgs` 是本次运行参数。
 ///
 /// separate_after 直接对 `separate` 的人声/背景声做二次混音, 故其输入全部来自

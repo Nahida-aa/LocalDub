@@ -10,6 +10,18 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use subtitle::SubtitleSegment;
 
+/// `step_asr_ocr_pre` 的**全部产物清单**（作为步骤函数返回值，不写盘）。
+///
+/// 与 [`AsrSplitResult`]（单个 json 的内容类型）分工：本类型是本步骤产出了哪些
+/// 文件的清单。两个产物都在成功路径无条件产出（无帧时步骤直接 Err，不返回）。
+#[derive(Debug, Clone, PartialEq, Eq, specta::Type)]
+pub struct AsrOcrPreOutput {
+    /// ASR 切分结果 `asr_ocr_pre/asr_split.json`。
+    pub asr_split_path: std::path::PathBuf,
+    /// 抽帧目录 `asr_ocr_pre/frames/`。
+    pub frames_dir: std::path::PathBuf,
+}
+
 /// asr_ocr_pre 步骤产出的 ASR 切分结果（`asr_ocr_pre/asr_split.json`）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AsrSplitResult {

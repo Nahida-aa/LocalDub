@@ -2,11 +2,14 @@
 //! and extract frames via ffmpeg.
 
 use crate::steps::asr::out::{AsrResult, AsrSegment};
-use crate::steps::asr_ocr::pre_args::AsrOcrPreInput;
-use crate::steps::asr_ocr::pre_out::{AsrSplitResult, AsrSplitResultBody, AsrSplitResultMeta};
+use crate::steps::asr_ocr::pre_args::AsrOcrPreDeps;
+use crate::steps::asr_ocr::pre_out::{
+    AsrOcrPreOutput, AsrSplitResult, AsrSplitResultBody, AsrSplitResultMeta,
+};
 use crate::steps::utils::ffmpeg;
 use crate::steps::utils::paths::asr_ocr_pre;
 use crate::steps::utils::{asr_ocr_pre_dir, now_iso, set_step_anyhow, StepPatch, StepStatus};
+use crate::workflows::step_ctx::{CtxView, StepCtxView};
 use anyhow::Result;
 use std::collections::HashSet;
 use std::fs;
@@ -132,9 +135,13 @@ fn split_asr_by_words(segs: &[AsrSegment]) -> Vec<SubtitleSegment> {
 
 /// Entry point (mirrors TS `stepAsrOcrPre`).
 ///
-/// 单参 [`AsrOcrPreInput`]：依赖（asr.json + 原视频）+ 任务目录 + 本次参数都在里面。
-pub fn step_asr_ocr_pre(input: &AsrOcrPreInput) -> Result<()> {
-    let video_dir = input.video_dir.clone();
+/// 意图面经 `sc.ctx().input()` 取（video_dir），事实面由装配层算好注入
+/// [`AsrOcrPreDeps`]（asr.json + 原视频）。
+///
+/// 注：`input.steps.asr_ocr_pre.fps` 当前未被本步骤消费（帧时间戳走 end2fps
+/// 固定策略），故不从 sc 取——这是现状，不是遗漏。
+pub fn step_asr_ocr_pre(sc: impl StepCtxView, deps: AsrOcrPreDeps) -> Result<AsrOcrPreOutput> {
+    let video_dir = sc.ctx().input().video_dir().to_string();
     info!(target: "asr_ocr", "step_asr_ocr_pre: start");
 
     set_step_anyhow(
@@ -147,7 +154,7 @@ pub fn step_asr_ocr_pre(input: &AsrOcrPreInput) -> Result<()> {
         },
     )?;
 
-    let video_source = input.video_source_path.as_path();
+    let video_source = deps.video_source_path.as_path();
     if !video_source.exists() {
         return Err(anyhow::anyhow!(
             "Video not found: {}",
@@ -156,7 +163,7 @@ pub fn step_asr_ocr_pre(input: &AsrOcrPreInput) -> Result<()> {
     }
     let video_path = video_source.to_string_lossy().into_owned();
 
-    let asr_file = input.asr_path.as_path().to_path_buf();
+    let asr_file = deps.asr_path.as_path().to_path_buf();
     if !asr_file.exists() {
         return Err(anyhow::anyhow!(
             "asr.json not found: {}",
@@ -300,7 +307,10 @@ pub fn step_asr_ocr_pre(input: &AsrOcrPreInput) -> Result<()> {
         },
     )?;
     info!(target: "asr_ocr", "done");
-    Ok(())
+    Ok(AsrOcrPreOutput {
+        asr_split_path: asr_split_path.as_path().to_path_buf(),
+        frames_dir: frame_dir.as_path().to_path_buf(),
+    })
 }
 
 #[cfg(test)]
