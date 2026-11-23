@@ -31,14 +31,7 @@ pub fn start_workflow(input: &Input) -> anyhow::Result<String> {
     };
     match path {
         ExecPath::Engine => {
-            // 引擎路径开发中（aa-workflow 集成暂停，见 integration/workflow/mod.rs）。
-            // 原接线（恢复时还原）：
-            // println!("[cli] 引擎模式 (aa-workflow, 真源 events.jsonl)");
-            // crate::integration::workflow::run_workflow_engine(
-            //     &st.workflow.video_dir,
-            //     &crate::integration::workflow::EngineOptions::from_input(input),
-            // )
-            // .context("run_workflow_engine 失败")?;
+            // 引擎路径开发中：将来接入 DAG 中间件方案时直接复用 FsRunStore。
             println!("[cli] 引擎模式开发中, 暂不可用");
             anyhow::bail!("workflow.engine 引擎路径开发中");
         }
