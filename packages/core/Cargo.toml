@@ -43,6 +43,7 @@ tokio = { version = "1", default-features = false, features = ["rt", "sync", "ti
 # aa-workflow 引擎（git 源，rev 收敛在根 workspace.dependencies）。当前
 # integration/workflow 整体暂停编译，此依赖为恢复时预留。
 aa_workflow_core.workspace = true
+aa_workflow_middlewares.workspace = true
 # FsRunStore 实现 async RunStore trait（trait object 需 async_trait box）
 async-trait = "0.1"
 

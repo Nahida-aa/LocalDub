@@ -32,6 +32,7 @@ voxcpm-cloud = { git = "https://github.com/Nahida-aa/vox-lab", tag = "v0.1.2" }
 # 依赖为恢复预留。rev 收敛在此处单处维护，packages/core 只 `.workspace = true` 引用。
 # 注意：aa-workflow 无语义化 tag，升降级用 `git ls-remote` 拿新 rev 后手动改这里。
 aa_workflow_core = { git = "https://github.com/Nahida-aa/aa_workflow.git", rev = "7b2d3fc9046e919dcbceabb6938aca756772bdd7" }
+aa_workflow_middlewares = { git = "https://github.com/Nahida-aa/aa_workflow.git", rev = "7b2d3fc9046e919dcbceabb6938aca756772bdd7" }
 # vision-lab 09dc6ac 起包名/文件夹名/bin 名统一 `-` → `_`（subtitle_ocr /
 # subtitle_ocr_post / subtitle_finder / rapidocr_ort / ocr_types ...）。
 ocr_types = { git = "https://github.com/Nahida-aa/vision-lab", rev = "09dc6ac", features = ["specta-types"] }

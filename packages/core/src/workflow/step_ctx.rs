@@ -101,3 +101,36 @@ impl MyStepCtx {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// 接入日：引擎 Ctx 实现同一个消费方端口（见模块文档）。
+// I 钉死为 WorkflowInput（CtxView::input 返回 &WorkflowInput），S 泛型——
+// DAG 形态下 S 无写入者（LocalDub 用 ()），但 impl 不依赖 S 的任何方法。
+// ---------------------------------------------------------------------------
+
+impl<S> CtxView for aa_workflow_core::define::RunCtx<WorkflowInput, S> {
+    fn input(&self) -> &WorkflowInput {
+        &self.input
+    }
+
+    fn emit(&self, name: impl AsRef<str>, value: serde_json::Value) {
+        // 完全限定名：trait 方法与 RunCtx 固有方法 emit 同名同义，转发出去。
+        aa_workflow_core::define::RunCtx::emit(self, name, value);
+    }
+}
+
+impl<S> StepCtxView for aa_workflow_core::define::StepCtx<WorkflowInput, S> {
+    type Ctx = aa_workflow_core::define::RunCtx<WorkflowInput, S>;
+
+    fn ctx(&self) -> &Self::Ctx {
+        &self.ctx
+    }
+
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn attempt(&self) -> usize {
+        self.attempt
+    }
+}

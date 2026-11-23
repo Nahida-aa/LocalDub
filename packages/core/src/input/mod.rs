@@ -115,7 +115,7 @@ impl Input {
 ///
 /// 只保留步骤真正读的两个字段（`workflow` / `steps`）；其余命令参数
 /// （command/servers/env/cookie/check）属于 CLI/RPC 层，步骤从不读。
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowInput {
     pub workflow: args::WorkflowArgs,
     pub steps: steps::Steps,
