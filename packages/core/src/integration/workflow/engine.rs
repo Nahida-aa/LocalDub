@@ -21,8 +21,7 @@
 use std::sync::Arc;
 
 use aa_workflow_core::{
-    create_workflow, run_workflow_sync, BaseCtx, CreateWorkflowConfig, RunStatus,
-    RunWorkflowOptions, StepCtx,
+    run_workflow_sync, RunStatus, RunWorkflowOptions, StepCtx, Workflow, WorkflowCtx,
 };
 
 use crate::steps::get_steps;
@@ -146,7 +145,8 @@ pub(crate) async fn drive_step(dir: &str, step: StepName) -> anyhow::Result<serd
     )?;
     // 真 step 是同步阻塞（子进程 + 轮询）——丢进 spawn_blocking：
     // 并行分支互不占死执行器线程。
-    match tokio::task::spawn_blocking(move || run_step(step, &input))
+    let dir_owned = dir.to_string();
+    match tokio::task::spawn_blocking(move || run_step(step, &dir_owned, &input))
         .await
         .map_err(|e| anyhow::anyhow!("step task join 失败: {e}"))?
     {
@@ -208,40 +208,41 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
     let run_id =
         video_id(video_dir).ok_or_else(|| anyhow::anyhow!("无法从 video_dir 取 run_id"))?;
 
-    // 处理器自动生成：从 get_steps 解析出的步骤列表循环生成 ctx.step，
-    // 不手写编排（原版 / parallel / engine 是三条独立的过渡路线，互不混用）。
-    let wf: aa_workflow_core::AnyWorkflowDefinition = create_workflow(
-        CreateWorkflowConfig::new(
+    // 注册表优先：已注册的组合用具名定义（显式步骤调用，见 workflows/）；
+    // 未注册的组合回退通用串行定义（get_steps 推导）——实验期其余组合行为不变。
+    let workflow_id = super::workflows::resolve_id(&input);
+    let wf = super::workflows::build(&workflow_id).unwrap_or_else(|| {
+        tracing::info!(target: "engine",
+            "workflow \"{workflow_id}\" 未注册，回退通用串行定义");
+        Workflow::new(
             crate::workflows::args::OutputMode::from_input(&input)
                 .as_str()
                 .to_string(),
         )
-        .input::<serde_json::Value>(),
-    )
-    .handler({
-        let dir = video_dir.to_string();
-        let steps = steps;
-        move |wctx: BaseCtx<serde_json::Value, serde_json::Value>| {
-            let dir = dir.clone();
-            let steps = steps.clone();
-            async move {
-                for step in &steps {
-                    // `steps` 已是 `StepName`（`get_steps` 解析过），每个变体都有
-                    // `run_step` 分支——不再需要 has_handler 过滤。
-                    let step_id = step.as_str().to_string();
-                    let step_name = *step;
-                    let dir = dir.clone();
-                    // drive_step 自行在 step 起点读盘（磁盘真值），deps 只用于调度。
-                    wctx.step(&step_id, move |_sc: StepCtx| async move {
-                        drive_step(&dir, step_name).await
-                    })
-                    .await?;
+        .handler({
+            let dir = video_dir.to_string();
+            let steps = steps;
+            move |wctx: WorkflowCtx| {
+                let dir = dir.clone();
+                let steps = steps.clone();
+                async move {
+                    for step in &steps {
+                        // `steps` 已是 `StepName`（`get_steps` 解析过），每个变体都有
+                        // `run_step` 分支——不再需要 has_handler 过滤。
+                        let step_id = step.as_str().to_string();
+                        let step_name = *step;
+                        let dir = dir.clone();
+                        // 未注册组合（erased ctx）：drive_step 自行在 step 起点读盘。
+                        wctx.step(&step_id, move |_sc: StepCtx| async move {
+                            drive_step(&dir, step_name).await
+                        })
+                        .await?;
+                    }
+                    Ok(serde_json::Value::Null)
                 }
-                Ok(serde_json::Value::Null)
             }
-        }
-    })
-    .into();
+        })
+    });
 
     let mut input_value = serde_json::to_value(&input).map_err(anyhow::Error::msg)?;
     // 注入 video_dir：注册表化工作流的 initialize / handler 从 run input 取
@@ -256,21 +257,19 @@ pub fn run_workflow_engine(video_dir: &str, opts: &EngineOptions) -> anyhow::Res
             serde_json::Value::String(video_dir.to_string()),
         );
     }
-    let base_dir = std::path::Path::new(video_dir).join("workflow-store");
-    let mut r_opts = RunWorkflowOptions::new(wf, Arc::new(FsRunStore::new(base_dir)))
-        .input(input_value)
-        .run_id(run_id.clone());
-    // 新引擎没有 continue_from / target_step 的 options：resume 靠复用 run_id
-    // 触发 replay 自动短路已成功的 step；target_step 的「命中即停」暂无对应。
-    // 暂时显式记录被忽略，避免静默行为丢失（恢复接入后按需用 DAG shape 实现）。
-    if continue_from.is_some() || target_step.is_some() {
-        tracing::info!(target: "engine",
-            continue_from = ?continue_from, target_step = ?target_step,
-            "continue_from/target_step 暂不被新引擎支持，已忽略（resume 改用 run_id replay）");
+    let mut r_opts =
+        RunWorkflowOptions::new(Arc::new(wf.clone()), Arc::new(FsRunStore::new(video_dir)))
+            .input(input_value)
+            .run_id(run_id.clone());
+    if let Some(cf) = &continue_from {
+        r_opts = r_opts.continue_from(cf.clone());
+    }
+    if let Some(ts) = &target_step {
+        r_opts = r_opts.target_step(ts.clone());
     }
 
     let outcome =
-        run_workflow_sync(r_opts).map_err(|e| anyhow::anyhow!("workflow engine error: {e}"))?;
+        run_workflow_sync(&r_opts).map_err(|e| anyhow::anyhow!("workflow engine error: {e}"))?;
 
     apply_outcome(video_dir, &run_id, outcome)
 }
@@ -390,8 +389,8 @@ mod tests {
     use crate::state::{read_workflow, StepStatus};
     use aa_workflow_core::RunStore;
 
-    #[tokio::test]
-    async fn engine_serial_matches_run_pipeline() {
+    #[test]
+    fn engine_serial_matches_run_pipeline() {
         let dir_old = temp_dir("eq_old");
         let dir_new = temp_dir("eq_new");
         let input_old = setup_subtitle(&dir_old);
@@ -412,8 +411,8 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir_new);
     }
 
-    #[tokio::test]
-    async fn engine_resume_skips_success_nodes() {
+    #[test]
+    fn engine_resume_skips_success_nodes() {
         let dir = temp_dir("resume");
         setup_subtitle(&dir);
 
@@ -421,7 +420,7 @@ mod tests {
 
         // 事件日志: 每个 step 只跑一次 → 只应有 1 次 StepFinished
         let store = FsRunStore::new(&dir);
-        let events = store.get_events("t").await.unwrap();
+        let events = store.get_events("t").unwrap();
         let n_finished = |step: &str| {
             events
                 .iter()
@@ -433,7 +432,7 @@ mod tests {
 
         // 再次运行 → 全部命中事件日志 success, 无 step 重跑
         run_workflow_engine(&dir, &EngineOptions::default()).unwrap();
-        let events = store.get_events("t").await.unwrap();
+        let events = store.get_events("t").unwrap();
         assert_eq!(
             events
                 .iter()
@@ -447,8 +446,8 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    #[tokio::test]
-    async fn engine_target_step_stops() {
+    #[test]
+    fn engine_target_step_stops() {
         let dir = temp_dir("target");
         setup_subtitle(&dir);
 
@@ -470,7 +469,7 @@ mod tests {
 
         // 事件日志里 separate_after 不应有 StepFinished
         let store = FsRunStore::new(&dir);
-        let events = store.get_events("t").await.unwrap();
+        let events = store.get_events("t").unwrap();
         assert!(
             events
                 .iter()
@@ -482,15 +481,15 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    #[tokio::test]
-    async fn engine_records_step_artifacts_in_events() {
+    #[test]
+    fn engine_records_step_artifacts_in_events() {
         let dir = temp_dir("artifacts");
         setup_subtitle(&dir);
 
         run_workflow_engine(&dir, &EngineOptions::default()).unwrap();
 
         let store = FsRunStore::new(&dir);
-        let events = store.get_events("t").await.unwrap();
+        let events = store.get_events("t").unwrap();
         let separate_res = events
             .iter()
             .find_map(|e| match e {
@@ -513,15 +512,15 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    #[tokio::test]
-    async fn engine_continue_from_resets() {
+    #[test]
+    fn engine_continue_from_resets() {
         let dir = temp_dir("contf");
         setup_subtitle(&dir);
 
         run_workflow_engine(&dir, &EngineOptions::default()).unwrap();
 
         let store = FsRunStore::new(&dir);
-        let get_sf_ts = |events: &[aa_workflow_core::WorkflowEvent], step: &str| -> u64 {
+        let get_sf_ts = |events: &[aa_workflow_core::WorkflowEvent], step: &str| -> i64 {
             events
                 .iter()
                 .find_map(|e| match e {
@@ -534,7 +533,7 @@ mod tests {
                 })
                 .expect("应有 StepFinished")
         };
-        let events_1 = store.get_events("t").await.unwrap();
+        let events_1 = store.get_events("t").unwrap();
         let (sep_first, sa_first) = (
             get_sf_ts(&events_1, "separate"),
             get_sf_ts(&events_1, "separate_after"),
@@ -551,7 +550,7 @@ mod tests {
         .unwrap();
 
         let store = FsRunStore::new(&dir);
-        let events_2 = store.get_events("t").await.unwrap();
+        let events_2 = store.get_events("t").unwrap();
         // 截断语义: 后缀终态 checkpoint 删掉重记 → separate_after 的 ts 是新的;
         // 前缀 separate 未被触碰 → ts 保持 run1 的
         assert_eq!(
@@ -577,6 +576,58 @@ mod tests {
         assert_eq!(wf.status, "success");
         assert_eq!(status_of(&dir, "separate"), StepStatus::Success);
         assert_eq!(status_of(&dir, "separate_after"), StepStatus::Success);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 挂起状态必须**如实报错**，不能静默当成成功或失败。
+    ///
+    /// output_mode 本身不带挂起原语（handler 是纯 `ctx.step` 序列），所以正常路径
+    /// 走不到 `RunStatus::Paused`——直接调 `apply_outcome` 验那一支的映射。
+    /// 先跑一个真会挂起的 workflow，拿到**真实的** `RunOutcome`（不是手搓的），
+    /// 再喂给映射函数，这样两侧都覆盖到。见 aa-workflow D3。
+    #[test]
+    fn engine_reports_paused_instead_of_swallowing_it() {
+        let dir = temp_dir("paused");
+        setup_subtitle(&dir);
+
+        // 真跑一个会挂起的 workflow：`approve` 写盘后立刻返回，不阻塞。
+        let wf = Workflow::new("gate").handler(|wctx: WorkflowCtx| async move {
+            wctx.approve("release", "manual gate").await?;
+            Ok(serde_json::Value::Null)
+        });
+        let store = FsRunStore::new(&dir);
+        let outcome = aa_workflow_core::run_workflow_sync(
+            &RunWorkflowOptions::new(Arc::new(wf.clone()), Arc::new(store))
+                .input(serde_json::json!({}))
+                .run_id("t"),
+        )
+        .unwrap();
+        assert_eq!(outcome.status, RunStatus::Paused, "core 侧应挂起即返回");
+
+        // 真实 outcome → 映射函数（就是 `run_workflow_engine` 用的那个）。
+        let err = apply_outcome(&dir, "t", outcome).expect_err("挂起必须报错，不能当成成功");
+
+        let msg = err.to_string();
+        assert!(
+            msg.contains("挂起点") && msg.contains("release"),
+            "错误信息应说明在等什么，实际: {msg}"
+        );
+
+        // workflow 状态如实置 paused（不是 success / failed）。
+        let wf = read_workflow(&dir).unwrap();
+        assert_eq!(wf.status, "paused");
+
+        // 日志里不得出现终态事件——挂起不是终局。
+        let events = FsRunStore::new(&dir).get_events("t").unwrap();
+        assert!(
+            !events.iter().any(|e| matches!(
+                e,
+                aa_workflow_core::WorkflowEvent::RunFinished { .. }
+                    | aa_workflow_core::WorkflowEvent::RunErrored { .. }
+            )),
+            "挂起不得写终态事件"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }
