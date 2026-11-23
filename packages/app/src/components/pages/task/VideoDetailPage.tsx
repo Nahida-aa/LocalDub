@@ -58,10 +58,10 @@ export function VideoDetailPage(props: Props) {
       qc.invalidateQueries({
         queryKey: client.read_app_file_text.queryKey(rel),
       });
-      // 状态文件变化（state.json / input.json / 各步骤 state.json 的
+      // 状态文件变化（view.json / input.json / 各步骤 state.json 的
       // 续跑/运行中阶段状态流转）→ 刷新任务上下文，让 step 徽章实时更新。
-      // 注意：任务根的 state.json 与各步骤的 <step>/state.json 同名，靠路径区分。
-      if (rel === "state.json" || rel === "input.json" || rel.endsWith("/state.json")) {
+      // 注意：任务根是 view.json，各步骤的 <step>/state.json 仍同名，靠路径区分。
+      if (rel === "view.json" || rel === "input.json" || rel.endsWith("/state.json")) {
         qc.invalidateQueries({
           queryKey: client.get_workflow_ctx.queryKey(
             `workfolder/${props.groupId}/${props.videoId}`,

@@ -2,9 +2,9 @@
 //!
 //! 主流程: 判定来源 → 下载/复制 → 转码 mp4 + 抽音频 → 探测帧率 → 写状态文件。
 //!
-//! import 是任务目录的**创建者**, 也是 `state.json` / `input.json` 的唯一初次写入方:
+//! import 是任务目录的**创建者**, 也是 `view.json` / `input.json` 的唯一初次写入方:
 //! 身份 (workflow 子树) 与 import 事实 (video/audio_source_path、frame_rate) 进
-//! `state.json`, 配置进 `input.json` (两者写者与生命周期不同, 见 [`crate::state`])。
+//! `view.json`, 配置进 `input.json` (两者写者与生命周期不同, 见 [`crate::state`])。
 //! **不预写任何 `<step>/state.json`** —— 步骤状态文件由各步骤自己在首次运行时创建
 //! (缺失即 pending)。
 
@@ -295,7 +295,7 @@ mod tests {
             .ends_with("audio_source.wav"));
         assert!(std::path::Path::new(st.video_source_path.as_ref().unwrap()).exists());
         assert!(std::path::Path::new(st.audio_source_path.as_ref().unwrap()).exists());
-        // import 写出的状态产出物: state.json (身份+事实) + input.json (配置)
+        // import 写出的状态产出物: view.json (身份+事实) + input.json (配置)
         // ——各步骤的 state.json 不预写。
         let dir = st.workflow.video_dir.as_str();
         let state_path = crate::state::state_path(dir);

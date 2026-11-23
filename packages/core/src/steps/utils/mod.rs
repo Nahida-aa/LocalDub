@@ -2,7 +2,7 @@
 //!
 //! 提供:
 //! - [`now_iso`] — RFC3339 无毫秒时间戳
-//! - [`set_step`] / [`set_workflow`] — 对 `state.json` 中 steps / workflow 的 upsert 合并
+//! - [`set_step`] / [`set_workflow`] — 分别对 `<step>/state.json` / 任务根 `view.json` 的 upsert 合并
 //! - 各 step 输出目录 helper ([`separate_dir`] / [`asr_dir`] / [`separate_after_dir`] ...)
 //! - [`steps`] 模块: output_mode 阶段序列 ([`steps::get_steps`])
 

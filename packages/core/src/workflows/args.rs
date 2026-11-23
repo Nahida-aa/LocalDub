@@ -11,7 +11,7 @@ pub enum WorkflowAction {
     Start,
     #[serde(rename = "continue")]
     Continue,
-    /// 只导入: 下载/拷贝视频 + 探测 + 写 state.json, 不跑 output_mode。
+    /// 只导入: 下载/拷贝视频 + 探测 + 写 view.json, 不跑 output_mode。
     /// 批量场景可先批量导入, 之后用 continue 逐个续跑重活。
     #[serde(rename = "import")]
     Import,
@@ -90,7 +90,7 @@ pub enum StepName {
 }
 
 impl StepName {
-    /// snake_case 名（与 serde 表示、\`state.json\` 里的 \`steps[].name\` 一致）。
+    /// snake_case 名（与 serde 表示、\`view.json\` 里的 \`steps[].name\` 一致）。
     /// 一行委托到 strum 派生的 \`AsRef<str>\`——名字承载契约语义，保留专属方法。
     pub fn as_str(self) -> &'static str {
         self.into()
@@ -139,9 +139,9 @@ impl OutputMode {
     ///
     /// 直接吃 `&Input`（而非 `&WorkflowState`），与「from_input」语义一致——只关心输入契约。
     ///
-    /// 此前另有一个读 `state.json` 里 `output_mode` 字符串的 `from_state`：那份字符串
+    /// 此前另有一个读 `view.json` 里 `output_mode` 字符串的 `from_state`：那份字符串
     /// 是 import 拍平的副本来源，`input` 是原源，两个来源共存时就得回答"以谁为准"。
-    /// 现在只留 `from_input`——副本（`<video_dir>` 下的 state.json）不再参与决策。
+    /// 现在只留 `from_input`——副本（`<video_dir>` 下的 view.json）不再参与决策。
     pub fn from_input(input: &crate::input::Input) -> Self {
         input
             .workflow
@@ -226,7 +226,7 @@ pub struct WorkflowArgs {
     /// 实验开关: start/continue 走 aa-workflow 引擎——**开发中，暂不可用**
     /// （集成暂停，见 `integration/workflow/mod.rs`；设了会在 ExecPath 分派时
     /// 打印「开发中」并报错）。恢复后：真源 events.jsonl，与 `run_pipeline`
-    /// （真源 state.json）二选一。其余 action 忽略。
+    /// （真源 view.json）二选一。其余 action 忽略。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub engine: Option<bool>,
     /// 实验开关: **实验性并行**——非 engine 路径按步骤 DAG 并行执行（目前只有

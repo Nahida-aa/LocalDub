@@ -36,7 +36,7 @@ pub async fn get_group_list() -> Result<Vec<GroupInfo>, String> {
 }
 
 // get_workflow_ctx 端点暂停接入：没有「组合态」了——CLI 的 GetWorkflowCtx 现在是分别
-// 打印 `state.json` / `input.json` / 各 `<step>/state.json`。等前端确认它到底要哪种
+// 打印 `view.json` / `input.json` / 各 `<step>/state.json`。等前端确认它到底要哪种
 // 形状（整棵任务树？还是只要步骤状态表）后再决定是否恢复。
 // #[fnrpc::rpc_query]
 // pub async fn get_workflow_ctx(video_dir: String) -> Result<serde_json::Value, String> {
@@ -205,7 +205,7 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
     let input: Input =
         serde_json::from_value(base).map_err(|e| format!("parse input failed: {}", e))?;
 
-    // 只跑导入 (拷贝/下载 + 探测 + 写 state.json / input.json), 拿到 video_dir 立即返回;
+    // 只跑导入 (拷贝/下载 + 探测 + 写 view.json / input.json), 拿到 video_dir 立即返回;
     // 完整 pipeline 在后台跑, 前端跳转任务页后由 ctx watcher 实时刷新 step 徽章。
     let ctx = tokio::task::spawn_blocking(move || {
         ld_core::workflows::import::download::import_video(&input)

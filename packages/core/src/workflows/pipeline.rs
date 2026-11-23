@@ -1,6 +1,6 @@
 //! output_mode 串行派发器 (镜像 TS `packages/core/workflows/start.ts` 的 `runPipeline`)。
 //!
-//! 流程: 读 ctx → `get_steps` 得到阶段序列 → 逐个调用 `run_step` (handler 读 state.json
+//! 流程: 读 ctx → `get_steps` 得到阶段序列 → 逐个调用 `run_step` (handler 读 view.json
 //! 跑完写回) → 每阶段前后用 `set_step` / `set_workflow` 标状态, 失败即中断。
 //!
 //! 本文件原位于 `steps/output_mode.rs`, 后迁移到 `workflows/` (与 start / continue 派发器同层),
@@ -272,7 +272,7 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    /// 铺一个任务目录：`state.json` + `input.json` + 直通用的假 srt，返回 input。
+    /// 铺一个任务目录：`view.json` + `input.json` + 直通用的假 srt，返回 input。
     fn setup(dir: &str, input: serde_json::Value) -> crate::input::Input {
         let input = crate::state::write_fixture(dir, input);
         // split_audio 会读 translate 产物；本测试禁用了 asr/asr_fix，translate 直通

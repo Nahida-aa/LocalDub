@@ -4,8 +4,8 @@
 //! - `start`          → [`crate::cmd::workflows::start_workflow`] (重新 import + 跑全 pipeline)
 //! - `continue`       → [`crate::cmd::workflows::continue_workflow`] (合并 input 续跑)
 //! - `get_group_list`→ [`crate::cmd::workflows::get_workflow::get_group_list`]
-//! - `get_workflow_ctx`   → 读 state.json 并打印
-//! - `status`         → 读 state.json 并打印各 step 状态
+//! - `get_workflow_ctx`   → 读 view.json 并打印
+//! - `status`         → 读 view.json 并打印各 step 状态
 //!
 //! 这是 `cmd/workflows` 的总入口, 对应 TS `run-workflow.ts` 里对 `cmdTask` 的调用。
 
@@ -69,7 +69,7 @@ pub fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
             // 三个状态文件各有各的写者，打印时就照它们的本来面目各来一份，
             // 不拼成一个"视图形状"。
             let st = read_state(&video_dir)
-                .map_err(|e| anyhow::anyhow!("读取 {video_dir}/state.json 失败: {e}"))?;
+                .map_err(|e| anyhow::anyhow!("读取 {video_dir}/view.json 失败: {e}"))?;
             let input = read_input(&video_dir)
                 .map_err(|e| anyhow::anyhow!("读取 {video_dir}/input.json 失败: {e}"))?;
             let steps = read_steps_state(&video_dir)
@@ -86,7 +86,7 @@ pub fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
                 .clone()
                 .ok_or_else(|| anyhow::anyhow!("status 需要 input.workflow.video_dir"))?;
             let wf = read_state(&video_dir)
-                .map_err(|e| anyhow::anyhow!("读取 {video_dir}/state.json 失败: {e}"))?
+                .map_err(|e| anyhow::anyhow!("读取 {video_dir}/view.json 失败: {e}"))?
                 .workflow;
             println!("workflow.status = {}", wf.status);
             for (name, st) in read_steps_state(&video_dir)

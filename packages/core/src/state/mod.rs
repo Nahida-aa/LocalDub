@@ -1,28 +1,28 @@
-//! workflow 状态：`state.json` + `input.json` + `<step>/state.json` 的读写与类型。
+//! workflow 状态：`view.json` + `input.json` + `<step>/state.json` 的读写与类型。
 //!
 //! # 布局（单写者原则——并发写竞争在结构上消失，不加锁/队列/原子写）
 //!
 //! ```text
-//! <video_dir>/state.json           身份 + 运行状态：workflow 子树（编排器写）
+//! <video_dir>/view.json            身份 + 运行状态：workflow 子树（编排器写）
 //!                                  + import 事实（frame_rate、video/audio_source_path）
 //! <video_dir>/input.json           本次运行的输入配置（[`Input`]）
 //! <video_dir>/<step>/state.json    该步骤**唯一写入方**：status/progress/times/messages
 //!                                  + facts 私有事实
-//! <video_dir>/workflow-engine/     事件日志（引擎真源，见 FsRunStore）——不变
+//! <video_dir>/workflow-store/      FsRunStore 的 run + events（引擎资产）——不变
 //! ```
 //!
 //! 三个状态文件各自只有一个写入方：
 //!
 //! | 文件                  | 写入方                                       |
 //! | --------------------- | -------------------------------------------- |
-//! | `state.json`          | import（初次）、编排器（`set_workflow`，run 边界） |
+//! | `view.json`           | import（初次）、编排器（`set_workflow`，run 边界） |
 //! | `input.json`          | import（初次）、continue / regen_tts（改写配置）   |
 //! | `<step>/state.json`   | 该步骤自己                                   |
 //!
-//! **步骤从不写 `state.json` / `input.json`**——步骤对世界的写入只落在自己的
+//! **步骤从不写 `view.json` / `input.json`**——步骤对世界的写入只落在自己的
 //! `<step>/state.json`，并行分支因此互不踩。
 //!
-//! `input` 单独成文件（而不是塞在 `state.json` 里）是因为两者的写者与生命周期不同：
+//! `input` 单独成文件（而不是塞在 `view.json` 里）是因为两者的写者与生命周期不同：
 //! 配置会被 continue/regen 改写，身份与事实不会。混在一个文件里就得让两个写者
 //! 抢同一个文件的 RMW。
 //!
@@ -73,7 +73,7 @@ pub struct WorkflowBrief {
     pub error_message: Option<String>,
 }
 
-/// `state.json` 的 workflow 子树：任务身份 + 运行状态（编排器专用写）。
+/// `view.json` 的 workflow 子树：任务身份 + 运行状态（编排器专用写）。
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 pub struct Workflow {
     pub id: String,
@@ -104,7 +104,7 @@ impl From<Workflow> for WorkflowBrief {
     }
 }
 
-/// `<video_dir>/state.json`：身份 + 运行状态 + import 事实。
+/// `<video_dir>/view.json`：身份 + 运行状态 + import 事实。
 ///
 /// 不含 `input`（配置单独放 `input.json`），也不含任何步骤产物
 /// （`final_video_path` 属 `<mix_video>/state.json` 的 facts）。
@@ -157,7 +157,7 @@ impl StepsState {
 // ---------------------------------------------------------------------------
 
 pub fn state_path(video_dir: &str) -> PathBuf {
-    PathBuf::from(video_dir).join("state.json")
+    PathBuf::from(video_dir).join("view.json")
 }
 
 pub fn input_path(video_dir: &str) -> PathBuf {
@@ -177,10 +177,10 @@ pub fn step_out_path(video_dir: &str, step_name: &str) -> PathBuf {
 }
 
 // ---------------------------------------------------------------------------
-// state.json
+// view.json
 // ---------------------------------------------------------------------------
 
-/// 读 `state.json`（宽松：缺字段回退默认，不因单个字段崩溃）。
+/// 读 `view.json`（宽松：缺字段回退默认，不因单个字段崩溃）。
 pub fn read_state(video_dir: &str) -> Result<WorkflowState, String> {
     let path = state_path(video_dir);
     let raw = fs::read_to_string(&path)
@@ -221,7 +221,7 @@ pub fn state_from_value(json: serde_json::Value) -> Result<WorkflowState, String
     })
 }
 
-/// 写 `state.json`（import 初次写入 + 编排器 `set_workflow` 专用——步骤不写此文件）。
+/// 写 `view.json`（import 初次写入 + 编排器 `set_workflow` 专用——步骤不写此文件）。
 pub fn write_state(video_dir: &str, state: &WorkflowState) -> Result<(), String> {
     let path = state_path(video_dir);
     let json = serde_json::to_string_pretty(state)
@@ -333,7 +333,7 @@ pub fn read_steps_state(video_dir: &str) -> Result<StepsState, String> {
     Ok(StepsState(steps))
 }
 
-/// **测试专用**：从一个扁平 JSON 一次写出 `state.json` + `input.json`
+/// **测试专用**：从一个扁平 JSON 一次写出 `view.json` + `input.json`
 /// （外加 `asr_language` / `target_language` 两条事实 → 各自 `<step>/out.json`）。
 ///
 /// 运行时没有「扁平 JSON → 一堆文件」这种入口，这是为了不让 20+ 个测试各写一遍
@@ -341,7 +341,7 @@ pub fn read_steps_state(video_dir: &str) -> Result<StepsState, String> {
 ///
 /// | JSON 键         | 落点                        |
 /// | --------------- | --------------------------- |
-/// | `workflow` 等   | `state.json`（[`state_from_value`]） |
+/// | `workflow` 等   | `view.json`（[`state_from_value`]） |
 /// | `input`         | `input.json`（[`Input`]）   |
 /// | `asr_language`  | `<asr>/out.json`            |
 /// | `target_language` | `<translate>/out.json`    |
@@ -351,7 +351,7 @@ pub fn read_steps_state(video_dir: &str) -> Result<StepsState, String> {
 pub fn write_fixture(video_dir: &str, json: serde_json::Value) -> Input {
     fs::create_dir_all(video_dir).expect("fixture 建 video_dir");
     let st = state_from_value(json.clone()).expect("fixture 缺 workflow");
-    write_state(video_dir, &st).expect("fixture 写 state.json");
+    write_state(video_dir, &st).expect("fixture 写 view.json");
     let input: Input = json
         .get("input")
         .cloned()

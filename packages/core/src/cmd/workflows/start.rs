@@ -9,7 +9,7 @@
 //!   见 `integration/workflow/mod.rs`；Engine 臂打印「开发中」并报错）；
 //! - `parallel = true` → **实验性并行** [`crate::workflows::parallel::run_pipeline_parallel`]
 //!   (真源各 `<step>/state.json`)；
-//! - 都不设 → [`crate::workflows::pipeline::run_pipeline`] (真源 state.json)。
+//! - 都不设 → [`crate::workflows::pipeline::run_pipeline`] (真源 view.json)。
 //! 两者同设在 [`crate::workflows::args::WorkflowArgs::exec_path`] 里报错。
 //!
 //! 与 [`crate::workflows::continue_pipeline`] 的区别: start 会 import, continue 不 import。

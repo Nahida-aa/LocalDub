@@ -30,10 +30,10 @@ pub fn continue_workflow(input: &Input) -> anyhow::Result<()> {
             anyhow::anyhow!("continue 模式需要 input.workflow.video_dir 指定已有任务目录")
         })?;
 
-    if !std::path::Path::new(&video_dir).join("state.json").exists() {
+    if !crate::state::state_path(&video_dir).exists() {
         return Err(anyhow::anyhow!(
-            "continue 模式找不到 {}/state.json, 确认 video_dir 正确",
-            video_dir
+            "continue 模式找不到 {}, 确认 video_dir 正确",
+            crate::state::state_path(&video_dir).display()
         ));
     }
 
