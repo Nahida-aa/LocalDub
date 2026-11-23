@@ -12,7 +12,7 @@ use crate::workflow::step_ctx::{CtxView, StepCtxView};
 ///
 /// 意图面经 `sc.ctx().input()` 取（args / video_dir），事实面由装配层算好注入
 /// [`AsrFixDeps`]（asr 产物路径 + 算好的源语言）。
-pub fn step_asr_fix(
+pub async fn step_asr_fix(
     sc: impl StepCtxView,
     deps: AsrFixDeps,
 ) -> anyhow::Result<AsrFixOutput> {

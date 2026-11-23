@@ -38,6 +38,7 @@ use crate::steps::tts::step_tts;
 use crate::steps::utils::{now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
 use crate::workflow::args::StepName;
 use crate::workflow::step_ctx::MyStepCtx;
+use tracing::Instrument;
 
 /// 运行完整 output_mode (镜像 TS `runPipeline`)。
 ///
@@ -46,10 +47,11 @@ use crate::workflow::step_ctx::MyStepCtx;
 /// 每步的入参是**该步骤自己的 `<Step>Input`**（依赖清单），统一由
 /// `<Step>Input::new(video_dir, input)` 构造——不再有「什么都装」的组合态在
 /// 步骤之间传来传去。
-pub fn run_pipeline(input: &crate::input::Input) -> anyhow::Result<()> {
+pub async fn run_pipeline(input: &crate::input::Input) -> anyhow::Result<()> {
     let video_dir = input.video_dir()?;
-    // 进入 workflow span: 携带 video_dir 供 WorkflowFileLayer 落盘到 <video_dir>/<tid>.log。
-    let _workflow_guard = tracing::info_span!("workflow", video_dir = video_dir).entered();
+    // 用 Instrument 而非 .entered()——EnteredSpan 是 !Send，不能跨 .await 持有。
+    let span = tracing::info_span!("workflow", video_dir = video_dir);
+    async move {
     tracing::info!(target: "output_mode", "run_pipeline: start");
 
     let video_id = crate::steps::utils::video_id(video_dir).unwrap_or_default();
@@ -85,7 +87,7 @@ pub fn run_pipeline(input: &crate::input::Input) -> anyhow::Result<()> {
 
         // 每步重读 input.json：continue / regen 会改写配置，handler 吃「此刻的配置」。
         let input = crate::state::read_input(video_dir).map_err(anyhow::Error::msg)?;
-        match run_one_step(video_dir, *step, &input) {
+        match run_one_step(video_dir, *step, &input).await {
             Ok(()) => {
                 // 达到 target_step 即停止 (镜像 TS)
                 if let Some(ts) = input
@@ -126,6 +128,9 @@ pub fn run_pipeline(input: &crate::input::Input) -> anyhow::Result<()> {
     )?;
     tracing::info!(target: "output_mode", "Workflow {video_id} completed");
     Ok(())
+    }
+    .instrument(span)
+    .await
 }
 
 /// 按 step 名分派到具体 handler (镜像 TS `STEP_HANDLERS`)。
@@ -136,90 +141,98 @@ pub fn run_pipeline(input: &crate::input::Input) -> anyhow::Result<()> {
 ///
 /// **入参是 [`StepName`] 而非 `&str`**：`match` 因此是穷尽的——将来给枚举加
 /// 变体却不在这里登记 handler，会**编译失败**，而不是静默跳过。
-pub fn run_step(
+pub async fn run_step(
     step: StepName,
     input: &crate::input::Input,
 ) -> anyhow::Result<()> {
     // 进入 step span: 携带 step 名供 WorkflowFileLayer 作为 [step] 前缀。
-    let _step_guard = tracing::info_span!("step", step = step.as_str()).entered();
+    // 用 Instrument 而非 .entered()——EnteredSpan 是 !Send，不能跨 .await 持有
+    // （run_step 在 tokio::spawn 里跑，future 必须 Send）。
+    let span = tracing::info_span!("step", step = step.as_str());
+    async move {
     match step {
         // 已迁移步骤吃 WorkflowInput（类型层保证 video_dir 已落定）；
         // 未迁移步骤仍吃 &Input + video_dir。两者由各自的构造点转换。
         StepName::Separate => step_separate(MyStepCtx::new(
             step.as_str(),
             WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?,
-        )),
+        ))
+        .await,
         StepName::SeparateAfter => {
             let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
             let deps = SeparateAfterDeps::from_input(&wfi);
-            step_separate_after(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
+            step_separate_after(MyStepCtx::new(step.as_str(), wfi), deps).await.map(|_| ())
         }
         StepName::SfOcrPre => step_sf_ocr_pre(MyStepCtx::new(
             step.as_str(),
             WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?,
         ))
+        .await
         .map(|_| ()),
         StepName::SfOcr => {
             let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
             let deps = SfOcrDeps::from_input(&wfi);
-            step_sf_ocr(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
+            step_sf_ocr(MyStepCtx::new(step.as_str(), wfi), deps).await.map(|_| ())
         }
         StepName::SfOcrFix => {
             let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
             let deps = SfOcrFixDeps::from_input(&wfi);
-            step_sf_ocr_fix(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
+            step_sf_ocr_fix(MyStepCtx::new(step.as_str(), wfi), deps).await.map(|_| ())
         }
         StepName::Translate => {
             let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
             let deps = TranslateDeps::from_input(&wfi)?;
-            step_translate(MyStepCtx::new(step.as_str(), wfi), deps)
+            step_translate(MyStepCtx::new(step.as_str(), wfi), deps).await
         }
         StepName::SplitAudio => {
             let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
             let deps = SplitAudioDeps::from_input(&wfi)?;
-            step_split_audio(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
+            step_split_audio(MyStepCtx::new(step.as_str(), wfi), deps).await.map(|_| ())
         }
         StepName::Asr => {
             let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
             let deps = AsrDeps::from_input(&wfi);
-            step_asr(MyStepCtx::new(step.as_str(), wfi), deps)
+            step_asr(MyStepCtx::new(step.as_str(), wfi), deps).await
         }
         StepName::AsrFix => {
             let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
             let deps = AsrFixDeps::from_input(&wfi);
-            step_asr_fix(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
+            step_asr_fix(MyStepCtx::new(step.as_str(), wfi), deps).await.map(|_| ())
         }
         StepName::AsrOcrPre => {
             let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
             let deps = AsrOcrPreDeps::from_input(&wfi);
-            step_asr_ocr_pre(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
+            step_asr_ocr_pre(MyStepCtx::new(step.as_str(), wfi), deps).await.map(|_| ())
         }
         StepName::AsrOcr => {
             let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
             let deps = AsrOcrDeps::from_input(&wfi);
-            step_asr_ocr(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
+            step_asr_ocr(MyStepCtx::new(step.as_str(), wfi), deps).await.map(|_| ())
         }
         StepName::AsrOcrFix => {
             let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
             let deps = AsrOcrFixDeps::from_input(&wfi);
-            step_asr_ocr_fix(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
+            step_asr_ocr_fix(MyStepCtx::new(step.as_str(), wfi), deps).await.map(|_| ())
         }
         StepName::Tts => {
             let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
             let deps = TtsDeps::from_input(&wfi);
-            step_tts(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
+            step_tts(MyStepCtx::new(step.as_str(), wfi), deps).await.map(|_| ())
         }
         StepName::MixAudio => {
             let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
             let deps = MixAudioDeps::from_input(&wfi)?;
-            step_mix_audio(MyStepCtx::new(step.as_str(), wfi), deps).map(|_| ())
+            step_mix_audio(MyStepCtx::new(step.as_str(), wfi), deps).await.map(|_| ())
         }
         StepName::MixVideo => {
             let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
             let deps = MixVideoDeps::from_input(&wfi)?;
-            step_mix_video(MyStepCtx::new(step.as_str(), wfi), deps)
+            step_mix_video(MyStepCtx::new(step.as_str(), wfi), deps).await
         }
     }
+    }
+    .instrument(span)
+    .await
 }
 
 /// 单步执行的状态包装：置 Running → 跑 → 失败置 Failed。
@@ -227,7 +240,7 @@ pub fn run_step(
 /// 串行 pipeline 与并行执行器（[`crate::workflow::parallel`]）共用。
 /// 并行时两条线程各自 RMW **自己的** `<step>/state.json`（单写者原则），
 /// 互不踩——这也是并行在这里可行的结构性前提。
-pub(crate) fn run_one_step(
+pub(crate) async fn run_one_step(
     video_dir: &str,
     step: StepName,
     input: &crate::input::Input,
@@ -247,7 +260,7 @@ pub(crate) fn run_one_step(
     // 不再维护 workflow.current_step 的每步投影。
     tracing::info!(target: "output_mode", "Running {step_str}");
 
-    match run_step(step, input) {
+    match run_step(step, input).await {
         Ok(()) => Ok(()),
         Err(e) => {
             let msg = e.to_string();
@@ -304,8 +317,8 @@ mod tests {
         .unwrap();
     }
 
-    #[test]
-    fn run_pipeline_runs_separate_skip_in_subtitle() {
+    #[tokio::test]
+    async fn run_pipeline_runs_separate_skip_in_subtitle() {
         let dir = std::env::temp_dir()
             .join(format!("ld_pipe_skip_{}", std::process::id()))
             .to_string_lossy()
@@ -322,7 +335,7 @@ mod tests {
             }),
         );
         // subtitle + !always → separate 走 skip 分支 (无需 demucs 二进制)
-        let res = run_pipeline(&input);
+        let res = run_pipeline(&input).await;
         assert!(res.is_ok(), "run_pipeline 不应失败: {:?}", res.err());
 
         let wf = crate::state::read_workflow(&dir).unwrap();
@@ -345,8 +358,8 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    #[test]
-    fn run_pipeline_target_step_stops_early() {
+    #[tokio::test]
+    async fn run_pipeline_target_step_stops_early() {
         let dir = std::env::temp_dir()
             .join(format!("ld_pipe_target_{}", std::process::id()))
             .to_string_lossy()
@@ -362,7 +375,7 @@ mod tests {
                 "output_mode": "subtitle"
             }),
         );
-        let res = run_pipeline(&input);
+        let res = run_pipeline(&input).await;
         assert!(res.is_ok(), "run_pipeline 不应失败: {:?}", res.err());
         // target_step=separate 命中即停
         let wf = crate::state::read_workflow(&dir).unwrap();

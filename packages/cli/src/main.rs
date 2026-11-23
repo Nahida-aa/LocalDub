@@ -243,7 +243,7 @@ async fn main() {
         InputCommand::Workflow => {
             cmd_workflow(&input).await.context("cmd_workflow 失败")
         }
-        InputCommand::Env => ld_core::cmd::env::handler::cmd_env(&input).context("cmd_env 失败"),
+        InputCommand::Env => ld_core::cmd::env::handler::cmd_env(&input).await.context("cmd_env 失败"),
         InputCommand::Servers => ld_core::cmd::servers::cmd_servers(&input)
             .context("servers 命令失败")
             .map(|s| println!("{s}")),

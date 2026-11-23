@@ -193,13 +193,13 @@ fn resolve_targets(targets: &[String]) -> Vec<String> {
 /// 确保指定的二进制存在 (幂等: 已存在且新鲜直接返回路径; 否则触发 ensure 下载/构建)。
 ///
 /// 供阶段消费方调用, 替代 `find_release_bin` + `cargo_build_bin`。
-pub fn ensure_bin(key: &str) -> anyhow::Result<PathBuf> {
+pub async fn ensure_bin(key: &str) -> anyhow::Result<PathBuf> {
     // 先 check
     let checks = all_checks();
     let check_fn = checks
         .get(key)
         .ok_or_else(|| anyhow::anyhow!("未知环境项: {}", key))?;
-    let check_result = check_fn();
+    let check_result = check_fn().await;
     if check_result.status == CheckStatus::Pass {
         // 通过 items 中的 path 解析函数获取路径
         return Ok(bin_path_from_key(key));
@@ -209,7 +209,7 @@ pub fn ensure_bin(key: &str) -> anyhow::Result<PathBuf> {
     let ensure_fn = fns
         .get(key)
         .ok_or_else(|| anyhow::anyhow!("环境项 {} 无 ensure 实现", key))?;
-    let ensure_result = ensure_fn();
+    let ensure_result = ensure_fn().await;
     if ensure_result.status != CheckStatus::Pass {
         return Err(anyhow::anyhow!(
             "ensure {} 失败: {}",
@@ -232,8 +232,8 @@ pub fn ensure_bin(key: &str) -> anyhow::Result<PathBuf> {
 ///
 /// 与 [`ensure_bin`] 的分工: 需要自行拼参数/控制 spawn 的用本函数; 只想拿路径
 /// (如检查存在性) 的仍用 `ensure_bin`。
-pub fn ensure_bin_command(key: &str) -> anyhow::Result<std::process::Command> {
-    let bin = ensure_bin(key)?;
+pub async fn ensure_bin_command(key: &str) -> anyhow::Result<std::process::Command> {
+    let bin = ensure_bin(key).await?;
     let mut cmd = std::process::Command::new(&bin);
 
     #[cfg(target_os = "linux")]
@@ -272,7 +272,7 @@ fn bin_path_from_key(key: &str) -> PathBuf {
 ///
 /// `desired` 为「本次配置实际需要的环境项后端」映射 (如 `demucs_burn_bin` → "tch"),
 /// 用于让 burn 系检查精确报告缺失的后端二进制, 而非笼统列出全部变体。
-pub fn run_check(targets: &[String], desired: &HashMap<String, String>) -> Vec<CheckResult> {
+pub async fn run_check(targets: &[String], desired: &HashMap<String, String>) -> Vec<CheckResult> {
     let selected = resolve_targets(targets);
     let checks = all_checks();
     let mut results = Vec::new();
@@ -285,18 +285,7 @@ pub fn run_check(targets: &[String], desired: &HashMap<String, String>) -> Vec<C
             continue;
         }
         match checks.get(key.as_str()) {
-            Some(f) => {
-                // 单 check 内部已吞异常式处理; 这里再包一层防御
-                let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or_else(
-                    |_| CheckResult {
-                        key: key.clone(),
-                        status: CheckStatus::Fail,
-                        data: serde_json::json!({ "msg": "检查过程 panic" }),
-                        required: false,
-                    },
-                );
-                results.push(r);
-            }
+            Some(f) => results.push(f().await),
             None => results.push(CheckResult {
                 key: key.clone(),
                 status: CheckStatus::Skip,
@@ -309,23 +298,13 @@ pub fn run_check(targets: &[String], desired: &HashMap<String, String>) -> Vec<C
 }
 
 /// 运行 ensure (镜像 TS `runEnsure`)。`desired` 目前仅 check 路径使用, 这里接受以保持签名一致。
-pub fn run_ensure(targets: &[String], _desired: &HashMap<String, String>) -> Vec<CheckResult> {
+pub async fn run_ensure(targets: &[String], _desired: &HashMap<String, String>) -> Vec<CheckResult> {
     let selected = resolve_targets(targets);
     let fns = ensure_fns();
     let mut results = Vec::new();
     for key in &selected {
         match fns.get(key.as_str()) {
-            Some(f) => {
-                let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or_else(
-                    |_| CheckResult {
-                        key: key.clone(),
-                        status: CheckStatus::Fail,
-                        data: serde_json::json!({ "msg": "ensure 过程 panic" }),
-                        required: false,
-                    },
-                );
-                results.push(r);
-            }
+            Some(f) => results.push(f().await),
             None => results.push(CheckResult {
                 key: key.clone(),
                 status: CheckStatus::Skip,

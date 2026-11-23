@@ -76,43 +76,34 @@ fn repo_input() -> anyhow::Result<ld_core::input::Input> {
 /// `targets` 空 = 按当前 input.jsonc 配置推断; 含 "*" = 全部项; 否则精确运行指定 key。
 #[fnrpc::rpc_query]
 pub async fn env_check(targets: Vec<String>) -> Result<Vec<EnvCheckItem>, String> {
-    tokio::task::spawn_blocking(move || {
-        let (keys, desired) = if targets.is_empty() {
-            match repo_input() {
-                Ok(input) => infer_targets(&input),
-                Err(e) => {
-                    tracing::info!("env_check 推断失败, 回退全量: {e:#}");
-                    (all_keys(), HashMap::new())
-                }
+    let (keys, desired) = if targets.is_empty() {
+        match repo_input() {
+            Ok(input) => infer_targets(&input),
+            Err(e) => {
+                tracing::info!("env_check 推断失败, 回退全量: {e:#}");
+                (all_keys(), HashMap::new())
             }
-        } else if targets.iter().any(|t| t == "*") {
-            (all_keys(), HashMap::new())
-        } else {
-            (targets, HashMap::new())
-        };
-        Ok(assemble(run_check(&keys, &desired)))
-    })
-    .await
-    .map_err(|e| format!("env_check 任务崩溃: {e}"))?
+        }
+    } else if targets.iter().any(|t| t == "*") {
+        (all_keys(), HashMap::new())
+    } else {
+        (targets, HashMap::new())
+    };
+    Ok(assemble(run_check(&keys, &desired).await))
 }
 
-/// 逐个安装/更新指定的环境项 (下载二进制等重操作, spawn_blocking)。
 #[fnrpc::rpc_mutate]
 pub async fn env_ensure(targets: Vec<String>) -> Result<Vec<EnvCheckItem>, String> {
-    tokio::task::spawn_blocking(move || {
-        let (keys, desired) = if targets.is_empty() {
-            match repo_input() {
-                Ok(input) => infer_targets(&input),
-                Err(e) => {
-                    tracing::info!("env_ensure 推断失败, 回退全量: {e:#}");
-                    (all_keys(), HashMap::new())
-                }
+    let (keys, desired) = if targets.is_empty() {
+        match repo_input() {
+            Ok(input) => infer_targets(&input),
+            Err(e) => {
+                tracing::info!("env_ensure 推断失败, 回退全量: {e:#}");
+                (all_keys(), HashMap::new())
             }
-        } else {
-            (targets, HashMap::new())
-        };
-        Ok(assemble(run_ensure(&keys, &desired)))
-    })
-    .await
-    .map_err(|e| format!("env_ensure 任务崩溃: {e}"))?
+        }
+    } else {
+        (targets, HashMap::new())
+    };
+    Ok(assemble(run_ensure(&keys, &desired).await))
 }

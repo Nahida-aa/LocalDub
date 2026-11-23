@@ -178,7 +178,7 @@ pub fn parse_json_reply(raw: &str) -> anyhow::Result<Value> {
 ///
 /// 双参：`sc` 提供工作流输入（意图面：`sc.ctx().input()`），`deps` 提供上游
 /// 产物事实（字幕路径 + ASR 实测语言）。src/target 在步骤体内按 input + deps 现算。
-pub fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow::Result<()> {
+pub async fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow::Result<()> {
     tracing::info!(target: "translate", "start");
 
     let input = sc.ctx().input();
@@ -418,15 +418,15 @@ mod tests {
     }
 
     /// `parse_json_reply` 由 batch 与 run_preprocess 共用, 留在 mod 层测。
-    #[test]
-    fn parse_json_reply_finds_brace_block() {
+    #[tokio::test]
+    async fn parse_json_reply_finds_brace_block() {
         let v = parse_json_reply("前言 blah {\"dst\": [\"a\",\"b\"]} 后缀").unwrap();
         let arr = v.get("dst").and_then(|d| d.as_array()).unwrap();
         assert_eq!(arr.len(), 2);
     }
 
-    #[test]
-    fn resolve_target_lang_auto() {
+    #[tokio::test]
+    async fn resolve_target_lang_auto() {
         let dir = std::env::temp_dir()
             .join(format!("ld_tr_auto_{}", std::process::id()))
             .to_string_lossy()
@@ -450,8 +450,8 @@ mod tests {
 
     /// 无 ASR (纯 OCR / subtitle 路径) 时源语言回落到 input.workflow.source_lang,
     /// 否则日语任务会被当成 zh -> 目标语言错误推断为 en。
-    #[test]
-    fn resolve_src_lang_falls_back_to_workflow_source_lang() {
+    #[tokio::test]
+    async fn resolve_src_lang_falls_back_to_workflow_source_lang() {
         let dir = std::env::temp_dir()
             .join(format!("ld_tr_ja_{}", std::process::id()))
             .to_string_lossy()
@@ -464,8 +464,8 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    #[test]
-    fn missing_subtitle_errors() {
+    #[tokio::test]
+    async fn missing_subtitle_errors() {
         let dir = std::env::temp_dir()
             .join(format!("ld_translate_{}", std::process::id()))
             .to_string_lossy()
@@ -475,7 +475,7 @@ mod tests {
         let input = at(&dir, Some("zh"), json!({}));
         let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
         let deps = args::TranslateDeps::from_input(&wfi).unwrap();
-        let res = step_translate(MyStepCtx::new("translate", wfi), deps);
+        let res = step_translate(MyStepCtx::new("translate", wfi), deps).await;
         let err = res.expect_err("缺 srt.json 必须报错");
         let msg = err.to_string();
         assert!(

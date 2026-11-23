@@ -39,10 +39,11 @@ pub async fn start_workflow(input: &Input) -> anyhow::Result<String> {
         ExecPath::Parallel => {
             println!("[cli] 实验性并行 (DAG 调度, 真源各 <step>/state.json)");
             crate::workflow::parallel::run_pipeline_parallel(&input)
+                .await
                 .context("run_pipeline_parallel 失败")?;
         }
         ExecPath::Serial => {
-            crate::workflow::pipeline::run_pipeline(&input).context("run_pipeline 失败")?;
+            crate::workflow::pipeline::run_pipeline(&input).await.context("run_pipeline 失败")?;
         }
     }
     println!("[cli] 完成: {}", st.workflow.video_dir);

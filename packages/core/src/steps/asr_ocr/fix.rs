@@ -88,7 +88,7 @@ struct AsrOcrFusedBody {
 }
 
 /// Step 1 (optional): Resample - extract additional frames at isolated high-confidence frames.
-fn maybe_resample(
+async fn maybe_resample(
     video_dir: &str,
     ocr_frames: &OcrFramesResult,
     out_dir: &Path,
@@ -172,7 +172,7 @@ fn maybe_resample(
     }
 
     // OCR the resampled frames using subtitle-ocr bin
-    let bin = ensure_bin("subtitle_ocr_bin").map_err(|e| {
+    let bin = ensure_bin("subtitle_ocr_bin").await.map_err(|e| {
         anyhow::anyhow!(
             "{e}\nIf download fails, run: cargo run -p cli -- env --action ensure --targets subtitle_ocr_bin"
         )
@@ -225,7 +225,7 @@ fn final_dedup(segs: Vec<OcrSegment>) -> Vec<OcrSegment> {
 ///
 /// 意图面经 `sc.ctx().input()` 取（args / video_dir / max_advance_ms），事实面由装配层
 /// 算好注入 [`AsrOcrFixDeps`]（两条上游产物 + 算好的 source_lang）。
-pub fn step_asr_ocr_fix(
+pub async fn step_asr_ocr_fix(
     sc: impl StepCtxView,
     deps: AsrOcrFixDeps,
 ) -> Result<AsrOcrFixOutput> {
@@ -265,7 +265,7 @@ pub fn step_asr_ocr_fix(
     let asr_segs = asr_split_data.result.segments.clone();
 
     // Step 1: Optional resample
-    let (ocr_frames, did_resample) = maybe_resample(&video_dir, &ocr_frames_data, &out_dir, &args)?;
+    let (ocr_frames, did_resample) = maybe_resample(&video_dir, &ocr_frames_data, &out_dir, &args).await?;
     let frames = &ocr_frames.frames;
 
     // --- Pipeline: adjust-box → filter-box → merge → adjust-segment → filter-segment ---

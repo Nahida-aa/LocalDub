@@ -223,7 +223,7 @@ fn run_demucs(
 /// `sc` 是引擎 `StepCtx` 的过渡镜像（消费方端口，见 `workflow/step_ctx.rs`）：
 /// 工作流输入经 `sc.ctx().input()`（`ctx` 限定符标记出处——工作流级事实，非
 /// 步骤参数），观测走 `sc.ctx().emit`（Phase 2 起生效）。
-pub fn step_separate(sc: impl StepCtxView) -> anyhow::Result<()> {
+pub async fn step_separate(sc: impl StepCtxView) -> anyhow::Result<()> {
     let video_dir = sc.ctx().input().video_dir().to_string();
     tracing::info!(target: "separate", "start");
 
@@ -272,7 +272,7 @@ pub fn step_separate(sc: impl StepCtxView) -> anyhow::Result<()> {
             // 未下载 → 经 env ensure 走 release 下载; 该组合没有发布资产则明确报错。
             match bin.env_key {
                 Some(key) => {
-                    let p = crate::cmd::env::ensure_bin(key)?;
+                    let p = crate::cmd::env::ensure_bin(key).await?;
                     if let Some(d) = p.parent().filter(|d| d.is_dir()) {
                         tracing::info!(target: "separate", "{} 经 release 下载: {}", bin.binary, d.display());
                     }
@@ -408,8 +408,8 @@ mod tests {
         assert_eq!(args::DemucsModel::Htdemucs6s.stem_count(), 6);
     }
 
-    #[test]
-    fn from_input_parses_model() {
+    #[tokio::test]
+    async fn from_input_parses_model() {
         for (raw, want) in [
             ("htdemucs", args::DemucsModel::Htdemucs),
             ("htdemucs_6s", args::DemucsModel::Htdemucs6s),
@@ -422,8 +422,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn runtime_binary_selection() {
+    #[tokio::test]
+    async fn runtime_binary_selection() {
         use args::{Device, SeparateRuntime as R};
         // Burn 家族: 按 device 挑 demucs-burn-<dev>
         assert_eq!(R::Burn.resolve(Device::Webgpu).binary, "demucs-burn-wgpu");
@@ -443,8 +443,8 @@ mod tests {
         assert_eq!(R::Burn.resolve(Device::Cuda).env_key, None);
     }
 
-    #[test]
-    fn subtitle_skips_when_not_always() {
+    #[tokio::test]
+    async fn subtitle_skips_when_not_always() {
         // subtitle + !always → skip 分支（不看磁盘上的音频是否存在）
         let dir = std::env::temp_dir()
             .join(format!("ld_sep_skip_{}", std::process::id()))
@@ -463,7 +463,7 @@ mod tests {
         let res = step_separate(MyStepCtx::new(
             "separate",
             crate::input::WorkflowInput::try_from(input).unwrap(),
-        ));
+        )).await;
         assert!(res.is_ok(), "subtitle skip 不应失败: {:?}", res.err());
         let st = crate::state::read_step_state(&dir, "separate").unwrap();
         assert_eq!(st.status, StepStatus::Success);

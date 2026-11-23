@@ -44,7 +44,7 @@ const MIN_TTS_DURATION_MS: u64 = 100;
 ///
 /// 意图面经 `sc.ctx().input()` 取（args / video_dir / is_start），事实面由装配层
 /// 算好注入 [`TtsDeps`]（split_audio 的两个产物）。
-pub fn step_tts(sc: impl StepCtxView, deps: TtsDeps) -> anyhow::Result<TtsOutput> {
+pub async fn step_tts(sc: impl StepCtxView, deps: TtsDeps) -> anyhow::Result<TtsOutput> {
     let input = sc.ctx().input();
     let video_dir = input.video_dir().to_string();
     tracing::info!(target: "tts", "start");
@@ -476,8 +476,8 @@ mod tests {
         serde_json::from_value(input).unwrap()
     }
 
-    #[test]
-    fn args_defaults_and_camelcase() {
+    #[tokio::test]
+    async fn args_defaults_and_camelcase() {
         let cfg = TtsArgs::from_input(&input_at(json!({})));
         assert!(cfg.skip_existing);
         assert!(!cfg.ref_audio_x2);
@@ -491,8 +491,8 @@ mod tests {
         assert_eq!(cfg2.regen_indices, Some(vec![1, 2, 3]));
     }
 
-    #[test]
-    fn missing_timings_errors() {
+    #[tokio::test]
+    async fn missing_timings_errors() {
         let dir = std::env::temp_dir()
             .join(format!("ld_tts_{}", std::process::id()))
             .to_string_lossy()
@@ -502,7 +502,7 @@ mod tests {
         let input = input_at(json!({"workflow": {"video_dir": dir}}));
         let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
         let deps = TtsDeps::from_input(&wfi);
-        let res = step_tts(crate::workflow::step_ctx::MyStepCtx::new("tts", wfi), deps);
+        let res = step_tts(crate::workflow::step_ctx::MyStepCtx::new("tts", wfi), deps).await;
         assert!(res.is_err());
         assert!(
             res.unwrap_err().to_string().contains("timings.json"),

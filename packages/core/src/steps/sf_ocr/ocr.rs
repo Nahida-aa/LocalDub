@@ -15,7 +15,7 @@ use std::process::Command;
 ///
 /// 意图面经 `sc.ctx().input()` 取（args / video_dir），事实面由装配层算好注入
 /// [`SfOcrDeps`]（sf_ocr_pre 产出的关键帧目录）。
-pub fn step_sf_ocr(sc: impl StepCtxView, deps: SfOcrDeps) -> anyhow::Result<SfOcrOutput> {
+pub async fn step_sf_ocr(sc: impl StepCtxView, deps: SfOcrDeps) -> anyhow::Result<SfOcrOutput> {
     let input = sc.ctx().input();
     let video_dir = input.video_dir().to_string();
     tracing::info!(target: "sf_ocr", "start");
@@ -39,7 +39,7 @@ pub fn step_sf_ocr(sc: impl StepCtxView, deps: SfOcrDeps) -> anyhow::Result<SfOc
         ));
     }
 
-    let bin = ensure_bin("subtitle_ocr_bin").map_err(|e| {
+    let bin = ensure_bin("subtitle_ocr_bin").await.map_err(|e| {
         anyhow::anyhow!(
             "{e}\n若下载失败, 请手动执行: cargo run -p cli -- env --action ensure --targets subtitle_ocr_bin"
         )
@@ -136,8 +136,8 @@ mod tests {
         serde_json::from_value(input).unwrap()
     }
 
-    #[test]
-    fn args_defaults() {
+    #[tokio::test]
+    async fn args_defaults() {
         let input = input_at(json!({"steps": {"sf_ocr": {}}}));
         let cfg = SfOcrArgs::from_input(&input);
         assert_eq!(cfg.text_confidence_threshold, 0.45);
@@ -145,8 +145,8 @@ mod tests {
         assert!(!cfg.cleanup_frames);
     }
 
-    #[test]
-    fn args_snake_case() {
+    #[tokio::test]
+    async fn args_snake_case() {
         let input = input_at(json!({"steps": {"sf_ocr": {
             "text_confidence_threshold": 0.7, "subtitle_only": false, "cleanup_frames": true
         }}}));
@@ -156,8 +156,8 @@ mod tests {
         assert!(cfg.cleanup_frames);
     }
 
-    #[test]
-    fn missing_frame_dir_errors() {
+    #[tokio::test]
+    async fn missing_frame_dir_errors() {
         let dir = std::env::temp_dir()
             .join(format!("ld_sfocr_{}", std::process::id()))
             .to_string_lossy()
@@ -170,7 +170,7 @@ mod tests {
         .unwrap();
         let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
         let deps = SfOcrDeps::from_input(&wfi);
-        let res = step_sf_ocr(crate::workflow::step_ctx::MyStepCtx::new("sf_ocr", wfi), deps);
+        let res = step_sf_ocr(crate::workflow::step_ctx::MyStepCtx::new("sf_ocr", wfi), deps).await;
         assert!(res.is_err());
         assert!(
             res.unwrap_err()

@@ -140,7 +140,7 @@ fn split_asr_by_words(segs: &[AsrSegment]) -> Vec<SubtitleSegment> {
 ///
 /// 注：`input.steps.asr_ocr_pre.fps` 当前未被本步骤消费（帧时间戳走 end2fps
 /// 固定策略），故不从 sc 取——这是现状，不是遗漏。
-pub fn step_asr_ocr_pre(sc: impl StepCtxView, deps: AsrOcrPreDeps) -> Result<AsrOcrPreOutput> {
+pub async fn step_asr_ocr_pre(sc: impl StepCtxView, deps: AsrOcrPreDeps) -> Result<AsrOcrPreOutput> {
     let video_dir = sc.ctx().input().video_dir().to_string();
     info!(target: "asr_ocr", "step_asr_ocr_pre: start");
 

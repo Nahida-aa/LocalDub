@@ -29,7 +29,10 @@
 //! 更精确——无关分支根本不开跑。
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::mpsc;
+use std::future::Future;
+use std::sync::Arc;
+
+use tokio::sync::mpsc;
 
 use crate::input::Input;
 use crate::state::StepStatus;
@@ -40,19 +43,22 @@ use crate::workflow::args::{StepName, WorkflowAction};
 use crate::workflow::dag::StepDag;
 use crate::workflow::pipeline::run_one_step;
 
-/// DAG 调度核心：就绪（依赖全部 Ok 且在 `allowed` 内）即起线程跑 `runner`；
-/// 失败不取消在跑的分支，全部收尾后统一报错。
+/// DAG 调度核心：就绪（依赖全部 Ok 且在 `allowed` 内）即起 tokio task 跑
+/// `runner`；失败不取消在跑的分支，全部收尾后统一报错。
 ///
 /// `skip` 里的步骤视为已成功（续跑跳过已完成步骤）；
 /// `allowed` 限定调度范围（target_step 子图；`None` = 全图，图外节点不动）。
-fn run_dag<F>(
+///
+/// 步骤是 async I/O 等待，用 tokio task 而非 OS 线程——等待时不占线程。
+async fn run_dag<F, Fut>(
     dag: &StepDag,
     skip: &BTreeSet<StepName>,
     allowed: Option<&BTreeSet<StepName>>,
     runner: F,
 ) -> Result<(), String>
 where
-    F: Fn(StepName) -> anyhow::Result<()> + Sync,
+    F: Fn(StepName) -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = anyhow::Result<()>> + Send + 'static,
 {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     enum St {
@@ -70,49 +76,45 @@ where
     }
     let mut errors: Vec<(StepName, String)> = Vec::new();
 
-    std::thread::scope(|scope| {
-        let (tx, rx) = mpsc::channel::<(StepName, anyhow::Result<()>)>();
-        let runner = &runner;
-        loop {
-            // 调度所有就绪步骤（依赖全部 Ok 且在 allowed 内）
-            for step in dag.nodes() {
-                if state[step] != St::Pending {
+    let (tx, mut rx) = mpsc::unbounded_channel::<(StepName, anyhow::Result<()>)>();
+    let runner = Arc::new(runner);
+    loop {
+        // 调度所有就绪步骤（依赖全部 Ok 且在 allowed 内）
+        for step in dag.nodes() {
+            if state[step] != St::Pending {
+                continue;
+            }
+            if let Some(allowed) = allowed {
+                if !allowed.contains(step) {
                     continue;
                 }
-                if let Some(allowed) = allowed {
-                    if !allowed.contains(step) {
-                        continue;
-                    }
-                }
-                if !dag.deps(*step).iter().all(|d| state[d] == St::Ok) {
-                    continue;
-                }
-                state.insert(*step, St::Running);
-                let tx = tx.clone();
-                scope.spawn(move || {
-                    // runner 不该 panic，但真 panic 时让 recv 拿到 Err 而不是
-                    // 丢消息卡死调度循环（scope 会传播 panic，先兜成错误）。
-                    let r =
-                        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| runner(*step)))
-                            .unwrap_or_else(|p| Err(anyhow::anyhow!("步骤线程 panic: {p:?}")));
-                    let _ = tx.send((*step, r));
-                });
             }
-            // 无在跑线程 = 没有可推进的了（剩余 Pending 全是被失败/范围挡住的）
-            if !state.values().any(|s| *s == St::Running) {
-                break;
+            if !dag.deps(*step).iter().all(|d| state[d] == St::Ok) {
+                continue;
             }
-            match rx.recv() {
-                Ok((step, r)) => {
-                    state.insert(step, if r.is_ok() { St::Ok } else { St::Failed });
-                    if let Err(e) = r {
-                        errors.push((step, e.to_string()));
-                    }
-                }
-                Err(_) => break, // 发送端全关（不该发生: 有 Running 必有 sender）
-            }
+            state.insert(*step, St::Running);
+            let tx = tx.clone();
+            let runner = Arc::clone(&runner);
+            let step = *step;
+            tokio::spawn(async move {
+                let r = runner(step).await;
+                let _ = tx.send((step, r));
+            });
         }
-    });
+        // 无在跑 task = 没有可推进的了（剩余 Pending 全是被失败/范围挡住的）
+        if !state.values().any(|s| *s == St::Running) {
+            break;
+        }
+        match rx.recv().await {
+            Some((step, r)) => {
+                state.insert(step, if r.is_ok() { St::Ok } else { St::Failed });
+                if let Err(e) = r {
+                    errors.push((step, e.to_string()));
+                }
+            }
+            None => break, // 发送端全关（task 全 panic 的兜底）
+        }
+    }
 
     // 汇报范围：allowed 内仍 Pending 的都是被上游失败挡住的；范围外的本来就
     // 不归这次运行管（target_step 子图之外）。
@@ -149,7 +151,7 @@ where
 /// `action=start` 全新全量跑；`action=continue` 按步跳过已 success 的步骤，
 /// `continue_from` 显式重跑该步及其传递下游。
 /// 任务目录取自 `input.workflow.video_dir`（[`crate::input::Input::video_dir`]）。
-pub fn run_pipeline_parallel(input: &Input) -> anyhow::Result<()> {
+pub async fn run_pipeline_parallel(input: &Input) -> anyhow::Result<()> {
     let video_dir = input.video_dir()?;
     // 进入 workflow span: 携带 video_dir 供 WorkflowFileLayer 落盘。
     let _workflow_guard = tracing::info_span!("workflow", video_dir = video_dir).entered();
@@ -208,8 +210,20 @@ pub fn run_pipeline_parallel(input: &Input) -> anyhow::Result<()> {
         },
     )?;
 
-    let runner = |step: StepName| run_one_step(video_dir, step, input);
-    match run_dag(&dag, &skip, allowed.as_ref(), runner) {
+    // EnteredSpan 是 !Send，不能跨 .await 持有（run_dag 内部 tokio::spawn 要求 Send）；
+    // 进入并发段前退出 span，各 step 自己的 span 由 run_one_step 重建。
+    drop(_workflow_guard);
+
+    // runner 必须 'static（tokio::spawn），故给它单独的 owning clone；
+    // 原 video_dir 留给下面写 workflow 总结状态用。
+    let runner_video_dir = video_dir.to_string();
+    let runner_input = input.clone();
+    let runner = move |step: StepName| {
+        let video_dir = runner_video_dir.clone();
+        let input = runner_input.clone();
+        async move { run_one_step(&video_dir, step, &input).await }
+    };
+    match run_dag(&dag, &skip, allowed.as_ref(), runner).await {
         Ok(()) => {
             set_workflow_anyhow(
                 video_dir,
@@ -255,19 +269,23 @@ mod tests {
         .unwrap()
     }
 
-    #[test]
-    fn runs_all_nodes_respecting_deps() {
+    #[tokio::test]
+    async fn runs_all_nodes_respecting_deps() {
         let dag = test_dag();
         let ran = Arc::new(Mutex::new(Vec::new()));
         let r = ran.clone();
         run_dag(&dag, &BTreeSet::new(), None, move |step| {
+            let r = r.clone();
+            async move {
             // asr 多睡一会，若 asr_fix 被提前调度会排在它前面
             if step == Asr {
-                std::thread::sleep(Duration::from_millis(50));
+                tokio::time::sleep(Duration::from_millis(50)).await;
             }
             r.lock().unwrap().push(step);
             Ok(())
+            }
         })
+        .await
         .unwrap();
 
         let ran = ran.lock().unwrap().clone();
@@ -279,8 +297,8 @@ mod tests {
     /// **并行的实质证据**：两个无依赖的步骤必须重叠执行——asr 起跑后要"看见"
     /// translate 已经在跑。若调度器退化为串行，asr 等待期间 translate 不会启动，
     /// 此断言会红。
-    #[test]
-    fn independent_steps_run_concurrently() {
+    #[tokio::test]
+    async fn independent_steps_run_concurrently() {
         let dag = test_dag();
         let translate_started = Arc::new(AtomicBool::new(false));
         let overlap_seen = Arc::new(AtomicBool::new(false));
@@ -288,6 +306,9 @@ mod tests {
         let ts = translate_started.clone();
         let ov = overlap_seen.clone();
         run_dag(&dag, &BTreeSet::new(), None, move |step| {
+            let ts = ts.clone();
+            let ov = ov.clone();
+            async move {
             match step {
                 Asr => {
                     // 等 translate 起跑（最多 2s），看见即证明两线程重叠
@@ -297,17 +318,19 @@ mod tests {
                             ov.store(true, Ordering::SeqCst);
                             break;
                         }
-                        std::thread::sleep(Duration::from_millis(2));
+                        tokio::time::sleep(Duration::from_millis(2)).await;
                     }
                 }
                 Translate => {
                     ts.store(true, Ordering::SeqCst);
-                    std::thread::sleep(Duration::from_millis(30));
+                    tokio::time::sleep(Duration::from_millis(30)).await;
                 }
                 _ => {}
             }
             Ok(())
+            }
         })
+        .await
         .unwrap();
 
         assert!(
@@ -318,19 +341,23 @@ mod tests {
 
     /// 失败语义：等全部收尾再报错——依赖失败的步骤**不运行**，
     /// 无关分支照常跑完，错误汇总在一条消息里。
-    #[test]
-    fn failure_blocks_dependents_but_independent_completes() {
+    #[tokio::test]
+    async fn failure_blocks_dependents_but_independent_completes() {
         let dag = test_dag();
         let ran = Arc::new(Mutex::new(Vec::new()));
         let r = ran.clone();
         let err = run_dag(&dag, &BTreeSet::new(), None, move |step| {
+            let r = r.clone();
+            async move {
             r.lock().unwrap().push(step);
             if step == Asr {
                 Err(anyhow::anyhow!("boom"))
             } else {
                 Ok(())
             }
+            }
         })
+        .await
         .unwrap_err();
 
         let ran = ran.lock().unwrap().clone();
@@ -348,16 +375,20 @@ mod tests {
     }
 
     /// 续跑语义：skip 里的步骤不跑，其下游照常跑（视为已满足）。
-    #[test]
-    fn skip_marks_steps_done() {
+    #[tokio::test]
+    async fn skip_marks_steps_done() {
         let dag = test_dag();
         let ran = Arc::new(Mutex::new(Vec::new()));
         let r = ran.clone();
         let skip = BTreeSet::from([Asr]);
         run_dag(&dag, &skip, None, move |step| {
+            let r = r.clone();
+            async move {
             r.lock().unwrap().push(step);
             Ok(())
+            }
         })
+        .await
         .unwrap();
 
         let ran = ran.lock().unwrap().clone();
@@ -367,16 +398,20 @@ mod tests {
     }
 
     /// target_step 语义：只调度子图内的节点，图外节点不动且不算 blocked。
-    #[test]
-    fn allowed_restricts_schedule_scope() {
+    #[tokio::test]
+    async fn allowed_restricts_schedule_scope() {
         let dag = test_dag();
         let ran = Arc::new(Mutex::new(Vec::new()));
         let r = ran.clone();
         let allowed = BTreeSet::from([Asr, AsrFix]);
         run_dag(&dag, &BTreeSet::new(), Some(&allowed), move |step| {
+            let r = r.clone();
+            async move {
             r.lock().unwrap().push(step);
             Ok(())
+            }
         })
+        .await
         .unwrap();
 
         let ran = ran.lock().unwrap().clone();

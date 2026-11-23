@@ -13,14 +13,16 @@
 use crate::input::Input;
 use crate::steps::utils::{now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
 use crate::workflow::pipeline::run_step;
+use tracing::Instrument;
 
 /// 续跑 output_mode (镜像 TS `continuePipeline`)。
 ///
 /// 任务目录取自 `input.workflow.video_dir`（[`crate::input::Input::video_dir`]）。
-pub fn continue_pipeline(input: &Input) -> anyhow::Result<()> {
+pub async fn continue_pipeline(input: &Input) -> anyhow::Result<()> {
     let video_dir = input.video_dir()?;
-    // 进入 workflow span: 携带 video_dir 供 WorkflowFileLayer 落盘。
-    let _workflow_guard = tracing::info_span!("workflow", video_dir = video_dir).entered();
+    // 用 Instrument 而非 .entered()——EnteredSpan 是 !Send，不能跨 .await 持有。
+    let span = tracing::info_span!("workflow", video_dir = video_dir);
+    async move {
     tracing::info!(target: "output_mode", "continue_pipeline: start");
 
     let video_id = crate::steps::utils::video_id(video_dir).unwrap_or_default();
@@ -133,7 +135,7 @@ pub fn continue_pipeline(input: &Input) -> anyhow::Result<()> {
 
         // 每步重读 input.json：前序步骤可能改配置（continue 也可能中途改过）。
         let input = crate::state::read_input(video_dir).map_err(anyhow::Error::msg)?;
-        match run_step(step, &input) {
+        match run_step(step, &input).await {
             Ok(()) => {
                 if let Some(ts) = &target_step {
                     if step_str == ts {
@@ -179,4 +181,7 @@ pub fn continue_pipeline(input: &Input) -> anyhow::Result<()> {
     )?;
     tracing::info!(target: "output_mode", "Workflow {video_id} completed");
     Ok(())
+    }
+    .instrument(span)
+    .await
 }

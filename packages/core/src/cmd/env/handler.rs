@@ -12,7 +12,7 @@ use crate::input::Input;
 ///
 /// - action: 取 `input.env.action` (默认 check)
 /// - targets: 取 `input.env.targets`; 空 → 按 steps 配置推断 (`infer_targets`)
-pub fn cmd_env(input: &Input) -> anyhow::Result<()> {
+pub async fn cmd_env(input: &Input) -> anyhow::Result<()> {
     let env_args = input.env.clone().unwrap_or_default();
 
     let (targets, desired) = if env_args.targets.is_empty() {
@@ -22,8 +22,8 @@ pub fn cmd_env(input: &Input) -> anyhow::Result<()> {
     };
 
     let results = match env_args.action {
-        EnvAction::Ensure => run_ensure(&targets, &desired),
-        EnvAction::Check => run_check(&targets, &desired),
+        EnvAction::Ensure => run_ensure(&targets, &desired).await,
+        EnvAction::Check => run_check(&targets, &desired).await,
     };
     for r in &results {
         println!("{}", format_result(r));

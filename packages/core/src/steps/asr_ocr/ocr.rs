@@ -16,7 +16,7 @@ use std::process::Command;
 ///
 /// 意图面经 `sc.ctx().input()` 取（args / video_dir），事实面由装配层算好注入
 /// [`AsrOcrDeps`]（asr_ocr_pre 产出的帧目录）。
-pub fn step_asr_ocr(sc: impl StepCtxView, deps: AsrOcrDeps) -> Result<AsrOcrOutput> {
+pub async fn step_asr_ocr(sc: impl StepCtxView, deps: AsrOcrDeps) -> Result<AsrOcrOutput> {
     let input = sc.ctx().input();
     let video_dir = input.video_dir().to_string();
     tracing::info!(target: "asr_ocr", "step_asr_ocr: start");
@@ -40,7 +40,7 @@ pub fn step_asr_ocr(sc: impl StepCtxView, deps: AsrOcrDeps) -> Result<AsrOcrOutp
         ));
     }
 
-    let bin = ensure_bin("subtitle_ocr_bin").map_err(|e| {
+    let bin = ensure_bin("subtitle_ocr_bin").await.map_err(|e| {
         anyhow::anyhow!(
             "{e}\nIf download fails, run: cargo run -p cli -- env --action ensure --targets subtitle_ocr_bin"
         )
@@ -120,8 +120,8 @@ pub fn step_asr_ocr(sc: impl StepCtxView, deps: AsrOcrDeps) -> Result<AsrOcrOutp
 mod tests {
     use super::*;
 
-    #[test]
-    fn missing_frames_errors() {
+    #[tokio::test]
+    async fn missing_frames_errors() {
         let dir = std::env::temp_dir()
             .join(format!("ld_asrocr_{}", std::process::id()))
             .to_string_lossy()
@@ -135,7 +135,7 @@ mod tests {
         .unwrap();
         let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
         let deps = AsrOcrDeps::from_input(&wfi);
-        let res = step_asr_ocr(crate::workflow::step_ctx::MyStepCtx::new("asr_ocr", wfi), deps);
+        let res = step_asr_ocr(crate::workflow::step_ctx::MyStepCtx::new("asr_ocr", wfi), deps).await;
         assert!(res.is_err());
         assert!(
             res.unwrap_err()

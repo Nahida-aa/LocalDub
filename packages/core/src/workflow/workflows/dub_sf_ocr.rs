@@ -54,32 +54,32 @@ fn build_spec() -> DagSpec<WorkflowInput, ()> {
     DagSpec::new("dub-sf-ocr")
         // 分支 A：分离人声 + 伴奏。
         .node("separate", Vec::<&str>::new(), |sc, _deps| async move {
-            step_separate(sc)?;
+            step_separate(sc).await?;
             Ok(Value::Null)
         })
         .node("separate_after", ["separate"], |sc, _deps| async move {
             let wfi = sc.ctx.input.clone();
-            step_separate_after(sc, SeparateAfterDeps::from_input(&wfi))?;
+            step_separate_after(sc, SeparateAfterDeps::from_input(&wfi)).await?;
             Ok(Value::Null)
         })
         // 分支 B：抽关键帧 → OCR → 校正 → 翻译。
         .node("sf_ocr_pre", Vec::<&str>::new(), |sc, _deps| async move {
-            step_sf_ocr_pre(sc)?;
+            step_sf_ocr_pre(sc).await?;
             Ok(Value::Null)
         })
         .node("sf_ocr", ["sf_ocr_pre"], |sc, _deps| async move {
             let wfi = sc.ctx.input.clone();
-            step_sf_ocr(sc, SfOcrDeps::from_input(&wfi))?;
+            step_sf_ocr(sc, SfOcrDeps::from_input(&wfi)).await?;
             Ok(Value::Null)
         })
         .node("sf_ocr_fix", ["sf_ocr"], |sc, _deps| async move {
             let wfi = sc.ctx.input.clone();
-            step_sf_ocr_fix(sc, SfOcrFixDeps::from_input(&wfi))?;
+            step_sf_ocr_fix(sc, SfOcrFixDeps::from_input(&wfi)).await?;
             Ok(Value::Null)
         })
         .node("translate", ["sf_ocr_fix"], |sc, _deps| async move {
             let wfi = sc.ctx.input.clone();
-            step_translate(sc, TranslateDeps::from_input(&wfi)?)?;
+            step_translate(sc, TranslateDeps::from_input(&wfi)?).await?;
             Ok(Value::Null)
         })
         // 汇聚链：split_audio 等 separate + translate（与 dag.rs 一致），
@@ -89,18 +89,18 @@ fn build_spec() -> DagSpec<WorkflowInput, ()> {
             ["translate", "separate"],
             |sc, _deps| async move {
                 let wfi = sc.ctx.input.clone();
-                step_split_audio(sc, SplitAudioDeps::from_input(&wfi)?)?;
+                step_split_audio(sc, SplitAudioDeps::from_input(&wfi)?).await?;
                 Ok(Value::Null)
             },
         )
         .node("tts", ["split_audio"], |sc, _deps| async move {
             let wfi = sc.ctx.input.clone();
-            step_tts(sc, TtsDeps::from_input(&wfi))?;
+            step_tts(sc, TtsDeps::from_input(&wfi)).await?;
             Ok(Value::Null)
         })
         .node("mix_audio", ["tts"], |sc, _deps| async move {
             let wfi = sc.ctx.input.clone();
-            step_mix_audio(sc, MixAudioDeps::from_input(&wfi)?)?;
+            step_mix_audio(sc, MixAudioDeps::from_input(&wfi)?).await?;
             Ok(Value::Null)
         })
         .node(
@@ -108,7 +108,7 @@ fn build_spec() -> DagSpec<WorkflowInput, ()> {
             ["mix_audio", "separate_after"],
             |sc, _deps| async move {
                 let wfi = sc.ctx.input.clone();
-                step_mix_video(sc, MixVideoDeps::from_input(&wfi)?)?;
+                step_mix_video(sc, MixVideoDeps::from_input(&wfi)?).await?;
                 Ok(Value::Null)
             },
         )

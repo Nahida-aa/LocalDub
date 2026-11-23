@@ -25,7 +25,7 @@ use crate::workflow::step_ctx::{CtxView, StepCtxView};
 /// 意图面经 `sc.ctx().input()` 取（video_dir / video_id / output_mode /
 /// no_translate / subtitle_source / args），事实面由装配层算好注入
 /// [`MixVideoDeps`]（target_lang / branch）。原视频路径由 video_dir 约定拼出。
-pub fn step_mix_video(sc: impl StepCtxView, deps: MixVideoDeps) -> anyhow::Result<()> {
+pub async fn step_mix_video(sc: impl StepCtxView, deps: MixVideoDeps) -> anyhow::Result<()> {
     let input = sc.ctx().input();
     let video_dir = input.video_dir().to_string();
     let video_id = crate::steps::utils::video_id(&video_dir).unwrap_or_default();

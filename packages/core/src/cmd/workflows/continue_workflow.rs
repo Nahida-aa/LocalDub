@@ -65,10 +65,11 @@ pub async fn continue_workflow(input: &Input) -> anyhow::Result<()> {
         ExecPath::Parallel => {
             println!("[cli] 实验性并行 (DAG 调度, 按步跳过已成功步骤)");
             crate::workflow::parallel::run_pipeline_parallel(input)
+                .await
                 .context("run_pipeline_parallel 失败")?;
         }
         ExecPath::Serial => {
-            continue_pipeline(input).context("continue_pipeline 失败")?;
+            continue_pipeline(input).await.context("continue_pipeline 失败")?;
         }
     }
     println!("[cli] 完成: {}", video_dir);

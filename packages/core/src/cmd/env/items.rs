@@ -9,7 +9,9 @@
 //!   `process_group(0)` (win 用 `CREATE_NEW_PROCESS_GROUP`) 替代 `spawn detached`。
 
 use std::collections::HashMap;
+use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::process::{Command, Stdio};
 
 use chrono;
@@ -20,6 +22,19 @@ use config_rs::path::models::{bin_dir, demucs_model_dir, voxcpm_model_dir, whisp
 use config_rs::root::repo_root;
 
 use crate::cmd::env::{CheckResult, CheckStatus};
+
+// check / ensure 注册表的统一形状：零参函数返回一个 boxed future。
+// 函数指针无法返回 impl Trait，也不捕获环境；9 个 release-bin wrapper 各自
+// 用 async 块捕获静态 SPEC，再由 boxed 抹成同一签名。
+pub type CheckFn = fn() -> Pin<Box<dyn Future<Output = CheckResult> + Send>>;
+
+/// 把任意 async 块抹成 CheckFn 的返回类型（Box::pin，不依赖 futures features）。
+pub(crate) fn boxed<F>(f: F) -> Pin<Box<dyn Future<Output = CheckResult> + Send>>
+where
+    F: Future<Output = CheckResult> + Send + 'static,
+{
+    Box::pin(f)
+}
 
 // ---------------------------------------------------------------------------
 // 本地 helper
@@ -339,8 +354,8 @@ pub fn check_cuda() -> CheckResult {
 // ---------------------------------------------------------------------------
 
 /// whisper-vulkan 由 vox-lab 预编译发布 (ReleaseBinSpec), 见 `WHISPER_VULKAN`。
-pub fn check_whisper_bin() -> CheckResult {
-    check_release_bin(&WHISPER_VULKAN)
+pub async fn check_whisper_bin() -> CheckResult {
+    check_release_bin(&WHISPER_VULKAN).await
 }
 
 /// 检查 burn 系二进制。
@@ -561,7 +576,7 @@ pub fn check_dotenv() -> CheckResult {
 // OpenAI (兼容 API) 检查 + ensure (ollama serve)
 // ---------------------------------------------------------------------------
 
-pub fn check_openai() -> CheckResult {
+pub async fn check_openai() -> CheckResult {
     // TS 读 `process.env.OPENAI_BASE_URL` (无默认); 这里同样读原始 env, 缺失即 fail。
     let base_url = std::env::var("OPENAI_BASE_URL").unwrap_or_else(|_| openai_base_url());
     let api_key = openai_api_key();
@@ -578,7 +593,7 @@ pub fn check_openai() -> CheckResult {
     }
 
     let is_local = base_url.contains("localhost") || base_url.contains("127.0.0.1");
-    let client = reqwest::blocking::Client::builder()
+    let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
         .build();
     let client = match client {
@@ -601,10 +616,11 @@ pub fn check_openai() -> CheckResult {
             .bearer_auth(api_key.clone().unwrap_or_default())
     };
 
-    match req.send() {
+    match req.send().await {
         Ok(res) if res.status().is_success() => {
             let models = res
                 .json::<serde_json::Value>()
+                .await
                 .ok()
                 .and_then(|j| j.get("data").and_then(|d| d.as_array()).map(|a| a.len()))
                 .map(|n| n.to_string())
@@ -631,7 +647,7 @@ pub fn check_openai() -> CheckResult {
     }
 }
 
-fn ensure_openai() -> CheckResult {
+async fn ensure_openai() -> CheckResult {
     let base_url = openai_base_url();
     if !base_url.contains("localhost") && !base_url.contains("127.0.0.1") {
         return CheckResult {
@@ -642,11 +658,11 @@ fn ensure_openai() -> CheckResult {
         };
     }
 
-    let client = reqwest::blocking::Client::builder()
+    let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(2))
         .build();
     if let Ok(c) = client {
-        if let Ok(res) = c.get(format!("{base_url}/models")).send() {
+        if let Ok(res) = c.get(format!("{base_url}/models")).send().await {
             if res.status().is_success() {
                 return CheckResult {
                     key: "openai".into(),
@@ -671,13 +687,13 @@ fn ensure_openai() -> CheckResult {
 
     spawn_detached(&ollama_bin, &["serve"]);
 
-    let poll = reqwest::blocking::Client::builder()
+    let poll = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(1))
         .build();
     if let Ok(c) = poll {
         for _ in 0..15 {
-            std::thread::sleep(std::time::Duration::from_secs(1));
-            if let Ok(res) = c.get(format!("{base_url}/models")).send() {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            if let Ok(res) = c.get(format!("{base_url}/models")).send().await {
                 if res.status().is_success() {
                     return CheckResult {
                         key: "openai".into(),
@@ -1014,9 +1030,9 @@ fn release_bin_url(spec: &ReleaseBinSpec, asset: &str) -> String {
 ///
 /// 结果由 `check_release_bin` 塞进 `CheckResult.data["latest_tag"]`,
 /// 由 `cmd::env::mod::format_result` 渲染成 `upstream: <tag> (有新版可更新)`。
-fn fetch_latest_tag(spec: &ReleaseBinSpec) -> Option<String> {
+async fn fetch_latest_tag(spec: &ReleaseBinSpec) -> Option<String> {
     let url = format!("https://api.github.com/repos/{}/releases", spec.repo);
-    let client = reqwest::blocking::Client::builder()
+    let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(6))
         .build()
         .ok()?;
@@ -1030,11 +1046,11 @@ fn fetch_latest_tag(spec: &ReleaseBinSpec) -> Option<String> {
             req = req.header("Authorization", format!("Bearer {token}"));
         }
     }
-    let resp = req.send().ok()?;
+    let resp = req.send().await.ok()?;
     if !resp.status().is_success() {
         return None;
     }
-    let releases: serde_json::Value = resp.json().ok()?;
+    let releases: serde_json::Value = resp.json().await.ok()?;
     let mut tags = releases
         .as_array()?
         .iter()
@@ -1078,7 +1094,7 @@ fn file_sha256(path: &Path) -> anyhow::Result<String> {
     Ok(hex::encode(hasher.finalize()))
 }
 
-fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
+async fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
     let Some((asset, sha256)) = current_platform_asset(spec) else {
         return CheckResult {
             key: spec.key.to_string(),
@@ -1175,7 +1191,7 @@ fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
     // 查不到就是 None，不写这个字段（渲染侧会跳过）——提示性信息不该让 check 失败。
     // 仅当上游有新版本 (latest_tag != spec.tag) 时才写, 否则已是最新, 不提示。
     let mut data = json!({ "path": path.display().to_string(), "msg": "已就绪" });
-    if let Some(latest) = fetch_latest_tag(spec) {
+    if let Some(latest) = fetch_latest_tag(spec).await {
         if latest != spec.tag {
             data["latest_tag"] = json!(latest);
         }
@@ -1188,7 +1204,7 @@ fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
     }
 }
 
-fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
+async fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
     let Some((asset, sha256)) = current_platform_asset(spec) else {
         return CheckResult {
             key: spec.key.to_string(),
@@ -1225,7 +1241,7 @@ fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
     let url = release_bin_url(spec, asset);
     tracing::info!(target: "sf_ocr", "正在下载 {} 从 {}", asset, url);
 
-    let client = match reqwest::blocking::Client::builder()
+    let client = match reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
         .build()
     {
@@ -1240,7 +1256,7 @@ fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
         }
     };
 
-    let mut resp = match client.get(url).send() {
+    let mut resp = match client.get(url).send().await {
         Ok(r) => r,
         Err(e) => {
             return CheckResult {
@@ -1283,12 +1299,11 @@ fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
     };
 
     let mut downloaded = 0u64;
-    let mut buf = [0u8; 8192];
-    while let Ok(n) = std::io::Read::read(&mut resp, &mut buf) {
-        if n == 0 {
+    while let Some(chunk) = resp.chunk().await.unwrap_or(None) {
+        if chunk.is_empty() {
             break;
         }
-        if let Err(e) = std::io::Write::write_all(&mut file, &buf[..n]) {
+        if let Err(e) = std::io::Write::write_all(&mut file, &chunk) {
             return CheckResult {
                 key: spec.key.to_string(),
                 status: CheckStatus::Fail,
@@ -1296,7 +1311,7 @@ fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
                 required: false,
             };
         }
-        downloaded += n as u64;
+        downloaded += chunk.len() as u64;
         pb.set_position(downloaded);
     }
     pb.finish_with_message("下载完成");
@@ -1366,23 +1381,23 @@ fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
     }
 }
 
-pub fn check_subtitle_finder_bin() -> CheckResult {
-    check_release_bin(&SUBTITLE_FINDER)
+pub async fn check_subtitle_finder_bin() -> CheckResult {
+    check_release_bin(&SUBTITLE_FINDER).await
 }
-pub fn check_subtitle_ocr_bin() -> CheckResult {
-    check_release_bin(&SUBTITLE_OCR)
+pub async fn check_subtitle_ocr_bin() -> CheckResult {
+    check_release_bin(&SUBTITLE_OCR).await
 }
-pub fn check_subtitle_ocr_post_bin() -> CheckResult {
-    check_release_bin(&SUBTITLE_OCR_POST)
+pub async fn check_subtitle_ocr_post_bin() -> CheckResult {
+    check_release_bin(&SUBTITLE_OCR_POST).await
 }
-fn ensure_subtitle_finder_bin() -> CheckResult {
-    ensure_release_bin(&SUBTITLE_FINDER)
+async fn ensure_subtitle_finder_bin() -> CheckResult {
+    ensure_release_bin(&SUBTITLE_FINDER).await
 }
-fn ensure_subtitle_ocr_bin() -> CheckResult {
-    ensure_release_bin(&SUBTITLE_OCR)
+async fn ensure_subtitle_ocr_bin() -> CheckResult {
+    ensure_release_bin(&SUBTITLE_OCR).await
 }
-fn ensure_subtitle_ocr_post_bin() -> CheckResult {
-    ensure_release_bin(&SUBTITLE_OCR_POST)
+async fn ensure_subtitle_ocr_post_bin() -> CheckResult {
+    ensure_release_bin(&SUBTITLE_OCR_POST).await
 }
 
 /// 当前平台的目标二进制路径 (供 `bin_path_from_key` 复用, 与下载路径保持一致)。
@@ -1396,35 +1411,35 @@ pub fn subtitle_ocr_post_bin_path() -> PathBuf {
     release_bin_path(&SUBTITLE_OCR_POST)
 }
 
-pub fn check_demucs_burn_tch_bin() -> CheckResult {
-    check_release_bin(&DEMUCS_BURN_TCH)
+pub async fn check_demucs_burn_tch_bin() -> CheckResult {
+    check_release_bin(&DEMUCS_BURN_TCH).await
 }
-pub fn check_demucs_burn_wgpu_bin() -> CheckResult {
-    check_release_bin(&DEMUCS_BURN_WGPU)
+pub async fn check_demucs_burn_wgpu_bin() -> CheckResult {
+    check_release_bin(&DEMUCS_BURN_WGPU).await
 }
-pub fn check_demucs_wgpu_bin() -> CheckResult {
-    check_release_bin(&DEMUCS_WGPU)
+pub async fn check_demucs_wgpu_bin() -> CheckResult {
+    check_release_bin(&DEMUCS_WGPU).await
 }
-pub fn check_demucs_tch_cpu_bin() -> CheckResult {
-    check_release_bin(&DEMUCS_TCH_CPU)
+pub async fn check_demucs_tch_cpu_bin() -> CheckResult {
+    check_release_bin(&DEMUCS_TCH_CPU).await
 }
-pub fn check_demucs_tch_cuda_bin() -> CheckResult {
-    check_release_bin(&DEMUCS_TCH_CUDA)
+pub async fn check_demucs_tch_cuda_bin() -> CheckResult {
+    check_release_bin(&DEMUCS_TCH_CUDA).await
 }
-fn ensure_demucs_burn_tch_bin() -> CheckResult {
-    ensure_release_bin(&DEMUCS_BURN_TCH)
+async fn ensure_demucs_burn_tch_bin() -> CheckResult {
+    ensure_release_bin(&DEMUCS_BURN_TCH).await
 }
-fn ensure_demucs_burn_wgpu_bin() -> CheckResult {
-    ensure_release_bin(&DEMUCS_BURN_WGPU)
+async fn ensure_demucs_burn_wgpu_bin() -> CheckResult {
+    ensure_release_bin(&DEMUCS_BURN_WGPU).await
 }
-fn ensure_demucs_wgpu_bin() -> CheckResult {
-    ensure_release_bin(&DEMUCS_WGPU)
+async fn ensure_demucs_wgpu_bin() -> CheckResult {
+    ensure_release_bin(&DEMUCS_WGPU).await
 }
-fn ensure_demucs_tch_cpu_bin() -> CheckResult {
-    ensure_release_bin(&DEMUCS_TCH_CPU)
+async fn ensure_demucs_tch_cpu_bin() -> CheckResult {
+    ensure_release_bin(&DEMUCS_TCH_CPU).await
 }
-fn ensure_demucs_tch_cuda_bin() -> CheckResult {
-    ensure_release_bin(&DEMUCS_TCH_CUDA)
+async fn ensure_demucs_tch_cuda_bin() -> CheckResult {
+    ensure_release_bin(&DEMUCS_TCH_CUDA).await
 }
 
 /// 当前平台的目标二进制路径 (供 `bin_path_from_key` 复用, 与下载路径保持一致)。
@@ -1448,8 +1463,8 @@ pub fn demucs_tch_cuda_bin_path() -> PathBuf {
 pub fn whisper_vulkan_bin_path() -> PathBuf {
     release_bin_path(&WHISPER_VULKAN)
 }
-fn ensure_whisper_bin() -> CheckResult {
-    ensure_release_bin(&WHISPER_VULKAN)
+async fn ensure_whisper_bin() -> CheckResult {
+    ensure_release_bin(&WHISPER_VULKAN).await
 }
 
 // ---------------------------------------------------------------------------
@@ -1496,52 +1511,54 @@ fn ensure_dotenv() -> CheckResult {
 // ---------------------------------------------------------------------------
 
 /// 全部检查函数 (镜像 TS `allChecks`)。
-pub fn all_checks() -> HashMap<&'static str, fn() -> CheckResult> {
-    let mut m: HashMap<&'static str, fn() -> CheckResult> = HashMap::new();
-    m.insert("bun", check_bun);
-    m.insert("python", check_python);
-    m.insert("uv", check_uv);
-    m.insert("ffmpeg", check_ffmpeg);
-    m.insert("cargo", check_cargo);
-    m.insert("vulkan", check_vulkan);
-    m.insert("rocm", check_rocm);
-    m.insert("cuda", check_cuda);
-    m.insert("whisper_ggml", check_whisper_ggml);
-    m.insert("whisper_vad", check_whisper_vad);
-    m.insert("demucs_pth", check_demucs_pth);
-    m.insert("voxcpm2_onnx", check_voxcpm2_onnx);
-    m.insert("voxcpm2_pth", check_voxcpm2_pth);
-    m.insert("whisper_bin", check_whisper_bin);
-    m.insert("demucs_burn_bin", || check_demucs_burn_bin(None));
-    m.insert("subtitle_finder_bin", check_subtitle_finder_bin);
-    m.insert("subtitle_ocr_bin", check_subtitle_ocr_bin);
-    m.insert("subtitle_ocr_post_bin", check_subtitle_ocr_post_bin);
-    m.insert("demucs_burn_tch_bin", check_demucs_burn_tch_bin);
-    m.insert("demucs_burn_wgpu_bin", check_demucs_burn_wgpu_bin);
-    m.insert("demucs_wgpu_bin", check_demucs_wgpu_bin);
-    m.insert("demucs_tch_cpu_bin", check_demucs_tch_cpu_bin);
-    m.insert("demucs_tch_cuda_bin", check_demucs_tch_cuda_bin);
-    m.insert("cmake", check_cmake);
-    m.insert("git", check_git);
-    m.insert("dotenv", check_dotenv);
-    m.insert("openai", check_openai);
+///
+/// 每项统一返回 boxed future：同步 check 用 `async {}` 包，async check 直接调用。
+pub fn all_checks() -> HashMap<&'static str, CheckFn> {
+    let mut m: HashMap<&'static str, CheckFn> = HashMap::new();
+    m.insert("bun", || boxed(async { check_bun() }));
+    m.insert("python", || boxed(async { check_python() }));
+    m.insert("uv", || boxed(async { check_uv() }));
+    m.insert("ffmpeg", || boxed(async { check_ffmpeg() }));
+    m.insert("cargo", || boxed(async { check_cargo() }));
+    m.insert("vulkan", || boxed(async { check_vulkan() }));
+    m.insert("rocm", || boxed(async { check_rocm() }));
+    m.insert("cuda", || boxed(async { check_cuda() }));
+    m.insert("whisper_ggml", || boxed(async { check_whisper_ggml() }));
+    m.insert("whisper_vad", || boxed(async { check_whisper_vad() }));
+    m.insert("demucs_pth", || boxed(async { check_demucs_pth() }));
+    m.insert("voxcpm2_onnx", || boxed(async { check_voxcpm2_onnx() }));
+    m.insert("voxcpm2_pth", || boxed(async { check_voxcpm2_pth() }));
+    m.insert("whisper_bin", || boxed(check_whisper_bin()));
+    m.insert("demucs_burn_bin", || boxed(async { check_demucs_burn_bin(None) }));
+    m.insert("subtitle_finder_bin", || boxed(check_subtitle_finder_bin()));
+    m.insert("subtitle_ocr_bin", || boxed(check_subtitle_ocr_bin()));
+    m.insert("subtitle_ocr_post_bin", || boxed(check_subtitle_ocr_post_bin()));
+    m.insert("demucs_burn_tch_bin", || boxed(check_demucs_burn_tch_bin()));
+    m.insert("demucs_burn_wgpu_bin", || boxed(check_demucs_burn_wgpu_bin()));
+    m.insert("demucs_wgpu_bin", || boxed(check_demucs_wgpu_bin()));
+    m.insert("demucs_tch_cpu_bin", || boxed(check_demucs_tch_cpu_bin()));
+    m.insert("demucs_tch_cuda_bin", || boxed(check_demucs_tch_cuda_bin()));
+    m.insert("cmake", || boxed(async { check_cmake() }));
+    m.insert("git", || boxed(async { check_git() }));
+    m.insert("dotenv", || boxed(async { check_dotenv() }));
+    m.insert("openai", || boxed(check_openai()));
     m
 }
 
 /// 可 ensure 的项 (镜像 TS `ensureFns`)。
-pub fn ensure_fns() -> HashMap<&'static str, fn() -> CheckResult> {
-    let mut m: HashMap<&'static str, fn() -> CheckResult> = HashMap::new();
-    m.insert("dotenv", ensure_dotenv);
-    m.insert("openai", ensure_openai);
-    m.insert("subtitle_finder_bin", ensure_subtitle_finder_bin);
-    m.insert("subtitle_ocr_bin", ensure_subtitle_ocr_bin);
-    m.insert("subtitle_ocr_post_bin", ensure_subtitle_ocr_post_bin);
-    m.insert("demucs_burn_tch_bin", ensure_demucs_burn_tch_bin);
-    m.insert("demucs_burn_wgpu_bin", ensure_demucs_burn_wgpu_bin);
-    m.insert("demucs_wgpu_bin", ensure_demucs_wgpu_bin);
-    m.insert("demucs_tch_cpu_bin", ensure_demucs_tch_cpu_bin);
-    m.insert("demucs_tch_cuda_bin", ensure_demucs_tch_cuda_bin);
-    m.insert("whisper_bin", ensure_whisper_bin);
+pub fn ensure_fns() -> HashMap<&'static str, CheckFn> {
+    let mut m: HashMap<&'static str, CheckFn> = HashMap::new();
+    m.insert("dotenv", || boxed(async { ensure_dotenv() }));
+    m.insert("openai", || boxed(ensure_openai()));
+    m.insert("subtitle_finder_bin", || boxed(ensure_subtitle_finder_bin()));
+    m.insert("subtitle_ocr_bin", || boxed(ensure_subtitle_ocr_bin()));
+    m.insert("subtitle_ocr_post_bin", || boxed(ensure_subtitle_ocr_post_bin()));
+    m.insert("demucs_burn_tch_bin", || boxed(ensure_demucs_burn_tch_bin()));
+    m.insert("demucs_burn_wgpu_bin", || boxed(ensure_demucs_burn_wgpu_bin()));
+    m.insert("demucs_wgpu_bin", || boxed(ensure_demucs_wgpu_bin()));
+    m.insert("demucs_tch_cpu_bin", || boxed(ensure_demucs_tch_cpu_bin()));
+    m.insert("demucs_tch_cuda_bin", || boxed(ensure_demucs_tch_cuda_bin()));
+    m.insert("whisper_bin", || boxed(ensure_whisper_bin()));
     m
 }
 
@@ -1682,8 +1699,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn fetch_latest_tag_matches_bin_prefix() {
+    #[tokio::test]
+    async fn fetch_latest_tag_matches_bin_prefix() {
         // 网络测试: 有 token 且可达时才断言 (匿名常 403 限流; 网络不可达静默跳过)。
         // 验证 fetch_latest_tag 按 `{bin}-` 前缀精确匹配, 不跨二进制误报:
         // vision-lab 一个 repo 含 subtitle-ocr / subtitle-ocr-post / subtitle-finder 多个 release。
@@ -1693,7 +1710,7 @@ mod tests {
         if token.trim().is_empty() {
             return;
         }
-        let Some(finder) = fetch_latest_tag(&SUBTITLE_FINDER) else {
+        let Some(finder) = fetch_latest_tag(&SUBTITLE_FINDER).await else {
             return;
         };
         assert!(

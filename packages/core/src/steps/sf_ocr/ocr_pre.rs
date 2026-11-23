@@ -26,7 +26,7 @@ pub struct SfOcrPreOutput {
 ///
 /// **入口步骤**：只依赖 import 产出的原视频（无上游步骤产物）与工作流输入，
 /// 故无 `deps` 参数——与 `separate` 同款。视频路径按约定从 `video_dir` 拼出。
-pub fn step_sf_ocr_pre(sc: impl StepCtxView) -> anyhow::Result<SfOcrPreOutput> {
+pub async fn step_sf_ocr_pre(sc: impl StepCtxView) -> anyhow::Result<SfOcrPreOutput> {
     let video_dir = sc.ctx().input().video_dir().to_string();
     tracing::info!(target: "sf_ocr", "start");
 
@@ -49,7 +49,7 @@ pub fn step_sf_ocr_pre(sc: impl StepCtxView) -> anyhow::Result<SfOcrPreOutput> {
         ));
     }
 
-    let mut cmd = ensure_bin_command("subtitle_finder_bin").map_err(|e| {
+    let mut cmd = ensure_bin_command("subtitle_finder_bin").await.map_err(|e| {
         anyhow::anyhow!(
             "{e}\n若下载失败, 请手动执行: cargo run -p cli -- env --action ensure --targets subtitle_finder_bin"
         )
@@ -128,8 +128,8 @@ mod tests {
         )
     }
 
-    #[test]
-    fn missing_video_errors_before_bin() {
+    #[tokio::test]
+    async fn missing_video_errors_before_bin() {
         let dir = std::env::temp_dir()
             .join(format!("ld_sfpre_{}", std::process::id()))
             .to_string_lossy()
@@ -137,7 +137,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         // `{dir}/video_source.mp4` 不存在（import 没跑过）
-        let res = step_sf_ocr_pre(sc_at(&dir));
+        let res = step_sf_ocr_pre(sc_at(&dir)).await;
         assert!(res.is_err());
         assert!(
             res.unwrap_err().to_string().contains("OCR input not found"),
@@ -146,8 +146,8 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    #[test]
-    fn missing_bin_reports_unbuilt() {
+    #[tokio::test]
+    async fn missing_bin_reports_unbuilt() {
         // 放一个真实存在的视频文件, 让 video 检查通过, 触发二进制缺失报错。
         // 预置 data/bin 一个"假" subtitle-finder + 版本戳, 让 check 通过 (避免触发真实下载),
         // 随后 spawn 在假视频上失败 → 报 subtitle-finder failed。
@@ -183,7 +183,7 @@ mod tests {
         });
         std::fs::write(&stamp_path, serde_json::to_string_pretty(&stamp).unwrap()).unwrap();
 
-        let res = step_sf_ocr_pre(sc_at(&dir));
+        let res = step_sf_ocr_pre(sc_at(&dir)).await;
 
         // 清理假二进制, 恢复现场
         let _ = std::fs::remove_file(&bin_path);

@@ -25,7 +25,7 @@ use crate::workflow::step_ctx::{CtxView, StepCtxView};
 ///
 /// 意图面经 `sc.ctx().input()` 取（args / video_dir），事实面由装配层算好注入
 /// [`AsrDeps`]（音源三选一）。
-pub fn step_asr(sc: impl StepCtxView, deps: AsrDeps) -> anyhow::Result<()> {
+pub async fn step_asr(sc: impl StepCtxView, deps: AsrDeps) -> anyhow::Result<()> {
     let input = sc.ctx().input();
     let video_dir = input.video_dir().to_string();
     tracing::info!(target: "asr", "start");
@@ -96,7 +96,7 @@ pub fn step_asr(sc: impl StepCtxView, deps: AsrDeps) -> anyhow::Result<()> {
         wav.to_string_lossy().to_string()
     };
 
-    let whisper_cli = crate::cmd::env::ensure_bin("whisper_bin").map_err(|e| {
+    let whisper_cli = crate::cmd::env::ensure_bin("whisper_bin").await.map_err(|e| {
         anyhow!(
             "whisper-vulkan 未就绪: {e}\n\
              尝试: cargo run -p cli -- env --action ensure --targets whisper_bin\n\
@@ -523,8 +523,8 @@ mod tests {
         (dir, input)
     }
 
-    #[test]
-    fn asr_args_defaults() {
+    #[tokio::test]
+    async fn asr_args_defaults() {
         let a = AsrArgs::default();
         assert!(!a.use_separated);
         assert_eq!(a.vad_threshold, 0.5);
@@ -533,19 +533,19 @@ mod tests {
         assert!(!a.vad);
     }
 
-    #[test]
-    fn asr_fix_args_defaults() {
+    #[tokio::test]
+    async fn asr_fix_args_defaults() {
         let a = AsrFixArgs::default();
         assert!(!a.llm_fix.llm_fix);
     }
 
-    #[test]
-    fn step_asr_missing_input_errors() {
+    #[tokio::test]
+    async fn step_asr_missing_input_errors() {
         // use_separated=false 且 video_source 不存在 → 报错 (不静默跳过)
         let (_dir, input) = test_input(json!({"steps": {"asr": {"use_separated": false}}}));
         let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
         let deps = AsrDeps::from_input(&wfi);
-        let r = step_asr(crate::workflow::step_ctx::MyStepCtx::new("asr", wfi), deps);
+        let r = step_asr(crate::workflow::step_ctx::MyStepCtx::new("asr", wfi), deps).await;
         assert!(r.is_err(), "video source 缺失应报错");
         assert!(r.unwrap_err().to_string().contains("ASR input not found"));
     }

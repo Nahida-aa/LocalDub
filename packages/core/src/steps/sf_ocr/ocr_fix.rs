@@ -17,7 +17,7 @@ use std::process::Command;
 ///
 /// 意图面经 `sc.ctx().input()` 取（args / video_dir），事实面由装配层算好注入
 /// [`SfOcrFixDeps`]（frames.json + 算好的 source_lang）。
-pub fn step_sf_ocr_fix(
+pub async fn step_sf_ocr_fix(
     sc: impl StepCtxView,
     deps: SfOcrFixDeps,
 ) -> anyhow::Result<SfOcrFixOutput> {
@@ -41,7 +41,7 @@ pub fn step_sf_ocr_fix(
 
     let args = &input.steps.sf_ocr_fix;
 
-    let bin = ensure_bin("subtitle_ocr_post_bin").map_err(|e| {
+    let bin = ensure_bin("subtitle_ocr_post_bin").await.map_err(|e| {
         anyhow::anyhow!(
             "{e}\n若下载失败, 请手动执行: cargo run -p cli -- env --action ensure --targets subtitle_ocr_post_bin"
         )
@@ -185,16 +185,16 @@ mod tests {
         serde_json::from_value(input).unwrap()
     }
 
-    #[test]
-    fn args_defaults() {
+    #[tokio::test]
+    async fn args_defaults() {
         let input = input_at(json!({"steps": {"sf_ocr_fix": {}}}));
         let cfg = OcrFixArgs::from_input(&input);
         assert_eq!(cfg.adjusted_confidence_threshold, 0.45);
         assert!(!cfg.llm_fix.llm_fix);
     }
 
-    #[test]
-    fn args_snake_case_and_llm_fix() {
+    #[tokio::test]
+    async fn args_snake_case_and_llm_fix() {
         let input = input_at(json!({"steps": {"sf_ocr_fix": {
             "adjusted_confidence_threshold": 0.6, "llm_fix": true
         }}}));
@@ -203,8 +203,8 @@ mod tests {
         assert!(cfg.llm_fix.llm_fix);
     }
 
-    #[test]
-    fn missing_frames_errors() {
+    #[tokio::test]
+    async fn missing_frames_errors() {
         let dir = std::env::temp_dir()
             .join(format!("ld_sffix_{}", std::process::id()))
             .to_string_lossy()
@@ -220,7 +220,7 @@ mod tests {
         let res = step_sf_ocr_fix(
             crate::workflow::step_ctx::MyStepCtx::new("sf_ocr_fix", wfi),
             deps,
-        );
+        ).await;
         assert!(res.is_err());
         assert!(
             res.unwrap_err().to_string().contains("run sf_ocr first"),

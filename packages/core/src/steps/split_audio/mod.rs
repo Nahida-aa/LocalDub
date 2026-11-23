@@ -47,7 +47,7 @@ impl SegmentBounds for TranslateSegment {
 ///
 /// 意图面经 `sc.ctx().input()` 取（args / video_dir / is_dub），事实面由装配层
 /// 算好注入 [`SplitAudioDeps`]（audio_path / translate_path / source_lang）。
-pub fn step_split_audio(
+pub async fn step_split_audio(
     sc: impl StepCtxView,
     deps: args::SplitAudioDeps,
 ) -> anyhow::Result<SplitAudioOutput> {

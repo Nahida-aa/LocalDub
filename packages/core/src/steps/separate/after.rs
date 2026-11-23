@@ -16,7 +16,7 @@ use crate::workflow::step_ctx::{CtxView, StepCtxView};
 ///
 /// 意图面经 `sc.ctx().input()` 取（args / video_dir / use_separated），事实面由装配层
 /// 算好注入 [`SeparateAfterDeps`]（separate 产出的 vocals_path / stems_dir）。
-pub fn step_separate_after(
+pub async fn step_separate_after(
     sc: impl StepCtxView,
     deps: SeparateAfterDeps,
 ) -> anyhow::Result<SeparateAfterOutput> {
@@ -213,8 +213,8 @@ mod tests {
         .unwrap();
     }
 
-    #[test]
-    fn separate_after_builds_bgm_and_sidechain() {
+    #[tokio::test]
+    async fn separate_after_builds_bgm_and_sidechain() {
         if !ffmpeg_available() {
             eprintln!("ffmpeg 不可用, 跳过 separate_after 集成测试");
             return;
@@ -249,7 +249,7 @@ mod tests {
         let res = step_separate_after(
             crate::workflow::step_ctx::MyStepCtx::new("separate_after", wfi),
             deps,
-        );
+        ).await;
         assert!(res.is_ok(), "separate_after 失败: {:?}", res.err());
 
         assert!(

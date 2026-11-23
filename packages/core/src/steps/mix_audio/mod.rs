@@ -27,7 +27,7 @@ pub use args::MixAudioArgs;
 ///
 /// 意图面经 `sc.ctx().input()` 取（args / video_dir），事实面由装配层算好注入
 /// [`MixAudioDeps`]（split_audio 时序 + TTS wav 目录，构造时已做存在性校验）。
-pub fn step_mix_audio(
+pub async fn step_mix_audio(
     sc: impl StepCtxView,
     deps: MixAudioDeps,
 ) -> anyhow::Result<MixAudioOutput> {

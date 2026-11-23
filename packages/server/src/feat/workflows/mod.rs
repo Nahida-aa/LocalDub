@@ -208,12 +208,12 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
 
     // 后台跑完整 pipeline (不阻塞 RPC); 失败仅记日志, 任务页可续跑。
     let video_dir = abs_video_dir.clone();
-    tokio::task::spawn_blocking(move || {
+    tokio::spawn(async move {
         // pipeline 吃 input（video_dir 从 input.workflow.video_dir 取）：input 从
         // import 落好的 input.json 读回，身份回填已把 video_dir 写在里面。
         match ld_core::state::read_input(&video_dir) {
             Ok(input) => {
-                if let Err(e) = ld_core::workflow::pipeline::run_pipeline(&input) {
+                if let Err(e) = ld_core::workflow::pipeline::run_pipeline(&input).await {
                     tracing::error!("start_workflow pipeline 失败 ({video_dir}): {e:#}");
                 }
             }
