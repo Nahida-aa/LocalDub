@@ -179,6 +179,33 @@
   - 不需要独立 counter 文件。`WorkflowArgs` 目前无 run_id 字段，不改配置形状——
     run_id 由执行器在 start 入口按上述规则算出。
 
+#### TanStack「恢复」语义实测（2026-11-24 查本地源码，防误读）
+
+把「协作式暂停」与「崩溃恢复」分开看，两者都在上游有测试，但**不是一回事**：
+
+- **协作式 pause / resume（core 层）**：`packages/workflow-core/tests/engine.durability.test.ts:23`
+  的 `recovers an interrupted running execution from checkpoints` 名字容易误导——打断点是
+  workflow 主体自己写的 `if (interrupt) await ctx.approve(...)`，测试用布尔变量控制；
+  `simulateRestart`（`tests/test-utils.ts:46`）是个**空函数**。它验证的是「主动暂停后
+  用同 run_id 恢复，已完成的 step 不重跑」，不是进程崩溃。真正的 pause/resume 机制见
+  `docs/concepts/replay-and-resume.md`：`ctx.step` 查日志里的 `STEP_FINISHED` /
+  `STEP_FAILED`，命中就返回记录结果、不调 fn。
+- **崩溃遗留状态的恢复（runtime 层）**：`packages/workflow-runtime/tests/runtime-driver.test.ts`
+  - `:985` `recovers stale running executions during sweep`：人工摆出死亡现场——往 store
+    写 `status: running` 的 run + 一条 `STEP_FINISHED { stepId: "first", result: 41 }`，
+    用 `leaseOwner: "dead-worker"` / `leaseMs: 100` 认领，再 `sweep(now: 101)` 让租约过期。
+    新 worker 接管后 `firstExecutions === 0`（已记录的 step 不重跑）、
+    `secondExecutions === 1`（未记录的重跑）。
+  - `:1070` `starts stale executions that crashed before core state was created`：
+    core state 都没建成就死掉的 run，sweep 从头跑。
+  - `:897` `stops new effects after a heartbeat failure and leaves the run recoverable`。
+  这些也是**手工构造崩溃后的现场**，不是真的杀进程。
+- **对 LocalDub 的意义**：本仓走 core 直驱，没有 runtime 层的 lease / sweep / 心跳，
+  上面那套自动接管拿不到。能用的只有 core 的重放语义——主动用**同一个 run_id 再驱动
+  一次**时，日志里有 `STEP_FINISHED` 的 step 直接返回结果不重跑。这与「continue/resume
+  留 TODO」是同一块硬骨头，不是已经具备的能力。
+- 应用层的数据（如下载进度）续传与框架无关，上游测试不覆盖，勿混为一谈。
+
 ## 4. 接入日换源表
 
 | 过渡期 | 接入日 | 改动量 |
