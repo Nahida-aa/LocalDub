@@ -17,15 +17,15 @@ use crate::workflow::args::WorkflowAction;
 use anyhow::Context;
 
 /// 任务命令总派发 (镜像 TS `cmdTask`)。
-pub fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
+pub async fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
     let workflow = input.workflow.clone().unwrap_or_default();
 
     match workflow.action {
         Some(WorkflowAction::Continue) => {
-            continue_workflow(input).context("continue_workflow 失败")?;
+            continue_workflow(input).await.context("continue_workflow 失败")?;
         }
         Some(WorkflowAction::Start) => {
-            start_workflow(input).context("start_workflow 失败")?;
+            start_workflow(input).await.context("start_workflow 失败")?;
         }
         Some(WorkflowAction::Import) => {
             crate::workflow::import::download::import_video(input)
@@ -105,7 +105,9 @@ pub fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
         }
         None => {
             // TS: 缺省走 start 分支
-            start_workflow(input).context("start_workflow 失败 (默认)")?;
+            start_workflow(input)
+                .await
+                .context("start_workflow 失败 (默认)")?;
         }
     }
     Ok(())

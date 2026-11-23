@@ -115,7 +115,8 @@ enum Command {
     ListModels,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     // 统一初始化 tracing: fmt(stderr) + 任务文件落盘 + EnvFilter。
     // 重复 init 会失败, 故仅当尚未初始化时才装 (测试/嵌套调用安全)。
     let _ = ld_core::logging::init();
@@ -239,7 +240,9 @@ fn main() {
     println!("[cli] 读取 input");
 
     let run_result: anyhow::Result<()> = match input.command {
-        InputCommand::Workflow => cmd_workflow(&input).context("cmd_workflow 失败"),
+        InputCommand::Workflow => {
+            cmd_workflow(&input).await.context("cmd_workflow 失败")
+        }
         InputCommand::Env => ld_core::cmd::env::handler::cmd_env(&input).context("cmd_env 失败"),
         InputCommand::Servers => ld_core::cmd::servers::cmd_servers(&input)
             .context("servers 命令失败")

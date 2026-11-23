@@ -21,7 +21,7 @@ use crate::workflow::continue_pipeline;
 use anyhow::Context;
 
 /// 续跑已有任务 (镜像 TS `cmdContinueTask`): 合并 input → 跑 continue_pipeline。
-pub fn continue_workflow(input: &Input) -> anyhow::Result<()> {
+pub async fn continue_workflow(input: &Input) -> anyhow::Result<()> {
     let video_dir = input
         .workflow
         .as_ref()

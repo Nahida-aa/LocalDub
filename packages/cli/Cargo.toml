@@ -17,3 +17,5 @@ device-rs = { path = "../device-rs" }
 jsonc-parser = { version = "0.33.1", features = ["serde"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+# cmd_workflow 是 async（引擎路径 core 直驱要 await）；main 用 #[tokio::main]。
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

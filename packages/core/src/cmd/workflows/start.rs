@@ -5,8 +5,8 @@
 //! (对齐 TS: start 分支忽略 video_dir, 不会续跑已有任务)。
 //!
 //! 执行路径三选一（[`crate::workflow::args::ExecPath`]）：
-//! - `engine = true`   → 引擎路径——**开发中，暂不可用**（aa-workflow 集成暂停，
-//!   见 `integration/workflow/mod.rs`；Engine 臂打印「开发中」并报错）；
+//! - `engine = true`   → 引擎路径——core 直驱 aa-workflow（真源事件日志，
+//!   [`crate::integration::workflow::engine::run_engine`]）；continue/resume 仍开发中；
 //! - `parallel = true` → **实验性并行** [`crate::workflow::parallel::run_pipeline_parallel`]
 //!   (真源各 `<step>/state.json`)；
 //! - 都不设 → [`crate::workflow::pipeline::run_pipeline`] (真源 view.json)。
@@ -21,7 +21,7 @@ use anyhow::Context;
 /// 启动新任务: 导入视频 → 跑完整 pipeline (镜像 TS `cmdStartTask`)。
 ///
 /// 返回新任务的绝对 video_dir (供 RPC/CLI 层用于跳转/提示)。
-pub fn start_workflow(input: &Input) -> anyhow::Result<String> {
+pub async fn start_workflow(input: &Input) -> anyhow::Result<String> {
     let (st, input) =
         crate::workflow::import::download::import_video(input).context("import_video 失败")?;
     println!("[cli] 导入完成, video_dir = {}", st.workflow.video_dir);
@@ -31,9 +31,10 @@ pub fn start_workflow(input: &Input) -> anyhow::Result<String> {
     };
     match path {
         ExecPath::Engine => {
-            // 引擎路径开发中：将来接入 DAG 中间件方案时直接复用 FsRunStore。
-            println!("[cli] 引擎模式开发中, 暂不可用");
-            anyhow::bail!("workflow.engine 引擎路径开发中");
+            println!("[cli] 引擎路径 (core 直驱, 真源事件日志)");
+            let wfi = crate::input::WorkflowInput::try_from(input.clone())
+                .map_err(anyhow::Error::msg)?;
+            crate::integration::workflow::engine::run_engine(&wfi).await?;
         }
         ExecPath::Parallel => {
             println!("[cli] 实验性并行 (DAG 调度, 真源各 <step>/state.json)");

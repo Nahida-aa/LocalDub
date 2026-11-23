@@ -76,26 +76,19 @@ pub async fn continue_workflow(video_dir: String, from_step: String) -> Result<(
     let input: Input =
         serde_json::from_value(input_value).map_err(|e| format!("parse input failed: {}", e))?;
 
-    // 在 blocking 池跑 Rust pipeline (ld_core::cmd::workflows::continue_workflow:
-    // setCtx 合并 → continue_pipeline)。不再 spawn bun / 写全局 input.json /
-    // 硬编码 runtime —— 那些是旧 TS 实现的遗留。
+    // 与 continue_workflow 共用同一把 in-flight 锁, 防同一任务并发续跑。
+    // 锁的获取/释放都在 async 段同步完成（临界区只包住 await 前的登记），
+    // continue_workflow 是 async（引擎路径要 await）。
     let video_dir_owned = abs_video_dir_str.clone();
-    let result = tokio::task::spawn_blocking(move || {
+    {
         let mut set = inflight_lock().lock().unwrap();
         if !set.insert(video_dir_owned.clone()) {
             return Err("任务已在续跑中".to_string());
         }
-        let r = ld_core::cmd::workflows::continue_workflow(&input);
-        set.remove(&video_dir_owned);
-        r.map_err(|e| format!("continue_workflow 失败: {e:#}"))
-    })
-    .await;
-
-    match result {
-        Ok(Ok(())) => Ok(()),
-        Ok(Err(e)) => Err(e),
-        Err(e) => Err(format!("continue_workflow 任务崩溃: {e}")),
     }
+    let r = ld_core::cmd::workflows::continue_workflow(&input).await;
+    inflight_lock().lock().unwrap().remove(&video_dir_owned);
+    r.map_err(|e| format!("continue_workflow 失败: {e:#}"))
 }
 
 /// 重新生成指定 TTS 段 (续跑模式: continue_from=tts + steps.tts.regenIndices)。
@@ -151,23 +144,17 @@ pub async fn regen_tts(
         serde_json::from_value(input_value).map_err(|e| format!("parse input failed: {}", e))?;
 
     // 与 continue_workflow 共用同一把 in-flight 锁, 防同一任务并发续跑。
+    // continue_workflow 是 async（引擎路径要 await），锁只包住登记段。
     let video_dir_owned = abs_video_dir_str.clone();
-    let result = tokio::task::spawn_blocking(move || {
+    {
         let mut set = inflight_lock().lock().unwrap();
         if !set.insert(video_dir_owned.clone()) {
             return Err("任务已在续跑中".to_string());
         }
-        let r = ld_core::cmd::workflows::continue_workflow(&input);
-        set.remove(&video_dir_owned);
-        r.map_err(|e| format!("regen_tts 失败: {e:#}"))
-    })
-    .await;
-
-    match result {
-        Ok(Ok(())) => Ok(()),
-        Ok(Err(e)) => Err(e),
-        Err(e) => Err(format!("regen_tts 任务崩溃: {e}")),
     }
+    let r = ld_core::cmd::workflows::continue_workflow(&input).await;
+    inflight_lock().lock().unwrap().remove(&video_dir_owned);
+    r.map_err(|e| format!("regen_tts 失败: {e:#}"))
 }
 
 /// 启动新任务 (右上角「+」弹窗)。

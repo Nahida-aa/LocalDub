@@ -345,24 +345,18 @@ impl WorkflowQueue {
 
             tracing::info!("[queue] id={id} start target={target}");
 
-            let result = tokio::task::spawn_blocking(move || execute_entry(&input)).await;
+            let result = execute_entry(&input).await;
 
             match result {
-                Ok(Ok(())) => {
+                Ok(()) => {
                     tracing::info!("[queue] id={id} done target={target}");
                     // 任务真正的完成点在队列 worker (enqueue 的命令早已返回),
                     // 提示音在这里播而非命令退出时。
                     ld_core::cmd::sound::play_workflow_success_bg();
                     self.mark(id, QueueStatus::Done, None);
                 }
-                Ok(Err(e)) => {
-                    let msg = format!("{e:#}");
-                    tracing::error!("[queue] id={id} failed target={target}: {msg}");
-                    ld_core::cmd::sound::play_workflow_fail_bg();
-                    self.mark(id, QueueStatus::Failed, Some(msg));
-                }
                 Err(e) => {
-                    let msg = format!("任务崩溃: {e}");
+                    let msg = format!("{e:#}");
                     tracing::error!("[queue] id={id} failed target={target}: {msg}");
                     ld_core::cmd::sound::play_workflow_fail_bg();
                     self.mark(id, QueueStatus::Failed, Some(msg));
@@ -412,18 +406,20 @@ fn entry_target(input: &Input) -> &str {
         .unwrap_or("-")
 }
 
-/// 执行一条队列任务 (同步, 在 spawn_blocking 里跑 ld_core pipeline)。
+/// 执行一条队列任务。
 ///
 /// 按 `input.workflow.action` 分派:
-/// - `start` → import + 完整 pipeline
+/// - `start` → import + 完整 pipeline（引擎路径为 async core 直驱）
 /// - `continue` → 续跑已有任务
 /// - `import` → 只导入 (不跑 pipeline)
-fn execute_entry(input: &Input) -> anyhow::Result<()> {
+async fn execute_entry(input: &Input) -> anyhow::Result<()> {
     use ld_core::workflow::args::WorkflowAction;
     let action = input.workflow.as_ref().and_then(|t| t.action);
     match action {
-        Some(WorkflowAction::Start) => ld_core::cmd::workflows::start_workflow(input).map(|_| ()),
-        Some(WorkflowAction::Continue) => ld_core::cmd::workflows::continue_workflow(input),
+        Some(WorkflowAction::Start) => ld_core::cmd::workflows::start_workflow(input)
+            .await
+            .map(|_| ()),
+        Some(WorkflowAction::Continue) => ld_core::cmd::workflows::continue_workflow(input).await,
         Some(WorkflowAction::Import) => {
             ld_core::workflow::import::download::import_video(input).map(|_| ())
         }

@@ -732,6 +732,7 @@ dependencies = [
  "ld-core",
  "paths",
  "serde_json",
+ "tokio",
  "tracing",
  "tracing-subscriber",
 ]
