@@ -11,7 +11,7 @@ pub mod workflows;
 
 pub use args::ExecPath;
 pub use continue_pipeline::continue_pipeline;
-pub use workflows::dub_sf_ocr::{dub_sf_ocr, spec as dub_sf_ocr_spec};
+pub use workflows::dub_sf_ocr::{dub_sf_ocr, dub_sf_ocr_spec};
 
 pub use dag::StepDag;
 pub use parallel::run_pipeline_parallel;

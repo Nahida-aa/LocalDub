@@ -7,4 +7,4 @@
 
 pub mod dub_sf_ocr;
 
-pub use dub_sf_ocr::{dub_sf_ocr, spec as dub_sf_ocr_spec};
+pub use dub_sf_ocr::{dub_sf_ocr,  dub_sf_ocr_spec};

@@ -151,6 +151,33 @@
 - `MyStepCtx` → `StepCtx<Input, TState>` 类型替换（body 零改动）；
 - 步骤闭包搬进 DAG 节点闭包（`spawn_blocking` 包装阻塞子进程编排）。
 
+#### 引擎路径接入决定（2026-11-23 拍板，先记录待实施）
+
+- **驱动走 core 直驱**：`run_workflow(RunWorkflowOptions::new(dub_sf_ocr(), store))`，
+  复用现有 `FsRunStore`（实现 core `RunStore`）；不引入 `workflow_runtime` 层——
+  runtime 要的是 `WorkflowExecutionStore` 契约，LocalDub 当前没有，收益未现。
+  README「已知边界」的取向同此。
+- **入口定义为异步**：`start_workflow` / `continue_workflow` 从 `fn` 改为 `async fn`
+  （引擎 `run_workflow` 返回事件流、`.outcome().await`；`FsRunStore::new` 内部
+  `tokio::spawn` 也要求 runtime 上下文）。**不**用 `run_workflow_sync` / 自建
+  nested runtime 把 async 包成 sync——那是在边界上撒谎。
+  - 调用链同步改异步，涉及：`cmd/workflows/{start,continue_workflow,workflow}.rs`、
+    `server/feat/workflows/queue/mod.rs` 的 `execute_entry`（它已在 `spawn_blocking` 里，
+    改成 async 后把 blocking 执行点换成 `.await`）、`server/feat/workflows/mod.rs`
+    的两个 `spawn_blocking` 调用点、`cli/src/main.rs` 的 `fn main`（用
+    `#[tokio::main]` 或一个 `Runtime::block_on` 包住分派；`packages/cli/Cargo.toml`
+    目前无 tokio 依赖，需补（server 已有 tokio + 队列 worker 常驻 `run_worker()`，
+    `axum_server.rs:92`）。
+- **run_id 规则：按文件名自增**（用户 2026-11-23 定）。一个 video_dir 对应多次 run，
+  `<video_dir>/workflow-store/<run_id>/` 下每 run 一个目录（`FsRunStore` 的布局）：
+  - start（新 run）：扫 `workflow-store/` 下数字目录名取最大 +1（`1` / `2` / …），
+    传给 `RunWorkflowOptions::run_id`。目录存在即记录，重启可续；整体清理后从 1 重来
+    （此时旧日志也不在，不会冲突）。
+  - continue（resume）：复用该 video_dir 最近一次 run 的 run_id（同样取最大数字目录名），
+    传同一个 id ⇒ `run_workflow` 走 resume（成功 step 短路、失败重抛）。
+  - 不需要独立 counter 文件。`WorkflowArgs` 目前无 run_id 字段，不改配置形状——
+    run_id 由执行器在入口处按上述规则算出。
+
 ## 4. 接入日换源表
 
 | 过渡期 | 接入日 | 改动量 |

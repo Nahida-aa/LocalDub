@@ -116,7 +116,7 @@ fn build_spec() -> DagSpec<WorkflowInput, ()> {
 
 /// 校验后的 spec（重复 / 未知依赖 / 环在定义期就被 `define_dag` 拦下）。
 /// 策略中间件（redo / 目标闭包）也从这同一份图派生形状。
-pub fn spec() -> anyhow::Result<Arc<DagSpec<WorkflowInput, ()>>> {
+pub fn dub_sf_ocr_spec() -> anyhow::Result<Arc<DagSpec<WorkflowInput, ()>>> {
     define_dag(build_spec())
 }
 
@@ -126,7 +126,7 @@ pub fn spec() -> anyhow::Result<Arc<DagSpec<WorkflowInput, ()>>> {
 /// `video_dir` 落定，这里显式校验，坏 input 在 run 起始处报错而不是在
 /// 步骤里 panic。
 pub fn dub_sf_ocr() -> WorkflowDefinition<WorkflowInput, Value, ()> {
-    let spec = spec().expect("dub spec 合法（无重复 / 未知依赖 / 环）");
+    let spec = dub_sf_ocr_spec().expect("dub spec 合法（无重复 / 未知依赖 / 环）");
     create_workflow(
         CreateWorkflowConfig::new("dub-sf-ocr")
             .input::<WorkflowInput>()
