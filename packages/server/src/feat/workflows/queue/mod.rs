@@ -419,13 +419,13 @@ fn entry_target(input: &Input) -> &str {
 /// - `continue` → 续跑已有任务
 /// - `import` → 只导入 (不跑 pipeline)
 fn execute_entry(input: &Input) -> anyhow::Result<()> {
-    use ld_core::workflows::args::WorkflowAction;
+    use ld_core::workflow::args::WorkflowAction;
     let action = input.workflow.as_ref().and_then(|t| t.action);
     match action {
         Some(WorkflowAction::Start) => ld_core::cmd::workflows::start_workflow(input).map(|_| ()),
         Some(WorkflowAction::Continue) => ld_core::cmd::workflows::continue_workflow(input),
         Some(WorkflowAction::Import) => {
-            ld_core::workflows::import::download::import_video(input).map(|_| ())
+            ld_core::workflow::import::download::import_video(input).map(|_| ())
         }
         other => Err(anyhow::anyhow!(
             "队列任务仅支持 start/continue/import, 收到 {other:?}"

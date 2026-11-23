@@ -10,7 +10,7 @@ use crate::cmd::env::ensure_bin;
 use crate::steps::sf_ocr::fix_args::{SfOcrFixDeps, SfOcrFixOutput};
 use crate::steps::utils::paths::{sf_ocr_fix, SrtJsonPath};
 use crate::steps::utils::{now_iso, set_step_anyhow, StepPatch, StepStatus};
-use crate::workflows::step_ctx::{CtxView, StepCtxView};
+use crate::workflow::step_ctx::{CtxView, StepCtxView};
 use std::process::Command;
 
 /// 入口 (镜像 TS `stepSfOcrFix`)。
@@ -218,7 +218,7 @@ mod tests {
         let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
         let deps = SfOcrFixDeps::from_input(&wfi);
         let res = step_sf_ocr_fix(
-            crate::workflows::step_ctx::MyStepCtx::new("sf_ocr_fix", wfi),
+            crate::workflow::step_ctx::MyStepCtx::new("sf_ocr_fix", wfi),
             deps,
         );
         assert!(res.is_err());

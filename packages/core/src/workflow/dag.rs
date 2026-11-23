@@ -16,7 +16,7 @@
 use anyhow::bail;
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::workflows::args::{OutputMode, StepName, SubtitleSource};
+use crate::workflow::args::{OutputMode, StepName, SubtitleSource};
 
 /// 一张**具体流程**的步骤依赖图：节点 = 要跑的步骤，
 /// 边 = 「`v` 开跑前 `u` 必须 Success」。

@@ -20,7 +20,7 @@ use ld_core::cmd::workflows::workflow::cmd_workflow;
 use ld_core::input::Command as InputCommand;
 use ld_core::input::Input;
 use ld_core::servers::args::ServerAction;
-use ld_core::workflows::args::{StepName, WorkflowAction};
+use ld_core::workflow::args::{StepName, WorkflowAction};
 use paths::parse_repo_input;
 
 /// LocalDub CLI。
@@ -338,7 +338,7 @@ mod tests {
         // subtitle_source=sf_ocr → sf_ocr 全链路, 不经过 asr
         assert_eq!(
             input.workflow.as_ref().unwrap().subtitle_source,
-            ld_core::workflows::args::SubtitleSource::SfOcr
+            ld_core::workflow::args::SubtitleSource::SfOcr
         );
 
         let mv = &input.steps.mix_video;

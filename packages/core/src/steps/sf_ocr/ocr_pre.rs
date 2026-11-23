@@ -8,7 +8,7 @@ use crate::steps::utils::paths::{sf_ocr_pre, VideoSourcePath};
 use crate::steps::utils::{
     ensure_dir, now_iso, set_step_anyhow, sf_ocr_pre_dir, StepPatch, StepStatus,
 };
-use crate::workflows::step_ctx::{CtxView, StepCtxView};
+use crate::workflow::step_ctx::{CtxView, StepCtxView};
 
 /// `step_sf_ocr_pre` 的**全部产物清单**（作为步骤函数返回值，不写盘）。
 ///
@@ -117,12 +117,12 @@ mod tests {
     use super::*;
 
     /// 入口步骤只读 sc 的 video_dir，夹具只需带 video_dir 的 WorkflowInput。
-    fn sc_at(dir: &str) -> crate::workflows::step_ctx::MyStepCtx {
+    fn sc_at(dir: &str) -> crate::workflow::step_ctx::MyStepCtx {
         let input: crate::input::Input = serde_json::from_value(serde_json::json!({
             "workflow": {"video_dir": dir}
         }))
         .unwrap();
-        crate::workflows::step_ctx::MyStepCtx::new(
+        crate::workflow::step_ctx::MyStepCtx::new(
             "sf_ocr_pre",
             crate::input::WorkflowInput::try_from(input).unwrap(),
         )

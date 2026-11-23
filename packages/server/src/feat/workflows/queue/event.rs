@@ -114,9 +114,9 @@ pub(super) fn entry_action_target(input: &Input) -> (Option<String>, Option<Stri
     let action = workflow
         .action
         .map(|a| match a {
-            ld_core::workflows::args::WorkflowAction::Start => "start",
-            ld_core::workflows::args::WorkflowAction::Continue => "continue",
-            ld_core::workflows::args::WorkflowAction::Import => "import",
+            ld_core::workflow::args::WorkflowAction::Start => "start",
+            ld_core::workflow::args::WorkflowAction::Continue => "continue",
+            ld_core::workflow::args::WorkflowAction::Import => "import",
             _ => "-",
         })
         .map(|s| s.to_string());

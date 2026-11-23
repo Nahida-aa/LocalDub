@@ -5,7 +5,7 @@ use config_rs::env::{openai_base_url, openai_model};
 use crate::r#const::lang::LangStr;
 use crate::state::lang::{resolve_source_language, resolve_target_language};
 use crate::steps::utils::paths::{asr_fix, asr_ocr_fix, sf_ocr_fix, SrtJsonPath};
-use crate::workflows::args::SubtitleSource;
+use crate::workflow::args::SubtitleSource;
 
 /// translate 阶段参数 (镜像 TS `packages/core/steps/05_translate/args.ts` TranslateArgsSchema)
 ///

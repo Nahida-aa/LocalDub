@@ -19,8 +19,8 @@ use indicatif::{ProgressBar, ProgressStyle};
 
 use crate::steps::split_audio::out::SplitAudioTimingResult;
 use crate::steps::tts::args::{TtsDeps, TtsRuntime};
-use crate::workflows::args::WorkflowAction;
-use crate::workflows::step_ctx::{CtxView, StepCtxView};
+use crate::workflow::args::WorkflowAction;
+use crate::workflow::step_ctx::{CtxView, StepCtxView};
 use crate::steps::tts::out::{TtsOutput, TtsSegment, TtsSegmentsResult};
 use crate::steps::tts::util::{
     ensure_no_failed_segments, pick_voxcpm_bin, should_skip_segment, write_silent_wav,
@@ -502,7 +502,7 @@ mod tests {
         let input = input_at(json!({"workflow": {"video_dir": dir}}));
         let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
         let deps = TtsDeps::from_input(&wfi);
-        let res = step_tts(crate::workflows::step_ctx::MyStepCtx::new("tts", wfi), deps);
+        let res = step_tts(crate::workflow::step_ctx::MyStepCtx::new("tts", wfi), deps);
         assert!(res.is_err());
         assert!(
             res.unwrap_err().to_string().contains("timings.json"),

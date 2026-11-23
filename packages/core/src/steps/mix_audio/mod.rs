@@ -17,7 +17,7 @@ use crate::steps::utils::{
     StepStatus,
 };
 
-use crate::workflows::step_ctx::{CtxView, StepCtxView};
+use crate::workflow::step_ctx::{CtxView, StepCtxView};
 
 use args::MixAudioDeps;
 

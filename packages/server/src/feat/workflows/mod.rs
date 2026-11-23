@@ -208,7 +208,7 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
     // 只跑导入 (拷贝/下载 + 探测 + 写 view.json / input.json), 拿到 video_dir 立即返回;
     // 完整 pipeline 在后台跑, 前端跳转任务页后由 ctx watcher 实时刷新 step 徽章。
     let ctx = tokio::task::spawn_blocking(move || {
-        ld_core::workflows::import::download::import_video(&input)
+        ld_core::workflow::import::download::import_video(&input)
             .map_err(|e| format!("import_video 失败: {e:#}"))
     })
     .await;
@@ -226,7 +226,7 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
         // import 落好的 input.json 读回，身份回填已把 video_dir 写在里面。
         match ld_core::state::read_input(&video_dir) {
             Ok(input) => {
-                if let Err(e) = ld_core::workflows::pipeline::run_pipeline(&input) {
+                if let Err(e) = ld_core::workflow::pipeline::run_pipeline(&input) {
                     tracing::error!("start_workflow pipeline 失败 ({video_dir}): {e:#}");
                 }
             }
@@ -250,7 +250,7 @@ use crate::feat::workflows::queue::QueueEntry;
 /// (import 视频 + 完整 pipeline)。返回队列 ID。
 #[fnrpc::rpc_mutate]
 pub async fn enqueue_start(ctx: &Ctx, input: Input) -> Result<u64, String> {
-    use ld_core::workflows::args::WorkflowAction;
+    use ld_core::workflow::args::WorkflowAction;
     if input.workflow.as_ref().and_then(|t| t.action) != Some(WorkflowAction::Start) {
         return Err("enqueue_start 需要 input.workflow.action = start".to_string());
     }
@@ -261,7 +261,7 @@ pub async fn enqueue_start(ctx: &Ctx, input: Input) -> Result<u64, String> {
 /// (续跑已有任务)。返回队列 ID。
 #[fnrpc::rpc_mutate]
 pub async fn enqueue_continue(ctx: &Ctx, input: Input) -> Result<u64, String> {
-    use ld_core::workflows::args::WorkflowAction;
+    use ld_core::workflow::args::WorkflowAction;
     if input.workflow.as_ref().and_then(|t| t.action) != Some(WorkflowAction::Continue) {
         return Err("enqueue_continue 需要 input.workflow.action = continue".to_string());
     }
@@ -271,7 +271,7 @@ pub async fn enqueue_continue(ctx: &Ctx, input: Input) -> Result<u64, String> {
 /// 入队一个"只导入"任务 (不跑 pipeline): 批量先导入, 之后用 continue 续跑。
 #[fnrpc::rpc_mutate]
 pub async fn enqueue_import(ctx: &Ctx, input: Input) -> Result<u64, String> {
-    use ld_core::workflows::args::WorkflowAction;
+    use ld_core::workflow::args::WorkflowAction;
     if input.workflow.as_ref().and_then(|t| t.action) != Some(WorkflowAction::Import) {
         return Err("enqueue_import 需要 input.workflow.action = import".to_string());
     }

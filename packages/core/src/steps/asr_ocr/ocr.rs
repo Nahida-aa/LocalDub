@@ -7,7 +7,7 @@ use crate::cmd::env::ensure_bin;
 use crate::steps::asr_ocr::args::{AsrOcrDeps, AsrOcrOutput};
 use crate::steps::utils::paths::asr_ocr;
 use crate::steps::utils::{asr_ocr_dir, now_iso, set_step_anyhow, StepPatch, StepStatus};
-use crate::workflows::step_ctx::{CtxView, StepCtxView};
+use crate::workflow::step_ctx::{CtxView, StepCtxView};
 use anyhow::Result;
 use std::fs;
 use std::process::Command;
@@ -135,7 +135,7 @@ mod tests {
         .unwrap();
         let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
         let deps = AsrOcrDeps::from_input(&wfi);
-        let res = step_asr_ocr(crate::workflows::step_ctx::MyStepCtx::new("asr_ocr", wfi), deps);
+        let res = step_asr_ocr(crate::workflow::step_ctx::MyStepCtx::new("asr_ocr", wfi), deps);
         assert!(res.is_err());
         assert!(
             res.unwrap_err()

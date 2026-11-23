@@ -5,7 +5,7 @@
 //! 解析相同字段。
 
 use crate::input::Input;
-use crate::workflows::args::{OutputMode, StepName, SubtitleSource};
+use crate::workflow::args::{OutputMode, StepName, SubtitleSource};
 
 /// 所有合法 step 名 (镜像 TS `stepsList`)
 pub const STEPS_LIST: &[&str] = &[

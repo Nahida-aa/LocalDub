@@ -1974,7 +1974,7 @@ export type WorkflowArgs_Deserialize = {
 	engine?: boolean | null,
 	/**
 	 *  实验开关: **实验性并行**——非 engine 路径按步骤 DAG 并行执行（目前只有
-	 *  `sf_ocr_dub` 有 DAG 定义，见 [`crate::workflows::dag::StepDag`]；其它组合
+	 *  `sf_ocr_dub` 有 DAG 定义，见 [`crate::workflow::dag::StepDag`]；其它组合
 	 *  明确报错）。与 `engine` 互斥——同设报错。并行验证成熟后将成为默认行为，
 	 *  届时本标志退役。
 	 */
@@ -2016,7 +2016,7 @@ export type WorkflowArgs_Serialize = {
 	engine?: boolean,
 	/**
 	 *  实验开关: **实验性并行**——非 engine 路径按步骤 DAG 并行执行（目前只有
-	 *  `sf_ocr_dub` 有 DAG 定义，见 [`crate::workflows::dag::StepDag`]；其它组合
+	 *  `sf_ocr_dub` 有 DAG 定义，见 [`crate::workflow::dag::StepDag`]；其它组合
 	 *  明确报错）。与 `engine` 互斥——同设报错。并行验证成熟后将成为默认行为，
 	 *  届时本标志退役。
 	 */

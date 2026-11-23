@@ -5,7 +5,7 @@
 //! 2. `setCtx` — 把当前 `input` 写回 `input.json`
 //!    (TS `setCtx(video_dir, { input })`), 这样 `continue_from` / `regenIndices` 等
 //!    以当前 `input.jsonc` 为准, 而非沿用陈旧的落盘配置;
-//! 3. 读出合并后的 ctx, 交给 [`crate::workflows::continue_pipeline`] 续跑。
+//! 3. 读出合并后的 ctx, 交给 [`crate::workflow::continue_pipeline`] 续跑。
 //!
 //! `input.workflow.engine = true` 时走引擎路径——**开发中，暂不可用**
 //! （Engine 臂现打印「开发中」并报错）。将来接入 DAG 中间件方案时复用
@@ -16,8 +16,8 @@
 
 use crate::input::Input;
 use crate::state::write_input;
-use crate::workflows::args::ExecPath;
-use crate::workflows::continue_pipeline;
+use crate::workflow::args::ExecPath;
+use crate::workflow::continue_pipeline;
 use anyhow::Context;
 
 /// 续跑已有任务 (镜像 TS `cmdContinueTask`): 合并 input → 跑 continue_pipeline。
@@ -64,7 +64,7 @@ pub fn continue_workflow(input: &Input) -> anyhow::Result<()> {
         }
         ExecPath::Parallel => {
             println!("[cli] 实验性并行 (DAG 调度, 按步跳过已成功步骤)");
-            crate::workflows::parallel::run_pipeline_parallel(input)
+            crate::workflow::parallel::run_pipeline_parallel(input)
                 .context("run_pipeline_parallel 失败")?;
         }
         ExecPath::Serial => {

@@ -18,7 +18,7 @@ use crate::steps::utils::{
     default_font, ensure_dir, ffmpeg_timeout, final_video_dir, probe_video_resolution,
     set_step_anyhow, StepPatch, StepStatus,
 };
-use crate::workflows::step_ctx::{CtxView, StepCtxView};
+use crate::workflow::step_ctx::{CtxView, StepCtxView};
 
 /// 入口 (镜像 TS `stepMixVideo`)。
 ///

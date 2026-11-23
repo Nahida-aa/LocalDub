@@ -13,7 +13,7 @@
 
 ## step 名单的唯一真源
 
-`StepName`（`workflows/args.rs:46`）**是编译期真源**，另外两处都从它派生：
+`StepName`（`workflow/args.rs:46`）**是编译期真源**，另外两处都从它派生：
 
 | 位置 | 角色 |
 | --- | --- |
@@ -358,7 +358,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 > | `translate/mod.rs:190` | `resolve_language` | **保留**（它就是决策者） |
 > | `split_audio/mod.rs` | `resolve_language` | `LangPath::from_state`（路径+语言）；源语言用 `src_language` |
 > | `mix_video/mod.rs:63` | `resolve_language` | `LangPath::from_state(...).lang()` |
-> | `workflows/engine.rs:89` | `resolve_language` | `LangPath::from_state` |
+> | `workflow/engine.rs:89` | `resolve_language` | `LangPath::from_state` |
 > | `asr/fix.rs:39` | `resolve_language` | `src_language(ctx)`（它只要源语言） |
 >
 > 为什么必须改：`resolve_language` 是**现算**，`ctx.target_language` 是**已落定

@@ -10,9 +10,9 @@
 use std::path::Path;
 
 use crate::input::Input;
-use crate::workflows::args::WorkflowAction;
-use crate::workflows::import::util::mime_type::VIDEO_EXTENSIONS;
-use crate::workflows::import::util::auto_group_id_and_video_id;
+use crate::workflow::args::WorkflowAction;
+use crate::workflow::import::util::mime_type::VIDEO_EXTENSIONS;
+use crate::workflow::import::util::auto_group_id_and_video_id;
 
 use super::get_workflow::EnqueueDirResult;
 

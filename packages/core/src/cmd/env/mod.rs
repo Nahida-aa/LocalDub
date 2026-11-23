@@ -53,7 +53,7 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
     use crate::steps::asr::args::{AsrDevice, AsrRuntime};
     use crate::steps::separate::args::Device as SepDevice;
     use crate::steps::tts::args::{TtsDevice, TtsRuntime};
-    use crate::workflows::args::SubtitleSource;
+    use crate::workflow::args::SubtitleSource;
 
     let mut set: HashSet<String> = HashSet::new();
     let mut desired: HashMap<String, String> = HashMap::new();
@@ -73,8 +73,8 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
         .as_ref()
         .and_then(|w| w.url.as_deref())
     {
-        if crate::workflows::import::util::is_youtube_url(url)
-            || crate::workflows::import::util::is_bilibili_url(url)
+        if crate::workflow::import::util::is_youtube_url(url)
+            || crate::workflow::import::util::is_bilibili_url(url)
         {
             add("yt_dlp", &mut set);
         }

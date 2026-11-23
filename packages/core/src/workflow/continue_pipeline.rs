@@ -1,6 +1,6 @@
 //! continue 派发器 (镜像 TS `packages/core/workflows/continue.ts` 的 `continuePipeline`)。
 //!
-//! 与 [`crate::workflows::pipeline::run_pipeline`] 的区别: 不是从序列头跑全部, 而是:
+//! 与 [`crate::workflow::pipeline::run_pipeline`] 的区别: 不是从序列头跑全部, 而是:
 //! - `workflow.continue_from` 存在 → 从该 step 起把后续全部重置为 `pending` 再续跑;
 //! - 否则 → 跳过已 `success` 的前缀 step, 从第一个未完成 step 续跑;
 //! - `workflow.target_step` 命中即停 (truncate 序列)。
@@ -12,7 +12,7 @@
 
 use crate::input::Input;
 use crate::steps::utils::{now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
-use crate::workflows::pipeline::run_step;
+use crate::workflow::pipeline::run_step;
 
 /// 续跑 output_mode (镜像 TS `continuePipeline`)。
 ///

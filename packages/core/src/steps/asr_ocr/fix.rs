@@ -14,7 +14,7 @@ use crate::steps::utils::paths::{asr_ocr_fix, SrtJsonPath};
 use crate::steps::utils::{
     asr_ocr_fix_dir, now_iso, probe_video_resolution, set_step_anyhow, StepPatch, StepStatus,
 };
-use crate::workflows::step_ctx::{CtxView, StepCtxView};
+use crate::workflow::step_ctx::{CtxView, StepCtxView};
 use anyhow::Result;
 // 字幕 OCR 产物/管线类型（FrameResult / OcrSegment / OcrFramesResult / compute_box_* /
 // edit_distance）已迁到 subtitle-ocr-types；纯字幕领域 SubtitleSegment 的权威来源是

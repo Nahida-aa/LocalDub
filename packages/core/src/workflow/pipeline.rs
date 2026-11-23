@@ -3,7 +3,7 @@
 //! 流程: 读 ctx → `get_steps` 得到阶段序列 → 逐个调用 `run_step` (handler 读 view.json
 //! 跑完写回) → 每阶段前后用 `set_step` / `set_workflow` 标状态, 失败即中断。
 //!
-//! 本文件原位于 `steps/output_mode.rs`, 后迁移到 `workflows/` (与 start / continue 派发器同层),
+//! 本文件原位于 `steps/output_mode.rs`, 后迁移到 `workflow/` (与 start / continue 派发器同层),
 //! 因为 `run_pipeline` 属于任务级编排而非某个具体 step 的实现。
 //!
 //! 目前 `run_step` 已注册 separate / separate_after / sf_ocr* / translate / split_audio /
@@ -36,8 +36,8 @@ use crate::steps::translate::step_translate;
 use crate::steps::tts::args::TtsDeps;
 use crate::steps::tts::step_tts;
 use crate::steps::utils::{now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, StepStatus};
-use crate::workflows::args::StepName;
-use crate::workflows::step_ctx::MyStepCtx;
+use crate::workflow::args::StepName;
+use crate::workflow::step_ctx::MyStepCtx;
 
 /// 运行完整 output_mode (镜像 TS `runPipeline`)。
 ///
@@ -65,7 +65,7 @@ pub fn run_pipeline(input: &crate::input::Input) -> anyhow::Result<()> {
         if !steps.iter().any(|s| s.as_str() == ts) {
             tracing::info!(target: "output_mode",
                 "[WARN] target_step \"{ts}\" 不在 {} 序列中, 忽略",
-                crate::workflows::args::OutputMode::from_input(input).as_str()
+                crate::workflow::args::OutputMode::from_input(input).as_str()
             );
         }
     }
@@ -224,7 +224,7 @@ pub fn run_step(
 
 /// 单步执行的状态包装：置 Running → 跑 → 失败置 Failed。
 ///
-/// 串行 pipeline 与并行执行器（[`crate::workflows::parallel`]）共用。
+/// 串行 pipeline 与并行执行器（[`crate::workflow::parallel`]）共用。
 /// 并行时两条线程各自 RMW **自己的** `<step>/state.json`（单写者原则），
 /// 互不踩——这也是并行在这里可行的结构性前提。
 pub(crate) fn run_one_step(

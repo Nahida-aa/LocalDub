@@ -214,8 +214,8 @@ trait（不含构造器），`ctx.step` bound 保持具体类型。消费者端�
 | 文件 | 内容 |
 | --- | --- |
 | `docs/workflow/INTEGRATION-PLAN.md` | **主计划**（Phase 0-3 / 拍板台账 / §5 勘察 15 步 + 写点清单） |
-| `packages/core/src/workflows/step_ctx.rs` | `CtxView` / `StepCtxView` / `MyStepCtx`（双特征端口） |
-| `packages/core/src/workflows/{pipeline,parallel,dag}.rs` | 现役执行器（run_step 分发 / 并行执行器 / StepDag 声明） |
+| `packages/core/src/workflow/step_ctx.rs` | `CtxView` / `StepCtxView` / `MyStepCtx`（双特征端口） |
+| `packages/core/src/workflow/{pipeline,parallel,dag}.rs` | 现役执行器（run_step 分发 / 并行执行器 / StepDag 声明） |
 | `packages/core/src/steps/*/` | 15 步（勘察逐条见 PLAN §5.2；separate 已迁移为样板） |
 | `packages/core/src/state/mod.rs` | state 拆分模型（WorkflowState / StepState / out.json） |
 | `packages/core/src/integration/workflow/` | 旧引擎接入（**整体注释中**——恢复参考，勿当现行） |

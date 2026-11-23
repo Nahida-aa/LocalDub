@@ -16,7 +16,7 @@ use tracing::{info, warn};
 
 use crate::input::Input;
 use crate::state::{write_input, write_state, VideoSource, Workflow, WorkflowState};
-use crate::workflows::import::util::{
+use crate::workflow::import::util::{
     auto_group_id_and_video_id, copy_file_to_path, download_remote_video, encode_to_mp4,
     extract_audio, probe_frame_rate, run_yt_dlp_download,
 };
@@ -157,7 +157,7 @@ pub fn download_video(
             yt_args.extend(yt_dlp_ext_args.iter().cloned());
             yt_args.push(url.to_string());
 
-            crate::workflows::import::util::run_yt_dlp_download(&yt_args)
+            crate::workflow::import::util::run_yt_dlp_download(&yt_args)
                 .context("yt-dlp 下载失败")?;
 
             // 定位实际产物: yt-dlp 输出 `{video_id}.%(ext)s`, 产物即 `{video_id}.<ext>` (mp4/webm 等)。
@@ -266,10 +266,10 @@ mod tests {
             .to_string_lossy()
             .into_owned();
         let input = Input {
-            workflow: Some(crate::workflows::args::WorkflowArgs {
+            workflow: Some(crate::workflow::args::WorkflowArgs {
                 url: Some(smoke.to_string()),
-                output_mode: crate::workflows::args::OutputMode::Dub,
-                subtitle_source: crate::workflows::args::SubtitleSource::Asr,
+                output_mode: crate::workflow::args::OutputMode::Dub,
+                subtitle_source: crate::workflow::args::SubtitleSource::Asr,
                 ..Default::default()
             }),
             ..Default::default()

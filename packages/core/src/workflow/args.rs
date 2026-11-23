@@ -230,7 +230,7 @@ pub struct WorkflowArgs {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub engine: Option<bool>,
     /// 实验开关: **实验性并行**——非 engine 路径按步骤 DAG 并行执行（目前只有
-    /// `sf_ocr_dub` 有 DAG 定义，见 [`crate::workflows::dag::StepDag`]；其它组合
+    /// `sf_ocr_dub` 有 DAG 定义，见 [`crate::workflow::dag::StepDag`]；其它组合
     /// 明确报错）。与 `engine` 互斥——同设报错。并行验证成熟后将成为默认行为，
     /// 届时本标志退役。
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -253,7 +253,7 @@ pub enum ExecPath {
     /// aa-workflow 引擎（真源 events.jsonl）。
     Engine,
     /// 非 engine 的 DAG 并行执行器（真源各 `<step>/state.json`，见
-    /// [`crate::workflows::parallel`]）。
+    /// [`crate::workflow::parallel`]）。
     Parallel,
     /// 串行 pipeline（`run_pipeline` / `continue_pipeline`）。
     Serial,

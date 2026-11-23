@@ -46,7 +46,7 @@ impl SplitAudioArgs {
     /// 与 `WorkflowState` 无关——只读 `Input`，故 `from_input` 直接吃 `&Input`。
     /// 因 [`Steps`](crate::input::Steps) 里该字段**就是** `SplitAudioArgs`，
     /// 这里是 `clone` 而非转换；存在的意义是给本类型一个与
-    /// [`OutputMode::from_input`](crate::workflows::args::OutputMode::from_input)
+    /// [`OutputMode::from_input`](crate::workflow::args::OutputMode::from_input)
     /// 一致的构造入口（读输入契约，而非 import 落定的事实）。
     pub fn from_input(input: &crate::input::Input) -> Self {
         input.steps.split_audio.clone()
@@ -91,7 +91,7 @@ pub struct SplitAudioDeps {
 /// **历史说明（已核实：不构成产物差异）**：`step_split_audio` 旧逻辑的 fallback 是
 /// `video_source_path(ctx)`（`video_source.mp4`）。但 `audio_source.wav` 本就是
 /// import 阶段 `extract_audio(video_source.mp4)` 产出的同名音轨
-/// （pcm_s16le / 44100 / 2ch，见 `workflows/import/download.rs`），两者是同一段音频。
+/// （pcm_s16le / 44100 / 2ch，见 `workflow/import/download.rs`），两者是同一段音频。
 /// 且旧代码里 `cut_audio_range`（`-c copy`）只在 `has_vocals` 时调用，彼时
 /// `source_audio` 已被改写为 `separate/target_3_vocals.wav`——
 /// `video_source.mp4` 实际只喂给 `probe_duration_ms`，其返回时长与 wav 一致。

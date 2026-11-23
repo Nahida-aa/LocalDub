@@ -25,7 +25,7 @@
 
 ## 1. 现状事实（2026-11-21 源码勘察）
 
-- 现役主链: `workflows/pipeline.rs::run_step`（15 步枚举穷尽分发，无 `_` 兜底）
+- 现役主链: `workflow/pipeline.rs::run_step`（15 步枚举穷尽分发，无 `_` 兜底）
   → `XxxInput::new(video_dir, &Input)` → `fn step_x(&XxxInput) -> anyhow::Result<()>`。
 - 步骤返回 `()`: 产物全在盘上（约定路径，`paths` 模块唯一产生）；无返回值产物。
 - state 语义: **无流程级可变业务状态**。`state.json` 是身份 + 运行投影；
@@ -35,7 +35,7 @@
 - 单步 `<step>/state.json` 写时序: step 起点诞生（Running）→ 执行中反复 patch
   （进度流，如 `separate` 解析 demucs stdout 百分比）→ 收尾 Success / Failed；
   `<step>/out.json` 做完那一刻写一次。
-- 并行: `workflows/dag.rs`（`StepDag`——步骤级声明 + 构造期 Kahn 校验；
+- 并行: `workflow/dag.rs`（`StepDag`——步骤级声明 + 构造期 Kahn 校验；
   依赖边随配置变，每个 workflow 一张具体小图）+ `parallel.rs`（OS 线程执行器；
   失败**不取消**另一分支、全部收尾汇总；续跑**按步跳过**——读自己 `<step>/state.json`
   的 `Success`）——**过渡方案**。
@@ -365,7 +365,7 @@ core engine 有 `exec_pause`（park）+ `find_resume`（取回 payload）+ 信�
 
 ### 5.8 import 生命周期（「导入不算流程中」= run input 生产者）
 
-`import_video(input) -> (WorkflowState, Input)`（`workflows/import/download.rs:34`）：
+`import_video(input) -> (WorkflowState, Input)`（`workflow/import/download.rs:34`）：
 
 | 产出 | 内容 | 去向 |
 | --- | --- | --- |

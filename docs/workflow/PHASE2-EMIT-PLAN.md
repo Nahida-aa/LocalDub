@@ -8,8 +8,8 @@
 
 | 事实 | 真源 |
 | --- | --- |
-| `CtxView::emit(name, value)` 当前是 **no-op** | `workflows/step_ctx.rs:72-75` |
-| emit 签名 `(name: impl AsRef<str>, value: serde_json::Value)` | `workflows/step_ctx.rs:35` |
+| `CtxView::emit(name, value)` 当前是 **no-op** | `workflow/step_ctx.rs:72-75` |
+| emit 签名 `(name: impl AsRef<str>, value: serde_json::Value)` | `workflow/step_ctx.rs:35` |
 | aa-workflow 的 `WorkflowEvent::Custom { ts, name, value }`（**run_id 已于 2026-11-23 删除**，commit aa-workflow `937ace8`），语义 **observability only / not persisted / 只到 publisher、不进日志** | `lib_ls/aa-workflow/packages/workflow_core/src/event.rs:226-234`；对齐细节见 aa-workflow `docs/tanstack/WorkflowEvent.md` |
 | 步边界事件已由引擎定义：StepStarted / StepFinished / StepFailed（后两者 checkpoint-persisted） | `event.rs:129-155` |
 | `StepState` 7 字段：status / progress / started_at / completed_at / last_message / error_message | `state/mod.rs:126-139` |
@@ -72,7 +72,7 @@ emit 是 not-persisted，改成 emit 会丢持久化语义 → 必须保留。
      （`run-1.events.jsonl` / `run-2.events.jsonl`…）。文件存在即记录，重启可续，省掉一个
      状态文件。边界：文件被整体清理后从 `run-1` 重来——此时旧文件也不在了，不会冲突。
    - **LocalDub 当前缺 run_id 字段**：`WorkflowArgs` 只有 `action` / `queue_id` / step 参数
-     （`workflows/args.rs:210-231`），没有 run_id。落地前要给 `MyRunCtx` 加 `run_id: String`
+     （`workflow/args.rs:210-231`），没有 run_id。落地前要给 `MyRunCtx` 加 `run_id: String`
      并在执行器构造各 run 时传入——这是必须补的基础设施，见待拍板。
    - 注：FsRunStore 的 `<video_dir>/workflow-engine/events.jsonl`（单文件、不按 run 分）属整体
      注释中的旧引擎接入（`integration/workflow/mod.rs`），当前未使用，无需与它协调。

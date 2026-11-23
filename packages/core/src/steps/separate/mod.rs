@@ -13,9 +13,9 @@ use std::process::{Command, Stdio};
 use crate::steps::utils::{
     now_iso, separate_dir, set_step, set_step_anyhow, StepPatch, StepStatus,
 };
-use crate::workflows::args::OutputMode;
+use crate::workflow::args::OutputMode;
 use crate::steps::utils::paths::AudioSourcePath;
-use crate::workflows::step_ctx::{CtxView, MyStepCtx, StepCtxView};
+use crate::workflow::step_ctx::{CtxView, MyStepCtx, StepCtxView};
 
 pub use after::step_separate_after;
 pub use after_args::SeparateAfterArgs;
@@ -220,7 +220,7 @@ fn run_demucs(
 ///
 /// **入口步骤**：只依赖 import 事实（`audio_source.wav` 约定路径）+ 工作流输入
 /// （本次参数 / output_mode），无上游步骤产物——故无 `deps` 参数。
-/// `sc` 是引擎 `StepCtx` 的过渡镜像（消费方端口，见 `workflows/step_ctx.rs`）：
+/// `sc` 是引擎 `StepCtx` 的过渡镜像（消费方端口，见 `workflow/step_ctx.rs`）：
 /// 工作流输入经 `sc.ctx().input()`（`ctx` 限定符标记出处——工作流级事实，非
 /// 步骤参数），观测走 `sc.ctx().emit`（Phase 2 起生效）。
 pub fn step_separate(sc: impl StepCtxView) -> anyhow::Result<()> {

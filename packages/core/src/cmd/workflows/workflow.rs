@@ -13,7 +13,7 @@ use crate::cmd::workflows::get_workflow::get_group_list;
 use crate::cmd::workflows::{continue_workflow, start_workflow};
 use crate::input::Input;
 use crate::state::{read_input, read_state, read_steps_state};
-use crate::workflows::args::WorkflowAction;
+use crate::workflow::args::WorkflowAction;
 use anyhow::Context;
 
 /// 任务命令总派发 (镜像 TS `cmdTask`)。
@@ -28,7 +28,7 @@ pub fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
             start_workflow(input).context("start_workflow 失败")?;
         }
         Some(WorkflowAction::Import) => {
-            crate::workflows::import::download::import_video(input)
+            crate::workflow::import::download::import_video(input)
                 .map(|_| ())
                 .context("import_video 失败")?;
         }

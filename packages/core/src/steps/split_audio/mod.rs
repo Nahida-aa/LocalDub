@@ -27,8 +27,8 @@ use crate::steps::utils::{
     split_audio_timings_path, StepPatch, StepStatus,
 };
 use crate::utils::file_ops::write_json_pretty;
-use crate::workflows::args::OutputMode;
-use crate::workflows::step_ctx::{CtxView, StepCtxView};
+use crate::workflow::args::OutputMode;
+use crate::workflow::step_ctx::{CtxView, StepCtxView};
 
 pub use args::SplitAudioArgs;
 

@@ -36,9 +36,9 @@ use crate::state::StepStatus;
 use crate::steps::utils::{
     now_iso, set_step_anyhow, set_workflow_anyhow, StepPatch, WorkflowPatch,
 };
-use crate::workflows::args::{StepName, WorkflowAction};
-use crate::workflows::dag::StepDag;
-use crate::workflows::pipeline::run_one_step;
+use crate::workflow::args::{StepName, WorkflowAction};
+use crate::workflow::dag::StepDag;
+use crate::workflow::pipeline::run_one_step;
 
 /// DAG 调度核心：就绪（依赖全部 Ok 且在 `allowed` 内）即起线程跑 `runner`；
 /// 失败不取消在跑的分支，全部收尾后统一报错。
@@ -145,7 +145,7 @@ where
 
 /// 按 DAG 并行跑一个 output_mode（镜像 `run_pipeline` 的并行版）。
 ///
-/// 入口语义与 [`crate::workflows::pipeline::run_pipeline`] 对齐：
+/// 入口语义与 [`crate::workflow::pipeline::run_pipeline`] 对齐：
 /// `action=start` 全新全量跑；`action=continue` 按步跳过已 success 的步骤，
 /// `continue_from` 显式重跑该步及其传递下游。
 /// 任务目录取自 `input.workflow.video_dir`（[`crate::input::Input::video_dir`]）。

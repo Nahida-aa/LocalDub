@@ -19,7 +19,7 @@ use crate::steps::utils::paths::asr;
 use crate::steps::utils::{
     asr_dir, ensure_dir, ffmpeg, now_iso, set_step_anyhow, StepPatch, StepStatus,
 };
-use crate::workflows::step_ctx::{CtxView, StepCtxView};
+use crate::workflow::step_ctx::{CtxView, StepCtxView};
 
 /// 入口 (镜像 TS `stepAsr`)。
 ///
@@ -545,7 +545,7 @@ mod tests {
         let (_dir, input) = test_input(json!({"steps": {"asr": {"use_separated": false}}}));
         let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
         let deps = AsrDeps::from_input(&wfi);
-        let r = step_asr(crate::workflows::step_ctx::MyStepCtx::new("asr", wfi), deps);
+        let r = step_asr(crate::workflow::step_ctx::MyStepCtx::new("asr", wfi), deps);
         assert!(r.is_err(), "video source 缺失应报错");
         assert!(r.unwrap_err().to_string().contains("ASR input not found"));
     }

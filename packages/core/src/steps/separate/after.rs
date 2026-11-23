@@ -10,7 +10,7 @@ use crate::steps::utils::paths::separate_after::{GatedVocalsPath, Target3VocalsM
 use crate::steps::utils::{
     ffmpeg, now_iso, separate_after_dir, set_step_anyhow, StepPatch, StepStatus,
 };
-use crate::workflows::step_ctx::{CtxView, StepCtxView};
+use crate::workflow::step_ctx::{CtxView, StepCtxView};
 
 /// 入口 (镜像 TS `stepSeparateAfter`)。
 ///
@@ -247,7 +247,7 @@ mod tests {
         let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
         let deps = SeparateAfterDeps::from_input(&wfi);
         let res = step_separate_after(
-            crate::workflows::step_ctx::MyStepCtx::new("separate_after", wfi),
+            crate::workflow::step_ctx::MyStepCtx::new("separate_after", wfi),
             deps,
         );
         assert!(res.is_ok(), "separate_after 失败: {:?}", res.err());

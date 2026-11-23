@@ -25,7 +25,7 @@ use crate::steps::translate::prompts::{build_preprocess_prompt, build_translate_
 use crate::steps::utils::{
     lang_name, now_iso, set_step_anyhow, translation_partial_path, StepPatch, StepStatus,
 };
-use crate::workflows::step_ctx::{CtxView, StepCtxView};
+use crate::workflow::step_ctx::{CtxView, StepCtxView};
 use crate::utils::file_ops::write_json_pretty;
 use config_rs::env::openai_api_key;
 
@@ -394,7 +394,7 @@ pub fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow::Resu
 mod tests {
     use super::*;
     use crate::steps::utils::resolve_language;
-    use crate::workflows::step_ctx::MyStepCtx;
+    use crate::workflow::step_ctx::MyStepCtx;
     use serde_json::json;
 
     /// 铺任务目录：`state.json` + `input.json`（+ 可选的 asr 事实），返回 input。

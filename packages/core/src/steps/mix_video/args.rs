@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::steps::utils::paths::{mix_audio, separate_after, split_audio, translate};
-use crate::workflows::args::OutputMode;
+use crate::workflow::args::OutputMode;
 
 /// 字幕对齐位置 (镜像 TS `packages/core/steps/mix_video/args.ts` alignmentList)
 ///

@@ -4,18 +4,18 @@
 //! 任务目录, 再从头跑完整 pipeline。`video_dir` 在此路径被忽略
 //! (对齐 TS: start 分支忽略 video_dir, 不会续跑已有任务)。
 //!
-//! 执行路径三选一（[`crate::workflows::args::ExecPath`]）：
+//! 执行路径三选一（[`crate::workflow::args::ExecPath`]）：
 //! - `engine = true`   → 引擎路径——**开发中，暂不可用**（aa-workflow 集成暂停，
 //!   见 `integration/workflow/mod.rs`；Engine 臂打印「开发中」并报错）；
-//! - `parallel = true` → **实验性并行** [`crate::workflows::parallel::run_pipeline_parallel`]
+//! - `parallel = true` → **实验性并行** [`crate::workflow::parallel::run_pipeline_parallel`]
 //!   (真源各 `<step>/state.json`)；
-//! - 都不设 → [`crate::workflows::pipeline::run_pipeline`] (真源 view.json)。
-//! 两者同设在 [`crate::workflows::args::WorkflowArgs::exec_path`] 里报错。
+//! - 都不设 → [`crate::workflow::pipeline::run_pipeline`] (真源 view.json)。
+//! 两者同设在 [`crate::workflow::args::WorkflowArgs::exec_path`] 里报错。
 //!
-//! 与 [`crate::workflows::continue_pipeline`] 的区别: start 会 import, continue 不 import。
+//! 与 [`crate::workflow::continue_pipeline`] 的区别: start 会 import, continue 不 import。
 
 use crate::input::Input;
-use crate::workflows::args::ExecPath;
+use crate::workflow::args::ExecPath;
 use anyhow::Context;
 
 /// 启动新任务: 导入视频 → 跑完整 pipeline (镜像 TS `cmdStartTask`)。
@@ -23,7 +23,7 @@ use anyhow::Context;
 /// 返回新任务的绝对 video_dir (供 RPC/CLI 层用于跳转/提示)。
 pub fn start_workflow(input: &Input) -> anyhow::Result<String> {
     let (st, input) =
-        crate::workflows::import::download::import_video(input).context("import_video 失败")?;
+        crate::workflow::import::download::import_video(input).context("import_video 失败")?;
     println!("[cli] 导入完成, video_dir = {}", st.workflow.video_dir);
     let path = match input.workflow.as_ref() {
         Some(w) => w.exec_path()?,
@@ -37,11 +37,11 @@ pub fn start_workflow(input: &Input) -> anyhow::Result<String> {
         }
         ExecPath::Parallel => {
             println!("[cli] 实验性并行 (DAG 调度, 真源各 <step>/state.json)");
-            crate::workflows::parallel::run_pipeline_parallel(&input)
+            crate::workflow::parallel::run_pipeline_parallel(&input)
                 .context("run_pipeline_parallel 失败")?;
         }
         ExecPath::Serial => {
-            crate::workflows::pipeline::run_pipeline(&input).context("run_pipeline 失败")?;
+            crate::workflow::pipeline::run_pipeline(&input).context("run_pipeline 失败")?;
         }
     }
     println!("[cli] 完成: {}", st.workflow.video_dir);

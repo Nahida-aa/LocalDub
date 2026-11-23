@@ -7,4 +7,4 @@ pub mod logging;
 pub mod servers;
 pub mod steps;
 pub mod utils;
-pub mod workflows;
+pub mod workflow;

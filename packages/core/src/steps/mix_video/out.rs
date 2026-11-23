@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::input::Input;
 use crate::steps::utils::{final_video_dir, video_id};
-use crate::workflows::args::{OutputMode, SubtitleSource};
+use crate::workflow::args::{OutputMode, SubtitleSource};
 
 /// `<mix_video>/out.json`：烧字幕完成后登记的**成片事实**。
 ///

@@ -8,7 +8,7 @@ use crate::cmd::env::ensure_bin;
 use crate::steps::sf_ocr::args::{SfOcrDeps, SfOcrOutput};
 use crate::steps::utils::paths::sf_ocr;
 use crate::steps::utils::{now_iso, set_step_anyhow, StepPatch, StepStatus};
-use crate::workflows::step_ctx::{CtxView, StepCtxView};
+use crate::workflow::step_ctx::{CtxView, StepCtxView};
 use std::process::Command;
 
 /// 入口 (镜像 TS `stepSfOcr`)。
@@ -170,7 +170,7 @@ mod tests {
         .unwrap();
         let wfi = crate::input::WorkflowInput::try_from(input).unwrap();
         let deps = SfOcrDeps::from_input(&wfi);
-        let res = step_sf_ocr(crate::workflows::step_ctx::MyStepCtx::new("sf_ocr", wfi), deps);
+        let res = step_sf_ocr(crate::workflow::step_ctx::MyStepCtx::new("sf_ocr", wfi), deps);
         assert!(res.is_err());
         assert!(
             res.unwrap_err()

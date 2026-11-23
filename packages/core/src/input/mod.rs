@@ -1,7 +1,7 @@
 //! 顶层输入类型 (不限定 CLI 场景, Tauri RPC / pipeline 均可复用)。
 //!
 //! 镜像 TS 侧 `packages/core/input/types.ts`：
-//! - `workflow` args → [`workflows::args`](crate::workflows::args)
+//! - `workflow` args → [`workflow::args`](crate::workflow::args)
 //! - 各 pipeline 阶段参数 → [`steps`](steps)
 //!
 //! input 语义由 `specta_serde::PhasesFormat` 驱动：`#[serde(default)]` 的字段在
@@ -13,7 +13,7 @@ use crate::cmd::check::CheckArgs;
 use crate::cmd::cookie::CookieArgs;
 use crate::cmd::env::args::EnvArgs;
 use crate::servers::args::ServersArgs;
-use crate::workflows::args;
+use crate::workflow::args;
 
 pub mod steps;
 
@@ -82,8 +82,8 @@ impl Default for Input {
 impl Input {
     /// 任务目录 = `input.workflow.video_dir`。
     ///
-    /// pipeline 入口 ([`crate::workflows::pipeline::run_pipeline`] /
-    /// [`crate::workflows::continue_pipeline`] / [`crate::workflows::parallel::run_pipeline_parallel`])
+    /// pipeline 入口 ([`crate::workflow::pipeline::run_pipeline`] /
+    /// [`crate::workflow::continue_pipeline`] / [`crate::workflow::parallel::run_pipeline_parallel`])
     /// 的 video_dir 都从这里取，不再由调用方显式传参：start 路径由 import_video
     /// 身份回填保证它是落定的真实目录；continue 路径本来就必填。
     pub fn video_dir(&self) -> anyhow::Result<&str> {

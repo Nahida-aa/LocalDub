@@ -47,7 +47,7 @@ use time::FrameRate;
 pub mod lang;
 pub mod types;
 use crate::input::Input;
-use crate::workflows::args::StepName;
+use crate::workflow::args::StepName;
 use strum::IntoEnumIterator as _;
 pub use types::{StepStatus, WorkflowStep};
 
