@@ -152,14 +152,14 @@ mod tests {
 
     #[test]
     fn dub_spec_is_valid() {
-        let spec = spec().expect("静态边表应合法");
+        let spec = dub_sf_ocr_spec().expect("静态边表应合法");
         assert_eq!(spec.nodes.len(), 10);
     }
 
     /// 防漂移：声明式 spec 与 `StepDag::sf_ocr_dub()` 必须是同一张图。
     #[test]
     fn dub_spec_matches_step_dag() {
-        let declarative = spec().expect("静态边表应合法");
+        let declarative = dub_sf_ocr_spec().expect("静态边表应合法");
         let dag = crate::workflow::dag::StepDag::sf_ocr_dub();
         assert_eq!(declarative.nodes.len(), dag.nodes().len());
         for (id, node) in &declarative.nodes {
