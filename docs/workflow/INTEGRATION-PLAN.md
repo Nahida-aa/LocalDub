@@ -173,10 +173,11 @@
   - start（新 run）：扫 `workflow-store/` 下数字目录名取最大 +1（`1` / `2` / …），
     传给 `RunWorkflowOptions::run_id`。目录存在即记录，重启可续；整体清理后从 1 重来
     （此时旧日志也不在，不会冲突）。
-  - continue（resume）：复用该 video_dir 最近一次 run 的 run_id（同样取最大数字目录名），
-    传同一个 id ⇒ `run_workflow` 走 resume（成功 step 短路、失败重抛）。
+  - **continue（resume）留 TODO**（用户 2026-11-23）：不按「取最大 run_id 复用」草率接入
+    ——resume 语义比表面复杂，用户明确表示在开始 continue 前还有更多改进要做。
+    本次接入只覆盖 start；`continue_workflow` 的 Engine 臂继续报「开发中」。
   - 不需要独立 counter 文件。`WorkflowArgs` 目前无 run_id 字段，不改配置形状——
-    run_id 由执行器在入口处按上述规则算出。
+    run_id 由执行器在 start 入口按上述规则算出。
 
 ## 4. 接入日换源表
 
