@@ -1004,13 +1004,21 @@ fn release_bin_url(spec: &ReleaseBinSpec, asset: &str) -> String {
 
 /// 查上游最新 tag (用于「有新版可更新」提示)。
 ///
-/// 列 `spec.repo` 的 releases, 取**第一个** tag 以 `{spec.bin}-` 开头的——
-/// vision-lab 一个 repo 里放多个二进制的 release, 前缀用来区分。
-/// 任何失败 (网络 / 限流 / 无匹配) 一律返回 `None`: 这是提示性信息,
+/// 列 `spec.repo` 的 releases，取产品名与 `spec.bin` 完全相等的最新 tag。
+/// vision-lab 一个 repo 里放多个二进制的 release，按「产品名-v版本」切分，
+/// 不能用前缀匹配（`subtitle-ocr-` 会误命中 `subtitle-ocr-post-*`）。
+/// 任何失败 (网络 / 限流 / 无匹配) 一律返回 `None`：这是提示性信息,
 /// 不该让 env 检查本身失败。
-///
-/// 结果由 `check_release_bin` 塞进 `CheckResult.data["latest_tag"]`,
-/// 由 `cmd::env::mod::format_result` 渲染成 `upstream: <tag> (有新版可更新)`。
+fn tag_product_matches(tag: &str, bin: &str) -> bool {
+    let Some(pos) = tag.rfind("-v") else {
+        return false;
+    };
+    let product = &tag[..pos];
+    let version = &tag[pos + 2..];
+    product == bin && version.chars().next().is_some_and(|c| c.is_ascii_digit())
+}
+
+/// 从 tag 列表里找 spec.bin 对应的最新 tag。
 async fn fetch_latest_tag(spec: &ReleaseBinSpec) -> Option<String> {
     let url = format!("https://api.github.com/repos/{}/releases", spec.repo);
     let client = reqwest::Client::builder()
@@ -1036,8 +1044,7 @@ async fn fetch_latest_tag(spec: &ReleaseBinSpec) -> Option<String> {
         .as_array()?
         .iter()
         .filter_map(|r| r.get("tag_name")?.as_str());
-    let prefix = format!("{}-", spec.bin);
-    tags.find(|t| t.starts_with(&prefix))
+    tags.find(|t| tag_product_matches(t, spec.bin))
         .map(|t| t.to_string())
 }
 
@@ -1724,6 +1731,16 @@ mod tests {
     use std::io::Write as _;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn tag_product_matching_does_not_confuse_ocr_and_ocr_post() {
+        // 同一个 repo 里 ocr / ocr-post / finder 并存，前缀匹配会串味。
+        assert!(tag_product_matches("subtitle-ocr-v0.1.1", "subtitle-ocr"));
+        assert!(!tag_product_matches("subtitle-ocr-post-v0.1.3", "subtitle-ocr"));
+        assert!(tag_product_matches("subtitle-ocr-post-v0.1.3", "subtitle-ocr-post"));
+        assert!(tag_product_matches("subtitle-finder-v0.1.1", "subtitle-finder"));
+        assert!(!tag_product_matches("subtitle-ocr-v0.1.1", "subtitle-finder"));
+    }
 
     static TMP_ID: AtomicUsize = AtomicUsize::new(0);
 
