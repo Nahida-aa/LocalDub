@@ -39,19 +39,21 @@ flowchart TB
     separate_after --> mix_video
 ```
 
-ASR 音源由 `asr.use_separated` 决定：默认 `false` 直接读 import 的原视频音频；`true`
-时优先 `separate_after` 的 gated / mixed 人声，缺失则回落到 `separate` 的 vocals
-（虚线是条件依赖；串行顺序里 asr 始终排在 separate_after 之后）。
+ASR 音源由 `asr.use_separated` 决定：字段默认 `false`（省略时）直接读 import 的原
+视频音频；`true` 时优先 `separate_after` 的 gated / mixed 人声，缺失则回落到
+`separate` 的 vocals（虚线是条件依赖；串行顺序里 asr 始终排在 separate_after 之后）。
 
-**并行空间**：与 `sf_ocr` 变体同构——ASR 链（asr → asr_fix → translate）与分离链
-（separate → separate_after）可以在 import 之后并行，`split_audio` 汇聚两路，
-`mix_video` 再等 `separate_after` 的 bgm。默认 `use_separated=false` 时 asr 与
-separate 同为根节点，重叠最大；`use_separated=true` 时 asr 必须等 separate_after，
-只剩 translate 与 split_audio 之间的空隙。
+**并行空间**：只有在 `use_separated=false` 时才存在——此时 asr 只读 import 的原视频
+音频，可作为根节点与 separate 并行，直到 `split_audio` 汇聚。一旦 `use_separated=true`
+（`input.example.jsonc` 就是 `true`），asr 必须等 `separate_after`，整条流程退化成
+一条链（separate → separate_after → asr → asr_fix → translate → split_audio → …），
+**没有任何可重叠的分支**。这也是它与 `sf_ocr` 变体的关键区别：`sf_ocr_pre` 只依赖
+原视频，恒能与分离并行。
 
 `StepDag::for_input` 目前只为 `Dub × SfOcr` 建图，其它组合请求并行会明确报错；
 引擎路径则硬编码 `dub_sf_ocr` 图（`integration/workflow/engine.rs`），完全不看
-`subtitle_source`。这两处都是**实现未覆盖**，不是 dub+asr 结构上无法并行。
+`subtitle_source`。这两处是实现未覆盖；dub+asr 本身是否有并行收益，取决于
+`use_separated` 的取值（见上）。
 
 实际执行的序列由 `output_mode`（`dub` / `subtitle`）与 `subtitle_source`
 （`asr` / `sf_ocr` / `asr_ocr`）决定，共 6 种组合；**单一真源**是
