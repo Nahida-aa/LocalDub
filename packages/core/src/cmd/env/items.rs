@@ -1317,15 +1317,31 @@ async fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
     };
 
     let mut downloaded = 0u64;
-    while let Some(chunk) = resp.chunk().await.unwrap_or(None) {
+    loop {
+        // 网络错误必须显式报错——静默当成流结束会写出不完整文件，
+        // 让后面的 sha256 校验替它背锅（看到的是 hash 不符而非真正的下载失败）。
+        let chunk = match resp.chunk().await {
+            Ok(Some(c)) => c,
+            Ok(None) => break,
+            Err(e) => {
+                let _ = std::fs::remove_file(&dl_path);
+                return CheckResult {
+                    key: spec.key.to_string(),
+                    status: CheckStatus::Fail,
+                    data: json!({ "msg": format!("下载中断: {e}（已删除不完整文件）") }),
+                    required: false,
+                };
+            }
+        };
         if chunk.is_empty() {
             break;
         }
         if let Err(e) = std::io::Write::write_all(&mut file, &chunk) {
+            let _ = std::fs::remove_file(&dl_path);
             return CheckResult {
                 key: spec.key.to_string(),
                 status: CheckStatus::Fail,
-                data: json!({ "msg": format!("写入失败: {e}") }),
+                data: json!({ "msg": format!("写入失败: {e}（已删除不完整文件）") }),
                 required: false,
             };
         }
@@ -1333,6 +1349,20 @@ async fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
         pb.set_position(downloaded);
     }
     pb.finish_with_message("下载完成");
+
+    // 长度不符（连接提前正常关闭）也显式报错，不要等 sha256 给一个含糊的 hash 不符。
+    // total=0 表示服务端没给 Content-Length，跳过此项，交给 sha256 兜底。
+    if total > 0 && downloaded != total {
+        let _ = std::fs::remove_file(&dl_path);
+        return CheckResult {
+            key: spec.key.to_string(),
+            status: CheckStatus::Fail,
+            data: json!({ "msg": format!(
+                "下载不完整: 期望 {total} 字节, 实际 {downloaded} 字节（已删除不完整文件）"
+            ) }),
+            required: false,
+        };
+    }
 
     // 校验 sha256
     let sha = match file_sha256(&dl_path) {
