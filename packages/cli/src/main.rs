@@ -18,7 +18,7 @@ use ld_core::cmd::check::CheckType;
 use ld_core::cmd::env::args::EnvAction;
 use ld_core::cmd::workflows::workflow::cmd_workflow;
 use ld_core::input::Command as InputCommand;
-use ld_core::input::{Input, QueryAction};
+use ld_core::input::{Input, QueryAction, VideoAction};
 use ld_core::servers::args::ServerAction;
 use ld_core::workflow::args::{StepName, WorkflowAction};
 use paths::parse_repo_input;
@@ -79,14 +79,29 @@ enum Command {
         #[arg(long, value_enum, num_args = 1..)]
         target_step: Vec<StepName>,
     },
+    /// 对某个已导入视频任务的动作 (等价 command=video_action)，video_dir 必填。
+    VideoAction {
+        /// 动作: start / resume / status / get_workflow_ctx / generate_meta。
+        #[arg(long, value_enum)]
+        action: VideoAction,
+        /// 已导入任务的目录（必填）。
+        #[arg(long)]
+        video_dir: String,
+        /// url (start 用，可选)。
+        #[arg(long)]
+        url: Option<String>,
+        /// 续跑起点集 (resume 用)。
+        #[arg(long, value_enum, num_args = 1..)]
+        resume_from: Vec<StepName>,
+        /// 目标步骤集 (resume 用)。
+        #[arg(long, value_enum, num_args = 1..)]
+        target_step: Vec<StepName>,
+    },
     /// 纯查询 (等价 input.jsonc command=query)，只读不改状态。
     Query {
-        /// 查询动作: status / get_workflow_ctx / get_group_list。
+        /// 查询动作: get_group_list。
         #[arg(long, value_enum)]
         action: QueryAction,
-        /// 任务目录 (status / get_workflow_ctx 用)。
-        #[arg(long)]
-        video_dir: Option<String>,
     },
     /// 服务器管理 (等价 input.jsonc command=servers)。
     Servers {
@@ -186,15 +201,37 @@ async fn main() {
             input.workflow = Some(workflow);
             input.command = InputCommand::Workflow;
         }
-        Some(Command::Query { action, video_dir }) => {
-            let mut query = input.query.clone().unwrap_or(ld_core::input::QueryArgs {
+        Some(Command::VideoAction {
+            action,
+            video_dir,
+            url,
+            resume_from,
+            target_step,
+        }) => {
+            let mut va = input.video_action.clone().unwrap_or(ld_core::input::VideoActionArgs {
                 action,
-                video_dir: None,
+                video_dir: video_dir.clone(),
+                url: None,
+                resume_from: Vec::new(),
+                target_step: Vec::new(),
             });
-            query.action = action;
-            if let Some(d) = video_dir {
-                query.video_dir = Some(d);
+            va.action = action;
+            va.video_dir = video_dir;
+            if let Some(u) = url {
+                va.url = Some(u);
             }
+            if !resume_from.is_empty() {
+                va.resume_from = resume_from;
+            }
+            if !target_step.is_empty() {
+                va.target_step = target_step;
+            }
+            input.video_action = Some(va);
+            input.command = InputCommand::VideoAction;
+        }
+        Some(Command::Query { action }) => {
+            let mut query = input.query.clone().unwrap_or(ld_core::input::QueryArgs { action });
+            query.action = action;
             input.query = Some(query);
             input.command = InputCommand::Query;
         }
@@ -249,6 +286,14 @@ async fn main() {
         InputCommand::Workflow => {
             cmd_workflow(&input).await.context("cmd_workflow 失败")
         }
+        InputCommand::VideoAction => match input.video_action.as_ref() {
+            Some(args) => {
+                ld_core::cmd::workflows::video_action::cmd_video_action(args)
+                    .await
+                    .context("cmd_video_action 失败")
+            }
+            None => Err(anyhow::anyhow!("command=video_action 时 video_action 必填")),
+        },
         InputCommand::Query => match input.query.as_ref() {
             Some(args) => ld_core::cmd::workflows::query::cmd_query(args).context("cmd_query 失败"),
             None => Err(anyhow::anyhow!("command=query 时 query 必填")),
@@ -277,17 +322,20 @@ async fn main() {
     };
 
     // 提示音语义: 任务完成 ≠ 命令完成。
-    // - 同步任务命令 (start/resume/import, 含缺省 action 走 start):
+    // - 同步任务命令 (import_and_start/import 走 workflow，start/resume 走 video_action):
     //   命令完成 = 任务完成 -> workflow_success / task_fail。
-    // - 其它命令 (enqueue 提交/servers/查询等): 命令结束但任务未运行或无关
+    // - 其它命令 (enqueue 提交/servers/查询/status 等): 命令结束但任务未运行或无关
     //   -> command_done; 失败仍是 task_fail。
     let action = input.workflow.as_ref().and_then(|t| t.action);
     let is_sync_workflow = matches!(
         (input.command, action),
         (
             InputCommand::Workflow,
-            None | Some(WorkflowAction::ImportAndStart | WorkflowAction::Start | WorkflowAction::Resume | WorkflowAction::Import)
+            None | Some(WorkflowAction::ImportAndStart | WorkflowAction::Import)
         )
+    ) || matches!(
+        input.video_action.as_ref().map(|v| v.action),
+        Some(VideoAction::Start | VideoAction::Resume)
     );
 
     match run_result {

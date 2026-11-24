@@ -904,8 +904,12 @@
           "const": "workflow"
         },
         {
+          "const": "videoaction",
+          "description": " 对某个已导入视频任务的动作（start/resume/status/get_workflow_ctx/generate_meta）。\n video_dir 必填——由 VideoActionArgs 的类型保证，不再是运行时检查。"
+        },
+        {
           "const": "query",
-          "description": " 纯查询命令：读状态/配置，不修改任何数据（status/get_group_list/get_workflow_ctx）。"
+          "description": " 纯查询命令：不针对单个任务（目前只有 get_group_list）。"
         },
         {
           "const": "env"
@@ -1231,11 +1235,11 @@
         },
         {
           "const": "start",
-          "description": " 对已导入目录从头跑全量 (不 import、不跳过、不 setCtx)。\n 要求 `workflow.video_dir` 已存在且已导入。"
+          "description": " 内部 run-kind 标记：对已导入目录的全量重跑（不含 import）。\n 命令面已移到 `command=video_action` 的 `VideoAction::Start`；\n 此变体仅作为 `WorkflowInput.workflow.action` 上的标记供步骤读取\n （如 tts 用它区分「首次全量」与「续跑」以决定是否忽略 regenIndices）。"
         },
         {
           "const": "resume",
-          "description": " 续跑已有任务 (setCtx + 从某步/跳过已 success 续跑)。"
+          "description": " 内部 run-kind 标记：续跑（命令面为 `VideoAction::Resume`）。"
         },
         {
           "const": "import",
@@ -1259,9 +1263,6 @@
         },
         {
           "const": "cancel_queue"
-        },
-        {
-          "const": "generate_meta"
         }
       ],
       "title": "WorkflowAction",
@@ -1548,8 +1549,16 @@
       "title": "WorkflowArgs_Serialize",
       "description": " workflow 参数 (镜像 workflowArgsSchema)"
     },
-    "QueryAction": {
+    "VideoAction": {
       "anyOf": [
+        {
+          "const": "start",
+          "description": " 对已导入目录从头跑全量（不 import、不 setCtx、不跳过）。"
+        },
+        {
+          "const": "resume",
+          "description": " 续跑（setCtx + DagPlan 从源 run 复用未失效步骤）。"
+        },
         {
           "const": "status",
           "description": " 打印 view.json 里的 workflow.status + 各 step 状态。"
@@ -1559,20 +1568,24 @@
           "description": " 打印 view.json / input.json / 各 <step>/state.json 三份状态。"
         },
         {
-          "const": "get_group_list",
-          "description": " 列出所有任务分组。"
+          "const": "generate_meta",
+          "description": " 从 mix_video/zh.srt 生成 meta（需要 steps.meta + llm_providers）。"
         }
       ],
-      "title": "QueryAction",
-      "description": " `command=query` 的查询动作（只读，不修改任务状态）。"
+      "title": "VideoAction",
+      "description": " `command=video_action` 的动作：都针对一个已导入的视频任务（video_dir 必填）。"
     },
-    "QueryArgs_Serialize": {
+    "VideoActionArgs_Serialize": {
       "type": "object",
       "properties": {
         "action": {
-          "$ref": "#/$defs/QueryAction"
+          "$ref": "#/$defs/VideoAction"
         },
         "video_dir": {
+          "type": "string",
+          "description": " 已导入任务的目录（必填）。"
+        },
+        "url": {
           "anyOf": [
             {
               "type": "string"
@@ -1581,14 +1594,49 @@
               "type": "null"
             }
           ],
-          "description": " status / get_workflow_ctx 需要指定任务目录。"
+          "description": " start 用：本地文件路径或远程 url（对已导入目录通常省略）。"
+        },
+        "resume_from": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StepName"
+          },
+          "description": " resume 用：续跑起点集。"
+        },
+        "target_step": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StepName"
+          },
+          "description": " resume 用：目标步骤集。"
         }
       },
       "required": [
         "action",
-        "video_dir"
+        "video_dir",
+        "url",
+        "resume_from",
+        "target_step"
       ],
-      "title": "QueryArgs_Serialize",
+      "title": "VideoActionArgs_Serialize",
+      "description": " `command=video_action` 的参数。video_dir 类型层必填（非 Option）。"
+    },
+    "QueryAction": {
+      "const": "get_group_list",
+      "description": " `command=query` 的查询动作（不针对单个任务）。\n\n 列出所有任务分组。",
+      "title": "QueryAction"
+    },
+    "QueryArgs": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/QueryAction"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "QueryArgs",
       "description": " `command=query` 的参数。"
     },
     "ServerAction": {
@@ -2237,10 +2285,21 @@
           ],
           "description": " workflow 参数, 仅 command=workflow 时必须"
         },
+        "video_action": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VideoActionArgs_Serialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " video_action 参数, 仅 command=video_action 时必须"
+        },
         "query": {
           "anyOf": [
             {
-              "$ref": "#/$defs/QueryArgs_Serialize"
+              "$ref": "#/$defs/QueryArgs"
             },
             {
               "type": "null"
@@ -2309,6 +2368,7 @@
       },
       "required": [
         "workflow",
+        "video_action",
         "query",
         "command",
         "servers",
@@ -2430,13 +2490,17 @@
       "title": "WorkflowArgs_Deserialize",
       "description": " workflow 参数 (镜像 workflowArgsSchema)"
     },
-    "QueryArgs_Deserialize": {
+    "VideoActionArgs_Deserialize": {
       "type": "object",
       "properties": {
         "action": {
-          "$ref": "#/$defs/QueryAction"
+          "$ref": "#/$defs/VideoAction"
         },
         "video_dir": {
+          "type": "string",
+          "description": " 已导入任务的目录（必填）。"
+        },
+        "url": {
           "anyOf": [
             {
               "type": "string"
@@ -2445,14 +2509,29 @@
               "type": "null"
             }
           ],
-          "description": " status / get_workflow_ctx 需要指定任务目录。"
+          "description": " start 用：本地文件路径或远程 url（对已导入目录通常省略）。"
+        },
+        "resume_from": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StepName"
+          },
+          "description": " resume 用：续跑起点集。"
+        },
+        "target_step": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StepName"
+          },
+          "description": " resume 用：目标步骤集。"
         }
       },
       "required": [
-        "action"
+        "action",
+        "video_dir"
       ],
-      "title": "QueryArgs_Deserialize",
-      "description": " `command=query` 的参数。"
+      "title": "VideoActionArgs_Deserialize",
+      "description": " `command=video_action` 的参数。video_dir 类型层必填（非 Option）。"
     },
     "ServerType_Deserialize": {
       "anyOf": [
@@ -2910,10 +2989,21 @@
           ],
           "description": " workflow 参数, 仅 command=workflow 时必须"
         },
+        "video_action": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VideoActionArgs_Deserialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " video_action 参数, 仅 command=video_action 时必须"
+        },
         "query": {
           "anyOf": [
             {
-              "$ref": "#/$defs/QueryArgs_Deserialize"
+              "$ref": "#/$defs/QueryArgs"
             },
             {
               "type": "null"
@@ -3243,36 +3333,6 @@
       "title": "OcrFixArgs",
       "description": " sf_ocr 阶段 OCR 修正参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::steps::Asr` 同款处理)。"
     },
-    "QueryArgs": {
-      "anyOf": [
-        {
-          "type": "object",
-          "required": [
-            "Serialize"
-          ],
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/QueryArgs_Serialize"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "Deserialize"
-          ],
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/QueryArgs_Deserialize"
-            }
-          },
-          "additionalProperties": false
-        }
-      ],
-      "title": "QueryArgs",
-      "description": " `command=query` 的参数。"
-    },
     "SeparateAfterArgs": {
       "anyOf": [
         {
@@ -3572,6 +3632,36 @@
       ],
       "title": "TtsArgs",
       "description": " tts 阶段参数 (镜像 TS `packages/core/steps/07_tts/args.ts` TtsStepArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
+    },
+    "VideoActionArgs": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/VideoActionArgs_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/VideoActionArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "VideoActionArgs",
+      "description": " `command=video_action` 的参数。video_dir 类型层必填（非 Option）。"
     },
     "WorkflowArgs": {
       "anyOf": [

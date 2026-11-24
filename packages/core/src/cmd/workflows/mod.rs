@@ -5,6 +5,7 @@ pub mod get_workflow;
 pub mod meta;
 pub mod query;
 pub mod start;
+pub mod video_action;
 pub mod workflow;
 
 // 把子模块里的命令函数提升到 `cmd::workflows` 层级, 方便调用方直接用。

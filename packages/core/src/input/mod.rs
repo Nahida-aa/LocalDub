@@ -72,7 +72,10 @@ pub fn resolve_llm_provider<'a>(
 #[serde(rename_all = "lowercase")]
 pub enum Command {
     Workflow,
-    /// 纯查询命令：读状态/配置，不修改任何数据（status/get_group_list/get_workflow_ctx）。
+    /// 对某个已导入视频任务的动作（start/resume/status/get_workflow_ctx/generate_meta）。
+    /// video_dir 必填——由 VideoActionArgs 的类型保证，不再是运行时检查。
+    VideoAction,
+    /// 纯查询命令：不针对单个任务（目前只有 get_group_list）。
     Query,
     Env,
     Servers,
@@ -84,15 +87,46 @@ pub enum Command {
     ListModels,
 }
 
-/// `command=query` 的查询动作（只读，不修改任务状态）。
+/// `command=video_action` 的动作：都针对一个已导入的视频任务（video_dir 必填）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type, clap::ValueEnum)]
 #[value(rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
-pub enum QueryAction {
+pub enum VideoAction {
+    /// 对已导入目录从头跑全量（不 import、不 setCtx、不跳过）。
+    Start,
+    /// 续跑（setCtx + DagPlan 从源 run 复用未失效步骤）。
+    Resume,
     /// 打印 view.json 里的 workflow.status + 各 step 状态。
     Status,
     /// 打印 view.json / input.json / 各 <step>/state.json 三份状态。
     GetWorkflowCtx,
+    /// 从 mix_video/zh.srt 生成 meta（需要 steps.meta + llm_providers）。
+    GenerateMeta,
+}
+
+/// `command=video_action` 的参数。video_dir 类型层必填（非 Option）。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub struct VideoActionArgs {
+    pub action: VideoAction,
+    /// 已导入任务的目录（必填）。
+    pub video_dir: String,
+    /// start 用：本地文件路径或远程 url（对已导入目录通常省略）。
+    #[serde(default)]
+    pub url: Option<String>,
+    /// resume 用：续跑起点集。
+    #[serde(default)]
+    pub resume_from: Vec<crate::workflow::args::StepName>,
+    /// resume 用：目标步骤集。
+    #[serde(default)]
+    pub target_step: Vec<crate::workflow::args::StepName>,
+}
+
+/// `command=query` 的查询动作（不针对单个任务）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type, clap::ValueEnum)]
+#[value(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum QueryAction {
     /// 列出所有任务分组。
     GetGroupList,
 }
@@ -102,9 +136,6 @@ pub enum QueryAction {
 #[serde(rename_all = "snake_case")]
 pub struct QueryArgs {
     pub action: QueryAction,
-    /// status / get_workflow_ctx 需要指定任务目录。
-    #[serde(default)]
-    pub video_dir: Option<String>,
 }
 
 impl Default for Command {
@@ -118,6 +149,9 @@ impl Default for Command {
 pub struct Input {
     /// workflow 参数, 仅 command=workflow 时必须
     pub workflow: Option<args::WorkflowArgs>,
+    /// video_action 参数, 仅 command=video_action 时必须
+    #[serde(default)]
+    pub video_action: Option<VideoActionArgs>,
     /// query 参数, 仅 command=query 时必须
     #[serde(default)]
     pub query: Option<QueryArgs>,
@@ -147,6 +181,7 @@ impl Default for Input {
     fn default() -> Self {
         Self {
             workflow: None,
+            video_action: None,
             query: None,
             command: Command::default(),
             servers: None,
@@ -182,6 +217,9 @@ impl Input {
         }
         if self.command == Command::Query && self.query.is_none() {
             return Err("command=query 时 query 必填".into());
+        }
+        if self.command == Command::VideoAction && self.video_action.is_none() {
+            return Err("command=video_action 时 video_action 必填".into());
         }
         Ok(())
     }
@@ -380,16 +418,32 @@ mod tests {
         let env: Input = serde_json::from_str(r#"{"command":"env"}"#).unwrap();
         assert!(env.validate().is_ok());
 
-        // command=query 时 query 必填
+        // command=query 时 query 必填（现在只有 get_group_list）
+        let ok: Input = serde_json::from_str(r#"{"command":"query","query":{"action":"get_group_list"}}"#).unwrap();
+        assert!(ok.validate().is_ok());
+        assert_eq!(ok.command, Command::Query);
+        assert_eq!(ok.query.as_ref().unwrap().action, QueryAction::GetGroupList);
+
+        let missing: Input = serde_json::from_str(r#"{"command":"query"}"#).unwrap();
+        assert!(missing.validate().is_err());
+
+        // command=video_action 时 video_action 必填，video_dir 类型层必填
         let ok: Input = serde_json::from_str(
-            r#"{"command":"query","query":{"action":"status","video_dir":"workfolder/x"}}"#,
+            r#"{"command":"video_action","video_action":{"action":"status","video_dir":"workfolder/x"}}"#,
         )
         .unwrap();
         assert!(ok.validate().is_ok());
-        assert_eq!(ok.command, Command::Query);
-        assert_eq!(ok.query.as_ref().unwrap().action, QueryAction::Status);
+        assert_eq!(ok.command, Command::VideoAction);
+        assert_eq!(ok.video_action.as_ref().unwrap().video_dir, "workfolder/x");
+        assert_eq!(ok.video_action.as_ref().unwrap().action, VideoAction::Status);
 
-        let missing: Input = serde_json::from_str(r#"{"command":"query"}"#).unwrap();
+        // 缺 video_dir → 反序列化失败（类型层保证，不是 validate）
+        let missing_dir: Result<Input, _> = serde_json::from_str(
+            r#"{"command":"video_action","video_action":{"action":"status"}}"#,
+        );
+        assert!(missing_dir.is_err(), "video_dir 必填应由反序列化拦下");
+
+        let missing: Input = serde_json::from_str(r#"{"command":"video_action"}"#).unwrap();
         assert!(missing.validate().is_err());
     }
 

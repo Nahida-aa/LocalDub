@@ -348,7 +348,12 @@ export type CheckType = "video" | "asr" | "font";
  *  其余为全小写 (增强 `rename_all = "lowercase"` 无法表达, 显式 rename)。
  */
 export type Command = "workflow" | 
-/**  纯查询命令：读状态/配置，不修改任何数据（status/get_group_list/get_workflow_ctx）。 */
+/**
+ *  对某个已导入视频任务的动作（start/resume/status/get_workflow_ctx/generate_meta）。
+ *  video_dir 必填——由 VideoActionArgs 的类型保证，不再是运行时检查。
+ */
+"videoaction" | 
+/**  纯查询命令：不针对单个任务（目前只有 get_group_list）。 */
 "query" | "env" | "servers" | "cookie" | "check" | "deviceInfo" | "listModels";
 
 /**  cookie 动作 */
@@ -567,8 +572,10 @@ export type Input = Input_Serialize | Input_Deserialize;
 export type Input_Deserialize = {
 	/**  workflow 参数, 仅 command=workflow 时必须 */
 	workflow?: WorkflowArgs_Deserialize | null,
+	/**  video_action 参数, 仅 command=video_action 时必须 */
+	video_action?: VideoActionArgs_Deserialize | null,
 	/**  query 参数, 仅 command=query 时必须 */
-	query?: QueryArgs_Deserialize | null,
+	query?: QueryArgs | null,
 	/**  执行命令 (默认 env) */
 	command?: Command,
 	/**  服务端参数 (镜像 servers/args.ts), 仅 command=servers 时使用 */
@@ -588,8 +595,10 @@ export type Input_Deserialize = {
 export type Input_Serialize = {
 	/**  workflow 参数, 仅 command=workflow 时必须 */
 	workflow: WorkflowArgs_Serialize | null,
+	/**  video_action 参数, 仅 command=video_action 时必须 */
+	video_action: VideoActionArgs_Serialize | null,
 	/**  query 参数, 仅 command=query 时必须 */
-	query: QueryArgs_Serialize | null,
+	query: QueryArgs | null,
 	/**  执行命令 (默认 env) */
 	command: Command,
 	/**  服务端参数 (镜像 servers/args.ts), 仅 command=servers 时使用 */
@@ -1146,30 +1155,14 @@ export type PlatformInfo_Serialize = {
 
 export type ProbeResult = "ok" | "fail";
 
-/**  `command=query` 的查询动作（只读，不修改任务状态）。 */
+/**  `command=query` 的查询动作（不针对单个任务）。 */
 export type QueryAction = 
-/**  打印 view.json 里的 workflow.status + 各 step 状态。 */
-"status" | 
-/**  打印 view.json / input.json / 各 <step>/state.json 三份状态。 */
-"get_workflow_ctx" | 
 /**  列出所有任务分组。 */
 "get_group_list";
 
 /**  `command=query` 的参数。 */
-export type QueryArgs = QueryArgs_Serialize | QueryArgs_Deserialize;
-
-/**  `command=query` 的参数。 */
-export type QueryArgs_Deserialize = {
+export type QueryArgs = {
 	action: QueryAction,
-	/**  status / get_workflow_ctx 需要指定任务目录。 */
-	video_dir?: string | null,
-};
-
-/**  `command=query` 的参数。 */
-export type QueryArgs_Serialize = {
-	action: QueryAction,
-	/**  status / get_workflow_ctx 需要指定任务目录。 */
-	video_dir: string | null,
 };
 
 /**
@@ -1994,6 +1987,48 @@ export type Value = null | boolean | number | string | Value[] | { [key in strin
 
 export type Vendor = "amd" | "nvidia" | "intel" | "unknown";
 
+/**  `command=video_action` 的动作：都针对一个已导入的视频任务（video_dir 必填）。 */
+export type VideoAction = 
+/**  对已导入目录从头跑全量（不 import、不 setCtx、不跳过）。 */
+"start" | 
+/**  续跑（setCtx + DagPlan 从源 run 复用未失效步骤）。 */
+"resume" | 
+/**  打印 view.json 里的 workflow.status + 各 step 状态。 */
+"status" | 
+/**  打印 view.json / input.json / 各 <step>/state.json 三份状态。 */
+"get_workflow_ctx" | 
+/**  从 mix_video/zh.srt 生成 meta（需要 steps.meta + llm_providers）。 */
+"generate_meta";
+
+/**  `command=video_action` 的参数。video_dir 类型层必填（非 Option）。 */
+export type VideoActionArgs = VideoActionArgs_Serialize | VideoActionArgs_Deserialize;
+
+/**  `command=video_action` 的参数。video_dir 类型层必填（非 Option）。 */
+export type VideoActionArgs_Deserialize = {
+	action: VideoAction,
+	/**  已导入任务的目录（必填）。 */
+	video_dir: string,
+	/**  start 用：本地文件路径或远程 url（对已导入目录通常省略）。 */
+	url?: string | null,
+	/**  resume 用：续跑起点集。 */
+	resume_from?: StepName[],
+	/**  resume 用：目标步骤集。 */
+	target_step?: StepName[],
+};
+
+/**  `command=video_action` 的参数。video_dir 类型层必填（非 Option）。 */
+export type VideoActionArgs_Serialize = {
+	action: VideoAction,
+	/**  已导入任务的目录（必填）。 */
+	video_dir: string,
+	/**  start 用：本地文件路径或远程 url（对已导入目录通常省略）。 */
+	url: string | null,
+	/**  resume 用：续跑起点集。 */
+	resume_from: StepName[],
+	/**  resume 用：目标步骤集。 */
+	target_step: StepName[],
+};
+
 export type VramInfo = VramInfo_Serialize | VramInfo_Deserialize;
 
 export type VramInfo_Deserialize = {
@@ -2026,11 +2061,13 @@ export type WorkflowAction =
 /**  导入视频 → 从头跑全量 pipeline (原 start 的语义)。import 在 workflow 之外。 */
 "import_and_start" | 
 /**
- *  对已导入目录从头跑全量 (不 import、不跳过、不 setCtx)。
- *  要求 `workflow.video_dir` 已存在且已导入。
+ *  内部 run-kind 标记：对已导入目录的全量重跑（不含 import）。
+ *  命令面已移到 `command=video_action` 的 `VideoAction::Start`；
+ *  此变体仅作为 `WorkflowInput.workflow.action` 上的标记供步骤读取
+ *  （如 tts 用它区分「首次全量」与「续跑」以决定是否忽略 regenIndices）。
  */
 "start" | 
-/**  续跑已有任务 (setCtx + 从某步/跳过已 success 续跑)。 */
+/**  内部 run-kind 标记：续跑（命令面为 `VideoAction::Resume`）。 */
 "resume" | 
 /**
  *  只导入: 下载/拷贝视频 + 探测 + 写 view.json, 不跑 output_mode。
@@ -2041,7 +2078,7 @@ export type WorkflowAction =
  *  批量入队目录: 扫描本地目录顶层视频文件, 每个去重后入队一条 action=start 任务。
  *  (目录是入队动作的入参, 队列粒度仍是单视频 start 事件。)
  */
-"enqueue_dir" | "list_queue" | "cancel_queue" | "generate_meta";
+"enqueue_dir" | "list_queue" | "cancel_queue";
 
 /**  workflow 参数 (镜像 workflowArgsSchema) */
 export type WorkflowArgs = WorkflowArgs_Serialize | WorkflowArgs_Deserialize;

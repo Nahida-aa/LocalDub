@@ -6,9 +6,7 @@
 //!
 //! 这是 `cmd/workflows` 的执行总入口, 对应 TS `run-workflow.ts` 里对 `cmdTask` 的调用。
 
-use crate::cmd::workflows::{
-    resume_workflow, import_and_start_workflow, start_workflow,
-};
+use crate::cmd::workflows::import_and_start_workflow;
 use crate::input::Input;
 use crate::workflow::args::WorkflowAction;
 use anyhow::Context;
@@ -23,11 +21,10 @@ pub async fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
                 .await
                 .context("import_and_start_workflow 失败")?;
         }
-        Some(WorkflowAction::Start) => {
-            start_workflow(input).await.context("start_workflow 失败")?;
-        }
-        Some(WorkflowAction::Resume) => {
-            resume_workflow(input).await.context("resume_workflow 失败")?;
+        // Start / Resume 是内部 run-kind 标记（供步骤读），命令面已移到
+        // command=video_action；若真从 workflow action 进来说明配置有误。
+        Some(WorkflowAction::Start) | Some(WorkflowAction::Resume) => {
+            anyhow::bail!("start / resume 请用 command=video_action（video_dir 必填）");
         }
         Some(WorkflowAction::Import) => {
             crate::workflow::import::download::import_video(input)
@@ -56,13 +53,6 @@ pub async fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
                 anyhow::anyhow!("cancel_queue 需要 input.workflow.queueId 指定队列任务 ID")
             })?;
             crate::cmd::workflows::enqueue::cancel_queue(id).context("cancel_queue 失败")?;
-        }
-        Some(WorkflowAction::GenerateMeta) => {
-            let video_dir = workflow
-                .video_dir
-                .clone()
-                .ok_or_else(|| anyhow::anyhow!("generate_meta 需要 input.workflow.video_dir"))?;
-            crate::cmd::workflows::meta::generate_meta(input, &video_dir).await.context("generate_meta 失败")?;
         }
         None => {
             // 缺省保留旧行为：导入并跑（原 start 分支的语义）。新 start 需显式指定。
