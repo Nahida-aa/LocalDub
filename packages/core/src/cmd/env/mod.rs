@@ -230,9 +230,18 @@ pub fn referenced_llm_providers(input: &Input) -> Vec<(String, String, Option<St
         steps.meta.provider.as_str(),
     ];
     names.dedup();
+    let env_key = config_rs::env::openai_api_key();
     names
         .into_iter()
-        .filter_map(|name| input.llm_providers.get(name).map(|p| (name.to_string(), p.base_url.clone(), p.api_key.clone())))
+        .filter_map(|name| {
+            input.llm_providers.get(name).map(|p| {
+                (
+                    name.to_string(),
+                    p.base_url.clone(),
+                    p.api_key.clone().or_else(|| env_key.clone()),
+                )
+            })
+        })
         .collect()
 }
 
