@@ -1979,8 +1979,8 @@ dependencies = [
 
 [[package]]
 name = "gradio"
-version = "0.4.2"
-source = "git+https://github.com/JacobLinCool/gradio-rs?tag=v0.4.2#4e1fff1c2903c79ca702a969b1acf726ddecd842"
+version = "0.4.1"
+source = "git+https://github.com/Nahida-aa/gradio-rs?tag=v0.4.3#88697216242b600bd76767037e027f575ddb1ead"
 dependencies = [
  "anyhow",
  "bytes",
@@ -5975,7 +5975,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 [[package]]
 name = "vox-core"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/vox-lab?tag=v0.1.2#d413b73b8f8d036eb7a72f48efe31f71810ba3ff"
+source = "git+https://github.com/Nahida-aa/vox-lab?rev=fac016102e63756b9bffdda53478462c1c0c4895#fac016102e63756b9bffdda53478462c1c0c4895"
 dependencies = [
  "anyhow",
  "reqwest 0.12.28",
@@ -5986,7 +5986,7 @@ dependencies = [
 [[package]]
 name = "voxcpm-cloud"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/vox-lab?tag=v0.1.2#d413b73b8f8d036eb7a72f48efe31f71810ba3ff"
+source = "git+https://github.com/Nahida-aa/vox-lab?rev=fac016102e63756b9bffdda53478462c1c0c4895#fac016102e63756b9bffdda53478462c1c0c4895"
 dependencies = [
  "anyhow",
  "gradio",

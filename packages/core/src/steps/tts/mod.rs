@@ -70,12 +70,13 @@ pub async fn step_tts(sc: impl StepCtxView, deps: TtsDeps) -> anyhow::Result<Tts
     // 镜像 TS: runtime === "cloud" -> new VoxCPMCloud() (而非本地 onnx/pytorch 引擎)。
     let use_cloud = args.runtime == TtsRuntime::Cloud;
     let cloud = if use_cloud {
-        Some(voxcpm_cloud::VoxCPMCloud::new(
-            voxcpm_cloud::VoxCPMCloudConfig {
+        Some(
+            voxcpm_cloud::VoxCPMCloud::new(voxcpm_cloud::VoxCPMCloudConfig {
                 api_url: None,
                 control_instruction: None,
-            },
-        )?)
+            })
+            .await?,
+        )
     } else {
         None
     };
@@ -338,12 +339,13 @@ pub async fn step_tts(sc: impl StepCtxView, deps: TtsDeps) -> anyhow::Result<Tts
         // (mix_audio 会跳过零时长段)。
         let gen_t0 = std::time::Instant::now();
         let out_path_synth = out_path.clone();
-        let synth_once = || -> anyhow::Result<()> {
+        let synth_once = || async {
             // 先清掉上一轮可能的坏产物, 避免写失败时 probe 读到旧文件
             let _ = fs::remove_file(&out_path_synth);
             if let Some(cloud) = &cloud {
                 let samples = cloud
                     .generate(&text, &ref_for_tts, Some(&item_text), 2.0)
+                    .await
                     .map_err(|e| anyhow::anyhow!("voxcpm cloud 段 {idx} 失败: {e}"))?;
                 voxcpm_cloud::write_wav(&samples.samples, samples.sample_rate, &out_path_synth)
                     .map_err(|e| anyhow::anyhow!("写 cloud tts wav 段 {idx} 失败: {e}"))?;
@@ -378,12 +380,15 @@ pub async fn step_tts(sc: impl StepCtxView, deps: TtsDeps) -> anyhow::Result<Tts
             .base_wait_ms(500)
             .max_wait_ms(2000)
             .jitter(0.3);
-        if let Err(e) = retrier.execute(synth_once, |attempt, err| {
-            tracing::warn!(
-                target: "tts",
-                "[TTS] 段 {idx} 合成失败 (第 {attempt} 次, 将重试): {err:#}"
-            );
-        }) {
+        if let Err(e) = retrier
+            .execute_async(synth_once, |attempt, err| {
+                tracing::warn!(
+                    target: "tts",
+                    "[TTS] 段 {idx} 合成失败 (第 {attempt} 次, 将重试): {err:#}"
+                );
+            }, tokio::time::sleep)
+            .await
+        {
             tracing::warn!(
                 target: "tts",
                 "[TTS] 段 {idx} 重试后仍无效 ({e:#}), 写静音占位并标 error"

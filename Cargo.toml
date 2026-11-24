@@ -26,7 +26,9 @@ pacer-rs = { path = "packages/pacer-rs" }
 paths = { path = "packages/paths" }
 server = { path = "packages/server" }
 time = { path = "packages/time" }
-voxcpm-cloud = { git = "https://github.com/Nahida-aa/vox-lab", tag = "v0.1.2" }
+# rev 而非 tag：v0.1.2 的 voxcpm-cloud 用 sync gradio API（内部 block_on），
+# 在引擎 async DAG 里会嵌套 runtime panic；12ce2c7 改为 async API。
+voxcpm-cloud = { git = "https://github.com/Nahida-aa/vox-lab", rev = "fac016102e63756b9bffdda53478462c1c0c4895" }
 # aa-workflow 耐久执行引擎（独立 repo，TanStack Workflow core engine 层的 Rust 对刻，
 # 内核「代码即 DAG」）。当前实验性引入：integration/workflow 整体暂停编译，
 # 依赖为恢复预留。rev 收敛在此处单处维护，packages/core 只 `.workspace = true` 引用。

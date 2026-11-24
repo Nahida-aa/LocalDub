@@ -94,6 +94,35 @@ impl Retryer {
         }
     }
 
+    /// Async counterpart of [`Self::execute`]: same backoff/jitter policy, but
+    /// the operation and the wait are async. `sleep` is supplied by the caller
+    /// so this crate stays dependency-free (e.g. `tokio::time::sleep`).
+    pub async fn execute_async<F, Fut, T, E, W, WFut>(
+        &self,
+        mut op: F,
+        mut on_retry: impl FnMut(u32, &E),
+        sleep: W,
+    ) -> Result<T, E>
+    where
+        F: FnMut() -> Fut,
+        Fut: std::future::Future<Output = Result<T, E>>,
+        W: Fn(std::time::Duration) -> WFut,
+        WFut: std::future::Future<Output = ()>,
+    {
+        let mut attempt: u32 = 0;
+        loop {
+            attempt += 1;
+            match op().await {
+                Ok(v) => return Ok(v),
+                Err(e) if attempt >= self.max_attempts => return Err(e),
+                Err(e) => {
+                    on_retry(attempt, &e);
+                    sleep(self.wait_after(attempt)).await;
+                }
+            }
+        }
+    }
+
     /// Wait duration before the next retry after the given attempt fails.
     fn wait_after(&self, failed_attempt: u32) -> Duration {
         let exp_shift = (failed_attempt - 1).min(32);
