@@ -81,11 +81,30 @@ async fn drive(
     }
 }
 
+/// 引擎路径当前只定义了 dub-sf-ocr 一种 DAG。其余 5 种工作流
+/// （2 output_mode × 3 subtitle_source）尚未定义 DAG，明确报错，
+/// 不静默拿 dub_sf_ocr 的 DAG 去跑出错误结果。
+fn ensure_engine_supported(wfi: &WorkflowInput) -> anyhow::Result<()> {
+    use crate::workflow::args::{OutputMode, SubtitleSource};
+    let mode = wfi.workflow.output_mode;
+    let source = wfi.workflow.subtitle_source;
+    if !matches!((mode, source), (OutputMode::Dub, SubtitleSource::SfOcr)) {
+        anyhow::bail!(
+            "引擎路径暂不支持该工作流（output_mode={}, subtitle_source={}）；\
+             当前仅 dub + sf_ocr 定义了 DAG 并接通引擎。请用 engine=false 走串行/并行路径。",
+            mode.as_str(),
+            source.as_str()
+        );
+    }
+    Ok(())
+}
+
 /// 驱动一次全新的引擎 run（start 路径）。
 ///
 /// `wfi` 是 import 已回填身份的 run input。store 与 run_id 都在 async 上下文里
 /// 构造（`FsRunStore::new` 内部 `tokio::spawn` 要求 runtime）。
 pub async fn run_engine(wfi: &WorkflowInput) -> anyhow::Result<()> {
+    ensure_engine_supported(wfi)?;
     let video_dir = PathBuf::from(wfi.video_dir());
     let store_base = video_dir.join("workflow-store");
     let run_id = next_run_id(&store_base);
@@ -103,6 +122,7 @@ pub async fn run_engine(wfi: &WorkflowInput) -> anyhow::Result<()> {
 /// `wfi.workflow.resume_from` 直接透传为 DagPlan.from（空 → None，引擎自动取
 /// 源日志里未成功的节点为失效种子）；`target_step` 透传为 goals。
 pub async fn run_engine_resume(wfi: &WorkflowInput) -> anyhow::Result<()> {
+    ensure_engine_supported(wfi)?;
     let video_dir = PathBuf::from(wfi.video_dir());
     let store_base = video_dir.join("workflow-store");
     let source = existing_run_ids(&store_base).last().copied();
@@ -137,4 +157,37 @@ pub async fn run_engine_resume(wfi: &WorkflowInput) -> anyhow::Result<()> {
     tracing::info!(target: "output_mode",
         run_id = %run_id, source = %source_run_id, "引擎 resume 启动 (dub-sf-ocr)");
     drive(wf, store, &run_id, wfi, meta).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn wfi(mode: &str, source: &str) -> WorkflowInput {
+        let raw = format!(
+            r#"{{"workflow":{{"output_mode":"{mode}","subtitle_source":"{source}","video_dir":"/tmp/x"}},"steps":{{}}}}"#
+        );
+        let input: crate::input::Input = serde_json::from_str(&raw).unwrap();
+        WorkflowInput::try_from(input).unwrap()
+    }
+
+    #[test]
+    fn only_dub_sf_ocr_is_engine_supported() {
+        // 唯一支持的组合
+        assert!(ensure_engine_supported(&wfi("dub", "sf_ocr")).is_ok());
+        // 其余 5 种都明确拒绝（而不是拿错 DAG 跑）
+        for (mode, source) in [
+            ("dub", "asr"),
+            ("dub", "asr_ocr"),
+            ("subtitle", "asr"),
+            ("subtitle", "sf_ocr"),
+            ("subtitle", "asr_ocr"),
+        ] {
+            let err = ensure_engine_supported(&wfi(mode, source)).unwrap_err();
+            assert!(
+                err.to_string().contains("暂不支持"),
+                "{mode}+{source} 应报暂不支持, 实际: {err}"
+            );
+        }
+    }
 }
