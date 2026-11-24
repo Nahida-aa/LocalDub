@@ -29,6 +29,22 @@ pub struct LlmProvider {
     pub api_key: Option<String>,
 }
 
+/// 统一的 provider 解析：按名字精确匹配；找不到且表里**恰好只有一个**时，
+/// 把唯一的那个当默认（这样只配一个 provider 时步骤无需纠结名字）。
+/// 所有调用点（步骤 / env 检查 / list_models / meta）共用此规则，避免分叉。
+pub fn resolve_llm_provider<'a>(
+    providers: &'a HashMap<String, LlmProvider>,
+    name: &str,
+) -> Option<&'a LlmProvider> {
+    if let Some(p) = providers.get(name) {
+        return Some(p);
+    }
+    if providers.len() == 1 {
+        return providers.values().next();
+    }
+    None
+}
+
 /// 命令
 ///
 /// 命名对齐 TS `commandList` (types.ts): `deviceInfo`/`listModels` 是 camelCase,
@@ -149,9 +165,9 @@ impl WorkflowInput {
     }
 
     /// 按名字解析 LLM provider；查不到时明确报错（不静默回退）。
+    /// 唯一 provider 时忽略名字直接用它（见 [`resolve_llm_provider`]）。
     pub fn llm(&self, name: &str) -> anyhow::Result<&LlmProvider> {
-        self.llm_providers
-            .get(name)
+        resolve_llm_provider(&self.llm_providers, name)
             .ok_or_else(|| anyhow::anyhow!("未配置 llm provider: {name}"))
     }
 }
@@ -177,6 +193,36 @@ impl TryFrom<Input> for WorkflowInput {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn single_provider_is_default_regardless_of_name() {
+        let mut providers = HashMap::new();
+        providers.insert(
+            "agnes".to_string(),
+            LlmProvider {
+                base_url: "https://apihub.agnes-ai.com/v1".to_string(),
+                api_key: None,
+            },
+        );
+        // 唯一 provider：写它的真名、写 "default"、写任意名字都解析到它
+        for name in ["agnes", "default", "whatever"] {
+            let p = resolve_llm_provider(&providers, name).unwrap();
+            assert_eq!(p.base_url, "https://apihub.agnes-ai.com/v1");
+        }
+        // 多个 provider 时严格按名字，找不到就 None
+        providers.insert(
+            "local".to_string(),
+            LlmProvider {
+                base_url: "http://localhost:11434/v1".to_string(),
+                api_key: None,
+            },
+        );
+        assert!(resolve_llm_provider(&providers, "nonexistent").is_none());
+        assert_eq!(
+            resolve_llm_provider(&providers, "local").unwrap().base_url,
+            "http://localhost:11434/v1"
+        );
+    }
 
     #[test]
     fn deserialize_partial_fills_defaults() {

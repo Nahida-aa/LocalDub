@@ -231,10 +231,11 @@ pub fn referenced_llm_providers(input: &Input) -> Vec<(String, String, Option<St
     ];
     names.dedup();
     let env_key = config_rs::env::openai_api_key();
+    let mut seen_urls = std::collections::HashSet::new();
     names
         .into_iter()
         .filter_map(|name| {
-            input.llm_providers.get(name).map(|p| {
+            crate::input::resolve_llm_provider(&input.llm_providers, name).map(|p| {
                 (
                     name.to_string(),
                     p.base_url.clone(),
@@ -242,6 +243,8 @@ pub fn referenced_llm_providers(input: &Input) -> Vec<(String, String, Option<St
                 )
             })
         })
+        // 唯一 provider 被多个名字引用时只探测一次（按 base_url 去重）
+        .filter(|(_, url, _)| seen_urls.insert(url.clone()))
         .collect()
 }
 

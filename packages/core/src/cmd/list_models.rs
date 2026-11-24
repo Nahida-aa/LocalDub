@@ -14,9 +14,7 @@ use crate::input::Input;
 /// 命令入口 (镜像 TS `listModels` 分支): 列出模型 id, 失败返回 Err (CLI 打印退出码 1)。
 pub fn cmd_list_models(input: &Input) -> anyhow::Result<()> {
     let provider_name = &input.steps.translate.provider;
-    let provider = input
-        .llm_providers
-        .get(provider_name)
+    let provider = crate::input::resolve_llm_provider(&input.llm_providers, provider_name)
         .ok_or_else(|| anyhow!("未配置 llm provider: {provider_name}"))?;
     let api_base = provider.base_url.clone();
     let api_key = provider

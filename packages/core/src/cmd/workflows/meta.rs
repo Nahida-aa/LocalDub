@@ -70,10 +70,9 @@ pub fn generate_meta(input: &crate::input::Input, video_dir: &str) -> anyhow::Re
     let prompt = build_meta_prompt(&segs, info.as_ref().map(|i| i.title.as_str()));
 
     let meta_args = &input.steps.meta;
-    let provider = input
-        .llm_providers
-        .get(&meta_args.provider)
-        .ok_or_else(|| anyhow::anyhow!("未配置 llm provider: {}", meta_args.provider))?;
+    let provider =
+        crate::input::resolve_llm_provider(&input.llm_providers, &meta_args.provider)
+            .ok_or_else(|| anyhow::anyhow!("未配置 llm provider: {}", meta_args.provider))?;
     let opts = llm::ChatOptions {
         model: Some(meta_args.model.clone()),
         api_base: Some(provider.base_url.clone()),
