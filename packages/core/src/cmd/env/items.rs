@@ -1293,6 +1293,89 @@ async fn download_resumable(
     ))
 }
 
+/// 认领用户手动放到 bin_dir 的资产文件，返回 `Some(CheckResult)` 表示已就位/明确报错
+/// （两种情况都不要再下载），`None` 表示没找到、走正常下载。
+///
+/// 资产文件（zip 或单文件二进制）存在 → 用 spec 的 sha256 校验。通过则就位
+/// （zip 解压；单文件资产本身就是最终二进制，已在正确路径）、写戳认领；不符则
+/// **报错保留用户文件**（不覆盖）。zip 资产若用户只放了已解压的二进制、没有
+/// 压缩包可校验 sha，则不认领——无法确认它不是被篡改/不完整的版本。
+async fn adopt_local_release(spec: &ReleaseBinSpec, sha256: &str) -> Option<CheckResult> {
+    let dl_path = release_download_path(spec);
+    let bin_path = release_bin_path(spec);
+    let stamp_path = release_version_path(spec);
+
+    // 路径 1：资产文件存在（zip 或单文件）
+    if dl_path.exists() {
+        let actual = match file_sha256(&dl_path) {
+            Ok(s) => s,
+            Err(e) => {
+                return Some(CheckResult {
+                    key: spec.key.to_string(),
+                    status: CheckStatus::Fail,
+                    data: json!({ "msg": format!("本地资产 {} sha256 计算失败: {e}（未改动该文件）", dl_path.display()) }),
+                    required: false,
+                });
+            }
+        };
+        if actual != sha256 {
+            return Some(CheckResult {
+                key: spec.key.to_string(),
+                status: CheckStatus::Fail,
+                data: json!({ "msg": format!(
+                    "本地资产 {} sha256 不符：期望 {} 实际 {}（未覆盖，请检查你放的文件）",
+                    dl_path.display(), sha256, actual
+                ) }),
+                required: false,
+            });
+        }
+        // sha 通过：zip 解压就位（单文件已在正确路径）
+        if spec.zip {
+            if let Err(e) = extract_zip_to_bin_dir(&dl_path) {
+                return Some(CheckResult {
+                    key: spec.key.to_string(),
+                    status: CheckStatus::Fail,
+                    data: json!({ "msg": format!("解压本地资产失败: {e}") }),
+                    required: false,
+                });
+            }
+            let _ = std::fs::remove_file(&dl_path);
+        }
+        #[cfg(unix)]
+        set_executable(&bin_path);
+        if let Err(e) = write_version_stamp(&stamp_path, spec.tag, sha256) {
+            return Some(CheckResult {
+                key: spec.key.to_string(),
+                status: CheckStatus::Fail,
+                data: json!({ "msg": format!("写版本戳失败: {e}") }),
+                required: false,
+            });
+        }
+        return Some(CheckResult {
+            key: spec.key.to_string(),
+            status: CheckStatus::Pass,
+            data: json!({ "path": bin_path.display().to_string(), "msg": "已认领本地资产（sha256 校验通过）" }),
+            required: false,
+        });
+    }
+
+    None
+}
+
+/// Linux 补执行位（下载/手动放置可能丢失 +x）。
+#[cfg(unix)]
+fn set_executable(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    if let Ok(meta) = std::fs::metadata(path) {
+        let mode = meta.permissions().mode();
+        if mode & 0o111 == 0 {
+            let mut perm = meta.permissions();
+            perm.set_mode(mode | 0o700);
+            let _ = std::fs::set_permissions(path, perm);
+        }
+    }
+}
+
 async fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
     let Some((asset, sha256)) = current_platform_asset(spec) else {
         return CheckResult {
@@ -1314,6 +1397,12 @@ async fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
             required: false,
         };
     }
+
+    // 先认领用户手动放到 bin_dir 的文件（资产或已解压二进制），命中就直接返回，不下载。
+    if let Some(result) = adopt_local_release(spec, sha256).await {
+        return result;
+    }
+
     let bin_path = release_bin_path(spec);
     let dl_path = release_download_path(spec);
     if let Some(parent) = dl_path.parent() {
