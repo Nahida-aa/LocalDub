@@ -137,7 +137,7 @@ pub fn translate_batch(
             &user_msg,
             &llm::ChatOptions {
                 model: Some(args.model.clone()),
-                api_base: Some(args.api_base.clone()),
+                api_base: Some(args.base_url.clone()),
                 system_prompt: system.to_string(),
                 api_key: openai_api_key(),
                 max_tokens: Some(3072),

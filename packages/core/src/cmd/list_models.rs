@@ -18,7 +18,7 @@ pub fn cmd_list_models(input: &Input) -> anyhow::Result<()> {
     // apiBase 三级回退 (镜像 TS `apiBase || env.OPENAI_BASE_URL || 默认`):
     // - 显式配置 (input.steps.translate.apiBase) 优先;
     // - 空串 (缺省) → openai_base_url() = env.OPENAI_BASE_URL 或本地 ollama 默认。
-    let cfg_base = input.steps.translate.api_base.clone();
+    let cfg_base = input.steps.translate.base_url.clone();
     let api_base = if cfg_base.is_empty() {
         openai_base_url()
     } else {
@@ -61,7 +61,7 @@ mod tests {
         // 输入缺 steps.translate 时 (serde 反序列化 `{}`), apiBase 走 openai_base_url()
         // (env 或 ollama 默认), 与 TS `steps.translate.apiBase || env.OPENAI_BASE_URL` 对齐。
         let input: Input = serde_json::from_str(r#"{"command":"listModels"}"#).unwrap();
-        let base = &input.steps.translate.api_base;
+        let base = &input.steps.translate.base_url;
         let resolved = if base.is_empty() {
             openai_base_url()
         } else {
@@ -77,7 +77,7 @@ mod tests {
             r#"{"command":"listModels","steps":{"translate":{"api_base":"http://example.com/v1"}}}"#,
         )
         .unwrap();
-        let cfg_base = &input.steps.translate.api_base;
+        let cfg_base = &input.steps.translate.base_url;
         let resolved = if cfg_base.is_empty() {
             openai_base_url()
         } else {

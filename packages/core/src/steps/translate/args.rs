@@ -20,7 +20,7 @@ use crate::workflow::args::SubtitleSource;
 pub struct TranslateArgs {
     /// OpenAI 兼容端点
     #[serde(default = "openai_base_url")]
-    pub api_base: String,
+    pub base_url: String,
     /// 翻译模型
     #[serde(default = "openai_model")]
     pub model: String,
@@ -36,7 +36,7 @@ impl Default for TranslateArgs {
     /// 两条路径语义相反。
     fn default() -> Self {
         Self {
-            api_base: openai_base_url(),
+            base_url: openai_base_url(),
             model: openai_model(),
             enabled: true,
         }

@@ -1714,7 +1714,7 @@
     "TranslateArgs_Serialize": {
       "type": "object",
       "properties": {
-        "api_base": {
+        "base_url": {
           "type": "string",
           "description": " OpenAI 兼容端点"
         },
@@ -1728,7 +1728,7 @@
         }
       },
       "required": [
-        "api_base",
+        "base_url",
         "model",
         "enabled"
       ],
@@ -2413,7 +2413,7 @@
     "TranslateArgs_Deserialize": {
       "type": "object",
       "properties": {
-        "api_base": {
+        "base_url": {
           "type": "string",
           "description": " OpenAI 兼容端点"
         },

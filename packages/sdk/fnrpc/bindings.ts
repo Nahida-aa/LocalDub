@@ -1694,7 +1694,7 @@ export type TranslateArgs = TranslateArgs_Serialize | TranslateArgs_Deserialize;
  */
 export type TranslateArgs_Deserialize = {
 	/**  OpenAI 兼容端点 */
-	api_base?: string,
+	base_url?: string,
 	/**  翻译模型 */
 	model?: string,
 	/**  设为 false 跳过翻译, 直接使用原始识别文本 */
@@ -1713,7 +1713,7 @@ export type TranslateArgs_Deserialize = {
  */
 export type TranslateArgs_Serialize = {
 	/**  OpenAI 兼容端点 */
-	api_base: string,
+	base_url: string,
 	/**  翻译模型 */
 	model: string,
 	/**  设为 false 跳过翻译, 直接使用原始识别文本 */
