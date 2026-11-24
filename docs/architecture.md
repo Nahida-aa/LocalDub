@@ -10,7 +10,7 @@ LocalDub 是视频配音 / 字幕工具：Rust workspace 提供全部业务逻�
 ### `dub` + `subtitle_source=sf_ocr`（10 步，有引擎/并行 DAG）
 
 ```mermaid
-flowchart LR
+flowchart TB
     import[import] --> separate[separate]
     import --> sf_ocr_pre[sf_ocr_pre]
     separate --> separate_after[separate_after]
@@ -27,7 +27,7 @@ flowchart LR
 ### `dub` + `subtitle_source=asr`（9 步，目前仅串行）
 
 ```mermaid
-flowchart LR
+flowchart TB
     import[import] --> separate[separate]
     import -. use_separated=false .-> asr[asr]
     separate --> separate_after[separate_after]
