@@ -1,96 +1,70 @@
 # Application Architecture
 
-## Overview
+## 概览
 
-YouDub-webui is a **video dubbing** application with voice cloning. Pipeline:
+LocalDub 是视频配音 / 字幕工具：Rust workspace 提供全部业务逻辑（`ld-core`），
+桌面端（Tauri 2 + SolidJS）、CLI、HTTP server 都只是它的壳。桌面端 UI 仍在改造中。
 
-```
-Input (YouTube/Bilibili/Local)
-  → [0] Download (yt-dlp)
-  → [1] Separate (Demucs) → vocals + bgm
-  → [2] ASR (Whisper) → text + timestamps
-  → [3] Fix sentences
-  → [4] Translate (OpenAI API)
-  → [5] Split audio → segments
-  → [6] TTS (VoxCPM) → voice-cloned segments
-  → [7] Merge audio → time-stretched dubbing
-  → [8] Merge video → final MP4 + SRT
-```
-
-## Tech Stack
-
-| Layer      | Stack                                         | Port |
-| ---------- | --------------------------------------------- | ---- |
-| Frontend   | Next.js 15, React 19, Tailwind CSS, shadcn/ui | 3000 |
-| Backend    | Python FastAPI, uvicorn, SQLite               | 8000 |
-| API (exp.) | Hono/Bun TypeScript                           | 9007 |
-
-## Backend Structure
+配音流水线（`dub` + `subtitle_source=sf_ocr`，10 步）：
 
 ```
-backend/app/
-├── main.py           # FastAPI entry + routes
-├── pipeline.py       # PipelineRunner: orchestrates 9 steps
-├── steps.py         # StepSpec definitions
-├── worker.py         # Single-thread FIFO worker
-├── config.py         # Paths & env vars
-├── database.py       # SQLite (tasks, task_steps, settings)
-├── devices.py        # Per-component device selection
-├── adapters/         # Model adapters
-│   ├── demucs.py         # Voice separation (CPU)
-│   ├── whisper_asr.py    # ASR (GPU cuda)
-│   ├── voxcpm.py         # TTS / Voice cloning (CPU)
-│   ├── openai_translate.py  # Translation (remote API)
-│   ├── audio.py          # Audio split/stretch
-│   ├── ffmpeg.py         # Video merge + subtitles
-│   ├── asr_sentence_fixer.py
-│   └── conv_patch.py     # GEMM conv shim (unused)
+import ─► separate ─┬─► separate_after ───────────────────────────┐ (bgm)
+                    │                                             ▼
+                    └─► split_audio ─► tts ─► mix_audio ─► mix_video
+             sf_ocr_pre ─► sf_ocr ─► sf_ocr_fix ─► translate ─────┘
 ```
 
-## TTS / Voice Cloning
+实际执行的序列由 `output_mode`（`dub` / `subtitle`）与 `subtitle_source`
+（`asr` / `sf_ocr` / `asr_ocr`）决定，共 6 种组合；**单一真源**是
+`packages/core/src/steps/utils/steps.rs` 的 `steps_for`，运行时 `get_steps` 与
+import 期序列都走它。
 
-The TTS step (step 6) uses **VoxCPM2** (OpenBMB/VoxCPM2):
+## Workspace
 
-- **Runtime**: Python PyTorch (`voxcpm` PyPI package)
-- **Device**: CPU (GPU forward pass segfaults on RDNA 3)
-- **Pipeline**: LocEnc → TSLM MiniCPM-4 (2B) → RALM → LocDiT → VAE Decode
-- **Output**: 48kHz mono WAV
-- **Reference**: For each segment, uses corresponding cleaned vocal segment as voice reference
-- **Fallback**: If segment < 1.2s, uses longest available segment
+| 包 | 作用 |
+| --- | --- |
+| `packages/core`（`ld-core`） | 全部业务：步骤实现（`steps/`）、编排（`workflow/`）、env 检查与下载、状态投影（`state/`）、配置模型（`input/`） |
+| `packages/cli` | CLI 入口，按 command 派发到 `cmd/` |
+| `packages/app` + `ui-solid` | Tauri 2 桌面端；前端 SolidJS + TanStack Router/Query + Tailwind |
+| `packages/server` | axum + fnrpc 的 HTTP 服务（与 Tauri IPC 共用同一套 RPC） |
+| `packages/sdk` / `bridge` | fnrpc 的 TypeScript 绑定生成与前端桥 |
+| `fs` / `paths` / `config-rs` / `device-rs` / `llm` / `pacer-rs` / `time` / `util` | 路径、配置、设备探测、LLM 客户端、限流重试等支撑 crate |
 
-### Experimental TS ONNX path
+## 编排
 
-`packages/api/src/ml/voxcpm/` contains a full TypeScript ONNX Runtime implementation:
+三种执行路径（`workflow/args.rs` 的 `ExecPath`，由 `--engine` / `--parallel` 解析）：
 
-- 4 ONNX models: prefill, decode_step, vae_encoder, vae_decoder
-- EPs: cpu / webgpu
-- Not connected to production pipeline
+| 路径 | 实现 | 状态真源 |
+| --- | --- | --- |
+| Serial（默认） | `workflow/pipeline.rs::run_pipeline` 顺序 `run_step` | 任务根 `view.json` |
+| Parallel（实验） | `workflow/parallel.rs` 按 `dag.rs` 的 `StepDag` 并发 | 各 `<step>/state.json`（单写者） |
+| Engine | `integration/workflow/` 驱动 aa-workflow core，DAG 即代码（`workflows/dub_sf_ocr.rs`） | `<video_dir>/workflow-store/<run_id>/logs.jsonl` |
 
-### CosyVoice3 (not yet integrated)
+- 每步的入参是它自己的 `XxxInput` / `XxxDeps`（显式依赖清单），**跨步骤数据一律走盘上
+  产物**，没有"什么都装"的组合态在步骤之间传递。
+- 状态文件（`view.json`、`<step>/state.json`）是**投影**，可丢弃可重建；引擎的
+  resume / resume_from / target_step 只认事件日志。详见 `AGENTS.md`。
+- 每步执行前会重读 `input.json`，因此 resume / regen 改写配置后立即生效
+  （`pipeline.rs`）。
 
-`data/models/CosyVoice3-0.5B/onnx/` has community ONNX exports:
+## 外部运行时
 
-- 14 ONNX models (~3.7 GB), LLM + Flow + HiFT pipeline
-- 24kHz output
-- RTF ~18-44× CPU (LLM is bottleneck)
-- Requires prompt_wav + prompt_text for zero-shot cloning
+| 阶段 | 实现 | 分发方式 |
+| --- | --- | --- |
+| separate | demucs-burn（wgpu/Vulkan，htdemucs） | vox-lab release → `data/bin/demucs-wgpu` |
+| asr | whisper-vulkan | vox-lab release |
+| sf_ocr / asr_ocr | subtitle-finder 提关键帧 + subtitle-ocr 识别 | vision-lab release → `data/bin/` |
+| translate | 云端 LLM | HTTP API |
+| tts | VoxCPM（cloud） | HTTP API |
+| mix_audio / mix_video | ffmpeg | 系统或随包 |
+| import | ffmpeg + yt-dlp（远端源） | 同上 |
 
-## Production Models
+Release 二进制的资产清单（三平台 + sha256）定义在
+`packages/core/src/cmd/env/items.rs` 的 `ReleaseBinSpec`；`ld-core::cmd::env` 的
+check / ensure 负责下载、校验并补执行位。
 
-| Model      | Step         | Runtime  | Device     | Status                |
-| ---------- | ------------ | -------- | ---------- | --------------------- |
-| Demucs     | 1. Separate  | PyTorch  | CPU        | GPU hang, forced CPU  |
-| Whisper    | 2. ASR       | PyTorch  | GPU (cuda) | ✅ Healthy            |
-| OpenAI     | 4. Translate | HTTP API | Remote     | ✅ Healthy            |
-| VoxCPM     | 6. TTS       | PyTorch  | CPU        | ✅ Active, GPU broken |
-| CosyVoice3 | —            | ONNX     | CPU        | Not integrated        |
+## 硬件与已知限制
 
-## GPU Issues (AMD RDNA 3 / ROCm 7.2.3)
-
-- VoxCPM PyTorch GPU: model loads, forward pass → segfault
-- ONNX CUDA EP: not available (missing cuDNN 9)
-- ONNX WebGPU EP: works for short audio, OOM on medium+ (VK_ERROR_DEVICE_LOST)
-- PyTorch Vulkan: not available in current ROCm build
-- Whisper CUDA: works fine (only model with working GPU)
-
-See `docs/gpu-status.md` for details.
+- GPU 兼容性、MES hang 等见 `.agents/hardware.md`、`docs/gpu-status.md`
+- WebGPU `VK_ERROR_DEVICE_LOST` 根因见 `docs/webgpu-oom.md`
+- 模型设备分配策略见 `.agents/model-strategy.md`
