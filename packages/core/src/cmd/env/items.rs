@@ -612,7 +612,14 @@ pub async fn check_openai_providers(
     for (name, base_url, key) in providers {
         let r = check_openai_endpoint(name, base_url, key.as_deref()).await;
         if r.status != CheckStatus::Pass {
-            failures.push(format!("{} ({})", name, base_url));
+            // 带上每个 provider 自己的失败原因，不然只报「不可达」无法区分
+            // 无 key / HTTP 401 / 连接失败。
+            let reason = r
+                .data
+                .get("msg")
+                .and_then(|v| v.as_str())
+                .unwrap_or("未知原因");
+            failures.push(format!("{name} ({base_url}): {reason}"));
         }
         results.push(r);
     }
