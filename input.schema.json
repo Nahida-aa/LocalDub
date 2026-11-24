@@ -904,6 +904,10 @@
           "const": "workflow"
         },
         {
+          "const": "query",
+          "description": " 纯查询命令：读状态/配置，不修改任何数据（status/get_group_list/get_workflow_ctx）。"
+        },
+        {
           "const": "env"
         },
         {
@@ -1257,15 +1261,6 @@
           "const": "cancel_queue"
         },
         {
-          "const": "status"
-        },
-        {
-          "const": "get_group_list"
-        },
-        {
-          "const": "get_workflow_ctx"
-        },
-        {
           "const": "generate_meta"
         }
       ],
@@ -1552,6 +1547,49 @@
       ],
       "title": "WorkflowArgs_Serialize",
       "description": " workflow 参数 (镜像 workflowArgsSchema)"
+    },
+    "QueryAction": {
+      "anyOf": [
+        {
+          "const": "status",
+          "description": " 打印 view.json 里的 workflow.status + 各 step 状态。"
+        },
+        {
+          "const": "get_workflow_ctx",
+          "description": " 打印 view.json / input.json / 各 <step>/state.json 三份状态。"
+        },
+        {
+          "const": "get_group_list",
+          "description": " 列出所有任务分组。"
+        }
+      ],
+      "title": "QueryAction",
+      "description": " `command=query` 的查询动作（只读，不修改任务状态）。"
+    },
+    "QueryArgs_Serialize": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/QueryAction"
+        },
+        "video_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " status / get_workflow_ctx 需要指定任务目录。"
+        }
+      },
+      "required": [
+        "action",
+        "video_dir"
+      ],
+      "title": "QueryArgs_Serialize",
+      "description": " `command=query` 的参数。"
     },
     "ServerAction": {
       "anyOf": [
@@ -2199,6 +2237,17 @@
           ],
           "description": " workflow 参数, 仅 command=workflow 时必须"
         },
+        "query": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QueryArgs_Serialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " query 参数, 仅 command=query 时必须"
+        },
         "command": {
           "$ref": "#/$defs/Command",
           "description": " 执行命令 (默认 env)"
@@ -2260,6 +2309,7 @@
       },
       "required": [
         "workflow",
+        "query",
         "command",
         "servers",
         "env",
@@ -2379,6 +2429,30 @@
       },
       "title": "WorkflowArgs_Deserialize",
       "description": " workflow 参数 (镜像 workflowArgsSchema)"
+    },
+    "QueryArgs_Deserialize": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/QueryAction"
+        },
+        "video_dir": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " status / get_workflow_ctx 需要指定任务目录。"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "QueryArgs_Deserialize",
+      "description": " `command=query` 的参数。"
     },
     "ServerType_Deserialize": {
       "anyOf": [
@@ -2836,6 +2910,17 @@
           ],
           "description": " workflow 参数, 仅 command=workflow 时必须"
         },
+        "query": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QueryArgs_Deserialize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " query 参数, 仅 command=query 时必须"
+        },
         "command": {
           "$ref": "#/$defs/Command",
           "description": " 执行命令 (默认 env)"
@@ -3157,6 +3242,36 @@
       ],
       "title": "OcrFixArgs",
       "description": " sf_ocr 阶段 OCR 修正参数。\n\n 注意: `#[serde(default = \"fn\")]` 仅在字段级反序列化时生效; 当父结构用\n `#[serde(default)]` 整体缺省时会调用 Rust `Default`, 故这里手写 `impl Default`\n 以保证两种路径下默认值一致 (与 `input::steps::Asr` 同款处理)。"
+    },
+    "QueryArgs": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/QueryArgs_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/QueryArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "QueryArgs",
+      "description": " `command=query` 的参数。"
     },
     "SeparateAfterArgs": {
       "anyOf": [

@@ -35,12 +35,6 @@ pub enum WorkflowAction {
     ListQueue,
     #[serde(rename = "cancel_queue")]
     CancelQueue,
-    #[serde(rename = "status")]
-    Status,
-    #[serde(rename = "get_group_list")]
-    GetGroupList,
-    #[serde(rename = "get_workflow_ctx")]
-    GetWorkflowCtx,
     #[serde(rename = "generate_meta")]
     GenerateMeta,
 }

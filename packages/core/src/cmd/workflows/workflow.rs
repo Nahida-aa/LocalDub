@@ -1,20 +1,15 @@
 //! workflow 顶层派发器 (镜像 TS `packages/core/cmd/workflows/workflow.ts` 的 `cmdTask`)。
 //!
-//! 根据 `input.workflow.action` 分派:
-//! - `start`          → [`crate::cmd::workflows::start_workflow`] (重新 import + 跑全 pipeline)
-//! - `continue`       → [`crate::cmd::workflows::resume_workflow`] (合并 input 续跑)
-//! - `get_group_list`→ [`crate::cmd::workflows::get_workflow::get_group_list`]
-//! - `get_workflow_ctx`   → 读 view.json 并打印
-//! - `status`         → 读 view.json 并打印各 step 状态
+//! 根据 `input.workflow.action` 分派执行/队列类动作（start / resume / enqueue_* 等）。
+//! 纯查询动作（status / get_workflow_ctx / get_group_list）已拆到
+//! [`crate::cmd::workflows::query`]（`command=query`）。
 //!
-//! 这是 `cmd/workflows` 的总入口, 对应 TS `run-workflow.ts` 里对 `cmdTask` 的调用。
+//! 这是 `cmd/workflows` 的执行总入口, 对应 TS `run-workflow.ts` 里对 `cmdTask` 的调用。
 
-use crate::cmd::workflows::get_workflow::get_group_list;
 use crate::cmd::workflows::{
     resume_workflow, import_and_start_workflow, start_workflow,
 };
 use crate::input::Input;
-use crate::state::{read_input, read_state, read_steps_state};
 use crate::workflow::args::WorkflowAction;
 use anyhow::Context;
 
@@ -61,47 +56,6 @@ pub async fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
                 anyhow::anyhow!("cancel_queue 需要 input.workflow.queueId 指定队列任务 ID")
             })?;
             crate::cmd::workflows::enqueue::cancel_queue(id).context("cancel_queue 失败")?;
-        }
-        Some(WorkflowAction::GetGroupList) => {
-            let groups = get_group_list().map_err(|e| anyhow::anyhow!("{e}"))?;
-            let json = serde_json::to_string_pretty(&groups)
-                .map_err(|e| anyhow::anyhow!("序列化 group_list 失败: {e}"))?;
-            println!("{json}");
-        }
-        Some(WorkflowAction::GetWorkflowCtx) => {
-            let video_dir = workflow
-                .video_dir
-                .clone()
-                .ok_or_else(|| anyhow::anyhow!("get_workflow_ctx 需要 input.workflow.video_dir"))?;
-            // 三个状态文件各有各的写者，打印时就照它们的本来面目各来一份，
-            // 不拼成一个"视图形状"。
-            let st = read_state(&video_dir)
-                .map_err(|e| anyhow::anyhow!("读取 {video_dir}/view.json 失败: {e}"))?;
-            let input = read_input(&video_dir)
-                .map_err(|e| anyhow::anyhow!("读取 {video_dir}/input.json 失败: {e}"))?;
-            let steps = read_steps_state(&video_dir)
-                .map_err(|e| anyhow::anyhow!("读取 {video_dir}/<step>/state.json 失败: {e}"))?;
-            let json = serde_json::to_string_pretty(&serde_json::json!({
-                "state": st, "input": input, "steps": steps.0,
-            }))
-            .map_err(|e| anyhow::anyhow!("序列化 ctx 失败: {e}"))?;
-            println!("{json}");
-        }
-        Some(WorkflowAction::Status) => {
-            let video_dir = workflow
-                .video_dir
-                .clone()
-                .ok_or_else(|| anyhow::anyhow!("status 需要 input.workflow.video_dir"))?;
-            let wf = read_state(&video_dir)
-                .map_err(|e| anyhow::anyhow!("读取 {video_dir}/view.json 失败: {e}"))?
-                .workflow;
-            println!("workflow.status = {}", wf.status);
-            for (name, st) in read_steps_state(&video_dir)
-                .map_err(|e| anyhow::anyhow!("读取 {video_dir}/<step>/state.json 失败: {e}"))?
-                .0
-            {
-                println!("  {}: {:?}", name.as_str(), st.status);
-            }
         }
         Some(WorkflowAction::GenerateMeta) => {
             let video_dir = workflow

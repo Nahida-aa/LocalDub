@@ -347,7 +347,9 @@ export type CheckType = "video" | "asr" | "font";
  *  命名对齐 TS `commandList` (types.ts): `deviceInfo`/`listModels` 是 camelCase,
  *  其余为全小写 (增强 `rename_all = "lowercase"` 无法表达, 显式 rename)。
  */
-export type Command = "workflow" | "env" | "servers" | "cookie" | "check" | "deviceInfo" | "listModels";
+export type Command = "workflow" | 
+/**  纯查询命令：读状态/配置，不修改任何数据（status/get_group_list/get_workflow_ctx）。 */
+"query" | "env" | "servers" | "cookie" | "check" | "deviceInfo" | "listModels";
 
 /**  cookie 动作 */
 export type CookieAction = "set";
@@ -565,6 +567,8 @@ export type Input = Input_Serialize | Input_Deserialize;
 export type Input_Deserialize = {
 	/**  workflow 参数, 仅 command=workflow 时必须 */
 	workflow?: WorkflowArgs_Deserialize | null,
+	/**  query 参数, 仅 command=query 时必须 */
+	query?: QueryArgs_Deserialize | null,
 	/**  执行命令 (默认 env) */
 	command?: Command,
 	/**  服务端参数 (镜像 servers/args.ts), 仅 command=servers 时使用 */
@@ -584,6 +588,8 @@ export type Input_Deserialize = {
 export type Input_Serialize = {
 	/**  workflow 参数, 仅 command=workflow 时必须 */
 	workflow: WorkflowArgs_Serialize | null,
+	/**  query 参数, 仅 command=query 时必须 */
+	query: QueryArgs_Serialize | null,
 	/**  执行命令 (默认 env) */
 	command: Command,
 	/**  服务端参数 (镜像 servers/args.ts), 仅 command=servers 时使用 */
@@ -1139,6 +1145,32 @@ export type PlatformInfo_Serialize = {
 };
 
 export type ProbeResult = "ok" | "fail";
+
+/**  `command=query` 的查询动作（只读，不修改任务状态）。 */
+export type QueryAction = 
+/**  打印 view.json 里的 workflow.status + 各 step 状态。 */
+"status" | 
+/**  打印 view.json / input.json / 各 <step>/state.json 三份状态。 */
+"get_workflow_ctx" | 
+/**  列出所有任务分组。 */
+"get_group_list";
+
+/**  `command=query` 的参数。 */
+export type QueryArgs = QueryArgs_Serialize | QueryArgs_Deserialize;
+
+/**  `command=query` 的参数。 */
+export type QueryArgs_Deserialize = {
+	action: QueryAction,
+	/**  status / get_workflow_ctx 需要指定任务目录。 */
+	video_dir?: string | null,
+};
+
+/**  `command=query` 的参数。 */
+export type QueryArgs_Serialize = {
+	action: QueryAction,
+	/**  status / get_workflow_ctx 需要指定任务目录。 */
+	video_dir: string | null,
+};
 
 /**
  *  队列条目 (fnrpc list_queue 对外)。
@@ -2009,7 +2041,7 @@ export type WorkflowAction =
  *  批量入队目录: 扫描本地目录顶层视频文件, 每个去重后入队一条 action=start 任务。
  *  (目录是入队动作的入参, 队列粒度仍是单视频 start 事件。)
  */
-"enqueue_dir" | "list_queue" | "cancel_queue" | "status" | "get_group_list" | "get_workflow_ctx" | "generate_meta";
+"enqueue_dir" | "list_queue" | "cancel_queue" | "generate_meta";
 
 /**  workflow 参数 (镜像 workflowArgsSchema) */
 export type WorkflowArgs = WorkflowArgs_Serialize | WorkflowArgs_Deserialize;

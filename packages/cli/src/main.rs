@@ -18,7 +18,7 @@ use ld_core::cmd::check::CheckType;
 use ld_core::cmd::env::args::EnvAction;
 use ld_core::cmd::workflows::workflow::cmd_workflow;
 use ld_core::input::Command as InputCommand;
-use ld_core::input::Input;
+use ld_core::input::{Input, QueryAction};
 use ld_core::servers::args::ServerAction;
 use ld_core::workflow::args::{StepName, WorkflowAction};
 use paths::parse_repo_input;
@@ -78,6 +78,15 @@ enum Command {
         /// 目标步骤集 (resume/enqueue_resume 用)，全部达成才停。
         #[arg(long, value_enum, num_args = 1..)]
         target_step: Vec<StepName>,
+    },
+    /// 纯查询 (等价 input.jsonc command=query)，只读不改状态。
+    Query {
+        /// 查询动作: status / get_workflow_ctx / get_group_list。
+        #[arg(long, value_enum)]
+        action: QueryAction,
+        /// 任务目录 (status / get_workflow_ctx 用)。
+        #[arg(long)]
+        video_dir: Option<String>,
     },
     /// 服务器管理 (等价 input.jsonc command=servers)。
     Servers {
@@ -177,6 +186,18 @@ async fn main() {
             input.workflow = Some(workflow);
             input.command = InputCommand::Workflow;
         }
+        Some(Command::Query { action, video_dir }) => {
+            let mut query = input.query.clone().unwrap_or(ld_core::input::QueryArgs {
+                action,
+                video_dir: None,
+            });
+            query.action = action;
+            if let Some(d) = video_dir {
+                query.video_dir = Some(d);
+            }
+            input.query = Some(query);
+            input.command = InputCommand::Query;
+        }
         Some(Command::Servers {
             action,
             name,
@@ -228,6 +249,10 @@ async fn main() {
         InputCommand::Workflow => {
             cmd_workflow(&input).await.context("cmd_workflow 失败")
         }
+        InputCommand::Query => match input.query.as_ref() {
+            Some(args) => ld_core::cmd::workflows::query::cmd_query(args).context("cmd_query 失败"),
+            None => Err(anyhow::anyhow!("command=query 时 query 必填")),
+        },
         InputCommand::Env => ld_core::cmd::env::handler::cmd_env(&input).await.context("cmd_env 失败"),
         InputCommand::Servers => ld_core::cmd::servers::cmd_servers(&input)
             .context("servers 命令失败")

@@ -72,6 +72,8 @@ pub fn resolve_llm_provider<'a>(
 #[serde(rename_all = "lowercase")]
 pub enum Command {
     Workflow,
+    /// 纯查询命令：读状态/配置，不修改任何数据（status/get_group_list/get_workflow_ctx）。
+    Query,
     Env,
     Servers,
     Cookie,
@@ -80,6 +82,29 @@ pub enum Command {
     DeviceInfo,
     #[serde(rename = "listModels")]
     ListModels,
+}
+
+/// `command=query` 的查询动作（只读，不修改任务状态）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type, clap::ValueEnum)]
+#[value(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum QueryAction {
+    /// 打印 view.json 里的 workflow.status + 各 step 状态。
+    Status,
+    /// 打印 view.json / input.json / 各 <step>/state.json 三份状态。
+    GetWorkflowCtx,
+    /// 列出所有任务分组。
+    GetGroupList,
+}
+
+/// `command=query` 的参数。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub struct QueryArgs {
+    pub action: QueryAction,
+    /// status / get_workflow_ctx 需要指定任务目录。
+    #[serde(default)]
+    pub video_dir: Option<String>,
 }
 
 impl Default for Command {
@@ -93,6 +118,9 @@ impl Default for Command {
 pub struct Input {
     /// workflow 参数, 仅 command=workflow 时必须
     pub workflow: Option<args::WorkflowArgs>,
+    /// query 参数, 仅 command=query 时必须
+    #[serde(default)]
+    pub query: Option<QueryArgs>,
     /// 执行命令 (默认 env)
     #[serde(default)]
     pub command: Command,
@@ -119,6 +147,7 @@ impl Default for Input {
     fn default() -> Self {
         Self {
             workflow: None,
+            query: None,
             command: Command::default(),
             servers: None,
             env: None,
@@ -150,6 +179,9 @@ impl Input {
     pub fn validate(&self) -> Result<(), String> {
         if self.command == Command::Workflow && self.workflow.is_none() {
             return Err("command=workflow 时 workflow 必填".into());
+        }
+        if self.command == Command::Query && self.query.is_none() {
+            return Err("command=query 时 query 必填".into());
         }
         Ok(())
     }
@@ -347,6 +379,18 @@ mod tests {
 
         let env: Input = serde_json::from_str(r#"{"command":"env"}"#).unwrap();
         assert!(env.validate().is_ok());
+
+        // command=query 时 query 必填
+        let ok: Input = serde_json::from_str(
+            r#"{"command":"query","query":{"action":"status","video_dir":"workfolder/x"}}"#,
+        )
+        .unwrap();
+        assert!(ok.validate().is_ok());
+        assert_eq!(ok.command, Command::Query);
+        assert_eq!(ok.query.as_ref().unwrap().action, QueryAction::Status);
+
+        let missing: Input = serde_json::from_str(r#"{"command":"query"}"#).unwrap();
+        assert!(missing.validate().is_err());
     }
 
     #[test]
