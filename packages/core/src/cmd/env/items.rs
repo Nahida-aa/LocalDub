@@ -797,9 +797,11 @@ const SUBTITLE_OCR: ReleaseBinSpec = ReleaseBinSpec {
     bin: "subtitle-ocr",
     repo: "Nahida-aa/vision-lab",
     tag: "subtitle-ocr-v0.1.1",
-    zip: false,
-    linux_asset: "subtitle-ocr-x86_64-unknown-linux-gnu",
-    linux_sha256: "ef0825c5b5f5c4cc3177cd27f49fe4d435e8ffe26d82cf168b042978b9cfba83",
+    // 静态链 OpenCV 5.0 的新资产（消除系统 OpenCV 5.0/5.1 soname 不匹配）；
+    // zip 内单文件 subtitle-ocr，解压平铺到 bin_dir。旧裸二进制资产仍并存于 release。
+    zip: true,
+    linux_asset: "subtitle-ocr-x86_64-unknown-linux-gnu.zip",
+    linux_sha256: "65363ea934a5dcc664bb190b61564f44b26624e0451cca76682f46c657f4f591",
     windows_asset: Some("subtitle-ocr-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some("7dfec92f6089b6213c0be9e69ee9c589a5730c5acb6dc6b33da96dffbf0389e7"),
     stamp: ".subtitle_ocr.version.json",
