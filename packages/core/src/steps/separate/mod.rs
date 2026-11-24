@@ -435,10 +435,10 @@ mod tests {
         // 独立 tch-rs 运行时不支持 vulkan/webgpu, 回退 cpu 变体
         assert_eq!(R::Tch.resolve(Device::Cuda).binary, "demucs-tch-cuda");
         assert_eq!(R::Tch.resolve(Device::Vulkan).binary, "demucs-tch-cpu");
-        assert_eq!(R::Tch.resolve(Device::Cuda).env_key, Some("demucs_tch_cuda_bin"));
+        assert_eq!(R::Tch.resolve(Device::Cuda).env_key, Some(crate::cmd::env::input::EnvKey::DemucsTchCudaBin));
         // 自研 wgpu 运行时: 单二进制
         assert_eq!(R::Wgpu.resolve(Device::Cuda).binary, "demucs-wgpu");
-        assert_eq!(R::Wgpu.resolve(Device::Webgpu).env_key, Some("demucs_wgpu_bin"));
+        assert_eq!(R::Wgpu.resolve(Device::Webgpu).env_key, Some(crate::cmd::env::input::EnvKey::DemucsWgpuBin));
         // 无发布资产的组合 env_key 为 None
         assert_eq!(R::Burn.resolve(Device::Cuda).env_key, None);
     }

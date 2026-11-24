@@ -7,6 +7,7 @@
 //!   4. fixOverlap + final dedup (step 7)
 //!   5. Optional LLM fix (step 8)
 
+use crate::cmd::env::input::EnvKey;
 use crate::cmd::env::ensure_bin;
 use crate::steps::asr_ocr::fix_args::{AsrOcrFixArgs, AsrOcrFixDeps, AsrOcrFixOutput};
 use crate::steps::asr_ocr::pre_out::AsrSplitResult;
@@ -172,7 +173,7 @@ async fn maybe_resample(
     }
 
     // OCR the resampled frames using subtitle-ocr bin
-    let bin = ensure_bin("subtitle_ocr_bin").await.map_err(|e| {
+    let bin = ensure_bin(EnvKey::SubtitleOcrBin).await.map_err(|e| {
         anyhow::anyhow!(
             "{e}\nIf download fails, run: cargo run -p cli -- env --action ensure --targets subtitle_ocr_bin"
         )

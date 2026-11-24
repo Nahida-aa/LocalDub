@@ -8,6 +8,7 @@ pub mod fix;
 pub mod fix_args;
 pub mod out;
 
+use crate::cmd::env::input::EnvKey;
 use std::process::Command;
 
 use anyhow::{anyhow, Context};
@@ -96,7 +97,7 @@ pub async fn step_asr(sc: impl StepCtxView, deps: AsrDeps) -> anyhow::Result<()>
         wav.to_string_lossy().to_string()
     };
 
-    let whisper_cli = crate::cmd::env::ensure_bin("whisper_bin").await.map_err(|e| {
+    let whisper_cli = crate::cmd::env::ensure_bin(EnvKey::WhisperBin).await.map_err(|e| {
         anyhow!(
             "whisper-vulkan 未就绪: {e}\n\
              尝试: cargo run -p cli -- env --action ensure --targets whisper_bin\n\

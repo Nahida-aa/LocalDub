@@ -4,6 +4,7 @@
 //! 只写出 `<video_dir>/sf_ocr/frames.json` (OcrFramesResult 原始逐帧结果);
 //! 段合并 / 时间调整 / LLM 修正由下游 sf_ocr_fix 负责。
 
+use crate::cmd::env::input::EnvKey;
 use crate::cmd::env::ensure_bin;
 use crate::steps::sf_ocr::args::{SfOcrDeps, SfOcrOutput};
 use crate::steps::utils::paths::sf_ocr;
@@ -39,7 +40,7 @@ pub async fn step_sf_ocr(sc: impl StepCtxView, deps: SfOcrDeps) -> anyhow::Resul
         ));
     }
 
-    let bin = ensure_bin("subtitle_ocr_bin").await.map_err(|e| {
+    let bin = ensure_bin(EnvKey::SubtitleOcrBin).await.map_err(|e| {
         anyhow::anyhow!(
             "{e}\n若下载失败, 请手动执行: cargo run -p cli -- env --action ensure --targets subtitle_ocr_bin"
         )

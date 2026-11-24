@@ -5,6 +5,7 @@
 //! `run_check`/`run_ensure`/`format_result`); 这里是从 `Input` 出发的统一入口。
 
 use crate::cmd::env::args::EnvAction;
+use crate::cmd::env::input::EnvKey;
 use crate::cmd::env::{format_result, infer_targets, run_check, run_ensure};
 use crate::input::Input;
 
@@ -18,7 +19,24 @@ pub async fn cmd_env(input: &Input) -> anyhow::Result<()> {
     let (targets, desired) = if env_args.targets.is_empty() {
         infer_targets(input)
     } else {
-        (env_args.targets, std::collections::HashMap::new())
+        // 字符串 → EnvKey 的边界：非法 key 在这里报错，不再流到内部静默 skip。
+        let parsed: Option<Vec<EnvKey>> = env_args
+            .targets
+            .iter()
+            .map(|s| EnvKey::parse(s))
+            .collect();
+        let targets = parsed.ok_or_else(|| {
+            anyhow::anyhow!(
+                "未知环境项: {}",
+                env_args
+                    .targets
+                    .iter()
+                    .find(|s| EnvKey::parse(s).is_none())
+                    .map(|s| s.as_str())
+                    .unwrap_or("?")
+            )
+        })?;
+        (targets, std::collections::HashMap::new())
     };
 
     let results = match env_args.action {

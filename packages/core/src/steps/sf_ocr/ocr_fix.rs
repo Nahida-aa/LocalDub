@@ -6,6 +6,7 @@
 //! 注意: LLM 修正通过 `llm` crate 的 `chat_completions` + `ocr_llm_fix` 实现 (`llmFix=true` 时),
 //! 失败时 warn 并保留原文 (不中断 step)。
 
+use crate::cmd::env::input::EnvKey;
 use crate::cmd::env::ensure_bin;
 use crate::steps::sf_ocr::fix_args::{SfOcrFixDeps, SfOcrFixOutput};
 use crate::steps::utils::paths::{sf_ocr_fix, SrtJsonPath};
@@ -41,7 +42,7 @@ pub async fn step_sf_ocr_fix(
 
     let args = &input.steps.sf_ocr_fix;
 
-    let bin = ensure_bin("subtitle_ocr_post_bin").await.map_err(|e| {
+    let bin = ensure_bin(EnvKey::SubtitleOcrPostBin).await.map_err(|e| {
         anyhow::anyhow!(
             "{e}\n若下载失败, 请手动执行: cargo run -p cli -- env --action ensure --targets subtitle_ocr_post_bin"
         )

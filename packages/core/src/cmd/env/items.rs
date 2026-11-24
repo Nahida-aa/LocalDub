@@ -2,16 +2,13 @@
 //!
 //! 设计抉择 (见 plan):
 //! - i18n: TS 用 `@repo/shared/i18n` 的 `t(key)`; Rust 无框架, 各 check 在 `data`
-//!   里给出简化 `msg` 字段, `format_result` 直接打印 + 中文描述 (input::zh_desc)。
+//!   里给出简化 `msg` 字段, `format_result` 直接打印 + 中文描述 (EnvKey::meta)。
 //! - try_exec 超时: TS 用 `spawnSync` 10s 超时; Rust 用 spawn + try_wait 轮询 +
 //!   超时 kill (`TRY_EXEC_TIMEOUT`), 超时视为 ok=false (对齐 TS)。
 //! - ollama 分离进程: 用 `std::process::Command` + `Stdio::null()` + unix
 //!   `process_group(0)` (win 用 `CREATE_NEW_PROCESS_GROUP`) 替代 `spawn detached`。
 
-use std::collections::HashMap;
-use std::future::Future;
 use std::path::{Path, PathBuf};
-use std::pin::Pin;
 use std::process::{Command, Stdio};
 
 use chrono;
@@ -21,20 +18,8 @@ use config_rs::env::{openai_api_key, openai_base_url};
 use config_rs::path::models::{bin_dir, demucs_model_dir, voxcpm_model_dir, whisper_model_dir};
 use config_rs::root::repo_root;
 
+use crate::cmd::env::input::EnvKey;
 use crate::cmd::env::{CheckResult, CheckStatus};
-
-// check / ensure 注册表的统一形状：零参函数返回一个 boxed future。
-// 函数指针无法返回 impl Trait，也不捕获环境；9 个 release-bin wrapper 各自
-// 用 async 块捕获静态 SPEC，再由 boxed 抹成同一签名。
-pub type CheckFn = fn() -> Pin<Box<dyn Future<Output = CheckResult> + Send>>;
-
-/// 把任意 async 块抹成 CheckFn 的返回类型（Box::pin，不依赖 futures features）。
-pub(crate) fn boxed<F>(f: F) -> Pin<Box<dyn Future<Output = CheckResult> + Send>>
-where
-    F: Future<Output = CheckResult> + Send + 'static,
-{
-    Box::pin(f)
-}
 
 // ---------------------------------------------------------------------------
 // 本地 helper
@@ -405,6 +390,39 @@ pub fn check_git() -> CheckResult {
         key: "git".into(),
         status: CheckStatus::Pass,
         data: json!({ "version": ver, "msg": format!("git {}", ver) }),
+        required: false,
+    }
+}
+
+/// yt-dlp: `YTDLP_BIN` 覆盖路径，否则按 `which("yt-dlp")`（与 `import/util.rs` 同一解析）。
+/// 原先该项只在 ENV_ENTRIES 里、无 check 实现 → 静默 Skip；枚举化后给真实检查。
+pub fn check_ytdlp() -> CheckResult {
+    let bin = std::env::var("YTDLP_BIN")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| which("yt-dlp"));
+    let Some(bin) = bin else {
+        return CheckResult {
+            key: "yt_dlp".into(),
+            status: CheckStatus::Fail,
+            data: json!({ "msg": "yt-dlp 未找到 (可设 YTDLP_BIN 指定路径)" }),
+            required: false,
+        };
+    };
+    let (ok, out, _) = try_exec(&bin, &["--version"], None);
+    if !ok {
+        return CheckResult {
+            key: "yt_dlp".into(),
+            status: CheckStatus::Warn,
+            data: json!({ "path": bin, "msg": "yt-dlp 存在但无法执行 --version" }),
+            required: false,
+        };
+    }
+    let ver = first_version(&out);
+    CheckResult {
+        key: "yt_dlp".into(),
+        status: CheckStatus::Pass,
+        data: json!({ "path": bin, "version": ver, "msg": format!("yt-dlp {ver}") }),
         required: false,
     }
 }
@@ -1390,16 +1408,6 @@ pub async fn check_subtitle_ocr_bin() -> CheckResult {
 pub async fn check_subtitle_ocr_post_bin() -> CheckResult {
     check_release_bin(&SUBTITLE_OCR_POST).await
 }
-async fn ensure_subtitle_finder_bin() -> CheckResult {
-    ensure_release_bin(&SUBTITLE_FINDER).await
-}
-async fn ensure_subtitle_ocr_bin() -> CheckResult {
-    ensure_release_bin(&SUBTITLE_OCR).await
-}
-async fn ensure_subtitle_ocr_post_bin() -> CheckResult {
-    ensure_release_bin(&SUBTITLE_OCR_POST).await
-}
-
 /// 当前平台的目标二进制路径 (供 `bin_path_from_key` 复用, 与下载路径保持一致)。
 pub fn subtitle_finder_bin_path() -> PathBuf {
     release_bin_path(&SUBTITLE_FINDER)
@@ -1426,22 +1434,6 @@ pub async fn check_demucs_tch_cpu_bin() -> CheckResult {
 pub async fn check_demucs_tch_cuda_bin() -> CheckResult {
     check_release_bin(&DEMUCS_TCH_CUDA).await
 }
-async fn ensure_demucs_burn_tch_bin() -> CheckResult {
-    ensure_release_bin(&DEMUCS_BURN_TCH).await
-}
-async fn ensure_demucs_burn_wgpu_bin() -> CheckResult {
-    ensure_release_bin(&DEMUCS_BURN_WGPU).await
-}
-async fn ensure_demucs_wgpu_bin() -> CheckResult {
-    ensure_release_bin(&DEMUCS_WGPU).await
-}
-async fn ensure_demucs_tch_cpu_bin() -> CheckResult {
-    ensure_release_bin(&DEMUCS_TCH_CPU).await
-}
-async fn ensure_demucs_tch_cuda_bin() -> CheckResult {
-    ensure_release_bin(&DEMUCS_TCH_CUDA).await
-}
-
 /// 当前平台的目标二进制路径 (供 `bin_path_from_key` 复用, 与下载路径保持一致)。
 pub fn demucs_burn_tch_bin_path() -> PathBuf {
     release_bin_path(&DEMUCS_BURN_TCH)
@@ -1463,10 +1455,6 @@ pub fn demucs_tch_cuda_bin_path() -> PathBuf {
 pub fn whisper_vulkan_bin_path() -> PathBuf {
     release_bin_path(&WHISPER_VULKAN)
 }
-async fn ensure_whisper_bin() -> CheckResult {
-    ensure_release_bin(&WHISPER_VULKAN).await
-}
-
 // ---------------------------------------------------------------------------
 // ensure: dotenv
 // ---------------------------------------------------------------------------
@@ -1507,59 +1495,95 @@ fn ensure_dotenv() -> CheckResult {
 }
 
 // ---------------------------------------------------------------------------
-// 调度表
+// EnvKey 行为：身份 + 元数据 + check + 可选 ensure，集中调度
 // ---------------------------------------------------------------------------
 
-/// 全部检查函数 (镜像 TS `allChecks`)。
-///
-/// 每项统一返回 boxed future：同步 check 用 `async {}` 包，async check 直接调用。
-pub fn all_checks() -> HashMap<&'static str, CheckFn> {
-    let mut m: HashMap<&'static str, CheckFn> = HashMap::new();
-    m.insert("bun", || boxed(async { check_bun() }));
-    m.insert("python", || boxed(async { check_python() }));
-    m.insert("uv", || boxed(async { check_uv() }));
-    m.insert("ffmpeg", || boxed(async { check_ffmpeg() }));
-    m.insert("cargo", || boxed(async { check_cargo() }));
-    m.insert("vulkan", || boxed(async { check_vulkan() }));
-    m.insert("rocm", || boxed(async { check_rocm() }));
-    m.insert("cuda", || boxed(async { check_cuda() }));
-    m.insert("whisper_ggml", || boxed(async { check_whisper_ggml() }));
-    m.insert("whisper_vad", || boxed(async { check_whisper_vad() }));
-    m.insert("demucs_pth", || boxed(async { check_demucs_pth() }));
-    m.insert("voxcpm2_onnx", || boxed(async { check_voxcpm2_onnx() }));
-    m.insert("voxcpm2_pth", || boxed(async { check_voxcpm2_pth() }));
-    m.insert("whisper_bin", || boxed(check_whisper_bin()));
-    m.insert("demucs_burn_bin", || boxed(async { check_demucs_burn_bin(None) }));
-    m.insert("subtitle_finder_bin", || boxed(check_subtitle_finder_bin()));
-    m.insert("subtitle_ocr_bin", || boxed(check_subtitle_ocr_bin()));
-    m.insert("subtitle_ocr_post_bin", || boxed(check_subtitle_ocr_post_bin()));
-    m.insert("demucs_burn_tch_bin", || boxed(check_demucs_burn_tch_bin()));
-    m.insert("demucs_burn_wgpu_bin", || boxed(check_demucs_burn_wgpu_bin()));
-    m.insert("demucs_wgpu_bin", || boxed(check_demucs_wgpu_bin()));
-    m.insert("demucs_tch_cpu_bin", || boxed(check_demucs_tch_cpu_bin()));
-    m.insert("demucs_tch_cuda_bin", || boxed(check_demucs_tch_cuda_bin()));
-    m.insert("cmake", || boxed(async { check_cmake() }));
-    m.insert("git", || boxed(async { check_git() }));
-    m.insert("dotenv", || boxed(async { check_dotenv() }));
-    m.insert("openai", || boxed(check_openai()));
-    m
-}
+impl EnvKey {
+    /// 执行该项的 check。desired 仅供 demucs_burn_bin 读取（其余项忽略）。
+    pub async fn check(&self, desired: Option<&str>) -> CheckResult {
+        match self {
+            Self::Bun => check_bun(),
+            Self::Python => check_python(),
+            Self::Uv => check_uv(),
+            Self::Ffmpeg => check_ffmpeg(),
+            Self::Cargo => check_cargo(),
+            Self::Vulkan => check_vulkan(),
+            Self::Rocm => check_rocm(),
+            Self::Cuda => check_cuda(),
+            Self::WhisperGgml => check_whisper_ggml(),
+            Self::WhisperVad => check_whisper_vad(),
+            Self::DemucsPth => check_demucs_pth(),
+            Self::Voxcpm2Onnx => check_voxcpm2_onnx(),
+            Self::Voxcpm2Pth => check_voxcpm2_pth(),
+            Self::WhisperBin => check_whisper_bin().await,
+            Self::DemucsBurnBin => check_demucs_burn_bin(desired),
+            Self::DemucsBurnTchBin => check_demucs_burn_tch_bin().await,
+            Self::DemucsBurnWgpuBin => check_demucs_burn_wgpu_bin().await,
+            Self::DemucsWgpuBin => check_demucs_wgpu_bin().await,
+            Self::DemucsTchCpuBin => check_demucs_tch_cpu_bin().await,
+            Self::DemucsTchCudaBin => check_demucs_tch_cuda_bin().await,
+            Self::SubtitleFinderBin => check_subtitle_finder_bin().await,
+            Self::SubtitleOcrBin => check_subtitle_ocr_bin().await,
+            Self::SubtitleOcrPostBin => check_subtitle_ocr_post_bin().await,
+            Self::Cmake => check_cmake(),
+            Self::YtDlp => check_ytdlp(),
+            Self::Git => check_git(),
+            Self::Dotenv => check_dotenv(),
+            Self::Openai => check_openai().await,
+        }
+    }
 
-/// 可 ensure 的项 (镜像 TS `ensureFns`)。
-pub fn ensure_fns() -> HashMap<&'static str, CheckFn> {
-    let mut m: HashMap<&'static str, CheckFn> = HashMap::new();
-    m.insert("dotenv", || boxed(async { ensure_dotenv() }));
-    m.insert("openai", || boxed(ensure_openai()));
-    m.insert("subtitle_finder_bin", || boxed(ensure_subtitle_finder_bin()));
-    m.insert("subtitle_ocr_bin", || boxed(ensure_subtitle_ocr_bin()));
-    m.insert("subtitle_ocr_post_bin", || boxed(ensure_subtitle_ocr_post_bin()));
-    m.insert("demucs_burn_tch_bin", || boxed(ensure_demucs_burn_tch_bin()));
-    m.insert("demucs_burn_wgpu_bin", || boxed(ensure_demucs_burn_wgpu_bin()));
-    m.insert("demucs_wgpu_bin", || boxed(ensure_demucs_wgpu_bin()));
-    m.insert("demucs_tch_cpu_bin", || boxed(ensure_demucs_tch_cpu_bin()));
-    m.insert("demucs_tch_cuda_bin", || boxed(ensure_demucs_tch_cuda_bin()));
-    m.insert("whisper_bin", || boxed(ensure_whisper_bin()));
-    m
+    /// 执行 ensure；None = 该项只能检测、没有安装动作。
+    pub async fn ensure(&self) -> Option<CheckResult> {
+        Some(match self {
+            Self::Dotenv => ensure_dotenv(),
+            Self::Openai => ensure_openai().await,
+            Self::SubtitleFinderBin => ensure_release_bin(&SUBTITLE_FINDER).await,
+            Self::SubtitleOcrBin => ensure_release_bin(&SUBTITLE_OCR).await,
+            Self::SubtitleOcrPostBin => ensure_release_bin(&SUBTITLE_OCR_POST).await,
+            Self::DemucsBurnTchBin => ensure_release_bin(&DEMUCS_BURN_TCH).await,
+            Self::DemucsBurnWgpuBin => ensure_release_bin(&DEMUCS_BURN_WGPU).await,
+            Self::DemucsWgpuBin => ensure_release_bin(&DEMUCS_WGPU).await,
+            Self::DemucsTchCpuBin => ensure_release_bin(&DEMUCS_TCH_CPU).await,
+            Self::DemucsTchCudaBin => ensure_release_bin(&DEMUCS_TCH_CUDA).await,
+            Self::WhisperBin => ensure_release_bin(&WHISPER_VULKAN).await,
+            _ => return None,
+        })
+    }
+
+    /// 是否有安装动作（与 ensure 的 match 同一形状，避免跑一次 ensure 才知道）。
+    pub fn has_ensure(&self) -> bool {
+        matches!(
+            self,
+            Self::Dotenv
+                | Self::Openai
+                | Self::SubtitleFinderBin
+                | Self::SubtitleOcrBin
+                | Self::SubtitleOcrPostBin
+                | Self::DemucsBurnTchBin
+                | Self::DemucsBurnWgpuBin
+                | Self::DemucsWgpuBin
+                | Self::DemucsTchCpuBin
+                | Self::DemucsTchCudaBin
+                | Self::WhisperBin
+        )
+    }
+
+    /// release 二进制的目标路径；非 release 项无路径。
+    pub fn bin_path(&self) -> Option<PathBuf> {
+        Some(match self {
+            Self::SubtitleFinderBin => subtitle_finder_bin_path(),
+            Self::SubtitleOcrBin => subtitle_ocr_bin_path(),
+            Self::SubtitleOcrPostBin => subtitle_ocr_post_bin_path(),
+            Self::DemucsBurnTchBin => demucs_burn_tch_bin_path(),
+            Self::DemucsBurnWgpuBin => demucs_burn_wgpu_bin_path(),
+            Self::DemucsWgpuBin => demucs_wgpu_bin_path(),
+            Self::DemucsTchCpuBin => demucs_tch_cpu_bin_path(),
+            Self::DemucsTchCudaBin => demucs_tch_cuda_bin_path(),
+            Self::WhisperBin => whisper_vulkan_bin_path(),
+            _ => return None,
+        })
+    }
 }
 
 #[cfg(test)]

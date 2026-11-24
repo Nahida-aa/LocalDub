@@ -3,6 +3,7 @@
 //! Mirrors TS `packages/core/steps/04_asr_ocr/ocr.ts` (stepAsrOcr).
 //! Writes `<video_dir>/asr_ocr/frames.json` (OcrFramesResult).
 
+use crate::cmd::env::input::EnvKey;
 use crate::cmd::env::ensure_bin;
 use crate::steps::asr_ocr::args::{AsrOcrDeps, AsrOcrOutput};
 use crate::steps::utils::paths::asr_ocr;
@@ -40,7 +41,7 @@ pub async fn step_asr_ocr(sc: impl StepCtxView, deps: AsrOcrDeps) -> Result<AsrO
         ));
     }
 
-    let bin = ensure_bin("subtitle_ocr_bin").await.map_err(|e| {
+    let bin = ensure_bin(EnvKey::SubtitleOcrBin).await.map_err(|e| {
         anyhow::anyhow!(
             "{e}\nIf download fails, run: cargo run -p cli -- env --action ensure --targets subtitle_ocr_bin"
         )

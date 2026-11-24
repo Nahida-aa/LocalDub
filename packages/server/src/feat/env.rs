@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
-use ld_core::cmd::env::input::{env_names, ENV_ENTRIES};
-use ld_core::cmd::env::items::ensure_fns;
-use ld_core::cmd::env::{infer_targets, run_check, run_ensure, CheckResult, CheckStatus};
+use ld_core::cmd::env::input::EnvKey;
+use ld_core::cmd::env::{env_list, infer_targets, run_check, run_ensure, CheckResult, CheckStatus};
 use paths::parse_repo_input;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -18,30 +17,25 @@ pub struct EnvCheckItem {
     /// "pass" / "warn" / "fail" / "skip"
     pub status: String,
     pub data: serde_json::Value,
-    /// 是否存在对应安装动作 (ensure_fns)。
+    /// 是否存在对应安装动作 (EnvKey::has_ensure)。
     pub has_ensure: bool,
 }
 
-fn all_keys() -> Vec<String> {
-    env_names().into_iter().map(|s| s.to_string()).collect()
+fn all_keys() -> Vec<EnvKey> {
+    env_list().into_iter().filter_map(EnvKey::parse).collect()
 }
 
 fn meta_of(key: &str) -> (String, String, bool, String) {
-    for (k, e) in ENV_ENTRIES {
-        if *k == key {
-            return (
-                e.zh.to_string(),
-                e.en.to_string(),
-                e.required,
-                e.category.to_string(),
-            );
+    match EnvKey::parse(key) {
+        Some(k) => {
+            let e = k.meta();
+            (e.zh.to_string(), e.en.to_string(), e.required, e.category.to_string())
         }
+        None => (key.to_string(), key.to_string(), false, "unknown".to_string()),
     }
-    (key.to_string(), key.to_string(), false, "unknown".to_string())
 }
 
 fn assemble(results: Vec<CheckResult>) -> Vec<EnvCheckItem> {
-    let ensure = ensure_fns();
     results
         .into_iter()
         .map(|r| {
@@ -60,7 +54,7 @@ fn assemble(results: Vec<CheckResult>) -> Vec<EnvCheckItem> {
                 category,
                 status: status.to_string(),
                 data: r.data,
-                has_ensure: ensure.contains_key(r.key.as_str()),
+                has_ensure: EnvKey::parse(&r.key).is_some_and(|k| k.has_ensure()),
             }
         })
         .collect()
@@ -69,6 +63,14 @@ fn assemble(results: Vec<CheckResult>) -> Vec<EnvCheckItem> {
 /// 读仓库根 input.jsonc/input.json 并反序列化为 Input (jsonc-parser 处理注释/尾逗号)。
 fn repo_input() -> anyhow::Result<ld_core::input::Input> {
     parse_repo_input()
+}
+
+/// 字符串 targets → EnvKey 的边界：非法 key 直接报错，不再静默跳过。
+fn parse_targets(targets: &[String]) -> Result<Vec<EnvKey>, String> {
+    targets
+        .iter()
+        .map(|s| EnvKey::parse(s).ok_or_else(|| format!("未知环境项: {s}")))
+        .collect()
 }
 
 /// 环境检查。
@@ -87,7 +89,7 @@ pub async fn env_check(targets: Vec<String>) -> Result<Vec<EnvCheckItem>, String
     } else if targets.iter().any(|t| t == "*") {
         (all_keys(), HashMap::new())
     } else {
-        (targets, HashMap::new())
+        (parse_targets(&targets)?, HashMap::new())
     };
     Ok(assemble(run_check(&keys, &desired).await))
 }
@@ -103,7 +105,7 @@ pub async fn env_ensure(targets: Vec<String>) -> Result<Vec<EnvCheckItem>, Strin
             }
         }
     } else {
-        (targets, HashMap::new())
+        (parse_targets(&targets)?, HashMap::new())
     };
     Ok(assemble(run_ensure(&keys, &desired).await))
 }

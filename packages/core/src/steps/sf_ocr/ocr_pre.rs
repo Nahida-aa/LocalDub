@@ -3,6 +3,7 @@
 //! 镜像 TS `packages/core/steps/sf_ocr/ocr_pre.ts` (stepSfOcrPre)。
 //! 落盘 `<video_dir>/sf_ocr_pre/`: frames/(PNG) / mask/ / timeline.txt / keyframes.json。
 
+use crate::cmd::env::input::EnvKey;
 use crate::cmd::env::ensure_bin_command;
 use crate::steps::utils::paths::{sf_ocr_pre, VideoSourcePath};
 use crate::steps::utils::{
@@ -49,7 +50,7 @@ pub async fn step_sf_ocr_pre(sc: impl StepCtxView) -> anyhow::Result<SfOcrPreOut
         ));
     }
 
-    let mut cmd = ensure_bin_command("subtitle_finder_bin").await.map_err(|e| {
+    let mut cmd = ensure_bin_command(EnvKey::SubtitleFinderBin).await.map_err(|e| {
         anyhow::anyhow!(
             "{e}\n若下载失败, 请手动执行: cargo run -p cli -- env --action ensure --targets subtitle_finder_bin"
         )

@@ -12,12 +12,7 @@ use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
-use crate::cmd::env::input::{env_names, zh_desc};
-use crate::cmd::env::items::{
-    all_checks, demucs_burn_tch_bin_path, demucs_burn_wgpu_bin_path, demucs_tch_cpu_bin_path,
-    demucs_tch_cuda_bin_path, demucs_wgpu_bin_path, ensure_fns, subtitle_ocr_post_bin_path,
-    subtitle_finder_bin_path, subtitle_ocr_bin_path,
-};
+use crate::cmd::env::input::EnvKey;
 use crate::input::Input;
 
 /// 检查状态 (serde 小写对齐 TS 字符串 "pass"/"warn"/"fail"/"skip")。
@@ -40,43 +35,46 @@ pub struct CheckResult {
     pub required: bool,
 }
 
-/// 全部环境项 key 集合 (镜像 TS `envList`)。
+/// 全部环境项 key 集合 (镜像 TS `envList`，字符串形式供 CLI/server 展示)。
 pub fn env_list() -> Vec<&'static str> {
-    env_names()
+    EnvKey::all().iter().map(|k| k.as_str()).collect()
 }
 
 /// 按 `input.jsonc` 的 steps 配置推断本次任务所需的环境项 (targets 为空时使用)。
 ///
 /// 设计: 从「核心工具链 + 配置」基础集出发, 按各 step 的 runtime/device 追加依赖。
 /// 这是启发式推断 (非精确依赖图), 目标是给出「跟当前配置相关」的检查项, 避免每次扫全量。
-pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
+pub fn infer_targets(input: &Input) -> (Vec<EnvKey>, HashMap<EnvKey, String>) {
     use crate::steps::asr::args::{AsrDevice, AsrRuntime};
     use crate::steps::separate::args::Device as SepDevice;
     use crate::steps::tts::args::{TtsDevice, TtsRuntime};
     use crate::workflow::args::SubtitleSource;
 
-    let mut set: HashSet<String> = HashSet::new();
-    let mut desired: HashMap<String, String> = HashMap::new();
-    let add = |s: &str, set: &mut HashSet<String>| {
-        set.insert(s.to_string());
+    let mut set: HashSet<EnvKey> = HashSet::new();
+    let mut desired: HashMap<EnvKey, String> = HashMap::new();
+    let add = |k: EnvKey, set: &mut HashSet<EnvKey>| {
+        set.insert(k);
     };
 
     // 基础: 任何任务都需要的工具链与配置
-    for k in ["bun", "python", "uv", "ffmpeg", "git", "cmake", "dotenv"] {
+    for k in [
+        EnvKey::Bun,
+        EnvKey::Python,
+        EnvKey::Uv,
+        EnvKey::Ffmpeg,
+        EnvKey::Git,
+        EnvKey::Cmake,
+        EnvKey::Dotenv,
+    ] {
         add(k, &mut set);
     }
 
     // --- import: 平台视频链接 (YouTube/Bilibili) 需要 yt-dlp ---
-    // (本地文件 / 普通远程直链不依赖 yt-dlp; 由工具链在下载期 spawn)
-    if let Some(url) = input
-        .workflow
-        .as_ref()
-        .and_then(|w| w.url.as_deref())
-    {
+    if let Some(url) = input.workflow.as_ref().and_then(|w| w.url.as_deref()) {
         if crate::workflow::import::util::is_youtube_url(url)
             || crate::workflow::import::util::is_bilibili_url(url)
         {
-            add("yt_dlp", &mut set);
+            add(EnvKey::YtDlp, &mut set);
         }
     }
 
@@ -89,131 +87,99 @@ pub fn infer_targets(input: &Input) -> (Vec<String>, HashMap<String, String>) {
 
     // --- sf_ocr: 关键帧筛选 + 逐帧 OCR + 后处理均走 vision-lab release 二进制 ---
     if subtitle_source == SubtitleSource::SfOcr {
-        add("subtitle_finder_bin", &mut set);
-        add("subtitle_ocr_bin", &mut set);
-        add("subtitle_ocr_post_bin", &mut set);
+        add(EnvKey::SubtitleFinderBin, &mut set);
+        add(EnvKey::SubtitleOcrBin, &mut set);
+        add(EnvKey::SubtitleOcrPostBin, &mut set);
     }
-    // asr_ocr 阶段 (Rust 移植) 依赖 vision-lab Release 二进制 subtitle_ocr_bin
-    // (见 steps/asr_ocr/{ocr.rs, fix.rs} 的 ensure_bin("subtitle_ocr_bin"))。
-    // 旧 TS 的本地 ort-cpp 构建 (ocr_cpp_bin) 已退役移除。
+    // asr_ocr 阶段依赖 subtitle_ocr_bin
     if subtitle_source != SubtitleSource::Asr {
-        add("subtitle_ocr_bin", &mut set);
+        add(EnvKey::SubtitleOcrBin, &mut set);
     }
 
     // --- asr ---
     match steps.asr.runtime {
-        AsrRuntime::Ggml => add("whisper_ggml", &mut set),
-        // faster-whisper / pytorch 仍依赖 whisper 模型 (pth 形态, 这里用 ggml 占位检查)
-        AsrRuntime::FasterWhisper | AsrRuntime::Pytorch => add("whisper_ggml", &mut set),
+        AsrRuntime::Ggml | AsrRuntime::FasterWhisper | AsrRuntime::Pytorch => {
+            add(EnvKey::WhisperGgml, &mut set)
+        }
     }
     if steps.asr.vad {
-        add("whisper_vad", &mut set);
+        add(EnvKey::WhisperVad, &mut set);
     }
     if steps.asr.device == AsrDevice::Vulkan {
-        add("whisper_bin", &mut set);
-        add("vulkan", &mut set);
+        add(EnvKey::WhisperBin, &mut set);
+        add(EnvKey::Vulkan, &mut set);
     }
     if steps.asr.device == AsrDevice::Cuda {
-        add("cuda", &mut set);
+        add(EnvKey::Cuda, &mut set);
     }
     if steps.asr.device == AsrDevice::Mps {
-        add("cuda", &mut set); // mps 复用 apple 驱动检查 (无独立项)
+        add(EnvKey::Cuda, &mut set); // mps 复用 apple 驱动检查 (无独立项)
     }
 
     // --- separate / demucs ---
-    // asr.useSeparated 或 separate.always 表示需要人声分离
     if steps.asr.use_separated || steps.separate.always {
-        add("demucs_pth", &mut set);
-        // demucs-burn 已迁至 vox-lab: 仅 tch/wgpu 有 release 资产;
-        // 其余后端 (cpu/cuda/vulkan) 无发布资产, demucs_burn_bin 检查会报「暂无资产」。
+        add(EnvKey::DemucsPth, &mut set);
+        // demucs-burn 已迁至 vox-lab: 仅 tch/wgpu 有 release 资产
         let bin = steps.separate.runtime.resolve(steps.separate.device);
         match bin.env_key {
             Some(key) => add(key, &mut set),
             None => {
-                add("demucs_burn_bin", &mut set);
-                desired.insert("demucs_burn_bin".to_string(), bin.suffix.to_string());
+                add(EnvKey::DemucsBurnBin, &mut set);
+                desired.insert(EnvKey::DemucsBurnBin, bin.suffix.to_string());
             }
         }
         match steps.separate.device {
-            SepDevice::Vulkan => add("vulkan", &mut set),
-            SepDevice::Cuda => add("cuda", &mut set),
-            SepDevice::Webgpu => add("vulkan", &mut set), // webgpu 走 vulkan 驱动
+            SepDevice::Vulkan => add(EnvKey::Vulkan, &mut set),
+            SepDevice::Cuda => add(EnvKey::Cuda, &mut set),
+            SepDevice::Webgpu => add(EnvKey::Vulkan, &mut set), // webgpu 走 vulkan 驱动
             SepDevice::Cpu | SepDevice::Mps => {}
         }
     }
 
-    // --- translate: 启用则依赖 openai 兼容 API ---
+    // --- translate ---
     if steps.translate.enabled {
-        add("openai", &mut set);
+        add(EnvKey::Openai, &mut set);
     }
 
     // --- tts ---
     match steps.tts.runtime {
-        TtsRuntime::Cloud => add("openai", &mut set), // 云端 TTS 走 OpenAI 兼容 API
-        TtsRuntime::Ggml => {
-            add("voxcpm2_onnx", &mut set);
-        }
-        TtsRuntime::VoxcpmTorchGradio => {
-            add("voxcpm2_pth", &mut set);
-        }
+        TtsRuntime::Cloud => add(EnvKey::Openai, &mut set),
+        TtsRuntime::Ggml => add(EnvKey::Voxcpm2Onnx, &mut set),
+        TtsRuntime::VoxcpmTorchGradio => add(EnvKey::Voxcpm2Pth, &mut set),
     }
     match steps.tts.device {
-        TtsDevice::Webgpu => add("vulkan", &mut set),
-        TtsDevice::Cuda => add("cuda", &mut set),
-        TtsDevice::Rocm => add("rocm", &mut set),
+        TtsDevice::Webgpu => add(EnvKey::Vulkan, &mut set),
+        TtsDevice::Cuda => add(EnvKey::Cuda, &mut set),
+        TtsDevice::Rocm => add(EnvKey::Rocm, &mut set),
         TtsDevice::Cpu | TtsDevice::Mps => {}
     }
 
-    // 按 env_names 稳定顺序输出 (与 run_check 全量顺序一致)
-    let targets = env_names()
+    // 按 EnvKey 声明顺序稳定输出 (与 run_check 全量顺序一致)
+    let targets = EnvKey::all()
         .into_iter()
-        .filter(|n| set.contains(*n))
-        .map(|s| s.to_string())
+        .filter(|k| set.contains(k))
         .collect();
     (targets, desired)
 }
 
-/// 解析目标: 空 → 全部; 过滤到 all_checks 中存在的 key; 过滤后空 → 全部。
-fn resolve_targets(targets: &[String]) -> Vec<String> {
-    if targets.is_empty() {
-        return env_names().iter().map(|s| s.to_string()).collect();
-    }
-    let checks = all_checks();
-    let valid: Vec<String> = targets
-        .iter()
-        .filter(|t| checks.contains_key(t.as_str()))
-        .cloned()
-        .collect();
-    if valid.is_empty() {
-        return env_names().iter().map(|s| s.to_string()).collect();
-    }
-    valid
-}
-
-/// 确保指定的二进制存在 (幂等: 已存在且新鲜直接返回路径; 否则触发 ensure 下载/构建)。
+/// 确保指定的环境项就绪 (幂等: 已存在直接返回路径; 否则 check 不通过则 ensure)。
 ///
 /// 供阶段消费方调用, 替代 `find_release_bin` + `cargo_build_bin`。
-pub async fn ensure_bin(key: &str) -> anyhow::Result<PathBuf> {
-    // 先 check
-    let checks = all_checks();
-    let check_fn = checks
-        .get(key)
-        .ok_or_else(|| anyhow::anyhow!("未知环境项: {}", key))?;
-    let check_result = check_fn().await;
+pub async fn ensure_bin(key: EnvKey) -> anyhow::Result<PathBuf> {
+    let check_result = key.check(None).await;
     if check_result.status == CheckStatus::Pass {
-        // 通过 items 中的 path 解析函数获取路径
-        return Ok(bin_path_from_key(key));
+        return key
+            .bin_path()
+            .ok_or_else(|| anyhow::anyhow!("环境项 {} 无二进制路径", key.as_str()));
     }
-    // 不通过则 ensure
-    let fns = ensure_fns();
-    let ensure_fn = fns
-        .get(key)
-        .ok_or_else(|| anyhow::anyhow!("环境项 {} 无 ensure 实现", key))?;
-    let ensure_result = ensure_fn().await;
+    let ensure_result = key
+        .ensure()
+        .await
+        .ok_or_else(|| anyhow::anyhow!("环境项 {} 无 ensure 实现", key.as_str()))?;
     if ensure_result.status != CheckStatus::Pass {
         return Err(anyhow::anyhow!(
             "ensure {} 失败: {}",
-            key,
+            key.as_str(),
             ensure_result
                 .data
                 .get("msg")
@@ -221,18 +187,14 @@ pub async fn ensure_bin(key: &str) -> anyhow::Result<PathBuf> {
                 .unwrap_or("未知错误")
         ));
     }
-    Ok(bin_path_from_key(key))
+    key.bin_path()
+        .ok_or_else(|| anyhow::anyhow!("环境项 {} 无二进制路径", key.as_str()))
 }
 
 /// 确保二进制就绪，返回**已配好运行时环境**的 [`Command`]。
 ///
-/// release zip 把二进制与其 `.so` 平铺到 bin_dir (见 items.rs 的 `extract_zip_flat`),
-/// 而动态链接器默认不搜二进制同目录——故统一注入 `LD_LIBRARY_PATH=<bin_dir>`。
-/// 调用方拿到即可直接 `.args(...).status()`, 无需在业务步骤里重复处理部署细节。
-///
-/// 与 [`ensure_bin`] 的分工: 需要自行拼参数/控制 spawn 的用本函数; 只想拿路径
-/// (如检查存在性) 的仍用 `ensure_bin`。
-pub async fn ensure_bin_command(key: &str) -> anyhow::Result<std::process::Command> {
+/// release zip 把二进制与其 `.so` 平铺到 bin_dir, 统一注入 `LD_LIBRARY_PATH=<bin_dir>`。
+pub async fn ensure_bin_command(key: EnvKey) -> anyhow::Result<std::process::Command> {
     let bin = ensure_bin(key).await?;
     let mut cmd = std::process::Command::new(&bin);
 
@@ -245,70 +207,45 @@ pub async fn ensure_bin_command(key: &str) -> anyhow::Result<std::process::Comma
         } else {
             format!("{}:{}", bin_dir.display(), existing)
         };
-        tracing::info!(target: "env", "{} 注入 LD_LIBRARY_PATH={}", key, combined);
+        tracing::info!(target: "env", "{} 注入 LD_LIBRARY_PATH={}", key.as_str(), combined);
         cmd.env("LD_LIBRARY_PATH", combined);
     }
 
     Ok(cmd)
 }
 
-/// 根据 env key 推断二进制路径 (委托 items.rs, 与下载/check 路径保持一致)。
-fn bin_path_from_key(key: &str) -> PathBuf {
-    match key {
-        "subtitle_finder_bin" => subtitle_finder_bin_path(),
-        "subtitle_ocr_bin" => subtitle_ocr_bin_path(),
-        "subtitle_ocr_post_bin" => subtitle_ocr_post_bin_path(),
-        "demucs_burn_tch_bin" => demucs_burn_tch_bin_path(),
-        "demucs_burn_wgpu_bin" => demucs_burn_wgpu_bin_path(),
-        "demucs_wgpu_bin" => demucs_wgpu_bin_path(),
-        "demucs_tch_cpu_bin" => demucs_tch_cpu_bin_path(),
-        "demucs_tch_cuda_bin" => demucs_tch_cuda_bin_path(),
-        "whisper_bin" => crate::cmd::env::items::whisper_vulkan_bin_path(),
-        _ => PathBuf::from(key), // 兜底
-    }
-}
-
-/// 运行检查 (镜像 TS `runCheck`)。
+/// 运行检查 (镜像 TS `runCheck`)。空 targets = 全量。
 ///
-/// `desired` 为「本次配置实际需要的环境项后端」映射 (如 `demucs_burn_bin` → "tch"),
-/// 用于让 burn 系检查精确报告缺失的后端二进制, 而非笼统列出全部变体。
-pub async fn run_check(targets: &[String], desired: &HashMap<String, String>) -> Vec<CheckResult> {
-    let selected = resolve_targets(targets);
-    let checks = all_checks();
+/// `desired` 为本次配置实际需要的后端映射 (如 `DemucsBurnBin` → "tch")，
+/// 使 burn 系检查精确报告缺失的后端二进制。
+pub async fn run_check(targets: &[EnvKey], desired: &HashMap<EnvKey, String>) -> Vec<CheckResult> {
+    let selected: Vec<EnvKey> = if targets.is_empty() {
+        EnvKey::all()
+    } else {
+        targets.to_vec()
+    };
     let mut results = Vec::new();
     for key in &selected {
-        // burn 系二进制: 传入本次配置所需的后端后缀, 精确报告
-        if key == "demucs_burn_bin" {
-            results.push(crate::cmd::env::items::check_demucs_burn_bin(
-                desired.get("demucs_burn_bin").map(|s| s.as_str()),
-            ));
-            continue;
-        }
-        match checks.get(key.as_str()) {
-            Some(f) => results.push(f().await),
-            None => results.push(CheckResult {
-                key: key.clone(),
-                status: CheckStatus::Skip,
-                data: serde_json::json!({}),
-                required: false,
-            }),
-        }
+        results.push(key.check(desired.get(key).map(|s| s.as_str())).await);
     }
     results
 }
 
-/// 运行 ensure (镜像 TS `runEnsure`)。`desired` 目前仅 check 路径使用, 这里接受以保持签名一致。
-pub async fn run_ensure(targets: &[String], _desired: &HashMap<String, String>) -> Vec<CheckResult> {
-    let selected = resolve_targets(targets);
-    let fns = ensure_fns();
+/// 运行 ensure (镜像 TS `runEnsure`)。`desired` 仅 check 路径使用，这里接受以保持签名一致。
+pub async fn run_ensure(targets: &[EnvKey], _desired: &HashMap<EnvKey, String>) -> Vec<CheckResult> {
+    let selected: Vec<EnvKey> = if targets.is_empty() {
+        EnvKey::all()
+    } else {
+        targets.to_vec()
+    };
     let mut results = Vec::new();
     for key in &selected {
-        match fns.get(key.as_str()) {
-            Some(f) => results.push(f().await),
+        match key.ensure().await {
+            Some(r) => results.push(r),
             None => results.push(CheckResult {
-                key: key.clone(),
+                key: key.as_str().to_string(),
                 status: CheckStatus::Skip,
-                data: serde_json::json!({}),
+                data: serde_json::json!({ "msg": "该项无安装动作" }),
                 required: false,
             }),
         }
@@ -373,7 +310,9 @@ pub fn format_result(r: &CheckResult) -> String {
         }
     }
 
-    let desc = zh_desc(&r.key);
+    let desc = EnvKey::parse(&r.key)
+        .map(|k| k.meta().zh)
+        .unwrap_or("");
     let mut lines = vec![first];
     lines.extend(extras);
     if !desc.is_empty() {

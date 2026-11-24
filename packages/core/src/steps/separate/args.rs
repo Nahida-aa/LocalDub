@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::cmd::env::input::EnvKey;
+
 /// separate 推理运行时
 ///
 /// 四种运行时分属 vox-lab 的两个世代:
@@ -132,7 +134,7 @@ pub struct DemucsBinary {
     /// name 后缀 / `data/bin` 文件名主干。
     pub suffix: &'static str,
     /// 对应 env 检查项的 key; `None` 表示该组合没有发布资产。
-    pub env_key: Option<&'static str>,
+    pub env_key: Option<EnvKey>,
 }
 
 impl SeparateRuntime {
@@ -150,7 +152,7 @@ impl SeparateRuntime {
                     binary: format!("demucs-burn-{suffix}"),
                     suffix,
                     env_key: match suffix {
-                        "wgpu" => Some("demucs_burn_wgpu_bin"),
+                        "wgpu" => Some(EnvKey::DemucsBurnWgpuBin),
                         _ => None,
                     },
                 }
@@ -158,7 +160,7 @@ impl SeparateRuntime {
             SeparateRuntime::BurnTch => DemucsBinary {
                 binary: "demucs-burn-tch".into(),
                 suffix: "tch",
-                env_key: Some("demucs_burn_tch_bin"),
+                env_key: Some(EnvKey::DemucsBurnTchBin),
             },
             SeparateRuntime::Tch => {
                 let suffix = match device {
@@ -169,15 +171,15 @@ impl SeparateRuntime {
                     binary: format!("demucs-tch-{suffix}"),
                     suffix,
                     env_key: Some(match suffix {
-                        "cuda" => "demucs_tch_cuda_bin",
-                        _ => "demucs_tch_cpu_bin",
+                        "cuda" => EnvKey::DemucsTchCudaBin,
+                        _ => EnvKey::DemucsTchCpuBin,
                     }),
                 }
             }
             SeparateRuntime::Wgpu => DemucsBinary {
                 binary: "demucs-wgpu".into(),
                 suffix: "wgpu",
-                env_key: Some("demucs_wgpu_bin"),
+                env_key: Some(EnvKey::DemucsWgpuBin),
             },
         }
     }
