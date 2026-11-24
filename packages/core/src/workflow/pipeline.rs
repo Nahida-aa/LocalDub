@@ -57,20 +57,25 @@ pub async fn run_pipeline(input: &crate::input::Input) -> anyhow::Result<()> {
     let video_id = crate::steps::utils::video_id(video_dir).unwrap_or_default();
     let steps = get_steps(input)?;
 
-    // target_step 不在序列中则告警忽略 (镜像 TS)
-    if let Some(ts) = input
+    // target_step 多目标：目标是「全部达成才停」的目标集（等价于 dag 中间件 goals）。
+    // 串行是线性序列，"全达成" = 跑到最后一个目标位置；不在序列中的目标告警忽略。
+    let targets: Vec<&str> = input
         .workflow
         .as_ref()
-        .and_then(|w| w.target_step.as_ref())
-        .map(|s| s.as_str())
-    {
-        if !steps.iter().any(|s| s.as_str() == ts) {
+        .map(|w| w.target_step.iter().map(|s| s.as_str()).collect())
+        .unwrap_or_default();
+    for ts in &targets {
+        if !steps.iter().any(|s| s.as_str() == *ts) {
             tracing::info!(target: "output_mode",
                 "[WARN] target_step \"{ts}\" 不在 {} 序列中, 忽略",
                 crate::workflow::args::OutputMode::from_input(input).as_str()
             );
         }
     }
+    let stop_at = targets
+        .iter()
+        .filter_map(|ts| steps.iter().position(|s| s.as_str() == *ts))
+        .max();
 
     set_workflow_anyhow(
         video_dir,
@@ -81,7 +86,7 @@ pub async fn run_pipeline(input: &crate::input::Input) -> anyhow::Result<()> {
         },
     )?;
 
-    for step in &steps {
+    for (i, step) in steps.iter().enumerate() {
         // 每个 step 名都对应一个 run_step 分支（枚举穷尽），无需再查 handler 表。
         let step_str = step.as_str();
 
@@ -89,17 +94,10 @@ pub async fn run_pipeline(input: &crate::input::Input) -> anyhow::Result<()> {
         let input = crate::state::read_input(video_dir).map_err(anyhow::Error::msg)?;
         match run_one_step(video_dir, *step, &input).await {
             Ok(()) => {
-                // 达到 target_step 即停止 (镜像 TS)
-                if let Some(ts) = input
-                    .workflow
-                    .as_ref()
-                    .and_then(|w| w.target_step.as_ref())
-                    .map(|s| s.as_str())
-                {
-                    if step_str == ts {
-                        tracing::info!(target: "output_mode", "达到目标步骤 \"{ts}\", 停止");
-                        break;
-                    }
+                // 所有目标都达成（跑到最后目标位置）即停止。
+                if stop_at == Some(i) {
+                    tracing::info!(target: "output_mode", "已达成全部 target_step, 停止");
+                    break;
                 }
             }
             Err(e) => {
@@ -329,7 +327,7 @@ mod tests {
             json!({
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"output_mode": "subtitle", "target_step": "separate", "video_dir": dir},
+                "input": {"workflow": {"output_mode": "subtitle", "target_step": ["separate"], "video_dir": dir},
                           "steps": {"separate": {"always": false}, "translate": {"enabled": false}}},
                 "output_mode": "subtitle"
             }),
@@ -370,7 +368,7 @@ mod tests {
             json!({
                 "workflow": {"id":"t","video_dir":dir,"url":"http://e","source":"remote",
                          "status":"running","created_at":"2024-01-01T00:00:00Z"},
-                "input": {"workflow": {"output_mode": "subtitle", "target_step": "separate", "video_dir": dir},
+                "input": {"workflow": {"output_mode": "subtitle", "target_step": ["separate"], "video_dir": dir},
                           "steps": {"separate": {"always": false}, "translate": {"enabled": false}}},
                 "output_mode": "subtitle"
             }),

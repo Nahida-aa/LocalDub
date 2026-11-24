@@ -71,7 +71,7 @@ export const WorkflowControlPanel = (p: {
   const handleConfirmResume = () => {
     const step = resumeFrom();
     if (!step) return;
-    resume_workflow.mutate([videoDir, step]);
+    resume_workflow.mutate([videoDir, [step]]);
     set_resumeFrom(null);
     setViewingTab(runningStep());
   };

@@ -220,10 +220,14 @@ pub struct WorkflowArgs {
     pub url: Option<String>,
     pub source_lang: Option<crate::r#const::lang::LangStr>,
     pub target_lang: Option<Language>,
-    /// 续跑专业参数, 可指定 resume_from 从某步骤开始, 不指定则从上次中断的步骤开始
-    pub resume_from: Option<StepName>,
-    /// 目标步骤, output_mode 跑到此步骤后自动停止, 不指定则跑完所有步骤
-    pub target_step: Option<StepName>,
+    /// 续跑起点集：每个起点 + 其传递下游全部重跑（多点取并集）。
+    /// 空 = 跳过已完成前缀，从第一个未完成步骤续跑。对齐引擎 DagPlan.from。
+    #[serde(default)]
+    pub resume_from: Vec<StepName>,
+    /// 目标步骤集：所有目标都达成才停（等价于 dag 中间件的 goals 目标集）。
+    /// 空 = 跑全量。对齐引擎 DagPlan.goals。
+    #[serde(default)]
+    pub target_step: Vec<StepName>,
     pub video_dir: Option<String>,
     /// 队列任务 ID (cancel_queue 指定要取消的队列项)
     pub queue_id: Option<u64>,

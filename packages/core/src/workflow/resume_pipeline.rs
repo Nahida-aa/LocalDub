@@ -29,32 +29,42 @@ pub async fn resume_pipeline(input: &Input) -> anyhow::Result<()> {
     let steps = crate::steps::get_steps(input)?;
 
     // resume_from / target_step 从 input.workflow 读取 (镜像 TS ctx.input?.workflow)
-    let resume_from = input
+    let resume_from: Vec<String> = input
         .workflow
         .as_ref()
-        .and_then(|w| w.resume_from.as_ref())
-        .map(|s| s.as_str().to_string());
-    let target_step = input
+        .map(|w| w.resume_from.iter().map(|s| s.as_str().to_string()).collect())
+        .unwrap_or_default();
+    let targets: Vec<String> = input
         .workflow
         .as_ref()
-        .and_then(|w| w.target_step.as_ref())
-        .map(|s| s.as_str().to_string());
+        .map(|w| w.target_step.iter().map(|s| s.as_str().to_string()).collect())
+        .unwrap_or_default();
 
-    // target_step 不在序列中则告警忽略 (镜像 TS)
-    if let Some(ts) = &target_step {
+    // 不在序列中的目标告警忽略；目标集全部达成才停 → 串行取最靠后的目标位置。
+    for ts in &targets {
         if !steps.iter().any(|s| s.as_str() == ts) {
             tracing::info!(target: "output_mode", "[WARN] target_step \"{ts}\" 不在序列中, 忽略");
         }
     }
+    let stop_at = targets
+        .iter()
+        .filter_map(|ts| steps.iter().position(|s| s.as_str() == ts))
+        .max();
 
     let mut start_idx = 0usize;
 
-    if let Some(cf) = &resume_from {
-        start_idx = steps
-            .iter()
-            .position(|s| s.as_str() == cf)
-            .ok_or_else(|| anyhow::anyhow!("Unknown step \"{cf}\""))?;
-        // 从 resume_from 起把后续全部重置为 pending (镜像 TS for i=startIdx.. reset)。
+    if !resume_from.is_empty() {
+        // 多起点：取最靠前的起点，其传递后缀覆盖其余起点的重跑范围。
+        let mut starts: Vec<usize> = Vec::new();
+        for cf in &resume_from {
+            let idx = steps
+                .iter()
+                .position(|s| s.as_str() == cf)
+                .ok_or_else(|| anyhow::anyhow!("Unknown step \"{cf}\""))?;
+            starts.push(idx);
+        }
+        start_idx = *starts.iter().min().unwrap();
+        // 从起点起把后续全部重置为 pending (镜像 TS for i=startIdx.. reset)。
         // 注: StepPatch 仅支持"设置"不支持"清空"可选字段, 故只改 status; 实际运行时
         // run_step 会重新写入 started_at / completed_at, 残留的旧时间戳无害。
         for i in start_idx..steps.len() {
@@ -68,8 +78,8 @@ pub async fn resume_pipeline(input: &Input) -> anyhow::Result<()> {
             )?;
         }
         tracing::info!(target: "output_mode",
-            "Resetting from \"{cf}\" ({} step(s)), resuming...",
-            steps.len() - start_idx
+            "Resetting from {:?} ({} step(s)), resuming...",
+            resume_from, steps.len() - start_idx
         );
     } else {
         // 无 resume_from → 跳过已完成前缀, 从第一个未完成 step 续跑
@@ -137,11 +147,9 @@ pub async fn resume_pipeline(input: &Input) -> anyhow::Result<()> {
         let input = crate::state::read_input(video_dir).map_err(anyhow::Error::msg)?;
         match run_step(step, &input).await {
             Ok(()) => {
-                if let Some(ts) = &target_step {
-                    if step_str == ts {
-                        tracing::info!(target: "output_mode", "达到目标步骤 \"{ts}\", 停止");
-                        break;
-                    }
+                if stop_at == Some(i) {
+                    tracing::info!(target: "output_mode", "已达成全部 target_step, 停止");
+                    break;
                 }
             }
             Err(e) => {

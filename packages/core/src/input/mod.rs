@@ -310,7 +310,7 @@ mod tests {
     #[test]
     fn snake_case_field_names() {
         let input: Input =
-            serde_json::from_str(r#"{"workflow":{"source_lang":"zh","target_step":"mix_video"}}"#)
+            serde_json::from_str(r#"{"workflow":{"source_lang":"zh","target_step":["mix_video"]}}"#)
                 .unwrap();
         // source_lang 是开放字符串 (源语言是"事实", 不受 23 种翻译目标语言限制)
         assert_eq!(
@@ -319,7 +319,7 @@ mod tests {
         );
         assert_eq!(
             input.workflow.as_ref().unwrap().target_step,
-            Some(args::StepName::MixVideo)
+            vec![args::StepName::MixVideo]
         );
     }
 

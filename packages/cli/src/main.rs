@@ -72,12 +72,12 @@ enum Command {
         /// 队列任务 ID (cancel_queue 用)。
         #[arg(long)]
         queue_id: Option<u64>,
-        /// 从某 step 续跑 (resume/enqueue_resume 用)。
-        #[arg(long, value_enum)]
-        resume_from: Option<StepName>,
-        /// 跑到此 step 后停止 (resume/enqueue_resume 用)。
-        #[arg(long, value_enum)]
-        target_step: Option<StepName>,
+        /// 续跑起点集 (resume/enqueue_resume 用)，多个起点取传递下游并集。
+        #[arg(long, value_enum, num_args = 1..)]
+        resume_from: Vec<StepName>,
+        /// 目标步骤集 (resume/enqueue_resume 用)，全部达成才停。
+        #[arg(long, value_enum, num_args = 1..)]
+        target_step: Vec<StepName>,
         /// 实验开关: start/resume 走 aa-workflow 引擎 (真源 workflow-store/<run_id>/logs.jsonl;
         /// start 已接通, resume 仍开发中)。
         #[arg(long)]
@@ -178,11 +178,11 @@ async fn main() {
             if let Some(q) = queue_id {
                 workflow.queue_id = Some(q);
             }
-            if let Some(cf) = resume_from {
-                workflow.resume_from = Some(cf);
+            if !resume_from.is_empty() {
+                workflow.resume_from = resume_from;
             }
-            if let Some(ts) = target_step {
-                workflow.target_step = Some(ts);
+            if !target_step.is_empty() {
+                workflow.target_step = target_step;
             }
             if engine {
                 workflow.engine = Some(true);

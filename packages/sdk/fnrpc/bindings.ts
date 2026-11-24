@@ -2022,10 +2022,16 @@ export type WorkflowArgs_Deserialize = {
 	url?: string | null,
 	source_lang?: LangStr | null,
 	target_lang?: Language | null,
-	/**  续跑专业参数, 可指定 resume_from 从某步骤开始, 不指定则从上次中断的步骤开始 */
-	resume_from?: StepName | null,
-	/**  目标步骤, output_mode 跑到此步骤后自动停止, 不指定则跑完所有步骤 */
-	target_step?: StepName | null,
+	/**
+	 *  续跑起点集：每个起点 + 其传递下游全部重跑（多点取并集）。
+	 *  空 = 跳过已完成前缀，从第一个未完成步骤续跑。对齐引擎 DagPlan.from。
+	 */
+	resume_from?: StepName[],
+	/**
+	 *  目标步骤集：所有目标都达成才停（等价于 dag 中间件的 goals 目标集）。
+	 *  空 = 跑全量。对齐引擎 DagPlan.goals。
+	 */
+	target_step?: StepName[],
 	video_dir?: string | null,
 	/**  队列任务 ID (cancel_queue 指定要取消的队列项) */
 	queue_id?: bigint | null,
@@ -2063,10 +2069,16 @@ export type WorkflowArgs_Serialize = {
 	url: string | null,
 	source_lang: LangStr | null,
 	target_lang: Language | null,
-	/**  续跑专业参数, 可指定 resume_from 从某步骤开始, 不指定则从上次中断的步骤开始 */
-	resume_from: StepName | null,
-	/**  目标步骤, output_mode 跑到此步骤后自动停止, 不指定则跑完所有步骤 */
-	target_step: StepName | null,
+	/**
+	 *  续跑起点集：每个起点 + 其传递下游全部重跑（多点取并集）。
+	 *  空 = 跳过已完成前缀，从第一个未完成步骤续跑。对齐引擎 DagPlan.from。
+	 */
+	resume_from: StepName[],
+	/**
+	 *  目标步骤集：所有目标都达成才停（等价于 dag 中间件的 goals 目标集）。
+	 *  空 = 跑全量。对齐引擎 DagPlan.goals。
+	 */
+	target_step: StepName[],
 	video_dir: string | null,
 	/**  队列任务 ID (cancel_queue 指定要取消的队列项) */
 	queue_id: bigint | null,
@@ -2141,7 +2153,7 @@ export type Procedures = {
   get_workfolder: { kind: "query"; method: "GET"; input: null; output: string; error: RpcErr };
   env_check: { kind: "query"; method: "GET"; input: string[]; output: EnvCheckItem[]; error: RpcErr };
   env_ensure: { kind: "mutate"; method: "POST"; input: string[]; output: EnvCheckItem[]; error: RpcErr };
-  resume_workflow: { kind: "mutate"; method: "POST"; input: [string, string]; output: null; error: RpcErr };
+  resume_workflow: { kind: "mutate"; method: "POST"; input: [string, string[]]; output: null; error: RpcErr };
   regen_tts: { kind: "mutate"; method: "POST"; input: [string, number[], boolean]; output: null; error: RpcErr };
   start_workflow: { kind: "mutate"; method: "POST"; input: string; output: string; error: RpcErr };
   enqueue_start: { kind: "mutate"; method: "POST"; input: Input; output: bigint; error: RpcErr };

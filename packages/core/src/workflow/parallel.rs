@@ -161,20 +161,25 @@ pub async fn run_pipeline_parallel(input: &Input) -> anyhow::Result<()> {
     let wf = input.workflow.as_ref();
     let is_resume = wf.and_then(|w| w.action) == Some(WorkflowAction::Resume);
 
-    // resume_from: 该步 + 传递下游重置 pending（skip-if-success 不再跳过它们）。
+    // resume_from: 每个起点 + 传递下游重置 pending（skip-if-success 不再跳过它们）。
     if is_resume {
-        if let Some(cf) = wf.and_then(|w| w.resume_from) {
-            for step in std::iter::once(cf).chain(dag.transitive_dependents(cf)) {
-                set_step_anyhow(
-                    video_dir,
-                    step.as_str(),
-                    StepPatch {
-                        status: Some(StepStatus::Pending),
-                        ..Default::default()
-                    },
-                )?;
-            }
-            tracing::info!(target: "output_mode", "resume_from \"{}\": 已重置该步骤及其传递下游", cf.as_str());
+        let mut reset: BTreeSet<StepName> = BTreeSet::new();
+        for cf in wf.map(|w| w.resume_from.as_slice()).unwrap_or(&[]) {
+            reset.insert(*cf);
+            reset.extend(dag.transitive_dependents(*cf));
+        }
+        for step in &reset {
+            set_step_anyhow(
+                video_dir,
+                step.as_str(),
+                StepPatch {
+                    status: Some(StepStatus::Pending),
+                    ..Default::default()
+                },
+            )?;
+        }
+        if !reset.is_empty() {
+            tracing::info!(target: "output_mode", "resume_from: 已重置 {} 个步骤及其传递下游", reset.len());
         }
     }
 
@@ -196,9 +201,13 @@ pub async fn run_pipeline_parallel(input: &Input) -> anyhow::Result<()> {
         tracing::info!(target: "output_mode", "{} 已 success, 跳过", s.as_str());
     }
 
-    let allowed = match wf.and_then(|w| w.target_step) {
-        Some(t) => Some(dag.with_target_closure(t)?),
-        None => None,
+    // target_step 目标集：所有目标的传递上游取并集（等价于 dag 中间件 goals）。
+    let allowed = {
+        let mut set = BTreeSet::new();
+        for t in wf.map(|w| w.target_step.as_slice()).unwrap_or(&[]) {
+            set.extend(dag.with_target_closure(*t)?);
+        }
+        if set.is_empty() { None } else { Some(set) }
     };
 
     set_workflow_anyhow(

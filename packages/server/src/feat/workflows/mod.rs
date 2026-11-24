@@ -50,7 +50,7 @@ pub async fn get_group_list() -> Result<Vec<GroupInfo>, String> {
 // }
 
 #[fnrpc::rpc_mutate]
-pub async fn resume_workflow(video_dir: String, from_step: String) -> Result<(), String> {
+pub async fn resume_workflow(video_dir: String, from_steps: Vec<String>) -> Result<(), String> {
     let abs_video_dir = repo_root().join(&video_dir);
     let abs_video_dir_str = abs_video_dir
         .to_str()
@@ -71,7 +71,8 @@ pub async fn resume_workflow(video_dir: String, from_step: String) -> Result<(),
         .ok_or_else(|| "input 缺少 workflow 字段".to_string())?;
     workflow["video_dir"] = serde_json::Value::String(abs_video_dir_str.clone());
     workflow["action"] = serde_json::Value::String("resume".into());
-    workflow["resume_from"] = serde_json::Value::String(from_step);
+    workflow["resume_from"] = serde_json::to_value(&from_steps)
+        .map_err(|e| format!("serialize resume_from failed: {e}"))?;
 
     let input: Input =
         serde_json::from_value(input_value).map_err(|e| format!("parse input failed: {}", e))?;
@@ -118,13 +119,13 @@ pub async fn regen_tts(
         .ok_or_else(|| "input 缺少 workflow 字段".to_string())?;
     workflow["video_dir"] = serde_json::Value::String(abs_video_dir_str.clone());
     workflow["action"] = serde_json::Value::String("resume".into());
-    workflow["resume_from"] = serde_json::Value::String("tts".into());
+    workflow["resume_from"] = serde_json::json!(["tts"]);
     if continue_run {
-        // 继续跑完整个 pipeline: 清掉可能残留的 target_step, 不中途停止。
-        workflow["target_step"] = serde_json::Value::Null;
+        // 继续跑完整个 pipeline: 清空目标集, 不中途停止。
+        workflow["target_step"] = serde_json::json!([]);
     } else {
         // 只重生成: 跑到 tts 阶段结束即停。
-        workflow["target_step"] = serde_json::Value::String("tts".into());
+        workflow["target_step"] = serde_json::json!(["tts"]);
     }
 
     // 合并 regenIndices 到 steps.tts (镜像手工在 input.jsonc 里配置 regenIndices)。

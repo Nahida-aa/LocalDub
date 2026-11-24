@@ -42,14 +42,16 @@ pub async fn resume_workflow(input: &Input) -> anyhow::Result<()> {
     write_input(&video_dir, input)
         .map_err(|e| anyhow::anyhow!("写回 {}/input.json 失败: {e}", video_dir))?;
 
-    let resume_from = input
+    let resume_from: Vec<crate::workflow::args::StepName> = input
         .workflow
         .as_ref()
-        .and_then(|t| t.resume_from.clone());
-    let label = resume_from
-        .as_ref()
-        .map(|cf| format!(" from \"{cf:?}\""))
+        .map(|t| t.resume_from.clone())
         .unwrap_or_default();
+    let label = if resume_from.is_empty() {
+        String::new()
+    } else {
+        format!(" from {resume_from:?}")
+    };
     println!("[cli] 续跑模式, video_dir = {}{}", video_dir, label);
 
     let path = match input.workflow.as_ref() {
