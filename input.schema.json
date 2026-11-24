@@ -1126,17 +1126,18 @@
           "description": " 对已导入目录从头跑全量 (不 import、不跳过、不 setCtx)。\n 要求 `workflow.video_dir` 已存在且已导入。"
         },
         {
-          "const": "continue"
+          "const": "resume",
+          "description": " 续跑已有任务 (setCtx + 从某步/跳过已 success 续跑)。"
         },
         {
           "const": "import",
-          "description": " 只导入: 下载/拷贝视频 + 探测 + 写 view.json, 不跑 output_mode。\n 批量场景可先批量导入, 之后用 continue 逐个续跑重活。"
+          "description": " 只导入: 下载/拷贝视频 + 探测 + 写 view.json, 不跑 output_mode。\n 批量场景可先批量导入, 之后用 resume 逐个续跑重活。"
         },
         {
           "const": "enqueue_start"
         },
         {
-          "const": "enqueue_continue"
+          "const": "enqueue_resume"
         },
         {
           "const": "enqueue_import"
@@ -1370,7 +1371,7 @@
             }
           ]
         },
-        "continue_from": {
+        "resume_from": {
           "anyOf": [
             {
               "$ref": "#/$defs/StepName"
@@ -1379,7 +1380,7 @@
               "type": "null"
             }
           ],
-          "description": " 继续任务专业参数, 可指定 continue_from 从某步骤开始, 不指定则从上次中断的步骤开始"
+          "description": " 续跑专业参数, 可指定 resume_from 从某步骤开始, 不指定则从上次中断的步骤开始"
         },
         "target_step": {
           "anyOf": [
@@ -1428,7 +1429,7 @@
         },
         "engine": {
           "type": "boolean",
-          "description": " 实验开关: start/continue 走 aa-workflow 引擎——**开发中，暂不可用**\n （集成暂停，见 `integration/workflow/mod.rs`；设了会在 ExecPath 分派时\n 打印「开发中」并报错）。恢复后：真源 events.jsonl，与 `run_pipeline`\n （真源 view.json）二选一。其余 action 忽略。"
+          "description": " 实验开关: start/continue 走 aa-workflow 引擎（start 已接通；continue 仍开发中，\n 打印「开发中」并报错）。真源是 `<video_dir>/workflow-store/<run_id>/logs.jsonl`，\n 与 `run_pipeline` 的真源 `view.json` 二选一。其余 action 忽略。"
         },
         "parallel": {
           "type": "boolean",
@@ -1452,7 +1453,7 @@
         "url",
         "source_lang",
         "target_lang",
-        "continue_from",
+        "resume_from",
         "target_step",
         "video_dir",
         "queue_id",
@@ -1839,7 +1840,7 @@
               "type": "null"
             }
           ],
-          "description": " continue 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。\n 命中段无视 skipExisting, 强制重合成 (先删旧 wav 再生成)。None/空 = 全量按 skipExisting 走。"
+          "description": " resume 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。\n 命中段无视 skipExisting, 强制重合成 (先删旧 wav 再生成)。None/空 = 全量按 skipExisting 走。"
         },
         "ref_audio_x2": {
           "type": "boolean",
@@ -2169,7 +2170,7 @@
             }
           ]
         },
-        "continue_from": {
+        "resume_from": {
           "anyOf": [
             {
               "$ref": "#/$defs/StepName"
@@ -2178,7 +2179,7 @@
               "type": "null"
             }
           ],
-          "description": " 继续任务专业参数, 可指定 continue_from 从某步骤开始, 不指定则从上次中断的步骤开始"
+          "description": " 续跑专业参数, 可指定 resume_from 从某步骤开始, 不指定则从上次中断的步骤开始"
         },
         "target_step": {
           "anyOf": [
@@ -2234,7 +2235,7 @@
               "type": "null"
             }
           ],
-          "description": " 实验开关: start/continue 走 aa-workflow 引擎——**开发中，暂不可用**\n （集成暂停，见 `integration/workflow/mod.rs`；设了会在 ExecPath 分派时\n 打印「开发中」并报错）。恢复后：真源 events.jsonl，与 `run_pipeline`\n （真源 view.json）二选一。其余 action 忽略。"
+          "description": " 实验开关: start/continue 走 aa-workflow 引擎（start 已接通；continue 仍开发中，\n 打印「开发中」并报错）。真源是 `<video_dir>/workflow-store/<run_id>/logs.jsonl`，\n 与 `run_pipeline` 的真源 `view.json` 二选一。其余 action 忽略。"
         },
         "parallel": {
           "anyOf": [
@@ -2491,7 +2492,7 @@
               "type": "null"
             }
           ],
-          "description": " continue 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。\n 命中段无视 skipExisting, 强制重合成 (先删旧 wav 再生成)。None/空 = 全量按 skipExisting 走。"
+          "description": " resume 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。\n 命中段无视 skipExisting, 强制重合成 (先删旧 wav 再生成)。None/空 = 全量按 skipExisting 走。"
         },
         "ref_audio_x2": {
           "type": "boolean",

@@ -21,7 +21,7 @@ use crate::{
             find_server, get_server_status, shutdown, start_main, start_voxcpm, stop_voxcpm,
         },
         workflows::{
-            cancel_queue, continue_workflow, enqueue_continue, enqueue_dir, enqueue_import,
+            cancel_queue, resume_workflow, enqueue_resume, enqueue_dir, enqueue_import,
             enqueue_start, get_group_list /* get_workflow_ctx */, list_queue, log::watch_workflow_log,
             regen_tts, start_workflow, tree::watch_workflow_tree,
         },
@@ -57,11 +57,11 @@ pub fn build_fn_rpc_router() -> fnrpc::router::RpcRouter<Ctx> {
         .route_fn(get_workfolder)
         .route_fn(env_check)
         .route_fn(env_ensure)
-        .route_fn(continue_workflow)
+        .route_fn(resume_workflow)
         .route_fn(regen_tts)
         .route_fn(start_workflow)
         .route_fn(enqueue_start)
-        .route_fn(enqueue_continue)
+        .route_fn(enqueue_resume)
         .route_fn(enqueue_import)
         .route_fn(enqueue_dir)
         .route_fn(list_queue)

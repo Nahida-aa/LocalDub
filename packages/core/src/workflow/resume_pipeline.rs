@@ -1,7 +1,7 @@
 //! continue 派发器 (镜像 TS `packages/core/workflows/continue.ts` 的 `continuePipeline`)。
 //!
 //! 与 [`crate::workflow::pipeline::run_pipeline`] 的区别: 不是从序列头跑全部, 而是:
-//! - `workflow.continue_from` 存在 → 从该 step 起把后续全部重置为 `pending` 再续跑;
+//! - `workflow.resume_from` 存在 → 从该 step 起把后续全部重置为 `pending` 再续跑;
 //! - 否则 → 跳过已 `success` 的前缀 step, 从第一个未完成 step 续跑;
 //! - `workflow.target_step` 命中即停 (truncate 序列)。
 //!
@@ -18,21 +18,21 @@ use tracing::Instrument;
 /// 续跑 output_mode (镜像 TS `continuePipeline`)。
 ///
 /// 任务目录取自 `input.workflow.video_dir`（[`crate::input::Input::video_dir`]）。
-pub async fn continue_pipeline(input: &Input) -> anyhow::Result<()> {
+pub async fn resume_pipeline(input: &Input) -> anyhow::Result<()> {
     let video_dir = input.video_dir()?;
     // 用 Instrument 而非 .entered()——EnteredSpan 是 !Send，不能跨 .await 持有。
     let span = tracing::info_span!("workflow", video_dir = video_dir);
     async move {
-    tracing::info!(target: "output_mode", "continue_pipeline: start");
+    tracing::info!(target: "output_mode", "resume_pipeline: start");
 
     let video_id = crate::steps::utils::video_id(video_dir).unwrap_or_default();
     let steps = crate::steps::get_steps(input)?;
 
-    // continue_from / target_step 从 input.workflow 读取 (镜像 TS ctx.input?.workflow)
-    let continue_from = input
+    // resume_from / target_step 从 input.workflow 读取 (镜像 TS ctx.input?.workflow)
+    let resume_from = input
         .workflow
         .as_ref()
-        .and_then(|w| w.continue_from.as_ref())
+        .and_then(|w| w.resume_from.as_ref())
         .map(|s| s.as_str().to_string());
     let target_step = input
         .workflow
@@ -49,12 +49,12 @@ pub async fn continue_pipeline(input: &Input) -> anyhow::Result<()> {
 
     let mut start_idx = 0usize;
 
-    if let Some(cf) = &continue_from {
+    if let Some(cf) = &resume_from {
         start_idx = steps
             .iter()
             .position(|s| s.as_str() == cf)
             .ok_or_else(|| anyhow::anyhow!("Unknown step \"{cf}\""))?;
-        // 从 continue_from 起把后续全部重置为 pending (镜像 TS for i=startIdx.. reset)。
+        // 从 resume_from 起把后续全部重置为 pending (镜像 TS for i=startIdx.. reset)。
         // 注: StepPatch 仅支持"设置"不支持"清空"可选字段, 故只改 status; 实际运行时
         // run_step 会重新写入 started_at / completed_at, 残留的旧时间戳无害。
         for i in start_idx..steps.len() {
@@ -72,7 +72,7 @@ pub async fn continue_pipeline(input: &Input) -> anyhow::Result<()> {
             steps.len() - start_idx
         );
     } else {
-        // 无 continue_from → 跳过已完成前缀, 从第一个未完成 step 续跑
+        // 无 resume_from → 跳过已完成前缀, 从第一个未完成 step 续跑
         let existing = crate::state::read_steps_state(video_dir).map_err(anyhow::Error::msg)?;
         for (i, s) in steps.iter().enumerate() {
             let done = existing

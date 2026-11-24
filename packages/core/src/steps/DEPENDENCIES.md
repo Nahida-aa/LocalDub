@@ -56,16 +56,17 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | --- | --- | --- |
 | `video_source.mp4` | import 阶段 / `ctx.video_source_path` | 原视频（所有链的根） |
 | `audio_source.wav` | import 阶段 / `ctx.audio_source_path` | 原音频 |
-| `state.json` | 引擎（`set_step` / `set_workflow`） | **状态投影**，所有 step 都读写它（旧名 `ctx.json`） |
+| `view.json` | import（初次）/ 编排器（`set_workflow`） | **任务根状态投影**（身份 + 运行状态；旧名 `state.json` / `ctx.json`） |
+| `<step>/state.json` | 该步骤自己 | 每步私有状态（status/progress/times/messages） |
 
-> `state.json` 是全局共享的：每个 step 进来 `read_ctx`、改自己的状态、写回。
-> **两个 step 并行会互相覆盖**——这是并行化的前置障碍（见文末）。
+> 状态文件已按单写者原则拆分：任务根 `view.json` 只在 run 边界由编排器写，
+> 每个 step 只写自己的 `<step>/state.json`——旧的「全局共享、并行互踩」已消除。
 
-> ⚠️ **它是投影，不是真源。** 每次 `set_step` 立刻 read-modify-write 落盘（所以是
-> **实时**的），但引擎的「成败真相」在 `<video_dir>/workflow-engine/events.jsonl`
-> ——resume / continue_from / target_step 全依据那份 append-only 日志，**不读
-> `state.json`**。因此这个文件**可丢弃、可重建**。权威说明见
-> `packages/core/src/state/mod.rs` 的模块文档。
+> ⚠️ **它们是投影，不是真源。** `set_workflow` / `set_step` 立刻 read-modify-write
+> 落盘（所以是**实时**的），但引擎的「成败真相」在
+> `<video_dir>/workflow-store/<run_id>/logs.jsonl`——resume / continue_from /
+> target_step 全依据那份 append-only 日志，**不读 `view.json`**。因此这些文件
+> **可丢弃、可重建**。权威说明见 `packages/core/src/state/mod.rs` 的模块文档。
 >
 > 别与 aa-workflow 引擎的 `ctx.state` 混淆：那是 handler 的执行期内存（不落盘、
 > 靠 replay 重建），与此文件无关。
@@ -298,7 +299,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 | **读** ⚠️ | 规范化字幕 `srt.json`（按 `subtitle_source` 选目录，见「规范化字幕」节；由装配层 `TranslateDeps::from_input(&WorkflowInput)` 读成 `srt_segs: Vec<SubtitleSegment>` 注入，缺失/空即**就地报错**） |
 | **读** | `data/bin/yt-dlp` 产物（可选元信息） |
 | **写** | `translate/{lang}.json`（类型化契约 `TranslateOutput::for_lang`）、中间态 `{lang}.partial.json`（仅 LLM 路径，私有状态） |
-| **写** | `state.json` 的 `target_language`——**全仓唯一写点**（`persist_target_language`），见下 |
+| **写** | `<translate>/out.json` 的 `target_language`——**全仓唯一落定事实**（`TranslateOutput::write`），见下 |
 
 > **`{lang}.json` 的 `segments[].idx` 是 1-based 且必填。**
 >
@@ -322,8 +323,8 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 >
 > 注意：直通时 `{lang}.json` 的旧语言版本**不会被清理**。切换语言
 > 重跑会留下多份（真实数据里已有任务同时存在 `vi.json` 与
-> `zh.json`）。这是合法状态——「当前是哪份」由 `ctx.target_language`
-> 单一写入点决定，不靠扫目录。
+> `zh.json`）。这是合法状态——「当前是哪份」由 `<translate>/out.json` 的
+> `target_language` 落定事实决定，不靠扫目录。
 
 > **`{lang}.json` 的路径是单点构造的。** 它是全流水线唯一「产物被 5 处
 > 各拼一遍」的文件（写侧 + split_audio 读 + mix_video 读 + engine 事件登记，
@@ -332,21 +333,21 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 > 改产物命名不会再漏改——**但也没有第二处保留旧写法可对照**，故有
 > `translate_output_matches_canonical_path` 钉死路径形状。
 
-> **`ctx.target_language` 只由 translate 写，且只写一次。**
+> **目标语言只由 translate 落定，且只写一次。**
 >
 > 这是刻意的**写入权限约束**。此前写回藏在 `resolve_language` 内部
 > （「算出来变了就顺手写回」），于是一个**看起来纯读**的函数带着隐形写副作用，
 > 产生顺序依赖：`split_audio` 先 `read_translation_result(ctx)`（读 ctx 里的旧值）
-> **再** `resolve_language(ctx)`（顺带改写 state.json）——读在写之前，读到的文件名
+> **再** `resolve_language(...)`（顺带改写落定事实）——读在写之前，读到的文件名
 > 与它认定的语言可以不是同一个。症状是报「文件不存在」，但文件在，只是名字不同。
 >
 > 现在拆开：
-> - `resolve_language(ctx)` —— **纯函数**，无副作用，谁都能随便调
-> - `persist_target_language(video_dir, lang)` —— 唯一写点，
+> - `resolve_language(...)` —— **纯函数**，无副作用，谁都能随便调
+> - `TranslateOutput::write(video_dir, src, dst)` —— 唯一写点（`<translate>/out.json`），
 >   **只由 `step_translate` 调用一次**；失败返回 `Err`（原先只 `warn`）
 >
 > 由 `resolve_language_is_pure_and_does_not_persist` 守护：它调完
-> `resolve_language` 后断言磁盘上的 state.json **没被改动**。把写回塞回去这条会红
+> `resolve_language` 后断言磁盘上的 `<translate>/out.json` **没被改动**。把写回塞回去这条会红
 > （已实测）。
 >
 > #### 已完成：下游改为「读事实」
@@ -574,14 +575,15 @@ subtitle pipeline 的 mix_video 不吃 mix_audio 产物，
 2. **`subtitle_source` 相关吗？** 涉及 `subtitle_file_path` 就得同时考虑三种取值。
 3. **我加的读是「缺失即失败」还是「有则用」？** 前者会改变失败面。
 4. **有没有破坏性副作用？**（如 `sf_ocr` 的 `cleanup_frames` 可删帧）
-5. **`state.json` 的并发假设还成立吗？**（见下）
+5. **`view.json` / `<step>/state.json` 的单写者假设还成立吗？**（见下）
 6. **改 step 名单时改 `StepName` 枚举**——漏登记会在编译期报错，别去改
    `STEPS_LIST` / `*_STEPS` 那几处字符串（它们有测试钉住）。
 
 ## 已知限制
 
-- **`state.json` 是全局共享可变状态**：每个 step 读写它，**并行 step 会互相覆盖**。
-  任何并行化都要先解决这个（进程内锁 or 改用 core 的 state 模型）。
+- **状态文件按单写者拆分**：任务根 `view.json` 只由编排器写，每个 step 只写自己的
+  `<step>/state.json`。旧的「全局 `state.json` 并行互踩」问题已消除；并行化的障碍
+  已从状态文件转移到产物文件。
 - **路径来源**：本文先扫代码（`read_to_string` / `_path()` / `_dir()` 等），
   再对照 `workfolder/师尊带我炸修真/2/` 的**真实产出目录**核对过，两者一致。
   但那次运行只覆盖一个参数组合（`dub` + `sf_ocr` + `llmFix=true`）。

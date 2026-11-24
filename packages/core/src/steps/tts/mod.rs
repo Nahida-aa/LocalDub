@@ -93,7 +93,7 @@ pub async fn step_tts(sc: impl StepCtxView, deps: TtsDeps) -> anyhow::Result<Tts
         }
     );
 
-    // regenIndices 语义 (continue 模式精准重跑):
+    // regenIndices 语义 (resume 模式精准重跑):
     // - 首次 start 时强制忽略, 全量跑; 仅 continue 重跑时用。
     // - 列表内的段: 无视 skipExisting, 强制重新合成 (先删旧 wav 再生成)。
     // - 列表外的段: 保留旧结果 —— 优先复用 tts.json 已有记录, 无旧记录才写合法静音占位。
@@ -143,7 +143,7 @@ pub async fn step_tts(sc: impl StepCtxView, deps: TtsDeps) -> anyhow::Result<Tts
         let out_path = tts_wavs_dir.segment_path(i);
         let out_path = out_path.to_string_lossy().into_owned();
 
-        // regenIndices 语义 (continue 模式精准重跑):
+        // regenIndices 语义 (resume 模式精准重跑):
         // - 仅作用于「存在有效旧结果」的段: 列表内 -> 强制重合成, 列表外 -> 保留旧结果。
         // - 「没有有效旧结果」的段 (无记录 / wav 缺失 / wav 零时长损坏): 无论是否
         //   在列表里, 都必须正常生成, 不能因为不在 regenIndices 中就被跳过复用坏结果。

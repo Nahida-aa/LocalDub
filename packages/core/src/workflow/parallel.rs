@@ -20,8 +20,8 @@
 //!
 //! **按步跳过**：`action=continue` 时每步跑前读自己的 `<step>/state.json`，
 //! `Success` 就跳过——半途失败后续跑不会重跑另一分支已完成的步骤
-//! （串行 `continue_pipeline` 的前缀扫描做不到这一点）。
-//! `continue_from` 显式重跑：该步 + 传递下游重置 pending。
+//! （串行 `resume_pipeline` 的前缀扫描做不到这一点）。
+//! `resume_from` 显式重跑：该步 + 传递下游重置 pending。
 //!
 //! ## target_step
 //!
@@ -149,7 +149,7 @@ where
 ///
 /// 入口语义与 [`crate::workflow::pipeline::run_pipeline`] 对齐：
 /// `action=start` 全新全量跑；`action=continue` 按步跳过已 success 的步骤，
-/// `continue_from` 显式重跑该步及其传递下游。
+/// `resume_from` 显式重跑该步及其传递下游。
 /// 任务目录取自 `input.workflow.video_dir`（[`crate::input::Input::video_dir`]）。
 pub async fn run_pipeline_parallel(input: &Input) -> anyhow::Result<()> {
     let video_dir = input.video_dir()?;
@@ -159,11 +159,11 @@ pub async fn run_pipeline_parallel(input: &Input) -> anyhow::Result<()> {
 
     let dag = StepDag::for_input(input)?;
     let wf = input.workflow.as_ref();
-    let is_continue = wf.and_then(|w| w.action) == Some(WorkflowAction::Continue);
+    let is_resume = wf.and_then(|w| w.action) == Some(WorkflowAction::Resume);
 
-    // continue_from: 该步 + 传递下游重置 pending（skip-if-success 不再跳过它们）。
-    if is_continue {
-        if let Some(cf) = wf.and_then(|w| w.continue_from) {
+    // resume_from: 该步 + 传递下游重置 pending（skip-if-success 不再跳过它们）。
+    if is_resume {
+        if let Some(cf) = wf.and_then(|w| w.resume_from) {
             for step in std::iter::once(cf).chain(dag.transitive_dependents(cf)) {
                 set_step_anyhow(
                     video_dir,
@@ -174,12 +174,12 @@ pub async fn run_pipeline_parallel(input: &Input) -> anyhow::Result<()> {
                     },
                 )?;
             }
-            tracing::info!(target: "output_mode", "continue_from \"{}\": 已重置该步骤及其传递下游", cf.as_str());
+            tracing::info!(target: "output_mode", "resume_from \"{}\": 已重置该步骤及其传递下游", cf.as_str());
         }
     }
 
     // 续跑：已 success 的步骤跳过。start 不跳——同目录重跑应全量重跑（与串行一致）。
-    let skip: BTreeSet<StepName> = if is_continue {
+    let skip: BTreeSet<StepName> = if is_resume {
         dag.nodes()
             .iter()
             .filter(|s| {

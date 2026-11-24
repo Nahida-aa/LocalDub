@@ -37,7 +37,7 @@ type FormState = {
   action: string;
   url: string;
   video_dir: string;
-  continue_from: string;
+  resume_from: string;
   target_step: string;
   output_mode: string;
   subtitle_source: string;
@@ -52,7 +52,7 @@ const emptyForm = (): FormState => ({
   action: "",
   url: "",
   video_dir: "",
-  continue_from: "",
+  resume_from: "",
   target_step: "",
   output_mode: "",
   subtitle_source: "",
@@ -88,7 +88,7 @@ export function InputFormSettings() {
         set(["workflow", "action"], value.action);
         set(["workflow", "url"], value.url);
         set(["workflow", "video_dir"], value.video_dir);
-        set(["workflow", "continue_from"], value.continue_from);
+        set(["workflow", "resume_from"], value.resume_from);
         set(["workflow", "target_step"], value.target_step);
         set(["workflow", "output_mode"], value.output_mode);
         set(["workflow", "subtitle_source"], value.subtitle_source);
@@ -119,7 +119,7 @@ export function InputFormSettings() {
       action: String(t.action ?? ""),
       url: String(t.url ?? ""),
       video_dir: String(t.video_dir ?? ""),
-      continue_from: String(t.continue_from ?? ""),
+      resume_from: String(t.resume_from ?? ""),
       target_step: String(t.target_step ?? ""),
       output_mode: String(t.output_mode ?? ""),
       subtitle_source: String(t.subtitle_source ?? ""),
@@ -167,7 +167,7 @@ export function InputFormSettings() {
               {(field) => (
                 <CardSelect
                   title="workflow.action"
-                  description="workflow 动作 (start 导入并跑 / continue 续跑 / import 只导入 / enqueue_* 入队)"
+                  description="workflow 动作 (start 导入并跑 / resume 续跑 / import 只导入 / enqueue_* 入队)"
                   field={field}
                   options={WORKFLOW_ACTIONS}
                 />
@@ -188,17 +188,17 @@ export function InputFormSettings() {
               {(field) => (
                 <CardInput
                   title="workflow.video_dir"
-                  description="workflow 目录 (continue / enqueue_continue / status 用)"
+                  description="workflow 目录 (resume / enqueue_resume / status 用)"
                   field={field}
                   placeholder="workfolder/大/90"
                 />
               )}
             </form.Field>
             <h3>续跑范围</h3>
-            <form.Field name="continue_from">
+            <form.Field name="resume_from">
               {(field) => (
                 <CardSelect
-                  title="workflow.continue_from"
+                  title="workflow.resume_from"
                   description="从哪个 step 开始续跑 (空 = 不指定)"
                   field={field}
                   options={STEPS}

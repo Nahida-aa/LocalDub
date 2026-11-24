@@ -40,7 +40,7 @@ pub struct TtsArgs {
     /// 跳过已存在的段 (按 mtime 比对参考音); 默认 true
     #[serde(default = "default_true")]
     pub skip_existing: bool,
-    /// continue 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。
+    /// resume 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。
     /// 命中段无视 skipExisting, 强制重合成 (先删旧 wav 再生成)。None/空 = 全量按 skipExisting 走。
     #[serde(default)]
     pub regen_indices: Option<Vec<u32>>,

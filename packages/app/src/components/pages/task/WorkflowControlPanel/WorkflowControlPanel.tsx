@@ -52,9 +52,9 @@ export const WorkflowControlPanel = (p: {
   };
 
   const resume_workflow = useMutation(() =>
-    client.continue_workflow.mutationOptions({
+    client.resume_workflow.mutationOptions({
       onSuccess: () => {
-        console.log("[continue] 继续运行 完成");
+        console.log("[resume] 继续运行 完成");
         // 运行结束后立即刷新 ctx 与文件树（watch 事件通常已覆盖，这里兜底）
         qc.invalidateQueries({
           queryKey: client.get_workflow_ctx.queryKey(videoDir),
@@ -64,7 +64,7 @@ export const WorkflowControlPanel = (p: {
         });
       },
       onError: (error) => {
-        console.error("[continue] 继续运行 失败:", error);
+        console.error("[resume] 继续运行 失败:", error);
       },
     }),
   );

@@ -5,7 +5,7 @@
 //! 2. 剥离 JSONC 注释 (`//` 行注释 与 `/* */` 块注释)。
 //! 3. 反序列化为 `ld_core::input::Input`。
 //! 4. 调 `ld_core::cmd::workflows::workflow::cmd_workflow` 总派发 (镜像 TS `cmdTask`):
-//!    start / continue / status / get_group_list / get_workflow_ctx。
+//!    start / resume / status / get_group_list / get_workflow_ctx。
 //!
 //! 失败打印错误并以退出码 1 退出, 成功以 0 退出。
 
@@ -60,28 +60,29 @@ enum Command {
     },
     /// 任务操作 (等价 input.jsonc command=workflow, 标量参数覆盖 input.jsonc)。
     Workflow {
-        /// 任务动作: start/continue/enqueue_start/enqueue_continue/list_queue/cancel_queue/...
+        /// 任务动作: start/resume/enqueue_start/enqueue_resume/list_queue/cancel_queue/...
         #[arg(long, value_enum)]
         action: Option<WorkflowAction>,
         /// 本地文件路径或远程/云端 url (start/enqueue_start 用)。
         #[arg(long)]
         url: Option<String>,
-        /// 任务目录 (continue/enqueue_continue/status 用)。
+        /// 任务目录 (resume/enqueue_resume/status 用)。
         #[arg(long)]
         video_dir: Option<String>,
         /// 队列任务 ID (cancel_queue 用)。
         #[arg(long)]
         queue_id: Option<u64>,
-        /// 从某 step 续跑 (continue/enqueue_continue 用)。
+        /// 从某 step 续跑 (resume/enqueue_resume 用)。
         #[arg(long, value_enum)]
-        continue_from: Option<StepName>,
-        /// 跑到此 step 后停止 (continue/enqueue_continue 用)。
+        resume_from: Option<StepName>,
+        /// 跑到此 step 后停止 (resume/enqueue_resume 用)。
         #[arg(long, value_enum)]
         target_step: Option<StepName>,
-        /// 实验开关: start/continue 走 aa-workflow 引擎 (events.jsonl 真源)。
+        /// 实验开关: start/resume 走 aa-workflow 引擎 (真源 workflow-store/<run_id>/logs.jsonl;
+        /// start 已接通, continue/resume 仍开发中)。
         #[arg(long)]
         engine: bool,
-        /// 实验性并行: start/continue 按步骤 DAG 并行 (真源各 <step>/state.json)。
+        /// 实验性并行: start/resume 按步骤 DAG 并行 (真源各 <step>/state.json)。
         /// 验证成熟后并行将成为默认行为, 届时本标志退役。
         #[arg(long)]
         parallel: bool,
@@ -159,7 +160,7 @@ async fn main() {
             url,
             video_dir,
             queue_id,
-            continue_from,
+            resume_from,
             target_step,
             engine,
             parallel,
@@ -177,8 +178,8 @@ async fn main() {
             if let Some(q) = queue_id {
                 workflow.queue_id = Some(q);
             }
-            if let Some(cf) = continue_from {
-                workflow.continue_from = Some(cf);
+            if let Some(cf) = resume_from {
+                workflow.resume_from = Some(cf);
             }
             if let Some(ts) = target_step {
                 workflow.target_step = Some(ts);
@@ -267,7 +268,7 @@ async fn main() {
     };
 
     // 提示音语义: 任务完成 ≠ 命令完成。
-    // - 同步任务命令 (start/continue/import, 含缺省 action 走 start):
+    // - 同步任务命令 (start/resume/import, 含缺省 action 走 start):
     //   命令完成 = 任务完成 -> workflow_success / task_fail。
     // - 其它命令 (enqueue 提交/servers/查询等): 命令结束但任务未运行或无关
     //   -> command_done; 失败仍是 task_fail。
@@ -276,7 +277,7 @@ async fn main() {
         (input.command, action),
         (
             InputCommand::Workflow,
-            None | Some(WorkflowAction::ImportAndStart | WorkflowAction::Start | WorkflowAction::Continue | WorkflowAction::Import)
+            None | Some(WorkflowAction::ImportAndStart | WorkflowAction::Start | WorkflowAction::Resume | WorkflowAction::Import)
         )
     );
 

@@ -32,7 +32,7 @@
 //!
 //! # 与引擎真源的关系
 //!
-//! **这三个文件是投影，事件日志是真源**——引擎的 resume / continue_from /
+//! **这三个文件是投影，事件日志是真源**——引擎的 resume / resume_from /
 //! target_step 全部依据日志，不读它们。投影可丢弃、可重建。
 //!
 //! > ⚠️ 别把这里的 `ctx.state` 和 aa-workflow 引擎的 `ctx.state` 混为一谈：

@@ -50,14 +50,14 @@ pub async fn get_group_list() -> Result<Vec<GroupInfo>, String> {
 // }
 
 #[fnrpc::rpc_mutate]
-pub async fn continue_workflow(video_dir: String, from_step: String) -> Result<(), String> {
+pub async fn resume_workflow(video_dir: String, from_step: String) -> Result<(), String> {
     let abs_video_dir = repo_root().join(&video_dir);
     let abs_video_dir_str = abs_video_dir
         .to_str()
         .ok_or_else(|| "invalid video_dir".to_string())?
         .to_string();
     eprintln!(
-        "[continue_workflow] base_dir={} video_dir={video_dir} abs={abs_video_dir_str}",
+        "[resume_workflow] base_dir={} video_dir={video_dir} abs={abs_video_dir_str}",
         repo_root().display()
     );
 
@@ -70,15 +70,15 @@ pub async fn continue_workflow(video_dir: String, from_step: String) -> Result<(
         .get_mut("workflow")
         .ok_or_else(|| "input 缺少 workflow 字段".to_string())?;
     workflow["video_dir"] = serde_json::Value::String(abs_video_dir_str.clone());
-    workflow["action"] = serde_json::Value::String("continue".into());
-    workflow["continue_from"] = serde_json::Value::String(from_step);
+    workflow["action"] = serde_json::Value::String("resume".into());
+    workflow["resume_from"] = serde_json::Value::String(from_step);
 
     let input: Input =
         serde_json::from_value(input_value).map_err(|e| format!("parse input failed: {}", e))?;
 
-    // 与 continue_workflow 共用同一把 in-flight 锁, 防同一任务并发续跑。
+    // 与 resume_workflow 共用同一把 in-flight 锁, 防同一任务并发续跑。
     // 锁的获取/释放都在 async 段同步完成（临界区只包住 await 前的登记），
-    // continue_workflow 是 async（引擎路径要 await）。
+    // resume_workflow 是 async（引擎路径要 await）。
     let video_dir_owned = abs_video_dir_str.clone();
     {
         let mut set = inflight_lock().lock().unwrap();
@@ -86,12 +86,12 @@ pub async fn continue_workflow(video_dir: String, from_step: String) -> Result<(
             return Err("任务已在续跑中".to_string());
         }
     }
-    let r = ld_core::cmd::workflows::continue_workflow(&input).await;
+    let r = ld_core::cmd::workflows::resume_workflow(&input).await;
     inflight_lock().lock().unwrap().remove(&video_dir_owned);
-    r.map_err(|e| format!("continue_workflow 失败: {e:#}"))
+    r.map_err(|e| format!("resume_workflow 失败: {e:#}"))
 }
 
-/// 重新生成指定 TTS 段 (续跑模式: continue_from=tts + steps.tts.regenIndices)。
+/// 重新生成指定 TTS 段 (续跑模式: resume_from=tts + steps.tts.regenIndices)。
 ///
 /// `continue_run=true` 时重生成后继续跑完整个 pipeline (镜像 input.jsonc 手工改
 /// `regenIndices` 后「从 tts 继续运行」); `false` 时只重生成, 到 tts 阶段结束即停
@@ -117,8 +117,8 @@ pub async fn regen_tts(
         .get_mut("workflow")
         .ok_or_else(|| "input 缺少 workflow 字段".to_string())?;
     workflow["video_dir"] = serde_json::Value::String(abs_video_dir_str.clone());
-    workflow["action"] = serde_json::Value::String("continue".into());
-    workflow["continue_from"] = serde_json::Value::String("tts".into());
+    workflow["action"] = serde_json::Value::String("resume".into());
+    workflow["resume_from"] = serde_json::Value::String("tts".into());
     if continue_run {
         // 继续跑完整个 pipeline: 清掉可能残留的 target_step, 不中途停止。
         workflow["target_step"] = serde_json::Value::Null;
@@ -143,8 +143,8 @@ pub async fn regen_tts(
     let input: Input =
         serde_json::from_value(input_value).map_err(|e| format!("parse input failed: {}", e))?;
 
-    // 与 continue_workflow 共用同一把 in-flight 锁, 防同一任务并发续跑。
-    // continue_workflow 是 async（引擎路径要 await），锁只包住登记段。
+    // 与 resume_workflow 共用同一把 in-flight 锁, 防同一任务并发续跑。
+    // resume_workflow 是 async（引擎路径要 await），锁只包住登记段。
     let video_dir_owned = abs_video_dir_str.clone();
     {
         let mut set = inflight_lock().lock().unwrap();
@@ -152,7 +152,7 @@ pub async fn regen_tts(
             return Err("任务已在续跑中".to_string());
         }
     }
-    let r = ld_core::cmd::workflows::continue_workflow(&input).await;
+    let r = ld_core::cmd::workflows::resume_workflow(&input).await;
     inflight_lock().lock().unwrap().remove(&video_dir_owned);
     r.map_err(|e| format!("regen_tts 失败: {e:#}"))
 }
@@ -247,15 +247,15 @@ pub async fn enqueue_start(ctx: &Ctx, input: Input) -> Result<u64, String> {
 /// 加入一个续跑任务 (continue): 入队完整 input (action=continue), worker 串行执行
 /// (续跑已有任务)。返回队列 ID。
 #[fnrpc::rpc_mutate]
-pub async fn enqueue_continue(ctx: &Ctx, input: Input) -> Result<u64, String> {
+pub async fn enqueue_resume(ctx: &Ctx, input: Input) -> Result<u64, String> {
     use ld_core::workflow::args::WorkflowAction;
-    if input.workflow.as_ref().and_then(|t| t.action) != Some(WorkflowAction::Continue) {
-        return Err("enqueue_continue 需要 input.workflow.action = continue".to_string());
+    if input.workflow.as_ref().and_then(|t| t.action) != Some(WorkflowAction::Resume) {
+        return Err("enqueue_resume 需要 input.workflow.action = continue".to_string());
     }
     Ok(ctx.state.queue.enqueue(input))
 }
 
-/// 入队一个"只导入"任务 (不跑 pipeline): 批量先导入, 之后用 continue 续跑。
+/// 入队一个"只导入"任务 (不跑 pipeline): 批量先导入, 之后用 resume 续跑。
 #[fnrpc::rpc_mutate]
 pub async fn enqueue_import(ctx: &Ctx, input: Input) -> Result<u64, String> {
     use ld_core::workflow::args::WorkflowAction;

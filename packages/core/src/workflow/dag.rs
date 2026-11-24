@@ -179,7 +179,7 @@ impl StepDag {
         Ok(seen)
     }
 
-    /// `from` 的**传递下游**（continue_from 语义：该步重跑 → 下游全部重置 pending）。
+    /// `from` 的**传递下游**（resume_from 语义：该步重跑 → 下游全部重置 pending）。
     /// 不含 `from` 本身（调用方自己把它加进重置集）。
     pub fn transitive_dependents(&self, from: StepName) -> BTreeSet<StepName> {
         let mut seen = BTreeSet::new();
@@ -260,7 +260,7 @@ mod tests {
         // 图外 target → 报错
         assert!(dag.with_target_closure(Asr).is_err());
 
-        // continue_from=separate → 该步的传递下游全部重置
+        // resume_from=separate → 该步的传递下游全部重置
         let deps = dag.transitive_dependents(Separate);
         assert_eq!(
             deps,

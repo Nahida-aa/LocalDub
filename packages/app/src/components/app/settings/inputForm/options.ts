@@ -20,10 +20,10 @@ const COMMANDS = ["workflow", "servers", "env", "cookie"];
 
 const WORKFLOW_ACTIONS = keysOf({
   start: "",
-  continue: "",
+  resume: "",
   import: "",
   enqueue_start: "",
-  enqueue_continue: "",
+  enqueue_resume: "",
   enqueue_import: "",
   enqueue_dir: "",
   list_queue: "",

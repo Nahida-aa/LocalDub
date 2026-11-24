@@ -424,7 +424,7 @@ async fn execute_entry(input: &Input) -> anyhow::Result<()> {
         Some(WorkflowAction::Start) => ld_core::cmd::workflows::start_workflow(input)
             .await
             .map(|_| ()),
-        Some(WorkflowAction::Continue) => ld_core::cmd::workflows::continue_workflow(input).await,
+        Some(WorkflowAction::Resume) => ld_core::cmd::workflows::resume_workflow(input).await,
         Some(WorkflowAction::Import) => {
             ld_core::workflow::import::download::import_video(input).map(|_| ())
         }

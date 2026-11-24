@@ -14,16 +14,17 @@ pub enum WorkflowAction {
     /// 要求 `workflow.video_dir` 已存在且已导入。
     #[serde(rename = "start")]
     Start,
-    #[serde(rename = "continue")]
-    Continue,
+    /// 续跑已有任务 (setCtx + 从某步/跳过已 success 续跑)。
+    #[serde(rename = "resume")]
+    Resume,
     /// 只导入: 下载/拷贝视频 + 探测 + 写 view.json, 不跑 output_mode。
-    /// 批量场景可先批量导入, 之后用 continue 逐个续跑重活。
+    /// 批量场景可先批量导入, 之后用 resume 逐个续跑重活。
     #[serde(rename = "import")]
     Import,
     #[serde(rename = "enqueue_start")]
     EnqueueStart,
-    #[serde(rename = "enqueue_continue")]
-    EnqueueContinue,
+    #[serde(rename = "enqueue_resume")]
+    EnqueueResume,
     #[serde(rename = "enqueue_import")]
     EnqueueImport,
     /// 批量入队目录: 扫描本地目录顶层视频文件, 每个去重后入队一条 action=start 任务。
@@ -219,8 +220,8 @@ pub struct WorkflowArgs {
     pub url: Option<String>,
     pub source_lang: Option<crate::r#const::lang::LangStr>,
     pub target_lang: Option<Language>,
-    /// 继续任务专业参数, 可指定 continue_from 从某步骤开始, 不指定则从上次中断的步骤开始
-    pub continue_from: Option<StepName>,
+    /// 续跑专业参数, 可指定 resume_from 从某步骤开始, 不指定则从上次中断的步骤开始
+    pub resume_from: Option<StepName>,
     /// 目标步骤, output_mode 跑到此步骤后自动停止, 不指定则跑完所有步骤
     pub target_step: Option<StepName>,
     pub video_dir: Option<String>,
@@ -228,10 +229,9 @@ pub struct WorkflowArgs {
     pub queue_id: Option<u64>,
     /// rerunStep 专业参数, 指定要重新运行的步骤
     pub step_name: Option<StepName>,
-    /// 实验开关: start/continue 走 aa-workflow 引擎——**开发中，暂不可用**
-    /// （集成暂停，见 `integration/workflow/mod.rs`；设了会在 ExecPath 分派时
-    /// 打印「开发中」并报错）。恢复后：真源 events.jsonl，与 `run_pipeline`
-    /// （真源 view.json）二选一。其余 action 忽略。
+    /// 实验开关: start/continue 走 aa-workflow 引擎（start 已接通；continue 仍开发中，
+    /// 打印「开发中」并报错）。真源是 `<video_dir>/workflow-store/<run_id>/logs.jsonl`，
+    /// 与 `run_pipeline` 的真源 `view.json` 二选一。其余 action 忽略。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub engine: Option<bool>,
     /// 实验开关: **实验性并行**——非 engine 路径按步骤 DAG 并行执行（目前只有
@@ -255,12 +255,12 @@ pub struct WorkflowArgs {
 /// start/continue 的执行路径（由 `engine` / `parallel` 两个实验标志解析）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExecPath {
-    /// aa-workflow 引擎（真源 events.jsonl）。
+    /// aa-workflow 引擎（真源 `<video_dir>/workflow-store/<run_id>/logs.jsonl`）。
     Engine,
     /// 非 engine 的 DAG 并行执行器（真源各 `<step>/state.json`，见
     /// [`crate::workflow::parallel`]）。
     Parallel,
-    /// 串行 pipeline（`run_pipeline` / `continue_pipeline`）。
+    /// 串行 pipeline（`run_pipeline` / `resume_pipeline`）。
     Serial,
 }
 

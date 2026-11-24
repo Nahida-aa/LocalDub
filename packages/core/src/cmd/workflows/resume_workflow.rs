@@ -3,13 +3,13 @@
 //! 语义 (对齐 TS):
 //! 1. 要求 `input.workflow.video_dir` 指定已有任务目录, 否则报错;
 //! 2. `setCtx` — 把当前 `input` 写回 `input.json`
-//!    (TS `setCtx(video_dir, { input })`), 这样 `continue_from` / `regenIndices` 等
+//!    (TS `setCtx(video_dir, { input })`), 这样 `resume_from` / `regenIndices` 等
 //!    以当前 `input.jsonc` 为准, 而非沿用陈旧的落盘配置;
-//! 3. 读出合并后的 ctx, 交给 [`crate::workflow::continue_pipeline`] 续跑。
+//! 3. 读出合并后的 ctx, 交给 [`crate::workflow::resume_pipeline`] 续跑。
 //!
 //! `input.workflow.engine = true` 时走引擎路径——**开发中，暂不可用**
 //! （Engine 臂现打印「开发中」并报错）。将来接入 DAG 中间件方案时复用
-//! FsRunStore，`continue_from`/`target_step` 由 DAG 中间件承载；input.json
+//! FsRunStore，`resume_from`/`target_step` 由 DAG 中间件承载；input.json
 //! 的 setCtx 合并照常执行。
 //!
 //! 与 [`crate::cmd::workflows::start`] 的区别: continue 不重新 import, 直接沿用既有任务目录。
@@ -17,22 +17,22 @@
 use crate::input::Input;
 use crate::state::write_input;
 use crate::workflow::args::ExecPath;
-use crate::workflow::continue_pipeline;
+use crate::workflow::resume_pipeline;
 use anyhow::Context;
 
-/// 续跑已有任务 (镜像 TS `cmdContinueTask`): 合并 input → 跑 continue_pipeline。
-pub async fn continue_workflow(input: &Input) -> anyhow::Result<()> {
+/// 续跑已有任务 (镜像 TS `cmdContinueTask`): 合并 input → 跑 resume_pipeline。
+pub async fn resume_workflow(input: &Input) -> anyhow::Result<()> {
     let video_dir = input
         .workflow
         .as_ref()
         .and_then(|t| t.video_dir.clone())
         .ok_or_else(|| {
-            anyhow::anyhow!("continue 模式需要 input.workflow.video_dir 指定已有任务目录")
+            anyhow::anyhow!("resume 模式需要 input.workflow.video_dir 指定已有任务目录")
         })?;
 
     if !crate::state::state_path(&video_dir).exists() {
         return Err(anyhow::anyhow!(
-            "continue 模式找不到 {}, 确认 video_dir 正确",
+            "resume 模式找不到 {}, 确认 video_dir 正确",
             crate::state::state_path(&video_dir).display()
         ));
     }
@@ -42,11 +42,11 @@ pub async fn continue_workflow(input: &Input) -> anyhow::Result<()> {
     write_input(&video_dir, input)
         .map_err(|e| anyhow::anyhow!("写回 {}/input.json 失败: {e}", video_dir))?;
 
-    let continue_from = input
+    let resume_from = input
         .workflow
         .as_ref()
-        .and_then(|t| t.continue_from.clone());
-    let label = continue_from
+        .and_then(|t| t.resume_from.clone());
+    let label = resume_from
         .as_ref()
         .map(|cf| format!(" from \"{cf:?}\""))
         .unwrap_or_default();
@@ -69,7 +69,7 @@ pub async fn continue_workflow(input: &Input) -> anyhow::Result<()> {
                 .context("run_pipeline_parallel 失败")?;
         }
         ExecPath::Serial => {
-            continue_pipeline(input).await.context("continue_pipeline 失败")?;
+            resume_pipeline(input).await.context("resume_pipeline 失败")?;
         }
     }
     println!("[cli] 完成: {}", video_dir);

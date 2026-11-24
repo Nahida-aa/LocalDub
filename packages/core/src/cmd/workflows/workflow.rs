@@ -2,7 +2,7 @@
 //!
 //! 根据 `input.workflow.action` 分派:
 //! - `start`          → [`crate::cmd::workflows::start_workflow`] (重新 import + 跑全 pipeline)
-//! - `continue`       → [`crate::cmd::workflows::continue_workflow`] (合并 input 续跑)
+//! - `continue`       → [`crate::cmd::workflows::resume_workflow`] (合并 input 续跑)
 //! - `get_group_list`→ [`crate::cmd::workflows::get_workflow::get_group_list`]
 //! - `get_workflow_ctx`   → 读 view.json 并打印
 //! - `status`         → 读 view.json 并打印各 step 状态
@@ -11,7 +11,7 @@
 
 use crate::cmd::workflows::get_workflow::get_group_list;
 use crate::cmd::workflows::{
-    continue_workflow, import_and_start_workflow, start_workflow,
+    resume_workflow, import_and_start_workflow, start_workflow,
 };
 use crate::input::Input;
 use crate::state::{read_input, read_state, read_steps_state};
@@ -31,8 +31,8 @@ pub async fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
         Some(WorkflowAction::Start) => {
             start_workflow(input).await.context("start_workflow 失败")?;
         }
-        Some(WorkflowAction::Continue) => {
-            continue_workflow(input).await.context("continue_workflow 失败")?;
+        Some(WorkflowAction::Resume) => {
+            resume_workflow(input).await.context("resume_workflow 失败")?;
         }
         Some(WorkflowAction::Import) => {
             crate::workflow::import::download::import_video(input)
@@ -43,9 +43,9 @@ pub async fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
             crate::cmd::workflows::enqueue::enqueue_workflow(input, true)
                 .context("enqueue_start 失败")?;
         }
-        Some(WorkflowAction::EnqueueContinue) => {
+        Some(WorkflowAction::EnqueueResume) => {
             crate::cmd::workflows::enqueue::enqueue_workflow(input, false)
-                .context("enqueue_continue 失败")?;
+                .context("enqueue_resume 失败")?;
         }
         Some(WorkflowAction::EnqueueImport) => {
             crate::cmd::workflows::enqueue::enqueue_import(input).context("enqueue_import 失败")?;

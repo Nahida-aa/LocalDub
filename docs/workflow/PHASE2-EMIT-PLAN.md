@@ -74,8 +74,8 @@ emit 是 not-persisted，改成 emit 会丢持久化语义 → 必须保留。
    - **LocalDub 当前缺 run_id 字段**：`WorkflowArgs` 只有 `action` / `queue_id` / step 参数
      （`workflow/args.rs:210-231`），没有 run_id。落地前要给 `MyRunCtx` 加 `run_id: String`
      并在执行器构造各 run 时传入——这是必须补的基础设施，见待拍板。
-   - 注：FsRunStore 的 `<video_dir>/workflow-engine/events.jsonl`（单文件、不按 run 分）属整体
-     注释中的旧引擎接入（`integration/workflow/mod.rs`），当前未使用，无需与它协调。
+   - 注：现役 FsRunStore 落盘在 `<video_dir>/workflow-store/<run_id>/logs.jsonl`
+     （每 run 一个目录），与本计划的 emit 事件文件是两条通道，不要混用。
 2. **投影器**：纯函数 `fold(events: [WorkflowEvent], prev: ViewState) -> ViewState`，
    写 `<video_dir>/view.json`。落盘防抖收在投影器内部。
    - status 从 StepStarted/Finished/Failed 折叠；progress/message 从 Custom 折叠；

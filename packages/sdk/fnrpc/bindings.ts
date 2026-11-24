@@ -1826,7 +1826,7 @@ export type TtsArgs_Deserialize = {
 	/**  跳过已存在的段 (按 mtime 比对参考音); 默认 true */
 	skip_existing?: boolean,
 	/**
-	 *  continue 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。
+	 *  resume 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。
 	 *  命中段无视 skipExisting, 强制重合成 (先删旧 wav 再生成)。None/空 = 全量按 skipExisting 走。
 	 */
 	regen_indices?: number[] | null,
@@ -1848,7 +1848,7 @@ export type TtsArgs_Serialize = {
 	/**  跳过已存在的段 (按 mtime 比对参考音); 默认 true */
 	skip_existing: boolean,
 	/**
-	 *  continue 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。
+	 *  resume 模式下强制重新生成的 segment 索引 (1-based); 列表外段保留旧结果。
 	 *  命中段无视 skipExisting, 强制重合成 (先删旧 wav 再生成)。None/空 = 全量按 skipExisting 走。
 	 */
 	regen_indices: number[] | null,
@@ -1940,12 +1940,14 @@ export type WorkflowAction =
  *  对已导入目录从头跑全量 (不 import、不跳过、不 setCtx)。
  *  要求 `workflow.video_dir` 已存在且已导入。
  */
-"start" | "continue" | 
+"start" | 
+/**  续跑已有任务 (setCtx + 从某步/跳过已 success 续跑)。 */
+"resume" | 
 /**
  *  只导入: 下载/拷贝视频 + 探测 + 写 view.json, 不跑 output_mode。
- *  批量场景可先批量导入, 之后用 continue 逐个续跑重活。
+ *  批量场景可先批量导入, 之后用 resume 逐个续跑重活。
  */
-"import" | "enqueue_start" | "enqueue_continue" | "enqueue_import" | 
+"import" | "enqueue_start" | "enqueue_resume" | "enqueue_import" | 
 /**
  *  批量入队目录: 扫描本地目录顶层视频文件, 每个去重后入队一条 action=start 任务。
  *  (目录是入队动作的入参, 队列粒度仍是单视频 start 事件。)
@@ -1963,8 +1965,8 @@ export type WorkflowArgs_Deserialize = {
 	url?: string | null,
 	source_lang?: LangStr | null,
 	target_lang?: Language | null,
-	/**  继续任务专业参数, 可指定 continue_from 从某步骤开始, 不指定则从上次中断的步骤开始 */
-	continue_from?: StepName | null,
+	/**  续跑专业参数, 可指定 resume_from 从某步骤开始, 不指定则从上次中断的步骤开始 */
+	resume_from?: StepName | null,
 	/**  目标步骤, output_mode 跑到此步骤后自动停止, 不指定则跑完所有步骤 */
 	target_step?: StepName | null,
 	video_dir?: string | null,
@@ -1973,10 +1975,9 @@ export type WorkflowArgs_Deserialize = {
 	/**  rerunStep 专业参数, 指定要重新运行的步骤 */
 	step_name?: StepName | null,
 	/**
-	 *  实验开关: start/continue 走 aa-workflow 引擎——**开发中，暂不可用**
-	 *  （集成暂停，见 `integration/workflow/mod.rs`；设了会在 ExecPath 分派时
-	 *  打印「开发中」并报错）。恢复后：真源 events.jsonl，与 `run_pipeline`
-	 *  （真源 view.json）二选一。其余 action 忽略。
+	 *  实验开关: start/continue 走 aa-workflow 引擎（start 已接通；continue 仍开发中，
+	 *  打印「开发中」并报错）。真源是 `<video_dir>/workflow-store/<run_id>/logs.jsonl`，
+	 *  与 `run_pipeline` 的真源 `view.json` 二选一。其余 action 忽略。
 	 */
 	engine?: boolean | null,
 	/**
@@ -2005,8 +2006,8 @@ export type WorkflowArgs_Serialize = {
 	url: string | null,
 	source_lang: LangStr | null,
 	target_lang: Language | null,
-	/**  继续任务专业参数, 可指定 continue_from 从某步骤开始, 不指定则从上次中断的步骤开始 */
-	continue_from: StepName | null,
+	/**  续跑专业参数, 可指定 resume_from 从某步骤开始, 不指定则从上次中断的步骤开始 */
+	resume_from: StepName | null,
 	/**  目标步骤, output_mode 跑到此步骤后自动停止, 不指定则跑完所有步骤 */
 	target_step: StepName | null,
 	video_dir: string | null,
@@ -2015,10 +2016,9 @@ export type WorkflowArgs_Serialize = {
 	/**  rerunStep 专业参数, 指定要重新运行的步骤 */
 	step_name: StepName | null,
 	/**
-	 *  实验开关: start/continue 走 aa-workflow 引擎——**开发中，暂不可用**
-	 *  （集成暂停，见 `integration/workflow/mod.rs`；设了会在 ExecPath 分派时
-	 *  打印「开发中」并报错）。恢复后：真源 events.jsonl，与 `run_pipeline`
-	 *  （真源 view.json）二选一。其余 action 忽略。
+	 *  实验开关: start/continue 走 aa-workflow 引擎（start 已接通；continue 仍开发中，
+	 *  打印「开发中」并报错）。真源是 `<video_dir>/workflow-store/<run_id>/logs.jsonl`，
+	 *  与 `run_pipeline` 的真源 `view.json` 二选一。其余 action 忽略。
 	 */
 	engine?: boolean,
 	/**
@@ -2084,11 +2084,11 @@ export type Procedures = {
   get_workfolder: { kind: "query"; method: "GET"; input: null; output: string; error: RpcErr };
   env_check: { kind: "query"; method: "GET"; input: string[]; output: EnvCheckItem[]; error: RpcErr };
   env_ensure: { kind: "mutate"; method: "POST"; input: string[]; output: EnvCheckItem[]; error: RpcErr };
-  continue_workflow: { kind: "mutate"; method: "POST"; input: [string, string]; output: null; error: RpcErr };
+  resume_workflow: { kind: "mutate"; method: "POST"; input: [string, string]; output: null; error: RpcErr };
   regen_tts: { kind: "mutate"; method: "POST"; input: [string, number[], boolean]; output: null; error: RpcErr };
   start_workflow: { kind: "mutate"; method: "POST"; input: string; output: string; error: RpcErr };
   enqueue_start: { kind: "mutate"; method: "POST"; input: Input; output: bigint; error: RpcErr };
-  enqueue_continue: { kind: "mutate"; method: "POST"; input: Input; output: bigint; error: RpcErr };
+  enqueue_resume: { kind: "mutate"; method: "POST"; input: Input; output: bigint; error: RpcErr };
   enqueue_import: { kind: "mutate"; method: "POST"; input: Input; output: bigint; error: RpcErr };
   enqueue_dir: { kind: "mutate"; method: "POST"; input: Input; output: EnqueueDirResult; error: RpcErr };
   list_queue: { kind: "query"; method: "GET"; input: null; output: QueueEntry[]; error: RpcErr };
@@ -2116,11 +2116,11 @@ export const __procedureMeta = {
   get_workfolder: { kind: "query", method: "GET" },
   env_check: { kind: "query", method: "GET" },
   env_ensure: { kind: "mutate", method: "POST" },
-  continue_workflow: { kind: "mutate", method: "POST" },
+  resume_workflow: { kind: "mutate", method: "POST" },
   regen_tts: { kind: "mutate", method: "POST" },
   start_workflow: { kind: "mutate", method: "POST" },
   enqueue_start: { kind: "mutate", method: "POST" },
-  enqueue_continue: { kind: "mutate", method: "POST" },
+  enqueue_resume: { kind: "mutate", method: "POST" },
   enqueue_import: { kind: "mutate", method: "POST" },
   enqueue_dir: { kind: "mutate", method: "POST" },
   list_queue: { kind: "query", method: "GET" },

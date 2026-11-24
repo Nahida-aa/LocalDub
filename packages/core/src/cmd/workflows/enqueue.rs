@@ -1,7 +1,7 @@
 //! 任务入队: CLI 通过主服务器的 fnrpc 把 start/continue 任务加入队列。
 //!
 //! 流程: 用服务器发现找主服务器 → reqwest POST `/fnrpc/enqueue_start` 或
-//! `/fnrpc/enqueue_continue`, body 为序列化的 `Input`。主服务器 worker 串行执行。
+//! `/fnrpc/enqueue_resume`, body 为序列化的 `Input`。主服务器 worker 串行执行。
 
 use crate::input::Input;
 use crate::servers::discovery::find_server_via_mdns_all;
@@ -10,13 +10,13 @@ use std::time::Duration;
 
 /// 把当前 input 入队到主服务器任务队列。
 ///
-/// `is_start`: true → enqueue_start; false → enqueue_continue。
+/// `is_start`: true → enqueue_start; false → enqueue_resume。
 /// 返回队列 ID (字符串)。
 pub fn enqueue_workflow(input: &Input, is_start: bool) -> anyhow::Result<String> {
-    enqueue_with(input, if is_start { "start" } else { "continue" })
+    enqueue_with(input, if is_start { "start" } else { "resume" })
 }
 
-/// 入队一个"只导入"任务 (不跑 pipeline): 批量先导入, 之后用 enqueue_continue 续跑。
+/// 入队一个"只导入"任务 (不跑 pipeline): 批量先导入, 之后用 enqueue_resume 续跑。
 pub fn enqueue_import(input: &Input) -> anyhow::Result<String> {
     enqueue_with(input, "import")
 }
@@ -60,7 +60,7 @@ pub fn enqueue_dir(input: &Input) -> anyhow::Result<String> {
 fn enqueue_with(input: &Input, action: &str) -> anyhow::Result<String> {
     // 用服务器发现找主服务器地址 (优先 IPv4, 避免 link-local IPv6 无法连接)。
     let (host, port) = discover_server();
-    // 入队命令名与动作同名: enqueue_start / enqueue_continue / enqueue_import
+    // 入队命令名与动作同名: enqueue_start / enqueue_resume / enqueue_import
     let url = format!("http://{host}:{port}/fnrpc/enqueue_{action}");
 
     let mut body_value =

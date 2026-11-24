@@ -91,8 +91,9 @@ AGENTS.md 的 dub 正例表述同步。
    步骤内 dispatch 已反转为装配层注入；存在性仲裁上移装配层。
    （旧 `SubtitleSourcePath` 枚举、`srt_json: NormalizedSrtPath` 设计已废弃。）
 5. **入口步骤无 deps**（separate / sf_ocr_pre——只依赖 import 事实）。
-6. **state.json ≠ ctx.state**；方向已定: 改名 `view.json` + 步骤去 patch 改 emit +
-   投影器折叠事件流（事件形状用 `WorkflowEvent`，LocalDub 已依赖 aa_workflow_core）。
+6. **`view.json` ≠ ctx.state**（任务根 `state.json` 已于 2026-11-23 改名 `view.json`，
+   见 `8c1b2b5c`）；剩余方向: 步骤去 patch 改 emit + 投影器折叠事件流（事件形状用
+   `WorkflowEvent`，LocalDub 已依赖 aa_workflow_core）。
 7. **库侧 StepCtx trait 不定义**（构造权/单实现者/面未定三论据；触发条件与届时形态
    见 §6）——消费者端口（六边形）由 LocalDub 自己定义（双特征即端口）。
 
@@ -113,8 +114,8 @@ AGENTS.md 的 dub 正例表述同步。
    作为步骤返回值（不写盘，类型即文档）；mix_video / asr 已有各自的 `<step>/out.json`
    不加返回值（见待办 #5）。`video_source_path` 不进 deps、由步骤体从 video_dir 拼
    （见 §5 #9）；混音字段已从 AsrArgs 归位到 SeparateAfterArgs（见 §5 #10）。
-2. **Phase 2**（首个行为变化点）: `state.json → view.json` 改名 + 本地 emit 通道
-   （事件形状 `WorkflowEvent`）+ 投影器；**28 个 `set_step` + 3 个 `out.json` 写点
+2. **Phase 2**（首个行为变化点）: 本地 emit 通道（事件形状 `WorkflowEvent`）+ 投影器
+   （`state.json → view.json` 改名已完成）；**28 个 `set_step` + 3 个 `out.json` 写点
    退役**（逐点 file:line 清单见 INTEGRATION-PLAN §5.5——separate 的 5 处是模板）。
 3. **Phase 3 接入**: 换源表 §4；parallel.rs / StepDag 退役（`DagShape` + 引擎调度）；
    `MyStepCtx → StepCtx<Input, TState>` 类型替换。
@@ -242,14 +243,14 @@ cargo test -p ld-core --lib                    # 179 全绿（Phase 1 后基线�
   Workflow core engine 的 Rust 耐久执行引擎——headless replay + `RunStore` 契约，
   编排即普通 async 代码，DAG 是 handler 重放时按 `step_id` 短路 checkpoint 的
   per-run 涌现产物。LocalDub 要的是 sleep / approve / 事件等待 / 崩溃重放，以及
-  append-only `events.jsonl` 作为运行真源。
+  append-only 事件日志（`workflow-store/<run_id>/logs.jsonl`）作为运行真源。
 - **怎么引的**：git 源，rev 收敛在根 `Cargo.toml` 的 `[workspace.dependencies]`
   单处维护（`aa_workflow_core` 与 `aa_workflow_middlewares` 同 rev，当前
   `7b2d3fc9…`）；`packages/core` 只写 `.workspace = true`。上游无语义化 tag，
   升降级 = `git ls-remote` 取新 rev 后手动改那一行。
 - **现状**：`integration/workflow/` 已启用（不再整体注释）；start 走 core 直驱
-  （`run_engine` + `FsRunStore`，真源 `events.jsonl`）；continue / resume 未接，
+  （`run_engine` + `FsRunStore`，真源 `workflow-store/<run_id>/logs.jsonl`）；continue / resume 未接，
   见 [INTEGRATION-PLAN.md](./INTEGRATION-PLAN.md)。
 - **已知边界**：不对标 TanStack 的 `workflow-runtime` 层（lease / sweep / timer 索引
-  / schedules），runtime 层等收益出现再切；`state.json` 是可丢弃投影，与引擎的
-  `ctx.state`（handler 执行期内存，不落盘）不是一回事，详见 `AGENTS.md`。
+  / schedules），runtime 层等收益出现再切；`view.json` 与各 `<step>/state.json` 是可丢弃投影，
+  与引擎的 `ctx.state`（handler 执行期内存，不落盘）不是一回事，详见 `AGENTS.md`。

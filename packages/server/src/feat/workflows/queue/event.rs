@@ -105,7 +105,7 @@ pub(super) fn parse_event(line: &str) -> Option<QueueEvent> {
     }
 }
 
-/// 队列任务的展示字段: action ("start"/"continue"/"import") 与 target。
+/// 队列任务的展示字段: action ("start"/"resume"/"import") 与 target。
 pub(super) fn entry_action_target(input: &Input) -> (Option<String>, Option<String>) {
     let workflow = match input.workflow.as_ref() {
         Some(t) => t,
@@ -116,7 +116,7 @@ pub(super) fn entry_action_target(input: &Input) -> (Option<String>, Option<Stri
         .map(|a| match a {
             ld_core::workflow::args::WorkflowAction::ImportAndStart => "import_and_start",
             ld_core::workflow::args::WorkflowAction::Start => "start",
-            ld_core::workflow::args::WorkflowAction::Continue => "continue",
+            ld_core::workflow::args::WorkflowAction::Resume => "resume",
             ld_core::workflow::args::WorkflowAction::Import => "import",
             _ => "-",
         })
