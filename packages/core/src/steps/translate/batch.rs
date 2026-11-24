@@ -156,7 +156,7 @@ pub async fn translate_batch(
             Err(e) => {
                 last_err = format!(
                     "回复无法解析为 JSON: {e}; 原始回复前 200 字符: {}",
-                    &reply[..reply.len().min(200)]
+                    crate::steps::utils::truncate_utf8(&reply, 200)
                 );
                 tracing::warn!(target: "translate", "batch attempt {} 失败: {}", attempt + 1, last_err);
                 continue;
@@ -166,7 +166,7 @@ pub async fn translate_batch(
             Some(a) => a,
             None => {
                 last_err = "LLM 回复缺少 dst 数组".to_string();
-                tracing::warn!(target: "translate", "batch attempt {} 失败: {}; 原始回复: {}", attempt + 1, last_err, &reply[..reply.len().min(200)]);
+                tracing::warn!(target: "translate", "batch attempt {} 失败: {}; 原始回复: {}", attempt + 1, last_err, crate::steps::utils::truncate_utf8(&reply, 200));
                 if attempt == MAX_ATTEMPTS - 1 {
                     break;
                 }

@@ -110,7 +110,7 @@ fn extract_bilibili_id(url: &str) -> Option<String> {
     while i + 11 < bytes.len() + 1 {
         let s = &u.path[i..];
         if let Some(rest) = s.strip_prefix("BV") {
-            let id = &rest[..rest.len().min(10)];
+            let id = crate::steps::utils::truncate_utf8(rest, 10);
             if id.len() == 10 && id.bytes().all(|b| b.is_ascii_alphanumeric()) {
                 return Some(format!("BV{id}"));
             }
@@ -379,7 +379,7 @@ fn strip_http_body(buf: &[u8]) -> anyhow::Result<Vec<u8>> {
     if !header.starts_with("HTTP/1.1 200") && !header.starts_with("HTTP/1.0 200") {
         return Err(anyhow!(
             "HTTP 响应非 200: {}",
-            &header[..header.len().min(64)]
+            crate::steps::utils::truncate_utf8(header, 64)
         ));
     }
     let offset = idx + 4;

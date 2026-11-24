@@ -21,6 +21,18 @@ use serde::Serialize;
 use crate::r#const::lang::LangStr;
 use subtitle::SubtitleSegment;
 
+/// 按**字节上限**取字符串前缀，但只落在 char 边界上（UTF-8 安全）。
+///
+/// 用于日志/错误信息的预览截断：LLM 回复含越南语 `đ`/`ơ` 等多字节字符，
+/// `&s[..s.len().min(N)]` 会切进字符中间 panic，掩盖真正的错误。
+pub fn truncate_utf8(s: &str, max_bytes: usize) -> &str {
+    let end = (0..=s.len().min(max_bytes))
+        .rev()
+        .find(|&i| s.is_char_boundary(i))
+        .unwrap_or(0);
+    &s[..end]
+}
+
 /// RFC3339 时间戳, 去毫秒 (镜像 TS `nowISO`, 形如 `2024-01-01T00:00:00Z`)。
 pub fn now_iso() -> String {
     // chrono 默认输出含毫秒 (`.%3f`), 这里截断到秒并补 `Z`。
@@ -866,4 +878,17 @@ mod tests {
         );
         assert_eq!(video_id(d).as_deref(), Some("task123"));
     }
+
+    #[test]
+    fn truncate_utf8_never_splits_multibyte_char() {
+        // 'đ' 占 2 字节；第 3 字节正好在它中间，必须退到边界 2。
+        let s = "abđxyz";
+        assert_eq!(truncate_utf8(s, 3), "ab");
+        assert_eq!(truncate_utf8(s, 4), "abđ");
+        // 上限超过总长 → 整串
+        assert_eq!(truncate_utf8(s, 100), s);
+        // 纯 ASCII 行为与字节切片一致
+        assert_eq!(truncate_utf8("abcdef", 3), "abc");
+    }
+
 }

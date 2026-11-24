@@ -171,7 +171,7 @@ pub fn parse_json_reply(raw: &str) -> anyhow::Result<Value> {
     }
     Err(anyhow::anyhow!(
         "无法从 LLM 回复解析 JSON: {}",
-        &raw[..raw.len().min(300)]
+        crate::steps::utils::truncate_utf8(raw, 300)
     ))
 }
 
