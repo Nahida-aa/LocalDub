@@ -5,7 +5,9 @@
 LocalDub 是视频配音 / 字幕工具：Rust workspace 提供全部业务逻辑（`ld-core`），
 桌面端（Tauri 2 + SolidJS）、CLI、HTTP server 都只是它的壳。桌面端 UI 仍在改造中。
 
-配音流水线（`dub` + `subtitle_source=sf_ocr`，10 步）：
+配音流水线有两种字幕来源，下面各画一张。
+
+### `dub` + `subtitle_source=sf_ocr`（10 步，有引擎/并行 DAG）
 
 ```mermaid
 flowchart LR
@@ -21,6 +23,27 @@ flowchart LR
 
 `import` 在引擎 DAG 之外先执行（`import_and_start` / `--action import`），所以 DAG 里
 `separate` 与 `sf_ocr_pre` 是两个入度为 0 的根节点，都只依赖 import 落下的原视频。
+
+### `dub` + `subtitle_source=asr`（9 步，目前仅串行）
+
+```mermaid
+flowchart LR
+    import[import] --> separate[separate]
+    import -. use_separated=false .-> asr[asr]
+    separate --> separate_after[separate_after]
+    separate_after -. use_separated=true .-> asr
+    asr --> asr_fix[asr_fix] --> translate[translate]
+    separate --> split_audio[split_audio]
+    translate --> split_audio
+    split_audio --> tts[tts] --> mix_audio[mix_audio] --> mix_video[mix_video]
+    separate_after --> mix_video
+```
+
+ASR 音源由 `asr.use_separated` 决定：默认 `false` 直接读 import 的原视频音频；`true`
+时优先 `separate_after` 的 gated / mixed 人声，缺失则回落到 `separate` 的 vocals
+（虚线是条件依赖；串行顺序里 asr 始终排在 separate_after 之后）。
+`StepDag` / 引擎目前只实现了 `sf_ocr` 变体，`asr` 组合请求并行或引擎会明确报错，
+走串行序列。
 
 实际执行的序列由 `output_mode`（`dub` / `subtitle`）与 `subtitle_source`
 （`asr` / `sf_ocr` / `asr_ocr`）决定，共 6 种组合；**单一真源**是
