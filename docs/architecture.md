@@ -7,11 +7,15 @@ LocalDub 是视频配音 / 字幕工具：Rust workspace 提供全部业务逻�
 
 配音流水线（`dub` + `subtitle_source=sf_ocr`，10 步）：
 
-```
-import ─► separate ─┬─► separate_after ───────────────────────────┐ (bgm)
-                    │                                             ▼
-                    └─► split_audio ─► tts ─► mix_audio ─► mix_video
-             sf_ocr_pre ─► sf_ocr ─► sf_ocr_fix ─► translate ─────┘
+```mermaid
+flowchart LR
+    import[import] --> separate[separate]
+    separate --> separate_after[separate_after]
+    separate --> split_audio[split_audio]
+    sf_ocr_pre[sf_ocr_pre] --> sf_ocr[sf_ocr] --> sf_ocr_fix[sf_ocr_fix] --> translate[translate]
+    translate --> split_audio
+    split_audio --> tts[tts] --> mix_audio[mix_audio] --> mix_video[mix_video]
+    separate_after --> mix_video
 ```
 
 实际执行的序列由 `output_mode`（`dub` / `subtitle`）与 `subtitle_source`
