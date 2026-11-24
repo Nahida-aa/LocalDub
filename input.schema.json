@@ -1118,14 +1118,19 @@
     "WorkflowAction": {
       "anyOf": [
         {
-          "const": "start"
+          "const": "import_and_start",
+          "description": " 导入视频 → 从头跑全量 pipeline (原 start 的语义)。import 在 workflow 之外。"
+        },
+        {
+          "const": "start",
+          "description": " 对已导入目录从头跑全量 (不 import、不跳过、不 setCtx)。\n 要求 `workflow.video_dir` 已存在且已导入。"
         },
         {
           "const": "continue"
         },
         {
           "const": "import",
-          "description": " 只导入: 下载/拷贝视频 + 探测 + 写 state.json, 不跑 output_mode。\n 批量场景可先批量导入, 之后用 continue 逐个续跑重活。"
+          "description": " 只导入: 下载/拷贝视频 + 探测 + 写 view.json, 不跑 output_mode。\n 批量场景可先批量导入, 之后用 continue 逐个续跑重活。"
         },
         {
           "const": "enqueue_start"
@@ -1423,7 +1428,7 @@
         },
         "engine": {
           "type": "boolean",
-          "description": " 实验开关: start/continue 走 aa-workflow 引擎——**开发中，暂不可用**\n （集成暂停，见 `integration/workflow/mod.rs`；设了会在 ExecPath 分派时\n 打印「开发中」并报错）。恢复后：真源 events.jsonl，与 `run_pipeline`\n （真源 state.json）二选一。其余 action 忽略。"
+          "description": " 实验开关: start/continue 走 aa-workflow 引擎——**开发中，暂不可用**\n （集成暂停，见 `integration/workflow/mod.rs`；设了会在 ExecPath 分派时\n 打印「开发中」并报错）。恢复后：真源 events.jsonl，与 `run_pipeline`\n （真源 view.json）二选一。其余 action 忽略。"
         },
         "parallel": {
           "type": "boolean",
@@ -1669,7 +1674,7 @@
         "use_gate"
       ],
       "title": "SeparateAfterArgs_Serialize",
-      "description": " separate_after 阶段参数（`input.steps.separate_after`）。\n\n 混音策略的单一真源。`use_separated` 例外：它同属 asr 的音源决策，仍从\n `input.steps.asr` 读取（见 [`SeparateAfterInput::new`]），不在这里重复配置。"
+      "description": " separate_after 阶段参数（`input.steps.separate_after`）。\n\n 混音策略的单一真源。`use_separated` 例外：它同属 asr 的音源决策，仍从\n `input.steps.asr` 读取（见 `step_separate_after`），不在这里重复配置。"
     },
     "SfOcrArgs_Serialize": {
       "type": "object",
@@ -2229,7 +2234,7 @@
               "type": "null"
             }
           ],
-          "description": " 实验开关: start/continue 走 aa-workflow 引擎——**开发中，暂不可用**\n （集成暂停，见 `integration/workflow/mod.rs`；设了会在 ExecPath 分派时\n 打印「开发中」并报错）。恢复后：真源 events.jsonl，与 `run_pipeline`\n （真源 state.json）二选一。其余 action 忽略。"
+          "description": " 实验开关: start/continue 走 aa-workflow 引擎——**开发中，暂不可用**\n （集成暂停，见 `integration/workflow/mod.rs`；设了会在 ExecPath 分派时\n 打印「开发中」并报错）。恢复后：真源 events.jsonl，与 `run_pipeline`\n （真源 view.json）二选一。其余 action 忽略。"
         },
         "parallel": {
           "anyOf": [
@@ -2375,7 +2380,7 @@
         }
       },
       "title": "SeparateAfterArgs_Deserialize",
-      "description": " separate_after 阶段参数（`input.steps.separate_after`）。\n\n 混音策略的单一真源。`use_separated` 例外：它同属 asr 的音源决策，仍从\n `input.steps.asr` 读取（见 [`SeparateAfterInput::new`]），不在这里重复配置。"
+      "description": " separate_after 阶段参数（`input.steps.separate_after`）。\n\n 混音策略的单一真源。`use_separated` 例外：它同属 asr 的音源决策，仍从\n `input.steps.asr` 读取（见 `step_separate_after`），不在这里重复配置。"
     },
     "SfOcrArgs_Deserialize": {
       "type": "object",
@@ -2966,7 +2971,7 @@
         }
       ],
       "title": "SeparateAfterArgs",
-      "description": " separate_after 阶段参数（`input.steps.separate_after`）。\n\n 混音策略的单一真源。`use_separated` 例外：它同属 asr 的音源决策，仍从\n `input.steps.asr` 读取（见 [`SeparateAfterInput::new`]），不在这里重复配置。"
+      "description": " separate_after 阶段参数（`input.steps.separate_after`）。\n\n 混音策略的单一真源。`use_separated` 例外：它同属 asr 的音源决策，仍从\n `input.steps.asr` 读取（见 `step_separate_after`），不在这里重复配置。"
     },
     "SeparateArgs": {
       "anyOf": [

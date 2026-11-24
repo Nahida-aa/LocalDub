@@ -487,7 +487,7 @@ export type EnvCheckItem = {
 	/**  "pass" / "warn" / "fail" / "skip" */
 	status: string,
 	data: Value,
-	/**  是否存在对应安装动作 (ensure_fns)。 */
+	/**  是否存在对应安装动作 (EnvKey::has_ensure)。 */
 	has_ensure: boolean,
 };
 
@@ -1933,9 +1933,16 @@ export type VulkanHeaps = {
 };
 
 /**  任务操作 (serde 与 clap 参数值统一为 snake_case) */
-export type WorkflowAction = "start" | "continue" | 
+export type WorkflowAction = 
+/**  导入视频 → 从头跑全量 pipeline (原 start 的语义)。import 在 workflow 之外。 */
+"import_and_start" | 
 /**
- *  只导入: 下载/拷贝视频 + 探测 + 写 state.json, 不跑 output_mode。
+ *  对已导入目录从头跑全量 (不 import、不跳过、不 setCtx)。
+ *  要求 `workflow.video_dir` 已存在且已导入。
+ */
+"start" | "continue" | 
+/**
+ *  只导入: 下载/拷贝视频 + 探测 + 写 view.json, 不跑 output_mode。
  *  批量场景可先批量导入, 之后用 continue 逐个续跑重活。
  */
 "import" | "enqueue_start" | "enqueue_continue" | "enqueue_import" | 
@@ -1969,7 +1976,7 @@ export type WorkflowArgs_Deserialize = {
 	 *  实验开关: start/continue 走 aa-workflow 引擎——**开发中，暂不可用**
 	 *  （集成暂停，见 `integration/workflow/mod.rs`；设了会在 ExecPath 分派时
 	 *  打印「开发中」并报错）。恢复后：真源 events.jsonl，与 `run_pipeline`
-	 *  （真源 state.json）二选一。其余 action 忽略。
+	 *  （真源 view.json）二选一。其余 action 忽略。
 	 */
 	engine?: boolean | null,
 	/**
@@ -2011,7 +2018,7 @@ export type WorkflowArgs_Serialize = {
 	 *  实验开关: start/continue 走 aa-workflow 引擎——**开发中，暂不可用**
 	 *  （集成暂停，见 `integration/workflow/mod.rs`；设了会在 ExecPath 分派时
 	 *  打印「开发中」并报错）。恢复后：真源 events.jsonl，与 `run_pipeline`
-	 *  （真源 state.json）二选一。其余 action 忽略。
+	 *  （真源 view.json）二选一。其余 action 忽略。
 	 */
 	engine?: boolean,
 	/**

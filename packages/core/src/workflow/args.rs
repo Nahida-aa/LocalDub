@@ -7,6 +7,11 @@ use crate::r#const::lang::Language;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type, ValueEnum)]
 #[value(rename_all = "snake_case")]
 pub enum WorkflowAction {
+    /// 导入视频 → 从头跑全量 pipeline (原 start 的语义)。import 在 workflow 之外。
+    #[serde(rename = "import_and_start")]
+    ImportAndStart,
+    /// 对已导入目录从头跑全量 (不 import、不跳过、不 setCtx)。
+    /// 要求 `workflow.video_dir` 已存在且已导入。
     #[serde(rename = "start")]
     Start,
     #[serde(rename = "continue")]

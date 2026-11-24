@@ -238,7 +238,7 @@ use crate::feat::workflows::queue::QueueEntry;
 #[fnrpc::rpc_mutate]
 pub async fn enqueue_start(ctx: &Ctx, input: Input) -> Result<u64, String> {
     use ld_core::workflow::args::WorkflowAction;
-    if input.workflow.as_ref().and_then(|t| t.action) != Some(WorkflowAction::Start) {
+    if input.workflow.as_ref().and_then(|t| t.action) != Some(WorkflowAction::ImportAndStart) {
         return Err("enqueue_start 需要 input.workflow.action = start".to_string());
     }
     Ok(ctx.state.queue.enqueue(input))

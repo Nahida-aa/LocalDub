@@ -10,7 +10,9 @@
 //! 这是 `cmd/workflows` 的总入口, 对应 TS `run-workflow.ts` 里对 `cmdTask` 的调用。
 
 use crate::cmd::workflows::get_workflow::get_group_list;
-use crate::cmd::workflows::{continue_workflow, start_workflow};
+use crate::cmd::workflows::{
+    continue_workflow, import_and_start_workflow, start_workflow,
+};
 use crate::input::Input;
 use crate::state::{read_input, read_state, read_steps_state};
 use crate::workflow::args::WorkflowAction;
@@ -21,11 +23,16 @@ pub async fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
     let workflow = input.workflow.clone().unwrap_or_default();
 
     match workflow.action {
-        Some(WorkflowAction::Continue) => {
-            continue_workflow(input).await.context("continue_workflow 失败")?;
+        Some(WorkflowAction::ImportAndStart) => {
+            import_and_start_workflow(input)
+                .await
+                .context("import_and_start_workflow 失败")?;
         }
         Some(WorkflowAction::Start) => {
             start_workflow(input).await.context("start_workflow 失败")?;
+        }
+        Some(WorkflowAction::Continue) => {
+            continue_workflow(input).await.context("continue_workflow 失败")?;
         }
         Some(WorkflowAction::Import) => {
             crate::workflow::import::download::import_video(input)
@@ -104,10 +111,10 @@ pub async fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
             crate::cmd::workflows::meta::generate_meta(&video_dir).context("generate_meta 失败")?;
         }
         None => {
-            // TS: 缺省走 start 分支
-            start_workflow(input)
+            // 缺省保留旧行为：导入并跑（原 start 分支的语义）。新 start 需显式指定。
+            import_and_start_workflow(input)
                 .await
-                .context("start_workflow 失败 (默认)")?;
+                .context("import_and_start_workflow 失败 (默认)")?;
         }
     }
     Ok(())

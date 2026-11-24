@@ -76,7 +76,8 @@ pub fn scan_dir_videos(dir: &Path, wf_root: &Path, base_input: &Input) -> DirSca
                 let mut video_input = base_input.clone();
                 if let Some(ref mut w) = video_input.workflow {
                     w.url = Some(abs);
-                    w.action = Some(WorkflowAction::Start);
+                    // TODO(user): enqueue 的 import 拆分先保持旧行为，之后再分。
+                    w.action = Some(WorkflowAction::ImportAndStart);
                     w.video_dir = None;
                 }
                 inputs.push(video_input);

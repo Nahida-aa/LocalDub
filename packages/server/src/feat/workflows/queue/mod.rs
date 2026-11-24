@@ -416,6 +416,11 @@ async fn execute_entry(input: &Input) -> anyhow::Result<()> {
     use ld_core::workflow::args::WorkflowAction;
     let action = input.workflow.as_ref().and_then(|t| t.action);
     match action {
+        Some(WorkflowAction::ImportAndStart) => {
+            ld_core::cmd::workflows::import_and_start_workflow(input)
+                .await
+                .map(|_| ())
+        }
         Some(WorkflowAction::Start) => ld_core::cmd::workflows::start_workflow(input)
             .await
             .map(|_| ()),

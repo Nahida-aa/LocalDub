@@ -276,7 +276,7 @@ async fn main() {
         (input.command, action),
         (
             InputCommand::Workflow,
-            None | Some(WorkflowAction::Start | WorkflowAction::Continue | WorkflowAction::Import)
+            None | Some(WorkflowAction::ImportAndStart | WorkflowAction::Start | WorkflowAction::Continue | WorkflowAction::Import)
         )
     );
 
