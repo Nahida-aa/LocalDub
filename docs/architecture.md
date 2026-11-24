@@ -24,7 +24,7 @@ flowchart TB
 `import` 在引擎 DAG 之外先执行（`import_and_start` / `--action import`），所以 DAG 里
 `separate` 与 `sf_ocr_pre` 是两个入度为 0 的根节点，都只依赖 import 落下的原视频。
 
-### `dub` + `subtitle_source=asr`（9 步，目前仅串行）
+### `dub` + `subtitle_source=asr`（9 步，DAG 未实现，当前走串行）
 
 ```mermaid
 flowchart TB
@@ -42,8 +42,16 @@ flowchart TB
 ASR 音源由 `asr.use_separated` 决定：默认 `false` 直接读 import 的原视频音频；`true`
 时优先 `separate_after` 的 gated / mixed 人声，缺失则回落到 `separate` 的 vocals
 （虚线是条件依赖；串行顺序里 asr 始终排在 separate_after 之后）。
-`StepDag` / 引擎目前只实现了 `sf_ocr` 变体，`asr` 组合请求并行或引擎会明确报错，
-走串行序列。
+
+**并行空间**：与 `sf_ocr` 变体同构——ASR 链（asr → asr_fix → translate）与分离链
+（separate → separate_after）可以在 import 之后并行，`split_audio` 汇聚两路，
+`mix_video` 再等 `separate_after` 的 bgm。默认 `use_separated=false` 时 asr 与
+separate 同为根节点，重叠最大；`use_separated=true` 时 asr 必须等 separate_after，
+只剩 translate 与 split_audio 之间的空隙。
+
+`StepDag::for_input` 目前只为 `Dub × SfOcr` 建图，其它组合请求并行会明确报错；
+引擎路径则硬编码 `dub_sf_ocr` 图（`integration/workflow/engine.rs`），完全不看
+`subtitle_source`。这两处都是**实现未覆盖**，不是 dub+asr 结构上无法并行。
 
 实际执行的序列由 `output_mode`（`dub` / `subtitle`）与 `subtitle_source`
 （`asr` / `sf_ocr` / `asr_ocr`）决定，共 6 种组合；**单一真源**是
