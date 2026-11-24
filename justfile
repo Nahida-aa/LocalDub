@@ -44,13 +44,13 @@ gen-input-schema:
 gen-ts-sdk:
     cargo run -p sdk
 
-# 运行环境检测 (镜像 TS env 命令): `cargo run -p cli -- env check`。
-# 可加 targets 过滤: `just run-env-check ffmpeg python`
-run-env-check:
-    cargo run -p cli -- env check
+# 运行环境检测 (镜像 TS env 命令)。
+# `just run-env-check` = 按 input.jsonc 推断目标; `just run-env-check ffmpeg python` = 指定目标。
+run-env-check *targets:
+    cargo run -p cli -- env --action check {{if targets == "" { "" } else { "--targets " + targets }}}
 
-run-env-ensure:
-    cargo run -p cli -- env ensure
+run-env-ensure *targets:
+    cargo run -p cli -- env --action ensure {{if targets == "" { "" } else { "--targets " + targets }}}
 
 # 把某系列 workfolder/<series>/ 下各集成片拷贝到 out/<series>/<集>.mp4。
 # 无参数时列出可导出的系列；`just export-series 某某` 导出单系列；
