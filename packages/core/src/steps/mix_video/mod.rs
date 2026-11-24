@@ -59,7 +59,10 @@ pub async fn step_mix_video(sc: impl StepCtxView, deps: MixVideoDeps) -> anyhow:
     let alignment_num = args::alignment_to_ffmpeg(alignment);
 
     let sub_path = mix_video.join(format!("{target_lang}.srt"));
-    let style = probe_style(&video_file_path, &target_lang, &cfg, alignment_num);
+    // MarginV 优先级: 显式参数 > OCR 推断 > 默认值（probe_style 内回退）。
+    // 推断只在经过 OCR（frames_box_adjust.json + frames.json 存在）时产出。
+    let inferred_margin = infer_margin_v(&video_dir);
+    let style = probe_style(&video_file_path, &target_lang, &cfg, alignment_num, inferred_margin);
 
     match &deps.branch {
         // 字幕时间轴统一取 split_audio 的**意图时序** `timings.json`：
@@ -218,8 +221,56 @@ fn sub_filter_arg(sub_path: &str, style: &str) -> String {
     format!("subtitles=filename='{escaped}':force_style='{style}'")
 }
 
+/// 用 OCR 产物推断 MarginV（参数 > 推断 > 默认的中间层）。
+///
+/// 数据来自两步：
+/// - `<video_dir>/sf_ocr/frames.json` → `meta.video_height`（画面像素高）
+/// - `<video_dir>/sf_ocr_fix/frames_box_adjust.json` → `meta.y_stats.mode`（字幕带
+///   纵向值域 `[top, bottom]` 的众数，像素坐标）
+///
+/// 目标：让译文字幕底边距原字幕**顶部** 4px（不覆盖原字幕）。ASS 的 PlayResY=288，
+/// ffmpeg `subtitles` 滤镜用该分辨率渲染再缩放到真实画面，所以像素距离要乘
+/// `288 / video_height` 才是 force_style 的 MarginV 值：
+///
+/// ```text
+/// MarginV = (video_height - mode[0] + 4) * 288 / video_height
+/// ```
+///
+/// 任一步产物缺失 / 字段非法 → `None`（回退默认值）。这保证"没经过 OCR 时推断
+/// 结果为空"，符合参数 > 推断 > 默认的优先级。
+fn infer_margin_v(video_dir: &str) -> Option<f64> {
+    use serde_json::Value;
+
+    let read_meta = |path: std::path::PathBuf| -> Option<Value> {
+        let raw = std::fs::read_to_string(path).ok()?;
+        let json: Value = serde_json::from_str(&raw).ok()?;
+        json.get("meta").cloned()
+    };
+
+    let frames_meta = read_meta(std::path::Path::new(video_dir).join("sf_ocr/frames.json"))?;
+    let video_height = frames_meta.get("video_height")?.as_f64()?;
+    if video_height <= 0.0 {
+        return None;
+    }
+
+    let adjust_meta = read_meta(
+        std::path::Path::new(video_dir).join("sf_ocr_fix/frames_box_adjust.json"),
+    )?;
+    let mode = adjust_meta.get("y_stats")?.get("mode")?;
+    let top_y = mode.get(0)?.as_f64()?;
+    let _bottom_y = mode.get(1)?.as_f64()?;
+
+    Some((video_height - top_y + 4.0) * 288.0 / video_height)
+}
+
 /// 探测字幕样式 (字号/边距/对齐/描边/阴影/字体) (镜像 TS `probeStyle`)。
-fn probe_style(video_file: &str, dst_lang: &str, cfg: &MixVideoArgs, alignment_num: u8) -> String {
+fn probe_style(
+    video_file: &str,
+    dst_lang: &str,
+    cfg: &MixVideoArgs,
+    alignment_num: u8,
+    inferred_margin_v: Option<f64>,
+) -> String {
     let (width, height) = probe_video_resolution(video_file);
     let is_portrait = height > width && height > 0;
     let font_size = cfg.font_size.unwrap_or(if is_portrait {
@@ -233,7 +284,11 @@ fn probe_style(video_file: &str, dst_lang: &str, cfg: &MixVideoArgs, alignment_n
     } else {
         18.0
     });
-    let margin_v = cfg.margin_v.unwrap_or(if is_portrait { 70.0 } else { 5.0 });
+    // 优先级: 显式参数 > OCR 推断 > 默认值（横屏 5 / 竖屏 70）。
+    let margin_v = cfg
+        .margin_v
+        .or(inferred_margin_v)
+        .unwrap_or(if is_portrait { 70.0 } else { 5.0 });
     let outline = cfg.outline;
     let shadow = cfg.shadow;
     let font = cfg.font.clone().unwrap_or_else(|| default_font(dst_lang));
@@ -286,7 +341,7 @@ mod tests {
         assert_eq!(lang, "zh", "应以落定的事实为准，而非 input 里的 vi");
 
         // 与字体选择挂钩：zh 必须选到 CJK 字体而非 Arial
-        let style = probe_style("/nonexistent.mp4", &lang, &MixVideoArgs::default(), 2);
+        let style = probe_style("/nonexistent.mp4", &lang, &MixVideoArgs::default(), 2, None);
         assert!(
             !style.contains("FontName=Arial"),
             "中文字幕不该配 Arial（无中文字形）: {style}"
@@ -329,6 +384,7 @@ mod tests {
             "zh",
             &cfg,
             2,
+            None,
         );
         assert!(style.contains("FontSize=24"));
         assert!(style.contains("MarginV=5"));
@@ -386,10 +442,67 @@ mod tests {
         assert_eq!(cfg.margin_v, Some(45.5));
         assert_eq!(cfg.outline, 0.5);
 
-        let style = probe_style("/nonexistent.mp4", "zh", &cfg, 2);
+        let style = probe_style("/nonexistent.mp4", "zh", &cfg, 2, None);
         assert!(style.contains("FontSize=21.4"));
         assert!(style.contains("MarginV=45.5"));
         assert!(style.contains("Shadow=1.1"));
         assert!(style.contains("Outline=0.5"));
+    }
+
+    /// 用真实产物形状验证 OCR 推断公式与「参数 > 推断 > 默认」优先级。
+    /// 经验数据（师尊带我炸修真/8）：video_height=720、y_stats.mode=[636,669]，
+    /// 实测最优 margin_v=35 → 公式应得 35.2。
+    #[test]
+    fn infer_margin_v_from_ocr_fixtures() {
+        let dir = std::env::temp_dir().join(format!("ld_mv_infer_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("sf_ocr")).unwrap();
+        std::fs::create_dir_all(dir.join("sf_ocr_fix")).unwrap();
+        std::fs::write(
+            dir.join("sf_ocr/frames.json"),
+            r#"{"frames":[],"meta":{"video_height":720}}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("sf_ocr_fix/frames_box_adjust.json"),
+            r#"{"frames":[],"meta":{"y_stats":{"avg":[635.3,669.7],"mode":[636.0,669.0],"median":[635.5,669.5],"avg_height":34.3,"median_height":34.0,"mode_height":33.0}}}"#,
+        )
+        .unwrap();
+
+        let got = infer_margin_v(dir.to_str().unwrap()).expect("应有推断值");
+        // (720 - 636 + 4) * 288 / 720 = 88 * 0.4 = 35.2
+        assert!((got - 35.2).abs() < 0.01, "推断值 {got} 应≈35.2");
+
+        // 显式参数优先于推断
+        let cfg = MixVideoArgs {
+            margin_v: Some(42.0),
+            ..Default::default()
+        };
+        let style = probe_style("/nonexistent.mp4", "vi", &cfg, 2, Some(got));
+        assert!(style.contains("MarginV=42"), "显式参数应覆盖推断");
+
+        // 无推断时显式参数仍生效；都没给时回退默认 5（横屏）
+        let style_no_infer = probe_style("/nonexistent.mp4", "vi", &cfg, 2, None);
+        assert!(style_no_infer.contains("MarginV=42"));
+        let style_default = probe_style(
+            "/nonexistent.mp4",
+            "vi",
+            &MixVideoArgs::default(),
+            2,
+            None,
+        );
+        assert!(style_default.contains("MarginV=5"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 产物缺失 / 字段非法 → 推断为空（没经过 OCR 的情况）。
+    #[test]
+    fn infer_margin_v_none_without_ocr_products() {
+        let dir = std::env::temp_dir().join(format!("ld_mv_noinfer_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        assert!(infer_margin_v(dir.to_str().unwrap()).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
