@@ -499,13 +499,15 @@ export type GenerateMetaArgs = GenerateMetaArgs_Serialize | GenerateMetaArgs_Des
 /**  generate_meta 命令的 LLM 参数。 */
 export type GenerateMetaArgs_Deserialize = {
 	provider?: string,
-	model?: string,
+	/**  不写则用 provider.default_model */
+	model?: string | null,
 };
 
 /**  generate_meta 命令的 LLM 参数。 */
 export type GenerateMetaArgs_Serialize = {
 	provider: string,
-	model: string,
+	/**  不写则用 provider.default_model */
+	model: string | null,
 };
 
 export type GpuInfo = GpuInfo_Serialize | GpuInfo_Deserialize;
@@ -628,8 +630,8 @@ export type LlmFixArgs = LlmFixArgs_Serialize | LlmFixArgs_Deserialize;
 export type LlmFixArgs_Deserialize = {
 	/**  引用的 LLM provider 名 (见 input.llm_providers) */
 	provider?: string,
-	/**  LLM 模型名 */
-	model?: string,
+	/**  LLM 模型名。不写则用 provider.default_model。 */
+	model?: string | null,
 	/**  领域提示, 帮助 LLM 理解上下文，例如"仙侠题材，角色：叶白、慧天、夜白" */
 	domain_hint?: string | null,
 	/**  是否启用 LLM 修正 */
@@ -640,8 +642,8 @@ export type LlmFixArgs_Deserialize = {
 export type LlmFixArgs_Serialize = {
 	/**  引用的 LLM provider 名 (见 input.llm_providers) */
 	provider: string,
-	/**  LLM 模型名 */
-	model: string,
+	/**  LLM 模型名。不写则用 provider.default_model。 */
+	model: string | null,
 	/**  领域提示, 帮助 LLM 理解上下文，例如"仙侠题材，角色：叶白、慧天、夜白" */
 	domain_hint: string | null,
 	/**  是否启用 LLM 修正 */
@@ -661,6 +663,8 @@ export type LlmProvider = LlmProvider_Serialize | LlmProvider_Deserialize;
 export type LlmProvider_Deserialize = {
 	/**  API base (含协议与 host，不含 /chat/completions) */
 	base_url: string,
+	/**  该 provider 的默认模型名。步骤未显式写 model 时用它。 */
+	default_model?: string | null,
 	/**  API key (Bearer)。缺失时回退环境变量 OPENAI_API_KEY。 */
 	api_key?: string | null,
 };
@@ -672,6 +676,8 @@ export type LlmProvider_Deserialize = {
 export type LlmProvider_Serialize = {
 	/**  API base (含协议与 host，不含 /chat/completions) */
 	base_url: string,
+	/**  该 provider 的默认模型名。步骤未显式写 model 时用它。 */
+	default_model: string | null,
 	/**  API key (Bearer)。缺失时回退环境变量 OPENAI_API_KEY。 */
 	api_key: string | null,
 };
@@ -1746,8 +1752,8 @@ export type TranslateArgs = TranslateArgs_Serialize | TranslateArgs_Deserialize;
 export type TranslateArgs_Deserialize = {
 	/**  引用的 LLM provider 名 (见 input.llm_providers) */
 	provider?: string,
-	/**  翻译模型 */
-	model?: string,
+	/**  翻译模型。不写则用 provider.default_model。 */
+	model?: string | null,
 	/**  设为 false 跳过翻译, 直接使用原始识别文本 */
 	enabled?: boolean,
 };
@@ -1765,8 +1771,8 @@ export type TranslateArgs_Deserialize = {
 export type TranslateArgs_Serialize = {
 	/**  引用的 LLM provider 名 (见 input.llm_providers) */
 	provider: string,
-	/**  翻译模型 */
-	model: string,
+	/**  翻译模型。不写则用 provider.default_model。 */
+	model: string | null,
 	/**  设为 false 跳过翻译, 直接使用原始识别文本 */
 	enabled: boolean,
 };

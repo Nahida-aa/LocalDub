@@ -45,7 +45,7 @@ pub fn lang_label(code: &str) -> String {
 /// `chat_completions` 选项 (镜像 TS `opts`)。
 #[derive(Debug, Clone)]
 pub struct ChatOptions {
-    /// 模型名 (缺省 "gemma4:31b-cloud", 见 LlmFixArgs::default)
+    /// 模型名 (必填；由调用方从步骤 model / provider.default_model 解析后传入)
     pub model: Option<String>,
     /// API base (含协议与 host, 不含 /chat/completions), 缺省 "http://localhost:11434/v1"
     pub api_base: Option<String>,
@@ -62,7 +62,7 @@ pub struct ChatOptions {
 impl Default for ChatOptions {
     fn default() -> Self {
         Self {
-            model: Some("gemma4:31b-cloud".to_string()),
+            model: None,
             api_base: Some("http://localhost:11434/v1".to_string()),
             system_prompt: String::new(),
             api_key: None,
@@ -125,7 +125,7 @@ pub fn chat_completions(prompt: &str, opts: &ChatOptions) -> anyhow::Result<Stri
     let model = opts
         .model
         .clone()
-        .unwrap_or_else(|| "gemma4:31b-cloud".to_string());
+        .ok_or_else(|| anyhow::anyhow!("chat_completions: 未指定 model"))?;
     let max_tokens = opts.max_tokens.unwrap_or(4096);
     let temperature = opts.temperature.unwrap_or(0.1);
 
@@ -218,7 +218,7 @@ mod tests {
     #[test]
     fn default_options_are_sane() {
         let o = ChatOptions::default();
-        assert_eq!(o.model.as_deref(), Some("gemma4:31b-cloud"));
+        assert_eq!(o.model, None); // model 必填，由调用方解析后传入
         assert_eq!(o.api_base.as_deref(), Some("http://localhost:11434/v1"));
         assert_eq!(o.max_tokens, Some(4096));
         assert_eq!(o.temperature, Some(0.1));
@@ -227,7 +227,7 @@ mod tests {
     #[test]
     fn llm_fix_args_defaults() {
         let a = LlmFixArgs::default();
-        assert_eq!(a.model, "gemma4:31b-cloud");
+        assert_eq!(a.model, None); // 不写则用 provider.default_model
         assert_eq!(a.provider, "default");
         assert!(!a.llm_fix);
     }

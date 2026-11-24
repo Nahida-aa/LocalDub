@@ -461,10 +461,11 @@ pub async fn step_asr_ocr_fix(
             .api_key
             .clone()
             .or_else(config_rs::env::openai_api_key);
+        let model = provider.resolve_model(args.ocr_fix.llm_fix.model.as_deref(), &args.ocr_fix.llm_fix.provider)?;
         info!(target: "asr_ocr",
-            "asr_ocr_fix: LLM fix {} segs (model={})", src_texts.len(), args.ocr_fix.llm_fix.model
+            "asr_ocr_fix: LLM fix {} segs (model={})", src_texts.len(), model
         );
-        match llm::ocr_llm_fix(&src_texts, &lang_label, &args.ocr_fix.llm_fix, &provider.base_url, api_key.as_deref()) {
+        match llm::ocr_llm_fix(&src_texts, &lang_label, &args.ocr_fix.llm_fix, &model, &provider.base_url, api_key.as_deref()) {
             Ok(fixed) => {
                 for (seg, text) in final_segments.iter_mut().zip(fixed) {
                     seg.base.text = text;

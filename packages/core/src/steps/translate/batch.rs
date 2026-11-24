@@ -7,7 +7,6 @@
 
 use serde_json::Value;
 
-use crate::steps::translate::args;
 use crate::steps::translate::parse_json_reply;
 use crate::steps::utils::lang_name;
 
@@ -98,9 +97,9 @@ pub fn translate_batch(
     batch: &[String],
     system: &str,
     target_lang: &str,
-    args: &args::TranslateArgs,
     api_base: &str,
     api_key: Option<&str>,
+    model: &str,
 ) -> Result<Vec<String>, TranslateBatchError> {
     let numbered: String = batch
         .iter()
@@ -137,7 +136,7 @@ pub fn translate_batch(
         let reply = match llm::chat_completions(
             &user_msg,
             &llm::ChatOptions {
-                model: Some(args.model.clone()),
+                model: Some(model.to_string()),
                 api_base: Some(api_base.to_string()),
                 system_prompt: system.to_string(),
                 api_key: api_key.map(str::to_string),

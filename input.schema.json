@@ -285,8 +285,15 @@
           "description": " 引用的 LLM provider 名 (见 input.llm_providers)"
         },
         "model": {
-          "type": "string",
-          "description": " LLM 模型名"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " LLM 模型名。不写则用 provider.default_model。"
         },
         "domain_hint": {
           "anyOf": [
@@ -333,8 +340,15 @@
           "description": " 引用的 LLM provider 名 (见 input.llm_providers)"
         },
         "model": {
-          "type": "string",
-          "description": " LLM 模型名"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " LLM 模型名。不写则用 provider.default_model。"
         },
         "domain_hint": {
           "anyOf": [
@@ -553,8 +567,15 @@
           "description": " 引用的 LLM provider 名 (见 input.llm_providers)"
         },
         "model": {
-          "type": "string",
-          "description": " LLM 模型名"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " LLM 模型名。不写则用 provider.default_model。"
         },
         "domain_hint": {
           "anyOf": [
@@ -652,8 +673,15 @@
           "description": " 引用的 LLM provider 名 (见 input.llm_providers)"
         },
         "model": {
-          "type": "string",
-          "description": " LLM 模型名"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " LLM 模型名。不写则用 provider.default_model。"
         },
         "domain_hint": {
           "anyOf": [
@@ -1122,7 +1150,15 @@
           "type": "string"
         },
         "model": {
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 不写则用 provider.default_model"
         }
       },
       "required": [
@@ -1139,7 +1175,15 @@
           "type": "string"
         },
         "model": {
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 不写则用 provider.default_model"
         }
       },
       "title": "GenerateMetaArgs_Deserialize",
@@ -1779,8 +1823,15 @@
           "description": " 引用的 LLM provider 名 (见 input.llm_providers)"
         },
         "model": {
-          "type": "string",
-          "description": " 翻译模型"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 翻译模型。不写则用 provider.default_model。"
         },
         "enabled": {
           "type": "boolean",
@@ -2119,6 +2170,17 @@
           "type": "string",
           "description": " API base (含协议与 host，不含 /chat/completions)"
         },
+        "default_model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 该 provider 的默认模型名。步骤未显式写 model 时用它。"
+        },
         "api_key": {
           "anyOf": [
             {
@@ -2133,6 +2195,7 @@
       },
       "required": [
         "base_url",
+        "default_model",
         "api_key"
       ],
       "title": "LlmProvider_Serialize",
@@ -2517,8 +2580,15 @@
           "description": " 引用的 LLM provider 名 (见 input.llm_providers)"
         },
         "model": {
-          "type": "string",
-          "description": " 翻译模型"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 翻译模型。不写则用 provider.default_model。"
         },
         "enabled": {
           "type": "boolean",
@@ -2769,6 +2839,17 @@
           "type": "string",
           "description": " API base (含协议与 host，不含 /chat/completions)"
         },
+        "default_model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " 该 provider 的默认模型名。步骤未显式写 model 时用它。"
+        },
         "api_key": {
           "anyOf": [
             {
@@ -2901,8 +2982,15 @@
           "description": " 引用的 LLM provider 名 (见 input.llm_providers)"
         },
         "model": {
-          "type": "string",
-          "description": " LLM 模型名"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " LLM 模型名。不写则用 provider.default_model。"
         },
         "domain_hint": {
           "anyOf": [
@@ -2937,8 +3025,15 @@
           "description": " 引用的 LLM provider 名 (见 input.llm_providers)"
         },
         "model": {
-          "type": "string",
-          "description": " LLM 模型名"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " LLM 模型名。不写则用 provider.default_model。"
         },
         "domain_hint": {
           "anyOf": [

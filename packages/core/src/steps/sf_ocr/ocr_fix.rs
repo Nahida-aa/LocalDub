@@ -104,12 +104,13 @@ pub async fn step_sf_ocr_fix(
             .api_key
             .clone()
             .or_else(config_rs::env::openai_api_key);
+        let model = provider.resolve_model(args.llm_fix.model.as_deref(), &args.llm_fix.provider)?;
         tracing::info!(target: "sf_ocr",
             "sf_ocr_fix: LLM 修正 {} segs (model={})",
             src_texts.len(),
-            args.llm_fix.model
+            model
         );
-        match llm::ocr_llm_fix(&src_texts, &lang_label, &args.llm_fix, &provider.base_url, api_key.as_deref()) {
+        match llm::ocr_llm_fix(&src_texts, &lang_label, &args.llm_fix, &model, &provider.base_url, api_key.as_deref()) {
             Ok(fixed) => {
                 // 逐段回填修正文本 (保持原段结构/时间戳)
                 for (seg, text) in final_segments.iter_mut().zip(fixed.into_iter()) {

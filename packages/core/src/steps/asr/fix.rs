@@ -54,8 +54,8 @@ pub async fn step_asr_fix(
     let llm_fix = args.llm_fix.llm_fix;
     if llm_fix {
         let source_lang_label = lang_label_for(&src_lang);
-        let llm_model = args.llm_fix.model.clone();
         let provider = input.llm(&args.llm_fix.provider)?;
+        let llm_model = provider.resolve_model(args.llm_fix.model.as_deref(), &args.llm_fix.provider)?;
         let llm_api_base = provider.base_url.clone();
         let api_key = provider
             .api_key
@@ -84,7 +84,7 @@ pub async fn step_asr_fix(
         let t0 = std::time::Instant::now();
         let system = build_asr_fix_system_prompt(&source_lang_label, domain_hint.as_deref());
         let opts = llm::ChatOptions {
-            model: Some(llm_model.clone()),
+            model: Some(llm_model),
             api_base: Some(llm_api_base),
             system_prompt: system,
             api_key,

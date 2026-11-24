@@ -19,9 +19,9 @@ pub struct TranslateArgs {
     /// 引用的 LLM provider 名 (见 input.llm_providers)
     #[serde(default = "default_provider")]
     pub provider: String,
-    /// 翻译模型
-    #[serde(default = "default_model")]
-    pub model: String,
+    /// 翻译模型。不写则用 provider.default_model。
+    #[serde(default)]
+    pub model: Option<String>,
     /// 设为 false 跳过翻译, 直接使用原始识别文本
     #[serde(default = "default_true")]
     pub enabled: bool,
@@ -29,9 +29,6 @@ pub struct TranslateArgs {
 
 fn default_provider() -> String {
     "default".to_string()
-}
-fn default_model() -> String {
-    "gemma4:31b-cloud".to_string()
 }
 
 impl Default for TranslateArgs {
@@ -42,7 +39,7 @@ impl Default for TranslateArgs {
     fn default() -> Self {
         Self {
             provider: default_provider(),
-            model: default_model(),
+            model: None,
             enabled: true,
         }
     }

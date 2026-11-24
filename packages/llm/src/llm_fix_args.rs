@@ -9,9 +9,9 @@ pub struct LlmFixArgs {
     /// 引用的 LLM provider 名 (见 input.llm_providers)
     #[serde(default = "default_provider")]
     pub provider: String,
-    /// LLM 模型名
-    #[serde(default = "default_llm_model")]
-    pub model: String,
+    /// LLM 模型名。不写则用 provider.default_model。
+    #[serde(default)]
+    pub model: Option<String>,
     /// 领域提示, 帮助 LLM 理解上下文，例如"仙侠题材，角色：叶白、慧天、夜白"
     #[serde(default)]
     pub domain_hint: Option<String>,
@@ -24,7 +24,7 @@ impl Default for LlmFixArgs {
     fn default() -> Self {
         Self {
             provider: default_provider(),
-            model: default_llm_model(),
+            model: None,
             domain_hint: None,
             llm_fix: false,
         }
@@ -33,8 +33,4 @@ impl Default for LlmFixArgs {
 
 fn default_provider() -> String {
     "default".to_string()
-}
-
-fn default_llm_model() -> String {
-    "gemma4:31b-cloud".to_string()
 }

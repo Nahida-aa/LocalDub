@@ -73,8 +73,9 @@ pub fn generate_meta(input: &crate::input::Input, video_dir: &str) -> anyhow::Re
     let provider =
         crate::input::resolve_llm_provider(&input.llm_providers, &meta_args.provider)
             .ok_or_else(|| anyhow::anyhow!("未配置 llm provider: {}", meta_args.provider))?;
+    let model = provider.resolve_model(meta_args.model.as_deref(), &meta_args.provider)?;
     let opts = llm::ChatOptions {
-        model: Some(meta_args.model.clone()),
+        model: Some(model),
         api_base: Some(provider.base_url.clone()),
         system_prompt: META_SYSTEM_PROMPT.to_string(),
         api_key: provider

@@ -59,20 +59,18 @@ pub struct Steps {
 pub struct GenerateMetaArgs {
     #[serde(default = "default_provider")]
     pub provider: String,
-    #[serde(default = "default_model")]
-    pub model: String,
+    /// 不写则用 provider.default_model
+    #[serde(default)]
+    pub model: Option<String>,
 }
 fn default_provider() -> String {
     "default".to_string()
-}
-fn default_model() -> String {
-    "gemma4:31b-cloud".to_string()
 }
 impl Default for GenerateMetaArgs {
     fn default() -> Self {
         Self {
             provider: default_provider(),
-            model: default_model(),
+            model: None,
         }
     }
 }

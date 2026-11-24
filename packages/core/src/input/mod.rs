@@ -24,9 +24,28 @@ pub mod steps;
 pub struct LlmProvider {
     /// API base (含协议与 host，不含 /chat/completions)
     pub base_url: String,
+    /// 该 provider 的默认模型名。步骤未显式写 model 时用它。
+    #[serde(default)]
+    pub default_model: Option<String>,
     /// API key (Bearer)。缺失时回退环境变量 OPENAI_API_KEY。
     #[serde(default)]
     pub api_key: Option<String>,
+}
+
+impl LlmProvider {
+    /// 取最终模型名：步骤显式 model 优先，其次 provider.default_model，
+    /// 都没有则明确报错（不再有硬编码兜底）。
+    pub fn resolve_model(&self, step_model: Option<&str>, provider_name: &str) -> anyhow::Result<String> {
+        step_model
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .or_else(|| self.default_model.clone())
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "未指定模型：步骤未配置 model 且 provider '{provider_name}' 无 default_model"
+                )
+            })
+    }
 }
 
 /// 统一的 provider 解析：按名字精确匹配；找不到且表里**恰好只有一个**时，
@@ -201,6 +220,7 @@ mod tests {
             "agnes".to_string(),
             LlmProvider {
                 base_url: "https://apihub.agnes-ai.com/v1".to_string(),
+                default_model: None,
                 api_key: None,
             },
         );
@@ -214,6 +234,7 @@ mod tests {
             "local".to_string(),
             LlmProvider {
                 base_url: "http://localhost:11434/v1".to_string(),
+                default_model: None,
                 api_key: None,
             },
         );
@@ -222,6 +243,26 @@ mod tests {
             resolve_llm_provider(&providers, "local").unwrap().base_url,
             "http://localhost:11434/v1"
         );
+    }
+
+    #[test]
+    fn model_precedence_step_then_provider_then_error() {
+        let p = LlmProvider {
+            base_url: "http://localhost:11434/v1".to_string(),
+            default_model: Some("provider-model".to_string()),
+            api_key: None,
+        };
+        // 步骤显式 model 优先
+        assert_eq!(p.resolve_model(Some("step-model"), "p").unwrap(), "step-model");
+        // 步骤未写 → provider 默认
+        assert_eq!(p.resolve_model(None, "p").unwrap(), "provider-model");
+        // 都没有 → 明确报错
+        let bare = LlmProvider {
+            base_url: "http://localhost:11434/v1".to_string(),
+            default_model: None,
+            api_key: None,
+        };
+        assert!(bare.resolve_model(None, "bare").is_err());
     }
 
     #[test]
@@ -290,7 +331,7 @@ mod tests {
         .unwrap();
         assert_eq!(input.steps.sf_ocr.text_confidence_threshold, 0.6);
         assert!(input.steps.sf_ocr_fix.llm_fix.llm_fix);
-        assert_eq!(input.steps.sf_ocr_fix.llm_fix.model, "x");
+        assert_eq!(input.steps.sf_ocr_fix.llm_fix.model.as_deref(), Some("x"));
         // 默认值补齐 (absent 字段走 Rust Default, 应为预期字面默认值)
         assert_eq!(input.steps.asr_ocr_pre.fps, 2.0);
         assert_eq!(input.steps.sf_ocr.subtitle_only, true);

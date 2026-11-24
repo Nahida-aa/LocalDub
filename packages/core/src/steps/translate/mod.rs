@@ -95,6 +95,7 @@ fn run_preprocess(
     full_text: &str,
     api_base: &str,
     api_key: Option<&str>,
+    model: &str,
 ) -> PreprocessResult {
     let prompt = build_preprocess_prompt(dst_lang_name, src_lang_name, meta, full_text);
 
@@ -117,7 +118,7 @@ fn run_preprocess(
     match llm::chat_completions(
         &prompt,
         &llm::ChatOptions {
-            model: Some(args.model.clone()),
+            model: Some(model.to_string()),
             api_base: Some(api_base.to_string()),
             system_prompt: "You output strict JSON only.".to_string(),
             api_key: api_key.map(str::to_string),
@@ -185,6 +186,7 @@ pub async fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow
     let input = sc.ctx().input();
     let args = &input.steps.translate;
     let provider = input.llm(&args.provider)?;
+    let model = provider.resolve_model(args.model.as_deref(), &args.provider)?;
     let api_base = provider.base_url.clone();
     let api_key = provider
         .api_key
@@ -224,7 +226,7 @@ pub async fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow
             .join("ytdlp_info.json");
         let meta = load_video_meta(Some(&ytdlp_path));
         let pre = if ytdlp_path.exists() {
-            run_preprocess(&args, &src_lang_name, &dst_lang_name, &meta, &full_text, &api_base, api_key.as_deref())
+            run_preprocess(&args, &src_lang_name, &dst_lang_name, &meta, &full_text, &api_base, api_key.as_deref(), &model)
         } else {
             PreprocessResult::default()
         };
@@ -284,7 +286,7 @@ pub async fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow
             }
             let batch: Vec<String> = chunk.to_vec();
             tracing::info!(target: "translate", "batch {}/{}: {} 句", i + 1, total_batches, batch.len());
-            match batch::translate_batch(&batch, &system, &target_lang, &args, &api_base, api_key.as_deref()) {
+            match batch::translate_batch(&batch, &system, &target_lang, &api_base, api_key.as_deref(), &model) {
                 Ok(results) => {
                     for (k, r) in results.into_iter().enumerate() {
                         let gi = i * partial::BATCH_SIZE + k;
