@@ -1,8 +1,8 @@
 //! 引擎路径（start / resume）——core 直驱 aa-workflow，复用 [`FsRunStore`]。
 //!
-//! 与过渡的 `pipeline` / `parallel` 路径互斥（见 `exec_path`）：这里是唯一
-//! 真源走事件日志（`workflow-store/<run_id>/logs.jsonl`）的路径，`view.json`
-//! 等状态文件在此路径下不写。
+//! start / resume 的唯一执行路径：引擎真源是 append-only 事件日志
+//! `workflow-store/<run_id>/logs.jsonl`。`view.json` / `<step>/state.json`
+//! 仍由各 step handler 内部写（步骤间传参 / UI 投影用），但不是成败真源。
 //!
 //! run_id 按文件名自增：扫 `<video_dir>/workflow-store/` 下的数字目录名取
 //! 最大 +1（`1` / `2` / …）。目录存在即记录，重启可续；整体清理后从 1 重来。

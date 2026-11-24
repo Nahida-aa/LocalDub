@@ -233,17 +233,6 @@ pub struct WorkflowArgs {
     pub queue_id: Option<u64>,
     /// rerunStep 专业参数, 指定要重新运行的步骤
     pub step_name: Option<StepName>,
-    /// 实验开关: start/resume 走 aa-workflow 引擎（start 已接通；resume 仍开发中，
-    /// 打印「开发中」并报错）。真源是 `<video_dir>/workflow-store/<run_id>/logs.jsonl`，
-    /// 与 `run_pipeline` 的真源 `view.json` 二选一。其余 action 忽略。
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub engine: Option<bool>,
-    /// 实验开关: **实验性并行**——非 engine 路径按步骤 DAG 并行执行（目前只有
-    /// `sf_ocr_dub` 有 DAG 定义，见 [`crate::workflow::dag::StepDag`]；其它组合
-    /// 明确报错）。与 `engine` 互斥——同设报错。并行验证成熟后将成为默认行为，
-    /// 届时本标志退役。
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parallel: Option<bool>,
     /// 任务模式, dub 配音, subtitle 仅字幕
     #[serde(default)]
     pub output_mode: OutputMode,
@@ -254,39 +243,6 @@ pub struct WorkflowArgs {
     /// 注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。
     #[serde(default)]
     pub download_subtitles: bool,
-}
-
-/// start/resume 的执行路径（由 `engine` / `parallel` 两个实验标志解析）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ExecPath {
-    /// aa-workflow 引擎（真源 `<video_dir>/workflow-store/<run_id>/logs.jsonl`）。
-    Engine,
-    /// 非 engine 的 DAG 并行执行器（真源各 `<step>/state.json`，见
-    /// [`crate::workflow::parallel`]）。
-    Parallel,
-    /// 串行 pipeline（`run_pipeline` / `resume_pipeline`）。
-    Serial,
-}
-
-impl WorkflowArgs {
-    /// 解析执行路径；`engine` 与 `parallel` 同设报错——引擎路径本身已按 DAG
-    /// 并行，同设只会让语义含糊（parallel 到底有没有生效说不清）。
-    pub fn exec_path(&self) -> anyhow::Result<ExecPath> {
-        let engine = self.engine.unwrap_or(false);
-        let parallel = self.parallel.unwrap_or(false);
-        if engine && parallel {
-            anyhow::bail!(
-                "workflow.engine 与 workflow.parallel 互斥: 引擎路径本身已按 DAG 并行, 请二选一"
-            );
-        }
-        Ok(if engine {
-            ExecPath::Engine
-        } else if parallel {
-            ExecPath::Parallel
-        } else {
-            ExecPath::Serial
-        })
-    }
 }
 
 #[cfg(test)]
@@ -389,27 +345,4 @@ mod strum_sync_tests {
         assert_eq!(OutputMode::from_input(&input(None)), OutputMode::Dub);
     }
 
-    /// `engine` / `parallel` 两个实验标志 → 执行路径；同设必须报错（语义含糊）。
-    #[test]
-    fn exec_path_resolves_experiment_flags() {
-        let wf = |engine: Option<bool>, parallel: Option<bool>| WorkflowArgs {
-            engine,
-            parallel,
-            ..Default::default()
-        };
-
-        assert_eq!(wf(None, None).exec_path().unwrap(), ExecPath::Serial);
-        assert_eq!(wf(Some(true), None).exec_path().unwrap(), ExecPath::Engine);
-        assert_eq!(
-            wf(None, Some(true)).exec_path().unwrap(),
-            ExecPath::Parallel
-        );
-        // 同设报错，错误要点名两个字段
-        let err = wf(Some(true), Some(true)).exec_path().unwrap_err();
-        let msg = err.to_string();
-        assert!(
-            msg.contains("engine") && msg.contains("parallel") && msg.contains("互斥"),
-            "错误应说明互斥, 实际: {msg}"
-        );
-    }
 }

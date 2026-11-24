@@ -1,8 +1,7 @@
 //! dub × sf_ocr 流程的 aa-workflow 声明（代码即 DAG）。
 //!
-//! 与 [`crate::workflow::dag::StepDag::sf_ocr_dub`] 是同一张图：节点集与依赖边
-//! 抄那份真源（10 步），`dag.rs` 供过渡的 `parallel.rs` 调度，这里的 `DagSpec`
-//! 供引擎按依赖并发地驱动 `ctx.step`——handler 由 `dag_to_handler` 生成。
+//! 10 步的 `DagSpec` 供引擎按依赖并发地驱动 `ctx.step`——handler 由
+//! `dag_to_handler` 生成。
 //!
 //! 节点闭包不捕获外部变量：从 `sc.ctx.input` 取 [`WorkflowInput`]（typed run
 //! input），按 `pipeline.rs::run_step` 的装配方式构造各 `XxxDeps`，调用已有
@@ -38,7 +37,7 @@ use crate::steps::translate::step_translate;
 use crate::steps::tts::args::TtsDeps;
 use crate::steps::tts::step_tts;
 
-/// 10 个节点 + 依赖边，**与 `StepDag::sf_ocr_dub()`（`dag.rs:112-141`）同源**。
+/// 10 个节点 + 依赖边。
 ///
 /// ```text
 /// separate ─┬─► separate_after ─────────────────────────────────────┐ (bgm)
@@ -182,26 +181,7 @@ mod tests {
     fn dub_spec_is_valid() {
         let spec = dub_sf_ocr_spec().expect("静态边表应合法");
         assert_eq!(spec.nodes.len(), 10);
-    }
-
-    /// 防漂移：声明式 spec 与 `StepDag::sf_ocr_dub()` 必须是同一张图。
-    #[test]
-    fn dub_spec_matches_step_dag() {
-        let declarative = dub_sf_ocr_spec().expect("静态边表应合法");
-        let dag = crate::workflow::dag::StepDag::sf_ocr_dub();
-        assert_eq!(declarative.nodes.len(), dag.nodes().len());
-        for (id, node) in &declarative.nodes {
-            let step: crate::workflow::args::StepName = id.parse().unwrap();
-            assert!(dag.nodes().contains(&step), "spec 多出节点 {id}");
-            let mut declared = node.deps.clone();
-            declared.sort();
-            let mut expected: Vec<String> = dag
-                .deps(step)
-                .iter()
-                .map(|s| s.as_str().to_string())
-                .collect();
-            expected.sort();
-            assert_eq!(declared, expected, "{id} 的依赖边与 StepDag 不一致");
-        }
+        assert_eq!(spec.nodes["translate"].deps, vec!["sf_ocr_fix"]);
+        assert_eq!(spec.nodes["mix_video"].deps, vec!["mix_audio", "separate_after"]);
     }
 }

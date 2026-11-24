@@ -5,21 +5,18 @@
 //! 2. `setCtx` — 把当前 `input` 写回 `input.json`
 //!    (TS `setCtx(video_dir, { input })`), 这样 `resume_from` / `regenIndices` 等
 //!    以当前 `input.jsonc` 为准, 而非沿用陈旧的落盘配置;
-//! 3. 读出合并后的 ctx, 交给 [`crate::workflow::resume_pipeline`] 续跑。
+//! 3. 读出合并后的 ctx，走引擎 resume 续跑。
 //!
-//! `input.workflow.engine = true` 时走引擎路径：新 run_id + DagPlan
-//! （source_run_id / from / goals）从源 run 复用未失效步骤，`resume_from` /
-//! `target_step` 由 DAG 中间件承载；input.json 的 setCtx 合并照常执行。
+//! 引擎路径：新 run_id + DagPlan（source_run_id / from / goals）从源 run 复用
+//! 未失效步骤，`resume_from` / `target_step` 由 DAG 中间件承载；input.json 的
+//! setCtx 合并照常执行。过渡的串行 resume_pipeline / 实验性 parallel 已下线。
 //!
 //! 与 [`crate::cmd::workflows::start`] 的区别: continue 不重新 import, 直接沿用既有任务目录。
 
 use crate::input::Input;
 use crate::state::write_input;
-use crate::workflow::args::ExecPath;
-use crate::workflow::resume_pipeline;
-use anyhow::Context;
 
-/// 续跑已有任务 (镜像 TS `cmdContinueTask`): 合并 input → 跑 resume_pipeline。
+/// 续跑已有任务 (镜像 TS `cmdContinueTask`): 合并 input → 引擎 resume。
 pub async fn resume_workflow(input: &Input) -> anyhow::Result<()> {
     let video_dir = input
         .workflow
@@ -63,29 +60,12 @@ pub async fn resume_workflow(input: &Input) -> anyhow::Result<()> {
     };
     println!("[cli] 续跑模式, video_dir = {}{}", video_dir, label);
 
-    let path = match input.workflow.as_ref() {
-        Some(w) => w.exec_path()?,
-        None => ExecPath::Serial,
-    };
-    match path {
-        ExecPath::Engine => {
-            // 引擎 resume：读回落定的绝对 video_dir，构造 run input，
-            // 用新 run_id + DagPlan(source_run_id) 从源 run 复用未失效步骤。
-            let settled = crate::state::read_input(&video_dir).map_err(anyhow::Error::msg)?;
-            let wfi = crate::input::WorkflowInput::try_from(settled).map_err(anyhow::Error::msg)?;
-            println!("[cli] 引擎 resume (新 run + DagPlan, 真源事件日志)");
-            crate::integration::workflow::engine::run_engine_resume(&wfi).await?;
-        }
-        ExecPath::Parallel => {
-            println!("[cli] 实验性并行 (DAG 调度, 按步跳过已成功步骤)");
-            crate::workflow::parallel::run_pipeline_parallel(input)
-                .await
-                .context("run_pipeline_parallel 失败")?;
-        }
-        ExecPath::Serial => {
-            resume_pipeline(input).await.context("resume_pipeline 失败")?;
-        }
-    }
+    // 引擎 resume：读回落定的绝对 video_dir，构造 run input，
+    // 用新 run_id + DagPlan(source_run_id) 从源 run 复用未失效步骤。
+    let settled = crate::state::read_input(&video_dir).map_err(anyhow::Error::msg)?;
+    let wfi = crate::input::WorkflowInput::try_from(settled).map_err(anyhow::Error::msg)?;
+    println!("[cli] 引擎 resume (新 run + DagPlan, 真源事件日志)");
+    crate::integration::workflow::engine::run_engine_resume(&wfi).await?;
     println!("[cli] 完成: {}", video_dir);
     Ok(())
 }

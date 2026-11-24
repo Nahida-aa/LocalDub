@@ -1,6 +1,5 @@
 //! dub × asr 流程的 aa-workflow 声明（代码即 DAG）。
 //!
-//! 与 [`crate::workflow::dag`] 无关——那是过渡 parallel 调度用的结构；这里是
 //! 引擎直接驱动的 `DagSpec`：节点集/依赖边按 `DUB_STEPS` 与各 XxxDeps 读集定义。
 //! 节点一律返回 `Value::Null`（产物走盘上文件、`deps` 只表达顺序）。
 

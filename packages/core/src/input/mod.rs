@@ -133,9 +133,9 @@ impl Default for Input {
 impl Input {
     /// 任务目录 = `input.workflow.video_dir`。
     ///
-    /// pipeline 入口 ([`crate::workflow::pipeline::run_pipeline`] /
-    /// [`crate::workflow::resume_pipeline`] / [`crate::workflow::parallel::run_pipeline_parallel`])
-    /// 的 video_dir 都从这里取，不再由调用方显式传参：start 路径由 import_video
+    /// 引擎入口（[`crate::integration::workflow::engine`]）与队列仍用的
+    /// 串行 pipeline（[`crate::workflow::pipeline::run_pipeline`]）的 video_dir
+    /// 都从这里取，不再由调用方显式传参：start 路径由 import_video
     /// 身份回填保证它是落定的真实目录；continue 路径本来就必填。
     pub fn video_dir(&self) -> anyhow::Result<&str> {
         self.workflow

@@ -2037,19 +2037,6 @@ export type WorkflowArgs_Deserialize = {
 	queue_id?: bigint | null,
 	/**  rerunStep 专业参数, 指定要重新运行的步骤 */
 	step_name?: StepName | null,
-	/**
-	 *  实验开关: start/resume 走 aa-workflow 引擎（start 已接通；resume 仍开发中，
-	 *  打印「开发中」并报错）。真源是 `<video_dir>/workflow-store/<run_id>/logs.jsonl`，
-	 *  与 `run_pipeline` 的真源 `view.json` 二选一。其余 action 忽略。
-	 */
-	engine?: boolean | null,
-	/**
-	 *  实验开关: **实验性并行**——非 engine 路径按步骤 DAG 并行执行（目前只有
-	 *  `sf_ocr_dub` 有 DAG 定义，见 [`crate::workflow::dag::StepDag`]；其它组合
-	 *  明确报错）。与 `engine` 互斥——同设报错。并行验证成熟后将成为默认行为，
-	 *  届时本标志退役。
-	 */
-	parallel?: boolean | null,
 	/**  任务模式, dub 配音, subtitle 仅字幕 */
 	output_mode?: OutputMode,
 	/**  字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合) */
@@ -2084,19 +2071,6 @@ export type WorkflowArgs_Serialize = {
 	queue_id: bigint | null,
 	/**  rerunStep 专业参数, 指定要重新运行的步骤 */
 	step_name: StepName | null,
-	/**
-	 *  实验开关: start/resume 走 aa-workflow 引擎（start 已接通；resume 仍开发中，
-	 *  打印「开发中」并报错）。真源是 `<video_dir>/workflow-store/<run_id>/logs.jsonl`，
-	 *  与 `run_pipeline` 的真源 `view.json` 二选一。其余 action 忽略。
-	 */
-	engine?: boolean,
-	/**
-	 *  实验开关: **实验性并行**——非 engine 路径按步骤 DAG 并行执行（目前只有
-	 *  `sf_ocr_dub` 有 DAG 定义，见 [`crate::workflow::dag::StepDag`]；其它组合
-	 *  明确报错）。与 `engine` 互斥——同设报错。并行验证成熟后将成为默认行为，
-	 *  届时本标志退役。
-	 */
-	parallel?: boolean,
 	/**  任务模式, dub 配音, subtitle 仅字幕 */
 	output_mode: OutputMode,
 	/**  字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合) */

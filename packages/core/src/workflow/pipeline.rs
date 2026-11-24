@@ -235,9 +235,7 @@ pub async fn run_step(
 
 /// 单步执行的状态包装：置 Running → 跑 → 失败置 Failed。
 ///
-/// 串行 pipeline 与并行执行器（[`crate::workflow::parallel`]）共用。
-/// 并行时两条线程各自 RMW **自己的** `<step>/state.json`（单写者原则），
-/// 互不踩——这也是并行在这里可行的结构性前提。
+/// 供队列仍使用的串行 pipeline 调用；每步 RMW 自己的 `<step>/state.json`（单写者原则）。
 pub(crate) async fn run_one_step(
     video_dir: &str,
     step: StepName,

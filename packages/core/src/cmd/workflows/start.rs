@@ -7,42 +7,18 @@
 //! - [`start_workflow`]（wire `start`）：对**已导入**目录从头跑全量，不 import、
 //!   不 setCtx、不跳过（与 continue 的区别）。
 //!
-//! 执行路径三选一（[`crate::workflow::args::ExecPath`]）：
-//! - `engine = true`   → 引擎路径——core 直驱 aa-workflow（真源事件日志，
-//!   [`crate::integration::workflow::engine::run_engine`]）；continue/resume 仍开发中；
-//! - `parallel = true` → **实验性并行** [`crate::workflow::parallel::run_pipeline_parallel`]
-//!   (真源各 `<step>/state.json`)；
-//! - 都不设 → [`crate::workflow::pipeline::run_pipeline`] (真源 view.json)。
-//! 两者同设在 [`crate::workflow::args::WorkflowArgs::exec_path`] 里报错。
+//! 执行路径唯一：引擎路径（core 直驱 aa-workflow，真源事件日志
+//! `<video_dir>/workflow-store/<run_id>/logs.jsonl`，见
+//! [`crate::integration::workflow::engine::run_engine`]）。
+//! 过渡的串行 pipeline / 实验性 parallel 已下线。
 
 use crate::input::{Input, WorkflowInput};
-use crate::workflow::args::ExecPath;
 use anyhow::Context;
 
-/// 把已构造的 run input 按执行路径分派（两入口共用；不含 import / setCtx）。
-async fn run_from_imported(input: &Input, wfi: WorkflowInput) -> anyhow::Result<()> {
-    let path = match input.workflow.as_ref() {
-        Some(w) => w.exec_path()?,
-        None => ExecPath::Serial,
-    };
-    match path {
-        ExecPath::Engine => {
-            println!("[cli] 引擎路径 (core 直驱, 真源事件日志)");
-            crate::integration::workflow::engine::run_engine(&wfi).await?;
-        }
-        ExecPath::Parallel => {
-            println!("[cli] 实验性并行 (DAG 调度, 真源各 <step>/state.json)");
-            crate::workflow::parallel::run_pipeline_parallel(input)
-                .await
-                .context("run_pipeline_parallel 失败")?;
-        }
-        ExecPath::Serial => {
-            crate::workflow::pipeline::run_pipeline(input)
-                .await
-                .context("run_pipeline 失败")?;
-        }
-    }
-    Ok(())
+/// 驱动已构造的 run input（两入口共用；不含 import / setCtx）。
+async fn run_from_imported(wfi: WorkflowInput) -> anyhow::Result<()> {
+    println!("[cli] 引擎路径 (core 直驱, 真源事件日志)");
+    crate::integration::workflow::engine::run_engine(&wfi).await
 }
 
 /// 导入视频 + 从头跑全量 pipeline（原 start 语义）。
@@ -54,7 +30,7 @@ pub async fn import_and_start_workflow(input: &Input) -> anyhow::Result<String> 
     println!("[cli] 导入完成, video_dir = {}", st.workflow.video_dir);
 
     let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
-    run_from_imported(&input, wfi).await?;
+    run_from_imported(wfi).await?;
 
     println!("[cli] 完成: {}", st.workflow.video_dir);
     Ok(st.workflow.video_dir)
@@ -85,7 +61,7 @@ pub async fn start_workflow(input: &Input) -> anyhow::Result<String> {
     // 把相对路径写进 ffmpeg 列表、被相对列表文件目录二次拼接（双份路径）。
     let settled = crate::state::read_input(&video_dir).map_err(anyhow::Error::msg)?;
     let wfi = WorkflowInput::try_from(settled.clone()).map_err(anyhow::Error::msg)?;
-    run_from_imported(&settled, wfi).await?;
+    run_from_imported(wfi).await?;
 
     println!("[cli] 完成: {video_dir}");
     Ok(video_dir)

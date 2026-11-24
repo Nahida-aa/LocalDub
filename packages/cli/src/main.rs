@@ -78,14 +78,6 @@ enum Command {
         /// 目标步骤集 (resume/enqueue_resume 用)，全部达成才停。
         #[arg(long, value_enum, num_args = 1..)]
         target_step: Vec<StepName>,
-        /// 实验开关: start/resume 走 aa-workflow 引擎 (真源 workflow-store/<run_id>/logs.jsonl;
-        /// start 已接通, resume 仍开发中)。
-        #[arg(long)]
-        engine: bool,
-        /// 实验性并行: start/resume 按步骤 DAG 并行 (真源各 <step>/state.json)。
-        /// 验证成熟后并行将成为默认行为, 届时本标志退役。
-        #[arg(long)]
-        parallel: bool,
     },
     /// 服务器管理 (等价 input.jsonc command=servers)。
     Servers {
@@ -162,8 +154,6 @@ async fn main() {
             queue_id,
             resume_from,
             target_step,
-            engine,
-            parallel,
         }) => {
             let mut workflow = input.workflow.clone().unwrap_or_default();
             if let Some(a) = action {
@@ -183,12 +173,6 @@ async fn main() {
             }
             if !target_step.is_empty() {
                 workflow.target_step = target_step;
-            }
-            if engine {
-                workflow.engine = Some(true);
-            }
-            if parallel {
-                workflow.parallel = Some(true);
             }
             input.workflow = Some(workflow);
             input.command = InputCommand::Workflow;
