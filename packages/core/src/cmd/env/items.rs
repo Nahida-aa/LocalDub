@@ -1183,6 +1183,116 @@ async fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
     }
 }
 
+/// 断点文件路径：`<asset>.part`，跨进程保留下载进度。
+fn download_part_path(dl_path: &Path) -> PathBuf {
+    let name = dl_path.file_name().unwrap_or_default().to_string_lossy();
+    dl_path.with_file_name(format!("{name}.part"))
+}
+
+/// 带断点续传 + 有限重试的下载。网络中断时保留 `.part`，下次从已下字节继续；
+/// 服务端忽略 Range（回 200）则从头重写。返回最终文件字节数。
+async fn download_resumable(
+    client: &reqwest::Client,
+    url: &str,
+    part_path: &Path,
+    pb: &indicatif::ProgressBar,
+) -> Result<u64, String> {
+    const MAX_ATTEMPTS: usize = 8;
+    let mut last_error = String::new();
+
+    for attempt in 1..=MAX_ATTEMPTS {
+        let existing = std::fs::metadata(part_path).map(|m| m.len()).unwrap_or(0);
+
+        let mut req = client.get(url);
+        if existing > 0 {
+            req = req.header(reqwest::header::RANGE, format!("bytes={existing}-"));
+        }
+
+        let mut resp = match req.send().await {
+            Ok(r) => r,
+            Err(e) => {
+                last_error = format!("请求失败: {e}");
+                tracing::warn!(target: "sf_ocr", "下载第 {attempt}/{MAX_ATTEMPTS} 次请求失败: {e}");
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                continue;
+            }
+        };
+
+        let status = resp.status();
+        if status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
+            // 断点已超出文件（或文件变了）→ 清掉从头来
+            let _ = std::fs::remove_file(part_path);
+            continue;
+        }
+        if !status.is_success() {
+            return Err(format!("下载失败: HTTP {status}"));
+        }
+
+        // 206 = 服务端接受 Range，从断点续写；200 = 从头重写。
+        let append_mode = existing > 0 && status == reqwest::StatusCode::PARTIAL_CONTENT;
+        let total = if append_mode {
+            existing + resp.content_length().unwrap_or(0)
+        } else {
+            resp.content_length().unwrap_or(0)
+        };
+        if total > 0 {
+            pb.set_length(total);
+        }
+        pb.set_position(existing);
+
+        let mut file = match std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .append(append_mode)
+            .truncate(!append_mode)
+            .open(part_path)
+        {
+            Ok(f) => f,
+            Err(e) => return Err(format!("打开断点文件失败: {e}")),
+        };
+
+        let mut written = 0u64;
+        let mut interrupted: Option<String> = None;
+        loop {
+            match resp.chunk().await {
+                Ok(Some(c)) => {
+                    if let Err(e) = std::io::Write::write_all(&mut file, &c) {
+                        interrupted = Some(format!("写入失败: {e}"));
+                        break;
+                    }
+                    written += c.len() as u64;
+                    pb.set_position(existing + written);
+                }
+                Ok(None) => break,
+                Err(e) => {
+                    interrupted = Some(format!("传输中断: {e}"));
+                    break;
+                }
+            }
+        }
+        drop(file);
+
+        if let Some(e) = interrupted {
+            last_error = format!(
+                "第 {attempt}/{MAX_ATTEMPTS} 次: {e}（断点已保留 {} 字节）",
+                existing + written
+            );
+            tracing::warn!(target: "sf_ocr", "{last_error}");
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            continue;
+        }
+
+        // 正常读完：字节数以文件实际长度为准（sha256 会做最终校验）
+        return Ok(std::fs::metadata(part_path)
+            .map(|m| m.len())
+            .unwrap_or(existing + written));
+    }
+
+    Err(format!(
+        "下载失败（重试 {MAX_ATTEMPTS} 次）: {last_error}（断点已保留，重跑可继续）"
+    ))
+}
+
 async fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
     let Some((asset, sha256)) = current_platform_asset(spec) else {
         return CheckResult {
@@ -1235,29 +1345,7 @@ async fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
         }
     };
 
-    let mut resp = match client.get(url).send().await {
-        Ok(r) => r,
-        Err(e) => {
-            return CheckResult {
-                key: spec.key.to_string(),
-                status: CheckStatus::Fail,
-                data: json!({ "msg": format!("下载请求失败: {e}") }),
-                required: false,
-            };
-        }
-    };
-
-    if !resp.status().is_success() {
-        return CheckResult {
-            key: spec.key.to_string(),
-            status: CheckStatus::Fail,
-            data: json!({ "msg": format!("下载失败: HTTP {}", resp.status()) }),
-            required: false,
-        };
-    }
-
-    let total = resp.content_length().unwrap_or(0);
-    let pb = indicatif::ProgressBar::new(total);
+    let pb = indicatif::ProgressBar::new(0);
     pb.set_style(
         indicatif::ProgressStyle::default_bar()
             .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
@@ -1265,68 +1353,19 @@ async fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
             .progress_chars("#>-"),
     );
 
-    let mut file = match std::fs::File::create(&dl_path) {
-        Ok(f) => f,
-        Err(e) => {
-            return CheckResult {
-                key: spec.key.to_string(),
-                status: CheckStatus::Fail,
-                data: json!({ "msg": format!("创建文件失败: {e}") }),
-                required: false,
-            };
-        }
-    };
-
-    let mut downloaded = 0u64;
-    loop {
-        // 网络错误必须显式报错——静默当成流结束会写出不完整文件，
-        // 让后面的 sha256 校验替它背锅（看到的是 hash 不符而非真正的下载失败）。
-        let chunk = match resp.chunk().await {
-            Ok(Some(c)) => c,
-            Ok(None) => break,
-            Err(e) => {
-                let _ = std::fs::remove_file(&dl_path);
-                return CheckResult {
-                    key: spec.key.to_string(),
-                    status: CheckStatus::Fail,
-                    data: json!({ "msg": format!("下载中断: {e}（已删除不完整文件）") }),
-                    required: false,
-                };
-            }
-        };
-        if chunk.is_empty() {
-            break;
-        }
-        if let Err(e) = std::io::Write::write_all(&mut file, &chunk) {
-            let _ = std::fs::remove_file(&dl_path);
-            return CheckResult {
-                key: spec.key.to_string(),
-                status: CheckStatus::Fail,
-                data: json!({ "msg": format!("写入失败: {e}（已删除不完整文件）") }),
-                required: false,
-            };
-        }
-        downloaded += chunk.len() as u64;
-        pb.set_position(downloaded);
-    }
-    pb.finish_with_message("下载完成");
-
-    // 长度不符（连接提前正常关闭）也显式报错，不要等 sha256 给一个含糊的 hash 不符。
-    // total=0 表示服务端没给 Content-Length，跳过此项，交给 sha256 兜底。
-    if total > 0 && downloaded != total {
-        let _ = std::fs::remove_file(&dl_path);
+    let part_path = download_part_path(&dl_path);
+    if let Err(e) = download_resumable(&client, &url, &part_path, &pb).await {
         return CheckResult {
             key: spec.key.to_string(),
             status: CheckStatus::Fail,
-            data: json!({ "msg": format!(
-                "下载不完整: 期望 {total} 字节, 实际 {downloaded} 字节（已删除不完整文件）"
-            ) }),
+            data: json!({ "msg": e }),
             required: false,
         };
     }
+    pb.finish_with_message("下载完成");
 
-    // 校验 sha256
-    let sha = match file_sha256(&dl_path) {
+    // 校验 sha256（对 .part 校验，通过后再改名为正式归档）
+    let sha = match file_sha256(&part_path) {
         Ok(s) => s,
         Err(e) => {
             return CheckResult {
@@ -1338,11 +1377,22 @@ async fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
         }
     };
     if sha != sha256 {
-        let _ = std::fs::remove_file(&dl_path);
+        // 内容不符：断点已无意义，删掉从头来
+        let _ = std::fs::remove_file(&part_path);
         return CheckResult {
             key: spec.key.to_string(),
             status: CheckStatus::Fail,
-            data: json!({ "msg": format!("sha256 校验失败: 期望 {} 实际 {}", sha256, sha) }),
+            data: json!({ "msg": format!("sha256 校验失败: 期望 {} 实际 {}（已删除错误文件）", sha256, sha) }),
+            required: false,
+        };
+    }
+
+    // 校验通过：.part → 正式归档路径
+    if let Err(e) = std::fs::rename(&part_path, &dl_path) {
+        return CheckResult {
+            key: spec.key.to_string(),
+            status: CheckStatus::Fail,
+            data: json!({ "msg": format!("重命名下载文件失败: {e}") }),
             required: false,
         };
     }
