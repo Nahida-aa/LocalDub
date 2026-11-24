@@ -79,8 +79,13 @@ pub async fn start_workflow(input: &Input) -> anyhow::Result<String> {
     }
 
     println!("[cli] 从头跑全量（已导入）, video_dir = {video_dir}");
-    let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
-    run_from_imported(input, wfi).await?;
+
+    // 读回 import 落定的 input.json：它的 video_dir 是绝对路径。
+    // 调用方（input.jsonc）的视频目录可能是相对路径，直接用会让 concat 类步骤
+    // 把相对路径写进 ffmpeg 列表、被相对列表文件目录二次拼接（双份路径）。
+    let settled = crate::state::read_input(&video_dir).map_err(anyhow::Error::msg)?;
+    let wfi = WorkflowInput::try_from(settled.clone()).map_err(anyhow::Error::msg)?;
+    run_from_imported(&settled, wfi).await?;
 
     println!("[cli] 完成: {video_dir}");
     Ok(video_dir)
