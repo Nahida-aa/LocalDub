@@ -11,12 +11,12 @@ checksum = "fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3"
 [[package]]
 name = "aa_graph"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/aa_workflow.git?rev=70e9404394f2a83819edb3bacf3aa92c26ca9dac#70e9404394f2a83819edb3bacf3aa92c26ca9dac"
+source = "git+https://github.com/Nahida-aa/aa_workflow.git?rev=9164f72afdbeefc0bbd6b8d9e9e1cfbd1ff4067d#9164f72afdbeefc0bbd6b8d9e9e1cfbd1ff4067d"
 
 [[package]]
 name = "aa_workflow_core"
 version = "0.2.0"
-source = "git+https://github.com/Nahida-aa/aa_workflow.git?rev=70e9404394f2a83819edb3bacf3aa92c26ca9dac#70e9404394f2a83819edb3bacf3aa92c26ca9dac"
+source = "git+https://github.com/Nahida-aa/aa_workflow.git?rev=9164f72afdbeefc0bbd6b8d9e9e1cfbd1ff4067d#9164f72afdbeefc0bbd6b8d9e9e1cfbd1ff4067d"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -31,7 +31,7 @@ dependencies = [
 [[package]]
 name = "aa_workflow_middlewares"
 version = "0.1.0"
-source = "git+https://github.com/Nahida-aa/aa_workflow.git?rev=70e9404394f2a83819edb3bacf3aa92c26ca9dac#70e9404394f2a83819edb3bacf3aa92c26ca9dac"
+source = "git+https://github.com/Nahida-aa/aa_workflow.git?rev=9164f72afdbeefc0bbd6b8d9e9e1cfbd1ff4067d#9164f72afdbeefc0bbd6b8d9e9e1cfbd1ff4067d"
 dependencies = [
  "aa_graph",
  "aa_workflow_core",

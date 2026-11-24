@@ -77,9 +77,7 @@ pub fn subtitle_sf_ocr_spec() -> anyhow::Result<Arc<DagSpec<WorkflowInput, ()>>>
     define_dag(build_spec())
 }
 
-pub fn subtitle_sf_ocr_with_policies(
-    get_events: Arc<aa_workflow_middlewares::GetEvents>,
-) -> anyhow::Result<aa_workflow_core::WorkflowDefinition<WorkflowInput, Value, ()>> {
+pub fn subtitle_sf_ocr_with_policies() -> anyhow::Result<aa_workflow_core::WorkflowDefinition<WorkflowInput, Value, ()>> {
     use aa_workflow_middlewares::dag_policies;
     let spec = subtitle_sf_ocr_spec()?;
     let shape = Arc::new(spec.shape().map_err(|e| anyhow::anyhow!("DAG 形状非法: {e}"))?);
@@ -95,7 +93,7 @@ pub fn subtitle_sf_ocr_with_policies(
                 Ok(())
             }),
     )
-    .middleware(dag_policies(shape, get_events))
+    .middleware(dag_policies(shape))
     .handler(dag_to_handler(spec)))
 }
 

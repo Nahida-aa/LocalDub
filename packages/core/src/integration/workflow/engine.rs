@@ -42,16 +42,6 @@ fn next_run_id(base: &Path) -> String {
     (existing_run_ids(base).last().copied().unwrap_or(0) + 1).to_string()
 }
 
-/// 构造读源 run 日志的闭包（供 dag_policies 中间件做 reseed 复用）。
-fn get_events_loader(store: Arc<dyn aa_workflow_core::RunStore>) -> Arc<aa_workflow_middlewares::GetEvents> {
-    Arc::new(move |run_id: &str| {
-        use aa_workflow_core::define::BoxFuture;
-        use aa_workflow_core::RunStore;
-        let store = store.clone();
-        Box::pin(async move { Ok(store.get_events(run_id).await?) }) as BoxFuture<'_, _>
-    })
-}
-
 /// 驱动一次引擎 run，按 status 判定结果。
 async fn drive(
     wf: aa_workflow_core::AnyWorkflowDefinition,
@@ -84,32 +74,19 @@ async fn drive(
 ///
 /// strategy 中间件在 `*_with_policies` 里统一挂好；start/resume 都用这个定义，
 /// 区别只在传入的 DagPlan meta（start 不传）。
-fn build_workflow(
-    wfi: &WorkflowInput,
-    get_events: Arc<aa_workflow_middlewares::GetEvents>,
-) -> anyhow::Result<aa_workflow_core::AnyWorkflowDefinition> {
+fn build_workflow(wfi: &WorkflowInput) -> anyhow::Result<aa_workflow_core::AnyWorkflowDefinition> {
     use crate::workflow::args::{OutputMode, SubtitleSource};
     use crate::workflow::workflows::{dub_asr, dub_asr_ocr, dub_sf_ocr, subtitle_asr, subtitle_asr_ocr, subtitle_sf_ocr};
 
     let mode = wfi.workflow.output_mode;
     let source = wfi.workflow.subtitle_source;
     let wf = match (mode, source) {
-        (OutputMode::Dub, SubtitleSource::SfOcr) => {
-            dub_sf_ocr::dub_sf_ocr_with_policies(get_events)?
-        }
-        (OutputMode::Dub, SubtitleSource::Asr) => dub_asr::dub_asr_with_policies(get_events)?,
-        (OutputMode::Dub, SubtitleSource::AsrOcr) => {
-            dub_asr_ocr::dub_asr_ocr_with_policies(get_events)?
-        }
-        (OutputMode::Subtitle, SubtitleSource::Asr) => {
-            subtitle_asr::subtitle_asr_with_policies(get_events)?
-        }
-        (OutputMode::Subtitle, SubtitleSource::SfOcr) => {
-            subtitle_sf_ocr::subtitle_sf_ocr_with_policies(get_events)?
-        }
-        (OutputMode::Subtitle, SubtitleSource::AsrOcr) => {
-            subtitle_asr_ocr::subtitle_asr_ocr_with_policies(get_events)?
-        }
+        (OutputMode::Dub, SubtitleSource::SfOcr) => dub_sf_ocr::dub_sf_ocr_with_policies()?,
+        (OutputMode::Dub, SubtitleSource::Asr) => dub_asr::dub_asr_with_policies()?,
+        (OutputMode::Dub, SubtitleSource::AsrOcr) => dub_asr_ocr::dub_asr_ocr_with_policies()?,
+        (OutputMode::Subtitle, SubtitleSource::Asr) => subtitle_asr::subtitle_asr_with_policies()?,
+        (OutputMode::Subtitle, SubtitleSource::SfOcr) => subtitle_sf_ocr::subtitle_sf_ocr_with_policies()?,
+        (OutputMode::Subtitle, SubtitleSource::AsrOcr) => subtitle_asr_ocr::subtitle_asr_ocr_with_policies()?,
     };
     Ok(Arc::new(wf).into())
 }
@@ -133,7 +110,7 @@ pub async fn run_engine(wfi: &WorkflowInput) -> anyhow::Result<()> {
     let run_id = next_run_id(&store_base);
 
     let store: Arc<dyn aa_workflow_core::RunStore> = Arc::new(FsRunStore::new(&store_base));
-    let wf = build_workflow(wfi, get_events_loader(store.clone()))?;
+    let wf = build_workflow(wfi)?;
 
     tracing::info!(target: "output_mode", run_id = %run_id, workflow = %workflow_label(wfi), "引擎路径启动");
     drive(wf, store, &run_id, wfi, MetaBag::new()).await
@@ -152,7 +129,7 @@ pub async fn run_engine_resume(wfi: &WorkflowInput) -> anyhow::Result<()> {
     let source_run_id = source_run_id.to_string();
 
     let store: Arc<dyn aa_workflow_core::RunStore> = Arc::new(FsRunStore::new(&store_base));
-    let wf = build_workflow(wfi, get_events_loader(store.clone()))?;
+    let wf = build_workflow(wfi)?;
 
     let from: Vec<String> = wfi
         .workflow
@@ -194,9 +171,6 @@ mod tests {
     #[test]
     fn all_six_workflows_build_engine_definitions() {
         // 6 种 (output_mode × subtitle_source) 各有独立 DAG，都能构建出定义。
-        // get_events 闭包在测试里不会真被调用（只构造不 drive）。
-        use aa_workflow_middlewares::GetEvents;
-        let no_events: Arc<GetEvents> = Arc::new(|_| Box::pin(async { Ok(vec![]) }));
         for (mode, source) in [
             ("dub", "sf_ocr"),
             ("dub", "asr"),
@@ -206,7 +180,7 @@ mod tests {
             ("subtitle", "asr_ocr"),
         ] {
             let w = wfi(mode, source);
-            build_workflow(&w, no_events.clone())
+            build_workflow(&w)
                 .unwrap_or_else(|e| panic!("{mode}+{source} 应能构建引擎定义: {e}"));
         }
     }

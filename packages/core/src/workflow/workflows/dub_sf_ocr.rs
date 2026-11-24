@@ -121,12 +121,9 @@ pub fn dub_sf_ocr_spec() -> anyhow::Result<Arc<DagSpec<WorkflowInput, ()>>> {
 
 /// 带 DAG 策略中间件的完整定义：redo 复用 + 临时目标泊车。
 ///
-/// `get_events` 供中间件读源 run 的事件日志（reseed 复用未失效步骤的结果）。
 /// start 路径也用这个定义，但**不传 DagPlan meta**——中间件 `try_get` 缺失时
 /// 直接放行，不做任何策略。
-pub fn dub_sf_ocr_with_policies(
-    get_events: Arc<aa_workflow_middlewares::GetEvents>,
-) -> anyhow::Result<aa_workflow_core::WorkflowDefinition<WorkflowInput, Value, ()>> {
+pub fn dub_sf_ocr_with_policies() -> anyhow::Result<aa_workflow_core::WorkflowDefinition<WorkflowInput, Value, ()>> {
     use aa_workflow_middlewares::dag_policies;
 
     let spec = dub_sf_ocr_spec()?;
@@ -147,7 +144,7 @@ pub fn dub_sf_ocr_with_policies(
                 Ok(())
             }),
     )
-    .middleware(dag_policies(shape, get_events))
+    .middleware(dag_policies(shape))
     .handler(dag_to_handler(spec)))
 }
 
