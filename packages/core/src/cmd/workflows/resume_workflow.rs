@@ -7,10 +7,9 @@
 //!    以当前 `input.jsonc` 为准, 而非沿用陈旧的落盘配置;
 //! 3. 读出合并后的 ctx, 交给 [`crate::workflow::resume_pipeline`] 续跑。
 //!
-//! `input.workflow.engine = true` 时走引擎路径——**开发中，暂不可用**
-//! （Engine 臂现打印「开发中」并报错）。将来接入 DAG 中间件方案时复用
-//! FsRunStore，`resume_from`/`target_step` 由 DAG 中间件承载；input.json
-//! 的 setCtx 合并照常执行。
+//! `input.workflow.engine = true` 时走引擎路径：新 run_id + DagPlan
+//! （source_run_id / from / goals）从源 run 复用未失效步骤，`resume_from` /
+//! `target_step` 由 DAG 中间件承载；input.json 的 setCtx 合并照常执行。
 //!
 //! 与 [`crate::cmd::workflows::start`] 的区别: continue 不重新 import, 直接沿用既有任务目录。
 
@@ -60,9 +59,12 @@ pub async fn resume_workflow(input: &Input) -> anyhow::Result<()> {
     };
     match path {
         ExecPath::Engine => {
-            // 引擎路径开发中：将来接入 DAG 中间件方案时直接复用 FsRunStore。
-            println!("[cli] 引擎模式开发中, 暂不可用");
-            anyhow::bail!("workflow.engine 引擎路径开发中");
+            // 引擎 resume：读回落定的绝对 video_dir，构造 run input，
+            // 用新 run_id + DagPlan(source_run_id) 从源 run 复用未失效步骤。
+            let settled = crate::state::read_input(&video_dir).map_err(anyhow::Error::msg)?;
+            let wfi = crate::input::WorkflowInput::try_from(settled).map_err(anyhow::Error::msg)?;
+            println!("[cli] 引擎 resume (新 run + DagPlan, 真源事件日志)");
+            crate::integration::workflow::engine::run_engine_resume(&wfi).await?;
         }
         ExecPath::Parallel => {
             println!("[cli] 实验性并行 (DAG 调度, 按步跳过已成功步骤)");

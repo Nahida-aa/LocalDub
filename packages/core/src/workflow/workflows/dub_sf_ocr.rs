@@ -120,11 +120,39 @@ pub fn dub_sf_ocr_spec() -> anyhow::Result<Arc<DagSpec<WorkflowInput, ()>>> {
     define_dag(build_spec())
 }
 
-/// dub-sf-ocr 的完整定义：spec → **生成的** handler。
+/// 带 DAG 策略中间件的完整定义：redo 复用 + 临时目标泊车。
 ///
-/// `initialize` 补回 `TryFrom<Input>` 的不变量：serde 反序列化不保证
-/// `video_dir` 落定，这里显式校验，坏 input 在 run 起始处报错而不是在
-/// 步骤里 panic。
+/// `get_events` 供中间件读源 run 的事件日志（reseed 复用未失效步骤的结果）。
+/// start 路径也用这个定义，但**不传 DagPlan meta**——中间件 `try_get` 缺失时
+/// 直接放行，不做任何策略。
+pub fn dub_sf_ocr_with_policies(
+    get_events: Arc<aa_workflow_middlewares::GetEvents>,
+) -> anyhow::Result<aa_workflow_core::WorkflowDefinition<WorkflowInput, Value, ()>> {
+    use aa_workflow_middlewares::dag_policies;
+
+    let spec = dub_sf_ocr_spec()?;
+    let shape = Arc::new(spec.shape().map_err(|e| anyhow::anyhow!("DAG 形状非法: {e}"))?);
+    Ok(create_workflow(
+        CreateWorkflowConfig::new("dub-sf-ocr")
+            .input::<WorkflowInput>()
+            .state::<()>()
+            .initialize(|input: &WorkflowInput| {
+                anyhow::ensure!(
+                    input
+                        .workflow
+                        .video_dir
+                        .as_deref()
+                        .map_or(false, |s| !s.is_empty()),
+                    "workflow.video_dir 缺失（start 由 import 回填，continue 必填）"
+                );
+                Ok(())
+            }),
+    )
+    .middleware(dag_policies(shape, get_events))
+    .handler(dag_to_handler(spec)))
+}
+
+/// 无中间件的定义（仅用于不需要策略的独立测试/检查）。
 pub fn dub_sf_ocr() -> WorkflowDefinition<WorkflowInput, Value, ()> {
     let spec = dub_sf_ocr_spec().expect("dub spec 合法（无重复 / 未知依赖 / 环）");
     create_workflow(
