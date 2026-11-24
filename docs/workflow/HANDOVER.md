@@ -133,9 +133,7 @@ AGENTS.md 的 dub 正例表述同步。
    每次均重生成 schema / bindings，test_support.rs 的死配置同步清理。
 6. **`run_step` 的 `video_dir` 死参数已删除**（Phase 1 收尾）：全部 15 步迁移后，
    没有任何步骤再需要它——各步从 `sc.ctx().input().video_dir()` 取。已从签名删除，
-   并同步 pipeline.rs / continue_pipeline.rs 两处活跃调用。`integration/workflow/engine.rs`
-   里那处调用在整体注释的模块里（`mod.rs` 的 `// pub mod engine;`），按"恢复参考"惯例
-   保持原样，未清理。无行为变化。
+   并同步 pipeline.rs / resume_pipeline.rs 两处活跃调用。无行为变化。
 
 ## 5. 陷阱与教训（踩过的，别再踩）
 
@@ -147,7 +145,7 @@ AGENTS.md 的 dub 正例表述同步。
    覆盖成 snake_case），2026-11-22 起统一为 `rename_all = "snake_case"` 并删掉那两个
    显式 rename；`input.schema.json` 由 `gen-input-schema` 重新生成，example / TS 表单 /
    server 侧构造的 workflow 键同步为 snake_case（`video_dir` / `source_lang` /
-   `target_lang` / `continue_from` / `target_step` / `queue_id` / `step_name`）。
+   `target_lang` / `resume_from` / `target_step` / `queue_id` / `step_name`）。
    同日 `steps.*` 全部子结构体（含 `llm::LlmFixArgs` / `CheckArgs` / `CookieArgs` /
    `EnvArgs`）也统一为 snake_case，example / 测试夹具 / server 构造 JSON 同步。
    **`device-rs` / `time` 里走 fnrpc bindings 的结构体仍是 camelCase**（不在 input
@@ -219,7 +217,7 @@ trait（不含构造器），`ctx.step` bound 保持具体类型。消费者端�
 | `packages/core/src/workflow/{pipeline,parallel,dag}.rs` | 现役执行器（run_step 分发 / 并行执行器 / StepDag 声明） |
 | `packages/core/src/steps/*/` | 15 步（勘察逐条见 PLAN §5.2；separate 已迁移为样板） |
 | `packages/core/src/state/mod.rs` | state 拆分模型（WorkflowState / StepState / out.json） |
-| `packages/core/src/integration/workflow/` | aa-workflow 引擎接入（`engine` / `engine_store` 现行；start 已接，continue/resume TODO） |
+| `packages/core/src/integration/workflow/` | aa-workflow 引擎接入（`engine` / `engine_store` 现行；start 已接，引擎 resume TODO） |
 
 ## 8. 验证命令
 
@@ -249,7 +247,7 @@ cargo test -p ld-core --lib                    # 179 全绿（Phase 1 后基线�
   `7b2d3fc9…`）；`packages/core` 只写 `.workspace = true`。上游无语义化 tag，
   升降级 = `git ls-remote` 取新 rev 后手动改那一行。
 - **现状**：`integration/workflow/` 已启用（不再整体注释）；start 走 core 直驱
-  （`run_engine` + `FsRunStore`，真源 `workflow-store/<run_id>/logs.jsonl`）；continue / resume 未接，
+  （`run_engine` + `FsRunStore`，真源 `workflow-store/<run_id>/logs.jsonl`）；引擎 resume 未接，
   见 [INTEGRATION-PLAN.md](./INTEGRATION-PLAN.md)。
 - **已知边界**：不对标 TanStack 的 `workflow-runtime` 层（lease / sweep / timer 索引
   / schedules），runtime 层等收益出现再切；`view.json` 与各 `<step>/state.json` 是可丢弃投影，

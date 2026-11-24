@@ -79,7 +79,7 @@ enum Command {
         #[arg(long, value_enum)]
         target_step: Option<StepName>,
         /// 实验开关: start/resume 走 aa-workflow 引擎 (真源 workflow-store/<run_id>/logs.jsonl;
-        /// start 已接通, continue/resume 仍开发中)。
+        /// start 已接通, resume 仍开发中)。
         #[arg(long)]
         engine: bool,
         /// 实验性并行: start/resume 按步骤 DAG 并行 (真源各 <step>/state.json)。

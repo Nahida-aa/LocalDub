@@ -64,7 +64,7 @@ sf_ocr 流里无人消费，实际 `mix_video` 通过 `bgm_path()` 读它的产�
 
 > ⚠️ **它们是投影，不是真源。** `set_workflow` / `set_step` 立刻 read-modify-write
 > 落盘（所以是**实时**的），但引擎的「成败真相」在
-> `<video_dir>/workflow-store/<run_id>/logs.jsonl`——resume / continue_from /
+> `<video_dir>/workflow-store/<run_id>/logs.jsonl`——resume / resume_from /
 > target_step 全依据那份 append-only 日志，**不读 `view.json`**。因此这些文件
 > **可丢弃、可重建**。权威说明见 `packages/core/src/state/mod.rs` 的模块文档。
 >

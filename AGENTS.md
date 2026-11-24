@@ -34,7 +34,7 @@ Before editing files for a substantial task:
   （`import` 落盘的 `video_source_path` 等）；
 - **不是**引擎的「成败真相」。真源是 append-only 事件日志
   `<video_dir>/workflow-store/<run_id>/logs.jsonl`（`FsRunStore`，同目录
-  `run_state.json` 存运行元数据）。引擎的 resume / continue_from / target_step
+  `run_state.json` 存运行元数据）。引擎的 resume / resume_from / target_step
   全依据日志，**不读 view.json**。
   engine 路径下根本不写 `view.json`（见 `integration/workflow/engine.rs`）。
 

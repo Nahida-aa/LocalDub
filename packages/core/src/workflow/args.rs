@@ -214,7 +214,7 @@ impl SubtitleSource {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub struct WorkflowArgs {
-    /// 任务操作: start=开始, continue=继续, status=显示状态, get_group_list=列出分组
+    /// 任务操作: start=开始, resume=续跑, status=显示状态, get_group_list=列出分组
     pub action: Option<WorkflowAction>,
     /// 本地文件路径或云端文件 url、youtubeUrl、bilibiliUrl
     pub url: Option<String>,
@@ -229,7 +229,7 @@ pub struct WorkflowArgs {
     pub queue_id: Option<u64>,
     /// rerunStep 专业参数, 指定要重新运行的步骤
     pub step_name: Option<StepName>,
-    /// 实验开关: start/continue 走 aa-workflow 引擎（start 已接通；continue 仍开发中，
+    /// 实验开关: start/resume 走 aa-workflow 引擎（start 已接通；resume 仍开发中，
     /// 打印「开发中」并报错）。真源是 `<video_dir>/workflow-store/<run_id>/logs.jsonl`，
     /// 与 `run_pipeline` 的真源 `view.json` 二选一。其余 action 忽略。
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -252,7 +252,7 @@ pub struct WorkflowArgs {
     pub download_subtitles: bool,
 }
 
-/// start/continue 的执行路径（由 `engine` / `parallel` 两个实验标志解析）。
+/// start/resume 的执行路径（由 `engine` / `parallel` 两个实验标志解析）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExecPath {
     /// aa-workflow 引擎（真源 `<video_dir>/workflow-store/<run_id>/logs.jsonl`）。

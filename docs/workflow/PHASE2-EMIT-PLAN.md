@@ -66,7 +66,7 @@ emit 是 not-persisted，改成 emit 会丢持久化语义 → 必须保留。
      emit→Custom 映射逐字。
    - **一个 video_dir 对应多次 run，事件文件按 run_id 命名**：`run_id` 是每次新 run 时传入
      （aa-workflow `RunWorkflowOptions.run_id: Option<RunId>`——复用即 resume、不传则生成新 id），
-     start / continue / regen 各是一次独立 run。文件名带 run_id，多次 run 各有自己的文件。
+     start / resume / regen 各是一次独立 run。文件名带 run_id，多次 run 各有自己的文件。
    - **文件名本身就是自增记录，不需要单独 counter 文件**（用户 2026-11-23 定）：新 run 的
      run_id = 扫 `<video_dir>/workflow-engine/` 下已有的 `*.events.jsonl` 文件名取最大 +1
      （`run-1.events.jsonl` / `run-2.events.jsonl`…）。文件存在即记录，重启可续，省掉一个
@@ -98,7 +98,7 @@ emit 是 not-persisted，改成 emit 会丢持久化语义 → 必须保留。
 ## 5. 待拍板（写方案时未定，实现前需定）
 
 1. **run_id 方案已拍板：每个 video_dir 独立自增，文件名即记录**（用户 2026-11-23 定）：
-   run_id 形如 `run-1` / `run-2`，同一任务每次 start / continue / regen 自增一次；
+   run_id 形如 `run-1` / `run-2`，同一任务每次 start / resume / regen 自增一次；
    新号 = 扫 `<video_dir>/workflow-engine/` 下已有 `*.events.jsonl` 文件名取最大 +1，
    不另设 counter 文件。**queue_id 不能用**（服务端全局队列自增，跨视频目录）。
    run_id 走 `WorkflowArgs` 可选字段传入（复用 = resume，不传 = 生成新号），执行器
