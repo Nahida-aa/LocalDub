@@ -218,7 +218,7 @@ trait（不含构造器），`ctx.step` bound 保持具体类型。消费者端�
 | `packages/core/src/workflow/{pipeline,parallel,dag}.rs` | 现役执行器（run_step 分发 / 并行执行器 / StepDag 声明） |
 | `packages/core/src/steps/*/` | 15 步（勘察逐条见 PLAN §5.2；separate 已迁移为样板） |
 | `packages/core/src/state/mod.rs` | state 拆分模型（WorkflowState / StepState / out.json） |
-| `packages/core/src/integration/workflow/` | 旧引擎接入（**整体注释中**——恢复参考，勿当现行） |
+| `packages/core/src/integration/workflow/` | aa-workflow 引擎接入（`engine` / `engine_store` 现行；start 已接，continue/resume TODO） |
 
 ## 8. 验证命令
 
@@ -233,3 +233,23 @@ cd /home/aa/repos/env_ls/LocalDub
 cargo check -p ld-core --all-targets
 cargo test -p ld-core --lib                    # 179 全绿（Phase 1 后基线）
 ```
+
+## 9. aa_workflow 依赖引入（原 README 归档，2026-11-24 移入）
+
+> README 只留项目定位与导航；引言/依赖维护/状态这类实现细节归档在此。
+
+- **是什么**：[aa-workflow](https://github.com/Nahida-aa/aa_workflow) 是对标 TanStack
+  Workflow core engine 的 Rust 耐久执行引擎——headless replay + `RunStore` 契约，
+  编排即普通 async 代码，DAG 是 handler 重放时按 `step_id` 短路 checkpoint 的
+  per-run 涌现产物。LocalDub 要的是 sleep / approve / 事件等待 / 崩溃重放，以及
+  append-only `events.jsonl` 作为运行真源。
+- **怎么引的**：git 源，rev 收敛在根 `Cargo.toml` 的 `[workspace.dependencies]`
+  单处维护（`aa_workflow_core` 与 `aa_workflow_middlewares` 同 rev，当前
+  `7b2d3fc9…`）；`packages/core` 只写 `.workspace = true`。上游无语义化 tag，
+  升降级 = `git ls-remote` 取新 rev 后手动改那一行。
+- **现状**：`integration/workflow/` 已启用（不再整体注释）；start 走 core 直驱
+  （`run_engine` + `FsRunStore`，真源 `events.jsonl`）；continue / resume 未接，
+  见 [INTEGRATION-PLAN.md](./INTEGRATION-PLAN.md)。
+- **已知边界**：不对标 TanStack 的 `workflow-runtime` 层（lease / sweep / timer 索引
+  / schedules），runtime 层等收益出现再切；`state.json` 是可丢弃投影，与引擎的
+  `ctx.state`（handler 执行期内存，不落盘）不是一回事，详见 `AGENTS.md`。
