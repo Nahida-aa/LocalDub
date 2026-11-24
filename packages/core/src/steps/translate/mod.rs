@@ -88,7 +88,6 @@ impl PreprocessResult {
 /// **失败不阻断**: 网络/配额/解析任何一环出错, 都退化成 [`Default`]——
 /// 预处理只是"翻得更好"的优化项, 不是翻得出来的前提。
 fn run_preprocess(
-    args: &args::TranslateArgs,
     src_lang_name: &str,
     dst_lang_name: &str,
     meta: &MetaView,
@@ -226,7 +225,7 @@ pub async fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow
             .join("ytdlp_info.json");
         let meta = load_video_meta(Some(&ytdlp_path));
         let pre = if ytdlp_path.exists() {
-            run_preprocess(&args, &src_lang_name, &dst_lang_name, &meta, &full_text, &api_base, api_key.as_deref(), &model)
+            run_preprocess(&src_lang_name, &dst_lang_name, &meta, &full_text, &api_base, api_key.as_deref(), &model)
         } else {
             PreprocessResult::default()
         };

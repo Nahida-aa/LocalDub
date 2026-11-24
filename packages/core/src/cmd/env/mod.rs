@@ -274,8 +274,9 @@ pub async fn run_check(
     results
 }
 
-/// 运行 ensure (镜像 TS `runEnsure`)。`desired` 仅 check 路径使用，这里接受以保持签名一致。
-pub async fn run_ensure(targets: &[EnvKey], _desired: &HashMap<EnvKey, String>) -> Vec<CheckResult> {
+/// 运行 ensure (镜像 TS `runEnsure`)。ensure = 让环境就绪：能自动装的项执行安装，
+/// 不能自动处理的项（系统前置/外部服务）退回报告其 check 状态——而不是简单 Skip。
+pub async fn run_ensure(targets: &[EnvKey], desired: &HashMap<EnvKey, String>) -> Vec<CheckResult> {
     let selected: Vec<EnvKey> = if targets.is_empty() {
         EnvKey::all()
     } else {
@@ -285,12 +286,8 @@ pub async fn run_ensure(targets: &[EnvKey], _desired: &HashMap<EnvKey, String>) 
     for key in &selected {
         match key.ensure().await {
             Some(r) => results.push(r),
-            None => results.push(CheckResult {
-                key: key.as_str().to_string(),
-                status: CheckStatus::Skip,
-                data: serde_json::json!({ "msg": "该项无安装动作" }),
-                required: false,
-            }),
+            // 无自动 ensure 动作的项：仍报告当前状态，让用户知道是否就绪。
+            None => results.push(key.check(desired.get(key).map(|s| s.as_str())).await),
         }
     }
     results

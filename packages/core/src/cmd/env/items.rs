@@ -3,10 +3,10 @@
 //! 设计抉择 (见 plan):
 //! - i18n: TS 用 `@repo/shared/i18n` 的 `t(key)`; Rust 无框架, 各 check 在 `data`
 //!   里给出简化 `msg` 字段, `format_result` 直接打印 + 中文描述 (EnvKey::meta)。
+//! - ensure 语义: OpenAI 兼容服务由 provider 配置外部管理, 无法在本工具内
+//!   安装/启动——`ensure_openai` 只报告信息（等同 check），不再起 ollama。
 //! - try_exec 超时: TS 用 `spawnSync` 10s 超时; Rust 用 spawn + try_wait 轮询 +
 //!   超时 kill (`TRY_EXEC_TIMEOUT`), 超时视为 ok=false (对齐 TS)。
-//! - ollama 分离进程: 用 `std::process::Command` + `Stdio::null()` + unix
-//!   `process_group(0)` (win 用 `CREATE_NEW_PROCESS_GROUP`) 替代 `spawn detached`。
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -707,71 +707,11 @@ async fn check_openai_endpoint(name: &str, base_url: &str, api_key: Option<&str>
     }
 }
 
+/// ensure 语义（现在）：OpenAI 兼容服务由 provider 配置外部管理，本工具无法
+/// （也不应）代装/代启。这里只**报告**当前 provider 情况，不做任何安装动作。
+/// 真正的可达性探测在 `check_openai_providers` / `check_openai`。
 async fn ensure_openai() -> CheckResult {
-    let base_url = openai_base_url();
-    if !base_url.contains("localhost") && !base_url.contains("127.0.0.1") {
-        return CheckResult {
-            key: "openai".into(),
-            status: CheckStatus::Skip,
-            data: json!({ "issues": "not a local server", "baseUrl": base_url, "msg": "非本地服务, 跳过" }),
-            required: false,
-        };
-    }
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(2))
-        .build();
-    if let Ok(c) = client {
-        if let Ok(res) = c.get(format!("{base_url}/models")).send().await {
-            if res.status().is_success() {
-                return CheckResult {
-                    key: "openai".into(),
-                    status: CheckStatus::Pass,
-                    data: json!({ "baseUrl": base_url, "msg": "已在运行" }),
-                    required: false,
-                };
-            }
-        }
-    }
-
-    // 用 ollama serve 拉起本地服务
-    let ollama_bin = which("ollama");
-    let Some(ollama_bin) = ollama_bin else {
-        return CheckResult {
-            key: "openai".into(),
-            status: CheckStatus::Fail,
-            data: json!({ "issues": "ollama not found in PATH", "msg": "未找到 ollama" }),
-            required: false,
-        };
-    };
-
-    spawn_detached(&ollama_bin, &["serve"]);
-
-    let poll = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(1))
-        .build();
-    if let Ok(c) = poll {
-        for _ in 0..15 {
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-            if let Ok(res) = c.get(format!("{base_url}/models")).send().await {
-                if res.status().is_success() {
-                    return CheckResult {
-                        key: "openai".into(),
-                        status: CheckStatus::Pass,
-                        data: json!({ "baseUrl": base_url, "msg": "ollama 已启动" }),
-                        required: false,
-                    };
-                }
-            }
-        }
-    }
-
-    CheckResult {
-        key: "openai".into(),
-        status: CheckStatus::Fail,
-        data: json!({ "issues": "ollama serve did not respond after 15s", "msg": "ollama 启动超时" }),
-        required: false,
-    }
+    check_openai().await
 }
 
 /// 在 PATH 中查找可执行文件 (镜像 `Bun.which`)。
@@ -789,27 +729,6 @@ fn which(name: &str) -> Option<String> {
         }
     }
     None
-}
-
-/// 分离进程启动 (镜像 `spawn detached + unref`), 用于 ollama serve。
-fn spawn_detached(bin: &str, args: &[&str]) {
-    let mut c = Command::new(bin);
-    c.args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        c.process_group(0);
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
-        c.creation_flags(CREATE_NEW_PROCESS_GROUP);
-    }
-    let _ = c.spawn();
 }
 
 // ---------------------------------------------------------------------------
