@@ -5,6 +5,16 @@
 //! 的 `StepDag` 是同一份事实的两种用途：后者供过渡的 `parallel.rs` 调度，
 //! 这里的 spec 供引擎执行。
 
+pub mod dub_asr;
+pub mod dub_asr_ocr;
 pub mod dub_sf_ocr;
+pub mod subtitle_asr;
+pub mod subtitle_asr_ocr;
+pub mod subtitle_sf_ocr;
 
+pub use dub_asr::dub_asr_spec;
+pub use dub_asr_ocr::dub_asr_ocr_spec;
 pub use dub_sf_ocr::{dub_sf_ocr, dub_sf_ocr_spec};
+pub use subtitle_asr::subtitle_asr_spec;
+pub use subtitle_asr_ocr::subtitle_asr_ocr_spec;
+pub use subtitle_sf_ocr::subtitle_sf_ocr_spec;

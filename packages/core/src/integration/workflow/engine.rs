@@ -20,7 +20,6 @@ use aa_workflow_middlewares::{DagPlan, DagPlanKey};
 use anyhow::{Context, bail};
 
 use crate::input::WorkflowInput;
-use crate::workflow::workflows::dub_sf_ocr as dub_sf_ocr_mod;
 
 use super::engine_store::FsRunStore;
 
@@ -81,22 +80,47 @@ async fn drive(
     }
 }
 
-/// 引擎路径当前只定义了 dub-sf-ocr 一种 DAG。其余 5 种工作流
-/// （2 output_mode × 3 subtitle_source）尚未定义 DAG，明确报错，
-/// 不静默拿 dub_sf_ocr 的 DAG 去跑出错误结果。
-fn ensure_engine_supported(wfi: &WorkflowInput) -> anyhow::Result<()> {
+/// 按 (output_mode, subtitle_source) 选对应的 DAG 定义（6 种工作流各有独立 spec）。
+///
+/// strategy 中间件在 `*_with_policies` 里统一挂好；start/resume 都用这个定义，
+/// 区别只在传入的 DagPlan meta（start 不传）。
+fn build_workflow(
+    wfi: &WorkflowInput,
+    get_events: Arc<aa_workflow_middlewares::GetEvents>,
+) -> anyhow::Result<aa_workflow_core::AnyWorkflowDefinition> {
     use crate::workflow::args::{OutputMode, SubtitleSource};
+    use crate::workflow::workflows::{dub_asr, dub_asr_ocr, dub_sf_ocr, subtitle_asr, subtitle_asr_ocr, subtitle_sf_ocr};
+
     let mode = wfi.workflow.output_mode;
     let source = wfi.workflow.subtitle_source;
-    if !matches!((mode, source), (OutputMode::Dub, SubtitleSource::SfOcr)) {
-        anyhow::bail!(
-            "引擎路径暂不支持该工作流（output_mode={}, subtitle_source={}）；\
-             当前仅 dub + sf_ocr 定义了 DAG 并接通引擎。请用 engine=false 走串行/并行路径。",
-            mode.as_str(),
-            source.as_str()
-        );
-    }
-    Ok(())
+    let wf = match (mode, source) {
+        (OutputMode::Dub, SubtitleSource::SfOcr) => {
+            dub_sf_ocr::dub_sf_ocr_with_policies(get_events)?
+        }
+        (OutputMode::Dub, SubtitleSource::Asr) => dub_asr::dub_asr_with_policies(get_events)?,
+        (OutputMode::Dub, SubtitleSource::AsrOcr) => {
+            dub_asr_ocr::dub_asr_ocr_with_policies(get_events)?
+        }
+        (OutputMode::Subtitle, SubtitleSource::Asr) => {
+            subtitle_asr::subtitle_asr_with_policies(get_events)?
+        }
+        (OutputMode::Subtitle, SubtitleSource::SfOcr) => {
+            subtitle_sf_ocr::subtitle_sf_ocr_with_policies(get_events)?
+        }
+        (OutputMode::Subtitle, SubtitleSource::AsrOcr) => {
+            subtitle_asr_ocr::subtitle_asr_ocr_with_policies(get_events)?
+        }
+    };
+    Ok(Arc::new(wf).into())
+}
+
+/// 工作流的展示名（日志用）。
+fn workflow_label(wfi: &WorkflowInput) -> String {
+    format!(
+        "{} × {}",
+        wfi.workflow.output_mode.as_str(),
+        wfi.workflow.subtitle_source.as_str()
+    )
 }
 
 /// 驱动一次全新的引擎 run（start 路径）。
@@ -104,16 +128,14 @@ fn ensure_engine_supported(wfi: &WorkflowInput) -> anyhow::Result<()> {
 /// `wfi` 是 import 已回填身份的 run input。store 与 run_id 都在 async 上下文里
 /// 构造（`FsRunStore::new` 内部 `tokio::spawn` 要求 runtime）。
 pub async fn run_engine(wfi: &WorkflowInput) -> anyhow::Result<()> {
-    ensure_engine_supported(wfi)?;
     let video_dir = PathBuf::from(wfi.video_dir());
     let store_base = video_dir.join("workflow-store");
     let run_id = next_run_id(&store_base);
 
     let store: Arc<dyn aa_workflow_core::RunStore> = Arc::new(FsRunStore::new(&store_base));
-    let wf: aa_workflow_core::AnyWorkflowDefinition =
-        Arc::new(dub_sf_ocr_mod::dub_sf_ocr_with_policies(get_events_loader(store.clone()))?).into();
+    let wf = build_workflow(wfi, get_events_loader(store.clone()))?;
 
-    tracing::info!(target: "output_mode", run_id = %run_id, "引擎路径启动 (dub-sf-ocr)");
+    tracing::info!(target: "output_mode", run_id = %run_id, workflow = %workflow_label(wfi), "引擎路径启动");
     drive(wf, store, &run_id, wfi, MetaBag::new()).await
 }
 
@@ -122,7 +144,6 @@ pub async fn run_engine(wfi: &WorkflowInput) -> anyhow::Result<()> {
 /// `wfi.workflow.resume_from` 直接透传为 DagPlan.from（空 → None，引擎自动取
 /// 源日志里未成功的节点为失效种子）；`target_step` 透传为 goals。
 pub async fn run_engine_resume(wfi: &WorkflowInput) -> anyhow::Result<()> {
-    ensure_engine_supported(wfi)?;
     let video_dir = PathBuf::from(wfi.video_dir());
     let store_base = video_dir.join("workflow-store");
     let source = existing_run_ids(&store_base).last().copied();
@@ -131,8 +152,7 @@ pub async fn run_engine_resume(wfi: &WorkflowInput) -> anyhow::Result<()> {
     let source_run_id = source_run_id.to_string();
 
     let store: Arc<dyn aa_workflow_core::RunStore> = Arc::new(FsRunStore::new(&store_base));
-    let wf: aa_workflow_core::AnyWorkflowDefinition =
-        Arc::new(dub_sf_ocr_mod::dub_sf_ocr_with_policies(get_events_loader(store.clone()))?).into();
+    let wf = build_workflow(wfi, get_events_loader(store.clone()))?;
 
     let from: Vec<String> = wfi
         .workflow
@@ -155,7 +175,7 @@ pub async fn run_engine_resume(wfi: &WorkflowInput) -> anyhow::Result<()> {
     let meta = MetaBag::new().with::<DagPlanKey>(plan);
 
     tracing::info!(target: "output_mode",
-        run_id = %run_id, source = %source_run_id, "引擎 resume 启动 (dub-sf-ocr)");
+        run_id = %run_id, source = %source_run_id, workflow = %workflow_label(wfi), "引擎 resume 启动");
     drive(wf, store, &run_id, wfi, meta).await
 }
 
@@ -172,22 +192,22 @@ mod tests {
     }
 
     #[test]
-    fn only_dub_sf_ocr_is_engine_supported() {
-        // 唯一支持的组合
-        assert!(ensure_engine_supported(&wfi("dub", "sf_ocr")).is_ok());
-        // 其余 5 种都明确拒绝（而不是拿错 DAG 跑）
+    fn all_six_workflows_build_engine_definitions() {
+        // 6 种 (output_mode × subtitle_source) 各有独立 DAG，都能构建出定义。
+        // get_events 闭包在测试里不会真被调用（只构造不 drive）。
+        use aa_workflow_middlewares::GetEvents;
+        let no_events: Arc<GetEvents> = Arc::new(|_| Box::pin(async { Ok(vec![]) }));
         for (mode, source) in [
+            ("dub", "sf_ocr"),
             ("dub", "asr"),
             ("dub", "asr_ocr"),
             ("subtitle", "asr"),
             ("subtitle", "sf_ocr"),
             ("subtitle", "asr_ocr"),
         ] {
-            let err = ensure_engine_supported(&wfi(mode, source)).unwrap_err();
-            assert!(
-                err.to_string().contains("暂不支持"),
-                "{mode}+{source} 应报暂不支持, 实际: {err}"
-            );
+            let w = wfi(mode, source);
+            build_workflow(&w, no_events.clone())
+                .unwrap_or_else(|e| panic!("{mode}+{source} 应能构建引擎定义: {e}"));
         }
     }
 }
