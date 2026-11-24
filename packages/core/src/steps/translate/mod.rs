@@ -87,7 +87,7 @@ impl PreprocessResult {
 ///
 /// **失败不阻断**: 网络/配额/解析任何一环出错, 都退化成 [`Default`]——
 /// 预处理只是"翻得更好"的优化项, 不是翻得出来的前提。
-fn run_preprocess(
+async fn run_preprocess(
     src_lang_name: &str,
     dst_lang_name: &str,
     meta: &MetaView,
@@ -124,7 +124,7 @@ fn run_preprocess(
             max_tokens: Some(2048),
             temperature: Some(0.2),
         },
-    ) {
+    ).await {
         Ok(raw) => match parse_json_reply(&raw) {
             Ok(v) => {
                 let hotwords = pairs(&v, "hotwords", "src", "dst");
@@ -225,7 +225,7 @@ pub async fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow
             .join("ytdlp_info.json");
         let meta = load_video_meta(Some(&ytdlp_path));
         let pre = if ytdlp_path.exists() {
-            run_preprocess(&src_lang_name, &dst_lang_name, &meta, &full_text, &api_base, api_key.as_deref(), &model)
+            run_preprocess(&src_lang_name, &dst_lang_name, &meta, &full_text, &api_base, api_key.as_deref(), &model).await
         } else {
             PreprocessResult::default()
         };
@@ -285,7 +285,7 @@ pub async fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow
             }
             let batch: Vec<String> = chunk.to_vec();
             tracing::info!(target: "translate", "batch {}/{}: {} 句", i + 1, total_batches, batch.len());
-            match batch::translate_batch(&batch, &system, &target_lang, &api_base, api_key.as_deref(), &model) {
+            match batch::translate_batch(&batch, &system, &target_lang, &api_base, api_key.as_deref(), &model).await {
                 Ok(results) => {
                     for (k, r) in results.into_iter().enumerate() {
                         let gi = i * partial::BATCH_SIZE + k;

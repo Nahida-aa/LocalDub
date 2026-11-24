@@ -106,7 +106,7 @@ pub fn ocr_segments_to_prompt(segments: &[String]) -> String {
 ///
 /// 镜像 TS `ocrLlmFix`: 失败 (解析行数不符) 时抛错, 由调用方决定回退原文还是中断。
 /// `lang_label` 为语言展示名; `segments` 为待修正文本列表。
-pub fn ocr_llm_fix(
+pub async fn ocr_llm_fix(
     segments: &[String],
     lang_label: &str,
     args: &LlmFixArgs,
@@ -124,7 +124,7 @@ pub fn ocr_llm_fix(
         max_tokens: Some(4096),
         temperature: Some(0.1),
     };
-    let fixed = crate::chat_completions(&prompt, &opts)?;
+    let fixed = crate::chat_completions(&prompt, &opts).await?;
     parse_lines(&fixed, segments.len())
         .ok_or_else(|| anyhow!("LLM 回复行数不匹配 (期望 {} 行)", segments.len()))
 }

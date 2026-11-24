@@ -116,7 +116,7 @@ fn normalize_localhost(url: &str) -> String {
 /// 调用 OpenAI 兼容的 chat completion, 返回 `choices[0].message.content` (已 trim)。
 ///
 /// 镜像 TS `chat_completions`: POST `{apiBase}/chat/completions`, 失败时抛错。
-pub fn chat_completions(prompt: &str, opts: &ChatOptions) -> anyhow::Result<String> {
+pub async fn chat_completions(prompt: &str, opts: &ChatOptions) -> anyhow::Result<String> {
     let api_base = opts
         .api_base
         .clone()
@@ -156,7 +156,7 @@ pub fn chat_completions(prompt: &str, opts: &ChatOptions) -> anyhow::Result<Stri
         .and_then(|a| a.rsplit_once(':').map(|(h, _)| h).or(Some(a)))
         .unwrap_or("");
     let is_loopback = host == "127.0.0.1" || host == "localhost" || host == "::1";
-    let mut client_builder = reqwest::blocking::Client::builder();
+    let mut client_builder = reqwest::Client::builder();
     if is_loopback {
         client_builder = client_builder.no_proxy();
     }
@@ -172,7 +172,7 @@ pub fn chat_completions(prompt: &str, opts: &ChatOptions) -> anyhow::Result<Stri
         req_builder = req_builder.header("Authorization", format!("Bearer {key}"));
     }
 
-    let resp = req_builder.send().map_err(|e| {
+    let resp = req_builder.send().await.map_err(|e| {
         let kind = if e.is_connect() {
             "connect"
         } else if e.is_timeout() {
@@ -197,11 +197,12 @@ pub fn chat_completions(prompt: &str, opts: &ChatOptions) -> anyhow::Result<Stri
     })?;
     if !resp.status().is_success() {
         let status = resp.status().as_u16();
-        let text = resp.text().unwrap_or_default();
+        let text = resp.text().await.unwrap_or_default();
         return Err(anyhow::anyhow!("LLM API {status}: {text}"));
     }
     let json: ChatResponse = resp
         .json()
+        .await
         .map_err(|e| anyhow::anyhow!("解析 LLM 响应失败: {e}"))?;
     let content = json
         .choices

@@ -93,7 +93,7 @@ fn describe_missing(
 }
 
 /// 批量翻译 (含 [`MAX_ATTEMPTS`] 次重试), 返回与 `batch` 等长的译文。
-pub fn translate_batch(
+pub async fn translate_batch(
     batch: &[String],
     system: &str,
     target_lang: &str,
@@ -143,7 +143,7 @@ pub fn translate_batch(
                 max_tokens: Some(3072),
                 temperature: Some(0.2),
             },
-        ) {
+        ).await {
             Ok(r) => r,
             Err(e) => {
                 last_err = format!("LLM 调用失败: {e}");

@@ -91,7 +91,7 @@ pub async fn step_asr_fix(
             ..Default::default()
         };
         let fixed =
-            llm::chat_completions(&prompt, &opts).map_err(|e| anyhow!("LLM 修正失败: {e}"))?;
+            llm::chat_completions(&prompt, &opts).await.map_err(|e| anyhow!("LLM 修正失败: {e}"))?;
         let elapsed = t0.elapsed().as_secs_f64();
 
         if let Some(fixed_texts) = llm::parse_lines(&fixed, segments.len()) {

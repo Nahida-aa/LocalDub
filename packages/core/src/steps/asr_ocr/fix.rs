@@ -465,7 +465,7 @@ pub async fn step_asr_ocr_fix(
         info!(target: "asr_ocr",
             "asr_ocr_fix: LLM fix {} segs (model={})", src_texts.len(), model
         );
-        match llm::ocr_llm_fix(&src_texts, &lang_label, &args.ocr_fix.llm_fix, &model, &provider.base_url, api_key.as_deref()) {
+        match llm::ocr_llm_fix(&src_texts, &lang_label, &args.ocr_fix.llm_fix, &model, &provider.base_url, api_key.as_deref()).await {
             Ok(fixed) => {
                 for (seg, text) in final_segments.iter_mut().zip(fixed) {
                     seg.base.text = text;

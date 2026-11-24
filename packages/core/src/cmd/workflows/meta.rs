@@ -58,7 +58,7 @@ struct YtDlpInfo {
 ///
 /// LLM 输出结构化 (title_translation + chapters), Rust 组装固定格式:
 /// `## title` (中文翻译 - 作者) + `## description` (元数据 + 章节摘要)。
-pub fn generate_meta(input: &crate::input::Input, video_dir: &str) -> anyhow::Result<()> {
+pub async fn generate_meta(input: &crate::input::Input, video_dir: &str) -> anyhow::Result<()> {
     let srt_path = format!("{video_dir}/mix_video/zh.srt");
     let segs = SubtitleSegments::read_srt(Path::new(&srt_path))
         .with_context(|| format!("读取字幕失败 (generate_meta 需要 {srt_path})"))?;
@@ -89,7 +89,7 @@ pub fn generate_meta(input: &crate::input::Input, video_dir: &str) -> anyhow::Re
         "[generate_meta] 调用 LLM 生成 meta.md ({} 段字幕)...",
         segs.len()
     );
-    let raw = llm::chat_completions(&prompt, &opts)?;
+    let raw = llm::chat_completions(&prompt, &opts).await?;
 
     let result: MetaResult = serde_json::from_str(&raw)
         .with_context(|| format!("解析 LLM 输出为 JSON 失败: {}", truncate(&raw, 200)))?;
