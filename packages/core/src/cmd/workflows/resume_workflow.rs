@@ -37,8 +37,18 @@ pub async fn resume_workflow(input: &Input) -> anyhow::Result<()> {
     }
 
     // setCtx: 当前 input 落盘到 input.json (镜像 TS setCtx(video_dir, { input }))。
-    // 落盘后不再读回——本次续跑用的就是这份 input。
-    write_input(&video_dir, input)
+    // 写回前把 video_dir 规范化为绝对路径：调用方（input.jsonc）给的多是相对路径，
+    // 原样落盘会让下游步骤（尤其 concat 类）把相对路径二次拼接成双份。
+    // resolve_path 对已是绝对路径的值原样返回。
+    let mut settled = input.clone();
+    if let Some(w) = settled.workflow.as_mut() {
+        w.video_dir = Some(
+            config_rs::root::resolve_path(&video_dir)
+                .to_string_lossy()
+                .into_owned(),
+        );
+    }
+    write_input(&video_dir, &settled)
         .map_err(|e| anyhow::anyhow!("写回 {}/input.json 失败: {e}", video_dir))?;
 
     let resume_from: Vec<crate::workflow::args::StepName> = input
