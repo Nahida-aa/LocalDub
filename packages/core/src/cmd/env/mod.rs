@@ -274,8 +274,9 @@ pub async fn run_check(
     results
 }
 
-/// 运行 ensure (镜像 TS `runEnsure`)。ensure = 让环境就绪：能自动装的项执行安装，
-/// 不能自动处理的项（系统前置/外部服务）退回报告其 check 状态——而不是简单 Skip。
+/// 运行 ensure (镜像 TS `runEnsure`)。ensure = 让环境就绪：**幂等**——
+/// 先 check，已就绪就报告现状不重复下载；只在缺失/过期时才执行 ensure 动作；
+/// 无自动动作的项（系统前置/外部服务）报告其 check 状态。
 pub async fn run_ensure(targets: &[EnvKey], desired: &HashMap<EnvKey, String>) -> Vec<CheckResult> {
     let selected: Vec<EnvKey> = if targets.is_empty() {
         EnvKey::all()
@@ -284,10 +285,16 @@ pub async fn run_ensure(targets: &[EnvKey], desired: &HashMap<EnvKey, String>) -
     };
     let mut results = Vec::new();
     for key in &selected {
+        let check = key.check(desired.get(key).map(|s| s.as_str())).await;
+        if check.status == CheckStatus::Pass {
+            // 已就绪：直接报告，不重复 ensure（避免重下已下好的二进制）
+            results.push(check);
+            continue;
+        }
         match key.ensure().await {
             Some(r) => results.push(r),
-            // 无自动 ensure 动作的项：仍报告当前状态，让用户知道是否就绪。
-            None => results.push(key.check(desired.get(key).map(|s| s.as_str())).await),
+            // 无自动 ensure 动作的项：报告 check 结果，让用户知道缺什么。
+            None => results.push(check),
         }
     }
     results
