@@ -99,12 +99,17 @@ pub async fn step_sf_ocr_fix(
         // 源语言走统一的解析（`<asr>/out.json` > 配置 source_lang > 兜底空串）。
         // 不在这里内联回退链——否则与 `src_language` 各算各的，容易分叉。
         let lang_label = llm::lang_label(deps.source_lang.code());
+        let provider = input.llm(&args.llm_fix.provider)?;
+        let api_key = provider
+            .api_key
+            .clone()
+            .or_else(config_rs::env::openai_api_key);
         tracing::info!(target: "sf_ocr",
             "sf_ocr_fix: LLM 修正 {} segs (model={})",
             src_texts.len(),
-            args.llm_fix.llm_model
+            args.llm_fix.model
         );
-        match llm::ocr_llm_fix(&src_texts, &lang_label, &args.llm_fix) {
+        match llm::ocr_llm_fix(&src_texts, &lang_label, &args.llm_fix, &provider.base_url, api_key.as_deref()) {
             Ok(fixed) => {
                 // 逐段回填修正文本 (保持原段结构/时间戳)
                 for (seg, text) in final_segments.iter_mut().zip(fixed.into_iter()) {

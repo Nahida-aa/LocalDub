@@ -8,6 +8,7 @@
 //! Deserialize 面（input）可选、在 Serialize 面（output）必填，对齐 zod 的 io 区分。
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::cmd::check::CheckArgs;
 use crate::cmd::cookie::CookieArgs;
@@ -16,6 +17,17 @@ use crate::servers::args::ServersArgs;
 use crate::workflow::args;
 
 pub mod steps;
+
+/// OpenAI 兼容 provider：命名表的一项。步骤只写 provider 名 + model，
+/// 由 [`WorkflowInput::llm`] 解析出 base_url / api_key。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct LlmProvider {
+    /// API base (含协议与 host，不含 /chat/completions)
+    pub base_url: String,
+    /// API key (Bearer)。缺失时回退环境变量 OPENAI_API_KEY。
+    #[serde(default)]
+    pub api_key: Option<String>,
+}
 
 /// 命令
 ///
@@ -63,6 +75,9 @@ pub struct Input {
     pub check: Option<CheckArgs>,
     #[serde(default)]
     pub steps: steps::Steps,
+    /// 命名 LLM provider 表 (步骤按名字引用 base_url/api_key)
+    #[serde(default)]
+    pub llm_providers: HashMap<String, LlmProvider>,
 }
 
 impl Default for Input {
@@ -75,6 +90,7 @@ impl Default for Input {
             cookie: None,
             check: None,
             steps: steps::Steps::default(),
+            llm_providers: HashMap::new(),
         }
     }
 }
@@ -113,12 +129,14 @@ impl Input {
 ///   `video_dir()` 返回 `&str`（不返回 `Result`）——import 是 run input 的生产者，
 ///   步骤拿到的必然是已落定身份的事实。
 ///
-/// 只保留步骤真正读的两个字段（`workflow` / `steps`）；其余命令参数
+/// 只保留步骤真正读的字段（`workflow` / `steps` / `llm_providers`）；其余命令参数
 /// （command/servers/env/cookie/check）属于 CLI/RPC 层，步骤从不读。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowInput {
     pub workflow: args::WorkflowArgs,
     pub steps: steps::Steps,
+    /// 命名 LLM provider 表（步骤按名字引用）
+    pub llm_providers: HashMap<String, LlmProvider>,
 }
 
 impl WorkflowInput {
@@ -128,6 +146,13 @@ impl WorkflowInput {
             .video_dir
             .as_deref()
             .expect("WorkflowInput 构造时已校验 video_dir")
+    }
+
+    /// 按名字解析 LLM provider；查不到时明确报错（不静默回退）。
+    pub fn llm(&self, name: &str) -> anyhow::Result<&LlmProvider> {
+        self.llm_providers
+            .get(name)
+            .ok_or_else(|| anyhow::anyhow!("未配置 llm provider: {name}"))
     }
 }
 
@@ -144,6 +169,7 @@ impl TryFrom<Input> for WorkflowInput {
         Ok(Self {
             workflow,
             steps: input.steps,
+            llm_providers: input.llm_providers,
         })
     }
 }
@@ -213,12 +239,12 @@ mod tests {
     #[test]
     fn sf_ocr_flatten_fields_deserialize() {
         let input: Input = serde_json::from_str(
-            r#"{"steps":{"sf_ocr":{"text_confidence_threshold":0.6},"sf_ocr_fix":{"llm_fix":true,"llm_model":"x"}}}"#,
+            r#"{"steps":{"sf_ocr":{"text_confidence_threshold":0.6},"sf_ocr_fix":{"llm_fix":true,"model":"x"}}}"#,
         )
         .unwrap();
         assert_eq!(input.steps.sf_ocr.text_confidence_threshold, 0.6);
         assert!(input.steps.sf_ocr_fix.llm_fix.llm_fix);
-        assert_eq!(input.steps.sf_ocr_fix.llm_fix.llm_model, "x");
+        assert_eq!(input.steps.sf_ocr_fix.llm_fix.model, "x");
         // 默认值补齐 (absent 字段走 Rust Default, 应为预期字面默认值)
         assert_eq!(input.steps.asr_ocr_pre.fps, 2.0);
         assert_eq!(input.steps.sf_ocr.subtitle_only, true);

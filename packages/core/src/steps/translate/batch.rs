@@ -10,7 +10,6 @@ use serde_json::Value;
 use crate::steps::translate::args;
 use crate::steps::translate::parse_json_reply;
 use crate::steps::utils::lang_name;
-use config_rs::env::openai_api_key;
 
 /// 重试次数 (镜像 TS 的 3 次)。
 pub const MAX_ATTEMPTS: usize = 3;
@@ -100,6 +99,8 @@ pub fn translate_batch(
     system: &str,
     target_lang: &str,
     args: &args::TranslateArgs,
+    api_base: &str,
+    api_key: Option<&str>,
 ) -> Result<Vec<String>, TranslateBatchError> {
     let numbered: String = batch
         .iter()
@@ -137,9 +138,9 @@ pub fn translate_batch(
             &user_msg,
             &llm::ChatOptions {
                 model: Some(args.model.clone()),
-                api_base: Some(args.base_url.clone()),
+                api_base: Some(api_base.to_string()),
                 system_prompt: system.to_string(),
-                api_key: openai_api_key(),
+                api_key: api_key.map(str::to_string),
                 max_tokens: Some(3072),
                 temperature: Some(0.2),
             },

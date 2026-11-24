@@ -136,8 +136,12 @@ pub fn infer_targets(input: &Input) -> (Vec<EnvKey>, HashMap<EnvKey, String>) {
         }
     }
 
-    // --- translate ---
-    if steps.translate.enabled {
+    // --- LLM 步骤：只要有一个启用就检查其引用的 provider ---
+    if steps.translate.enabled
+        || steps.asr_fix.llm_fix.llm_fix
+        || steps.sf_ocr_fix.llm_fix.llm_fix
+        || steps.asr_ocr_fix.ocr_fix.llm_fix.llm_fix
+    {
         add(EnvKey::Openai, &mut set);
     }
 
@@ -214,19 +218,46 @@ pub async fn ensure_bin_command(key: EnvKey) -> anyhow::Result<std::process::Com
     Ok(cmd)
 }
 
+/// 收集步骤实际引用的 LLM provider：(名, base_url, api_key)，按 provider 名去重。
+/// 供 env 的 openai 检查项探测「真正会被用到的端点」，而不是环境变量。
+pub fn referenced_llm_providers(input: &Input) -> Vec<(String, String, Option<String>)> {
+    let steps = &input.steps;
+    let mut names: Vec<&str> = vec![
+        steps.translate.provider.as_str(),
+        steps.asr_fix.llm_fix.provider.as_str(),
+        steps.sf_ocr_fix.llm_fix.provider.as_str(),
+        steps.asr_ocr_fix.ocr_fix.llm_fix.provider.as_str(),
+        steps.meta.provider.as_str(),
+    ];
+    names.dedup();
+    names
+        .into_iter()
+        .filter_map(|name| input.llm_providers.get(name).map(|p| (name.to_string(), p.base_url.clone(), p.api_key.clone())))
+        .collect()
+}
+
 /// 运行检查 (镜像 TS `runCheck`)。空 targets = 全量。
 ///
 /// `desired` 为本次配置实际需要的后端映射 (如 `DemucsBurnBin` → "tch")，
-/// 使 burn 系检查精确报告缺失的后端二进制。
-pub async fn run_check(targets: &[EnvKey], desired: &HashMap<EnvKey, String>) -> Vec<CheckResult> {
+/// 使 burn 系检查精确报告缺失的后端二进制。`input` 供 openai 项解析实际 provider。
+pub async fn run_check(
+    targets: &[EnvKey],
+    desired: &HashMap<EnvKey, String>,
+    input: &Input,
+) -> Vec<CheckResult> {
     let selected: Vec<EnvKey> = if targets.is_empty() {
         EnvKey::all()
     } else {
         targets.to_vec()
     };
+    let providers = referenced_llm_providers(input);
     let mut results = Vec::new();
     for key in &selected {
-        results.push(key.check(desired.get(key).map(|s| s.as_str())).await);
+        if *key == EnvKey::Openai {
+            results.push(items::check_openai_providers(&providers).await);
+        } else {
+            results.push(key.check(desired.get(key).map(|s| s.as_str())).await);
+        }
     }
     results
 }

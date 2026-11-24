@@ -78,11 +78,13 @@ fn parse_targets(targets: &[String]) -> Result<Vec<EnvKey>, String> {
 /// `targets` 空 = 按当前 input.jsonc 配置推断; 含 "*" = 全部项; 否则精确运行指定 key。
 #[fnrpc::rpc_query]
 pub async fn env_check(targets: Vec<String>) -> Result<Vec<EnvCheckItem>, String> {
+    // 始终尝试读 input.jsonc：既用于 targets 推断，也让 openai 检查能解析实际 provider。
+    let input = repo_input().ok();
     let (keys, desired) = if targets.is_empty() {
-        match repo_input() {
-            Ok(input) => infer_targets(&input),
-            Err(e) => {
-                tracing::info!("env_check 推断失败, 回退全量: {e:#}");
+        match &input {
+            Some(input) => infer_targets(input),
+            None => {
+                tracing::info!("env_check 推断失败, 回退全量");
                 (all_keys(), HashMap::new())
             }
         }
@@ -91,7 +93,9 @@ pub async fn env_check(targets: Vec<String>) -> Result<Vec<EnvCheckItem>, String
     } else {
         (parse_targets(&targets)?, HashMap::new())
     };
-    Ok(assemble(run_check(&keys, &desired).await))
+    let fallback = ld_core::input::Input::default();
+    let input = input.as_ref().unwrap_or(&fallback);
+    Ok(assemble(run_check(&keys, &desired, input).await))
 }
 
 #[fnrpc::rpc_mutate]

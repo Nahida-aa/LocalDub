@@ -49,6 +49,32 @@ pub struct Steps {
     pub mix_audio: MixAudioArgs,
     #[serde(default)]
     pub mix_video: MixVideoArgs,
+    /// generate_meta 命令的 LLM 选择 (provider + model)
+    #[serde(default)]
+    pub meta: GenerateMetaArgs,
+}
+
+/// generate_meta 命令的 LLM 参数。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct GenerateMetaArgs {
+    #[serde(default = "default_provider")]
+    pub provider: String,
+    #[serde(default = "default_model")]
+    pub model: String,
+}
+fn default_provider() -> String {
+    "default".to_string()
+}
+fn default_model() -> String {
+    "gemma4:31b-cloud".to_string()
+}
+impl Default for GenerateMetaArgs {
+    fn default() -> Self {
+        Self {
+            provider: default_provider(),
+            model: default_model(),
+        }
+    }
 }
 
 impl Default for Steps {
@@ -68,6 +94,7 @@ impl Default for Steps {
             tts: TtsArgs::default(),
             mix_audio: MixAudioArgs::default(),
             mix_video: MixVideoArgs::default(),
+            meta: GenerateMetaArgs::default(),
         }
     }
 }

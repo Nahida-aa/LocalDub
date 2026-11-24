@@ -1,29 +1,29 @@
 //! listModels 命令 (镜像 TS `packages/cli/run-workflow.ts` 的 `listModels` 分支)。
 //!
 //! 列出 OpenAI 兼容端点的可用模型:
-//! - apiBase 取 `input.steps.translate.apiBase` (其 default 为 `OPENAI_BASE_URL` env, 再回退 ollama)
-//! - 需要 `OPENAI_API_KEY` (对齐 TS: 缺失即报错退出)
+//! - apiBase 取 `input.steps.translate` 引用的 provider.base_url
+//! - apiKey 取 provider.api_key，缺失回退 `OPENAI_API_KEY` (缺失即报错退出)
 //! - GET `{apiBase}/models` 逐个打印 `data[].id`
 
 use anyhow::{anyhow, Context};
-use config_rs::env::{openai_api_key, openai_base_url};
+use config_rs::env::openai_api_key;
 use reqwest::blocking::Client;
 
 use crate::input::Input;
 
 /// 命令入口 (镜像 TS `listModels` 分支): 列出模型 id, 失败返回 Err (CLI 打印退出码 1)。
 pub fn cmd_list_models(input: &Input) -> anyhow::Result<()> {
-    let api_key = openai_api_key().ok_or_else(|| anyhow!("OPENAI_API_KEY not configured"))?;
-
-    // apiBase 三级回退 (镜像 TS `apiBase || env.OPENAI_BASE_URL || 默认`):
-    // - 显式配置 (input.steps.translate.apiBase) 优先;
-    // - 空串 (缺省) → openai_base_url() = env.OPENAI_BASE_URL 或本地 ollama 默认。
-    let cfg_base = input.steps.translate.base_url.clone();
-    let api_base = if cfg_base.is_empty() {
-        openai_base_url()
-    } else {
-        cfg_base
-    };
+    let provider_name = &input.steps.translate.provider;
+    let provider = input
+        .llm_providers
+        .get(provider_name)
+        .ok_or_else(|| anyhow!("未配置 llm provider: {provider_name}"))?;
+    let api_base = provider.base_url.clone();
+    let api_key = provider
+        .api_key
+        .clone()
+        .or_else(openai_api_key)
+        .ok_or_else(|| anyhow!("provider {provider_name} 与 OPENAI_API_KEY 均未提供 api_key"))?;
     let client = Client::builder()
         .timeout(std::time::Duration::from_secs(15))
         .build()
@@ -57,32 +57,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn api_base_defaults_to_openai_base_url_or_ollama() {
-        // 输入缺 steps.translate 时 (serde 反序列化 `{}`), apiBase 走 openai_base_url()
-        // (env 或 ollama 默认), 与 TS `steps.translate.apiBase || env.OPENAI_BASE_URL` 对齐。
-        let input: Input = serde_json::from_str(r#"{"command":"listModels"}"#).unwrap();
-        let base = &input.steps.translate.base_url;
-        let resolved = if base.is_empty() {
-            openai_base_url()
-        } else {
-            base.clone()
-        };
-        assert_eq!(resolved, openai_base_url());
+    fn provider_lookup_resolves_base_url() {
+        let input: Input = serde_json::from_str(
+            r#"{"command":"listModels","llm_providers":{"agnes":{"base_url":"http://example.com/v1"}},"steps":{"translate":{"provider":"agnes"}}}"#,
+        )
+        .unwrap();
+        let name = &input.steps.translate.provider;
+        let provider = input.llm_providers.get(name).unwrap();
+        assert_eq!(provider.base_url, "http://example.com/v1");
+        assert!(provider.api_key.is_none());
     }
 
     #[test]
-    fn api_base_respects_explicit_value() {
-        // 显式配置时优先 (镜像 TS `apiBase || env` 首项)。
-        let input: Input = serde_json::from_str(
-            r#"{"command":"listModels","steps":{"translate":{"api_base":"http://example.com/v1"}}}"#,
-        )
-        .unwrap();
-        let cfg_base = &input.steps.translate.base_url;
-        let resolved = if cfg_base.is_empty() {
-            openai_base_url()
-        } else {
-            cfg_base.clone()
-        };
-        assert_eq!(resolved, "http://example.com/v1");
+    fn provider_lookup_missing_is_error_at_cmd() {
+        // 未配置 provider 时 cmd_list_models 报明确错误（不静默回退环境变量）。
+        let input: Input = serde_json::from_str(r#"{"command":"listModels"}"#).unwrap();
+        let name = &input.steps.translate.provider;
+        assert!(input.llm_providers.get(name).is_none());
     }
 }

@@ -110,14 +110,16 @@ pub fn ocr_llm_fix(
     segments: &[String],
     lang_label: &str,
     args: &LlmFixArgs,
+    api_base: &str,
+    api_key: Option<&str>,
 ) -> anyhow::Result<Vec<String>> {
     let prompt = ocr_segments_to_prompt(segments);
     let system = build_ocr_fix_system_prompt(lang_label, args.domain_hint.as_deref());
     let opts = crate::ChatOptions {
-        model: Some(args.llm_model.clone()),
-        api_base: Some(args.llm_api_base.clone()),
+        model: Some(args.model.clone()),
+        api_base: Some(api_base.to_string()),
         system_prompt: system,
-        api_key: None,
+        api_key: api_key.map(str::to_string),
         max_tokens: Some(4096),
         temperature: Some(0.1),
     };

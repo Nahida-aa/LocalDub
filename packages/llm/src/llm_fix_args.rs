@@ -6,12 +6,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub struct LlmFixArgs {
+    /// 引用的 LLM provider 名 (见 input.llm_providers)
+    #[serde(default = "default_provider")]
+    pub provider: String,
     /// LLM 模型名
     #[serde(default = "default_llm_model")]
-    pub llm_model: String,
-    /// LLM API 地址
-    #[serde(default = "default_llm_api_base")]
-    pub llm_api_base: String,
+    pub model: String,
     /// 领域提示, 帮助 LLM 理解上下文，例如"仙侠题材，角色：叶白、慧天、夜白"
     #[serde(default)]
     pub domain_hint: Option<String>,
@@ -23,18 +23,18 @@ pub struct LlmFixArgs {
 impl Default for LlmFixArgs {
     fn default() -> Self {
         Self {
-            llm_model: default_llm_model(),
-            llm_api_base: default_llm_api_base(),
+            provider: default_provider(),
+            model: default_llm_model(),
             domain_hint: None,
             llm_fix: false,
         }
     }
 }
 
-fn default_llm_model() -> String {
-    "gemma4:31b-cloud".to_string()
+fn default_provider() -> String {
+    "default".to_string()
 }
 
-fn default_llm_api_base() -> String {
-    "http://localhost:11434/v1".to_string()
+fn default_llm_model() -> String {
+    "gemma4:31b-cloud".to_string()
 }

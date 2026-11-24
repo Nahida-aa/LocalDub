@@ -595,9 +595,44 @@ pub fn check_dotenv() -> CheckResult {
 // ---------------------------------------------------------------------------
 
 pub async fn check_openai() -> CheckResult {
-    // TS 读 `process.env.OPENAI_BASE_URL` (无默认); 这里同样读原始 env, 缺失即 fail。
-    let base_url = std::env::var("OPENAI_BASE_URL").unwrap_or_else(|_| openai_base_url());
-    let api_key = openai_api_key();
+    // 保留：无 input 上下文的调用方（如 CLI `--targets openai` 但没配 provider）探测环境变量。
+    check_openai_endpoint("environment", &openai_base_url(), openai_api_key().as_deref()).await
+}
+
+/// 检查步骤实际引用的 provider：对每个不同 base_url 探测 /models，任一失败即 Fail。
+/// `providers` 为 (provider 名, base_url, api_key) 列表，由 mod.rs 从 input 收集。
+pub async fn check_openai_providers(
+    providers: &[(String, String, Option<String>)],
+) -> CheckResult {
+    if providers.is_empty() {
+        return check_openai().await; // 没有 provider 引用 → 回退环境变量探测
+    }
+    let mut results = Vec::new();
+    let mut failures = Vec::new();
+    for (name, base_url, key) in providers {
+        let r = check_openai_endpoint(name, base_url, key.as_deref()).await;
+        if r.status != CheckStatus::Pass {
+            failures.push(format!("{} ({})", name, base_url));
+        }
+        results.push(r);
+    }
+    if failures.is_empty() {
+        return CheckResult {
+            key: "openai".into(),
+            status: CheckStatus::Pass,
+            data: json!({ "msg": format!("{} 个 provider 可达", results.len()) }),
+            required: false,
+        };
+    }
+    CheckResult {
+        key: "openai".into(),
+        status: CheckStatus::Fail,
+        data: json!({ "issues": failures.join(", "), "msg": format!("provider 不可达: {}", failures.join(", ")) }),
+        required: false,
+    }
+}
+
+async fn check_openai_endpoint(name: &str, base_url: &str, api_key: Option<&str>) -> CheckResult {
     if (base_url.is_empty() || api_key.is_none())
         && !base_url.contains("localhost")
         && !base_url.contains("127.0.0.1")
@@ -605,7 +640,7 @@ pub async fn check_openai() -> CheckResult {
         return CheckResult {
             key: "openai".into(),
             status: CheckStatus::Fail,
-            data: json!({ "issues": "不存在", "msg": "OPENAI_BASE_URL / OPENAI_API_KEY 未配置" }),
+            data: json!({ "issues": "不存在", "msg": format!("provider {name}: base_url / api_key 未配置") }),
             required: false,
         };
     }
@@ -631,7 +666,7 @@ pub async fn check_openai() -> CheckResult {
     } else {
         client
             .get(format!("{base_url}/models"))
-            .bearer_auth(api_key.clone().unwrap_or_default())
+            .bearer_auth(api_key.unwrap_or_default())
     };
 
     match req.send().await {
@@ -646,20 +681,20 @@ pub async fn check_openai() -> CheckResult {
             CheckResult {
                 key: "openai".into(),
                 status: CheckStatus::Pass,
-                data: json!({ "baseUrl": base_url, "models": format!("{models} models"), "msg": format!("可达 ({} models)", models) }),
+                data: json!({ "provider": name, "baseUrl": base_url, "models": format!("{models} models"), "msg": format!("{name} 可达 ({} models)", models) }),
                 required: false,
             }
         }
         Ok(res) => CheckResult {
             key: "openai".into(),
             status: CheckStatus::Warn,
-            data: json!({ "issues": format!("HTTP {}", res.status()), "msg": format!("HTTP {}", res.status()) }),
+            data: json!({ "issues": format!("HTTP {}", res.status()), "msg": format!("{name}: HTTP {}", res.status()) }),
             required: false,
         },
         Err(e) => CheckResult {
             key: "openai".into(),
             status: CheckStatus::Fail,
-            data: json!({ "issues": e.to_string(), "msg": format!("连接失败: {}", e) }),
+            data: json!({ "issues": e.to_string(), "msg": format!("{name} 连接失败: {e}") }),
             required: false,
         },
     }

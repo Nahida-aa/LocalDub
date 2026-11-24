@@ -27,7 +27,6 @@ use crate::steps::utils::{
 };
 use crate::workflow::step_ctx::{CtxView, StepCtxView};
 use crate::utils::file_ops::write_json_pretty;
-use config_rs::env::openai_api_key;
 
 /// 读视频元信息 → [`MetaView`]。
 ///
@@ -94,6 +93,8 @@ fn run_preprocess(
     dst_lang_name: &str,
     meta: &MetaView,
     full_text: &str,
+    api_base: &str,
+    api_key: Option<&str>,
 ) -> PreprocessResult {
     let prompt = build_preprocess_prompt(dst_lang_name, src_lang_name, meta, full_text);
 
@@ -117,9 +118,9 @@ fn run_preprocess(
         &prompt,
         &llm::ChatOptions {
             model: Some(args.model.clone()),
-            api_base: Some(args.base_url.clone()),
+            api_base: Some(api_base.to_string()),
             system_prompt: "You output strict JSON only.".to_string(),
-            api_key: openai_api_key(),
+            api_key: api_key.map(str::to_string),
             max_tokens: Some(2048),
             temperature: Some(0.2),
         },
@@ -183,6 +184,12 @@ pub async fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow
 
     let input = sc.ctx().input();
     let args = &input.steps.translate;
+    let provider = input.llm(&args.provider)?;
+    let api_base = provider.base_url.clone();
+    let api_key = provider
+        .api_key
+        .clone()
+        .or_else(config_rs::env::openai_api_key);
     let video_dir = input.video_dir().to_string();
     let src_lang = deps.src_lang.code().to_string();
     let target_lang = deps.target_lang.code().to_string();
@@ -217,7 +224,7 @@ pub async fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow
             .join("ytdlp_info.json");
         let meta = load_video_meta(Some(&ytdlp_path));
         let pre = if ytdlp_path.exists() {
-            run_preprocess(&args, &src_lang_name, &dst_lang_name, &meta, &full_text)
+            run_preprocess(&args, &src_lang_name, &dst_lang_name, &meta, &full_text, &api_base, api_key.as_deref())
         } else {
             PreprocessResult::default()
         };
@@ -277,7 +284,7 @@ pub async fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow
             }
             let batch: Vec<String> = chunk.to_vec();
             tracing::info!(target: "translate", "batch {}/{}: {} 句", i + 1, total_batches, batch.len());
-            match batch::translate_batch(&batch, &system, &target_lang, &args) {
+            match batch::translate_batch(&batch, &system, &target_lang, &args, &api_base, api_key.as_deref()) {
                 Ok(results) => {
                     for (k, r) in results.into_iter().enumerate() {
                         let gi = i * partial::BATCH_SIZE + k;

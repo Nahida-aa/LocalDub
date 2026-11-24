@@ -58,7 +58,7 @@ struct YtDlpInfo {
 ///
 /// LLM 输出结构化 (title_translation + chapters), Rust 组装固定格式:
 /// `## title` (中文翻译 - 作者) + `## description` (元数据 + 章节摘要)。
-pub fn generate_meta(video_dir: &str) -> anyhow::Result<()> {
+pub fn generate_meta(input: &crate::input::Input, video_dir: &str) -> anyhow::Result<()> {
     let srt_path = format!("{video_dir}/mix_video/zh.srt");
     let segs = SubtitleSegments::read_srt(Path::new(&srt_path))
         .with_context(|| format!("读取字幕失败 (generate_meta 需要 {srt_path})"))?;
@@ -69,11 +69,19 @@ pub fn generate_meta(video_dir: &str) -> anyhow::Result<()> {
     let info = read_ytdlp_info(video_dir);
     let prompt = build_meta_prompt(&segs, info.as_ref().map(|i| i.title.as_str()));
 
+    let meta_args = &input.steps.meta;
+    let provider = input
+        .llm_providers
+        .get(&meta_args.provider)
+        .ok_or_else(|| anyhow::anyhow!("未配置 llm provider: {}", meta_args.provider))?;
     let opts = llm::ChatOptions {
-        model: Some(config_rs::env::openai_model()),
-        api_base: Some(config_rs::env::openai_base_url()),
+        model: Some(meta_args.model.clone()),
+        api_base: Some(provider.base_url.clone()),
         system_prompt: META_SYSTEM_PROMPT.to_string(),
-        api_key: config_rs::env::openai_api_key(),
+        api_key: provider
+            .api_key
+            .clone()
+            .or_else(config_rs::env::openai_api_key),
         max_tokens: Some(4096),
         temperature: Some(0.3),
     };

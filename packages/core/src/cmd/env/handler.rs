@@ -41,7 +41,7 @@ pub async fn cmd_env(input: &Input) -> anyhow::Result<()> {
 
     let results = match env_args.action {
         EnvAction::Ensure => run_ensure(&targets, &desired).await,
-        EnvAction::Check => run_check(&targets, &desired).await,
+        EnvAction::Check => run_check(&targets, &desired, input).await,
     };
     for r in &results {
         println!("{}", format_result(r));

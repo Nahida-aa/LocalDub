@@ -280,13 +280,13 @@
           ],
           "description": " ASR 结果文件路径, 调试使用"
         },
-        "llm_model": {
+        "provider": {
+          "type": "string",
+          "description": " 引用的 LLM provider 名 (见 input.llm_providers)"
+        },
+        "model": {
           "type": "string",
           "description": " LLM 模型名"
-        },
-        "llm_api_base": {
-          "type": "string",
-          "description": " LLM API 地址"
         },
         "domain_hint": {
           "anyOf": [
@@ -306,8 +306,8 @@
       },
       "required": [
         "asr_file_path",
-        "llm_model",
-        "llm_api_base",
+        "provider",
+        "model",
         "domain_hint",
         "llm_fix"
       ],
@@ -328,13 +328,13 @@
           ],
           "description": " ASR 结果文件路径, 调试使用"
         },
-        "llm_model": {
+        "provider": {
+          "type": "string",
+          "description": " 引用的 LLM provider 名 (见 input.llm_providers)"
+        },
+        "model": {
           "type": "string",
           "description": " LLM 模型名"
-        },
-        "llm_api_base": {
-          "type": "string",
-          "description": " LLM API 地址"
         },
         "domain_hint": {
           "anyOf": [
@@ -548,13 +548,13 @@
           "maximum": 4294967295,
           "description": " dedupOverlap 的编辑距离阈值: edit_distance ≤ 此值则合并; 默认 1"
         },
-        "llm_model": {
+        "provider": {
+          "type": "string",
+          "description": " 引用的 LLM provider 名 (见 input.llm_providers)"
+        },
+        "model": {
           "type": "string",
           "description": " LLM 模型名"
-        },
-        "llm_api_base": {
-          "type": "string",
-          "description": " LLM API 地址"
         },
         "domain_hint": {
           "anyOf": [
@@ -581,8 +581,8 @@
         "box_adjusted_threshold",
         "is_merge_substring",
         "dedup_edit_distance",
-        "llm_model",
-        "llm_api_base",
+        "provider",
+        "model",
         "domain_hint",
         "llm_fix"
       ],
@@ -647,13 +647,13 @@
           "maximum": 4294967295,
           "description": " dedupOverlap 的编辑距离阈值: edit_distance ≤ 此值则合并; 默认 1"
         },
-        "llm_model": {
+        "provider": {
+          "type": "string",
+          "description": " 引用的 LLM provider 名 (见 input.llm_providers)"
+        },
+        "model": {
           "type": "string",
           "description": " LLM 模型名"
-        },
-        "llm_api_base": {
-          "type": "string",
-          "description": " LLM API 地址"
         },
         "domain_hint": {
           "anyOf": [
@@ -1114,6 +1114,66 @@
       ],
       "title": "EnvArgs",
       "description": " `env` 命令参数。\n\n `action` 决定 check / ensure; `targets` 指定要检查的环境项 key (空 → 按 steps 配置推断)。"
+    },
+    "GenerateMetaArgs_Serialize": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "model"
+      ],
+      "title": "GenerateMetaArgs_Serialize",
+      "description": " generate_meta 命令的 LLM 参数。"
+    },
+    "GenerateMetaArgs_Deserialize": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        }
+      },
+      "title": "GenerateMetaArgs_Deserialize",
+      "description": " generate_meta 命令的 LLM 参数。"
+    },
+    "GenerateMetaArgs": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/GenerateMetaArgs_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/GenerateMetaArgs_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "GenerateMetaArgs",
+      "description": " generate_meta 命令的 LLM 参数。"
     },
     "WorkflowAction": {
       "anyOf": [
@@ -1714,9 +1774,9 @@
     "TranslateArgs_Serialize": {
       "type": "object",
       "properties": {
-        "base_url": {
+        "provider": {
           "type": "string",
-          "description": " OpenAI 兼容端点"
+          "description": " 引用的 LLM provider 名 (见 input.llm_providers)"
         },
         "model": {
           "type": "string",
@@ -1728,7 +1788,7 @@
         }
       },
       "required": [
-        "base_url",
+        "provider",
         "model",
         "enabled"
       ],
@@ -2026,6 +2086,10 @@
         },
         "mix_video": {
           "$ref": "#/$defs/MixVideoArgs_Serialize"
+        },
+        "meta": {
+          "$ref": "#/$defs/GenerateMetaArgs_Serialize",
+          "description": " generate_meta 命令的 LLM 选择 (provider + model)"
         }
       },
       "required": [
@@ -2042,10 +2106,37 @@
         "split_audio",
         "tts",
         "mix_audio",
-        "mix_video"
+        "mix_video",
+        "meta"
       ],
       "title": "Steps_Serialize",
       "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StepsSchema)\n\n mix_audio / mix_video 直接使用 `crate::steps::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 step 目录下的 args 定义。"
+    },
+    "LlmProvider_Serialize": {
+      "type": "object",
+      "properties": {
+        "base_url": {
+          "type": "string",
+          "description": " API base (含协议与 host，不含 /chat/completions)"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " API key (Bearer)。缺失时回退环境变量 OPENAI_API_KEY。"
+        }
+      },
+      "required": [
+        "base_url",
+        "api_key"
+      ],
+      "title": "LlmProvider_Serialize",
+      "description": " OpenAI 兼容 provider：命名表的一项。步骤只写 provider 名 + model，\n 由 [`WorkflowInput::llm`] 解析出 base_url / api_key。"
     },
     "Input_Serialize": {
       "type": "object",
@@ -2111,6 +2202,13 @@
         },
         "steps": {
           "$ref": "#/$defs/Steps_Serialize"
+        },
+        "llm_providers": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/LlmProvider_Serialize"
+          },
+          "description": " 命名 LLM provider 表 (步骤按名字引用 base_url/api_key)"
         }
       },
       "required": [
@@ -2120,7 +2218,8 @@
         "env",
         "cookie",
         "check",
-        "steps"
+        "steps",
+        "llm_providers"
       ],
       "title": "Input_Serialize",
       "description": " 顶层输入"
@@ -2413,9 +2512,9 @@
     "TranslateArgs_Deserialize": {
       "type": "object",
       "properties": {
-        "base_url": {
+        "provider": {
           "type": "string",
-          "description": " OpenAI 兼容端点"
+          "description": " 引用的 LLM provider 名 (见 input.llm_providers)"
         },
         "model": {
           "type": "string",
@@ -2654,10 +2753,39 @@
         },
         "mix_video": {
           "$ref": "#/$defs/MixVideoArgs_Deserialize"
+        },
+        "meta": {
+          "$ref": "#/$defs/GenerateMetaArgs_Deserialize",
+          "description": " generate_meta 命令的 LLM 选择 (provider + model)"
         }
       },
       "title": "Steps_Deserialize",
       "description": " 各处理阶段的入参 (镜像 TS `packages/core/input/types.ts` StepsSchema)\n\n mix_audio / mix_video 直接使用 `crate::steps::{mix_audio,mix_video}::args` 的\n 完整定义，与 TS `MixAudioArgsSchema` / `MixVideoArgsSchema` 对齐。\n sf_ocr / asr_ocr 系列同样复用各自 step 目录下的 args 定义。"
+    },
+    "LlmProvider_Deserialize": {
+      "type": "object",
+      "properties": {
+        "base_url": {
+          "type": "string",
+          "description": " API base (含协议与 host，不含 /chat/completions)"
+        },
+        "api_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " API key (Bearer)。缺失时回退环境变量 OPENAI_API_KEY。"
+        }
+      },
+      "required": [
+        "base_url"
+      ],
+      "title": "LlmProvider_Deserialize",
+      "description": " OpenAI 兼容 provider：命名表的一项。步骤只写 provider 名 + model，\n 由 [`WorkflowInput::llm`] 解析出 base_url / api_key。"
     },
     "Input_Deserialize": {
       "type": "object",
@@ -2723,6 +2851,13 @@
         },
         "steps": {
           "$ref": "#/$defs/Steps_Deserialize"
+        },
+        "llm_providers": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/LlmProvider_Deserialize"
+          },
+          "description": " 命名 LLM provider 表 (步骤按名字引用 base_url/api_key)"
         }
       },
       "title": "Input_Deserialize",
@@ -2761,13 +2896,13 @@
     "LlmFixArgs_Serialize": {
       "type": "object",
       "properties": {
-        "llm_model": {
+        "provider": {
+          "type": "string",
+          "description": " 引用的 LLM provider 名 (见 input.llm_providers)"
+        },
+        "model": {
           "type": "string",
           "description": " LLM 模型名"
-        },
-        "llm_api_base": {
-          "type": "string",
-          "description": " LLM API 地址"
         },
         "domain_hint": {
           "anyOf": [
@@ -2786,8 +2921,8 @@
         }
       },
       "required": [
-        "llm_model",
-        "llm_api_base",
+        "provider",
+        "model",
         "domain_hint",
         "llm_fix"
       ],
@@ -2797,13 +2932,13 @@
     "LlmFixArgs_Deserialize": {
       "type": "object",
       "properties": {
-        "llm_model": {
+        "provider": {
+          "type": "string",
+          "description": " 引用的 LLM provider 名 (见 input.llm_providers)"
+        },
+        "model": {
           "type": "string",
           "description": " LLM 模型名"
-        },
-        "llm_api_base": {
-          "type": "string",
-          "description": " LLM API 地址"
         },
         "domain_hint": {
           "anyOf": [
@@ -2853,6 +2988,36 @@
       ],
       "title": "LlmFixArgs",
       "description": " LLM 修正参数。"
+    },
+    "LlmProvider": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "Serialize"
+          ],
+          "properties": {
+            "Serialize": {
+              "$ref": "#/$defs/LlmProvider_Serialize"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "Deserialize"
+          ],
+          "properties": {
+            "Deserialize": {
+              "$ref": "#/$defs/LlmProvider_Deserialize"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "title": "LlmProvider",
+      "description": " OpenAI 兼容 provider：命名表的一项。步骤只写 provider 名 + model，\n 由 [`WorkflowInput::llm`] 解析出 base_url / api_key。"
     },
     "MixAudioArgs": {
       "anyOf": [

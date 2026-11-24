@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-use config_rs::env::{openai_base_url, openai_model};
-
 use crate::r#const::lang::LangStr;
 use crate::state::lang::{resolve_source_language, resolve_target_language};
 use crate::steps::utils::paths::{asr_fix, asr_ocr_fix, sf_ocr_fix, SrtJsonPath};
@@ -18,15 +16,22 @@ use crate::workflow::args::SubtitleSource;
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub struct TranslateArgs {
-    /// OpenAI 兼容端点
-    #[serde(default = "openai_base_url")]
-    pub base_url: String,
+    /// 引用的 LLM provider 名 (见 input.llm_providers)
+    #[serde(default = "default_provider")]
+    pub provider: String,
     /// 翻译模型
-    #[serde(default = "openai_model")]
+    #[serde(default = "default_model")]
     pub model: String,
     /// 设为 false 跳过翻译, 直接使用原始识别文本
     #[serde(default = "default_true")]
     pub enabled: bool,
+}
+
+fn default_provider() -> String {
+    "default".to_string()
+}
+fn default_model() -> String {
+    "gemma4:31b-cloud".to_string()
 }
 
 impl Default for TranslateArgs {
@@ -36,8 +41,8 @@ impl Default for TranslateArgs {
     /// 两条路径语义相反。
     fn default() -> Self {
         Self {
-            base_url: openai_base_url(),
-            model: openai_model(),
+            provider: default_provider(),
+            model: default_model(),
             enabled: true,
         }
     }

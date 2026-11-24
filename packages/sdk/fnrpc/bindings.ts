@@ -493,6 +493,21 @@ export type EnvCheckItem = {
 
 export type FoundVia = "Mdns" | "Default" | "PortFile";
 
+/**  generate_meta 命令的 LLM 参数。 */
+export type GenerateMetaArgs = GenerateMetaArgs_Serialize | GenerateMetaArgs_Deserialize;
+
+/**  generate_meta 命令的 LLM 参数。 */
+export type GenerateMetaArgs_Deserialize = {
+	provider?: string,
+	model?: string,
+};
+
+/**  generate_meta 命令的 LLM 参数。 */
+export type GenerateMetaArgs_Serialize = {
+	provider: string,
+	model: string,
+};
+
 export type GpuInfo = GpuInfo_Serialize | GpuInfo_Deserialize;
 
 export type GpuInfo_Deserialize = {
@@ -559,6 +574,8 @@ export type Input_Deserialize = {
 	/**  check 命令参数 (镜像 cmd/check 参数 schema), 仅 command=check 时使用 */
 	check?: CheckArgs_Deserialize | null,
 	steps?: Steps_Deserialize,
+	/**  命名 LLM provider 表 (步骤按名字引用 base_url/api_key) */
+	llm_providers?: { [key in string]: LlmProvider_Deserialize },
 };
 
 /**  顶层输入 */
@@ -576,6 +593,8 @@ export type Input_Serialize = {
 	/**  check 命令参数 (镜像 cmd/check 参数 schema), 仅 command=check 时使用 */
 	check: CheckArgs_Serialize | null,
 	steps: Steps_Serialize,
+	/**  命名 LLM provider 表 (步骤按名字引用 base_url/api_key) */
+	llm_providers: { [key in string]: LlmProvider_Serialize },
 };
 
 /**
@@ -607,10 +626,10 @@ export type LlmFixArgs = LlmFixArgs_Serialize | LlmFixArgs_Deserialize;
 
 /**  LLM 修正参数。 */
 export type LlmFixArgs_Deserialize = {
+	/**  引用的 LLM provider 名 (见 input.llm_providers) */
+	provider?: string,
 	/**  LLM 模型名 */
-	llm_model?: string,
-	/**  LLM API 地址 */
-	llm_api_base?: string,
+	model?: string,
 	/**  领域提示, 帮助 LLM 理解上下文，例如"仙侠题材，角色：叶白、慧天、夜白" */
 	domain_hint?: string | null,
 	/**  是否启用 LLM 修正 */
@@ -619,14 +638,42 @@ export type LlmFixArgs_Deserialize = {
 
 /**  LLM 修正参数。 */
 export type LlmFixArgs_Serialize = {
+	/**  引用的 LLM provider 名 (见 input.llm_providers) */
+	provider: string,
 	/**  LLM 模型名 */
-	llm_model: string,
-	/**  LLM API 地址 */
-	llm_api_base: string,
+	model: string,
 	/**  领域提示, 帮助 LLM 理解上下文，例如"仙侠题材，角色：叶白、慧天、夜白" */
 	domain_hint: string | null,
 	/**  是否启用 LLM 修正 */
 	llm_fix: boolean,
+};
+
+/**
+ *  OpenAI 兼容 provider：命名表的一项。步骤只写 provider 名 + model，
+ *  由 [`WorkflowInput::llm`] 解析出 base_url / api_key。
+ */
+export type LlmProvider = LlmProvider_Serialize | LlmProvider_Deserialize;
+
+/**
+ *  OpenAI 兼容 provider：命名表的一项。步骤只写 provider 名 + model，
+ *  由 [`WorkflowInput::llm`] 解析出 base_url / api_key。
+ */
+export type LlmProvider_Deserialize = {
+	/**  API base (含协议与 host，不含 /chat/completions) */
+	base_url: string,
+	/**  API key (Bearer)。缺失时回退环境变量 OPENAI_API_KEY。 */
+	api_key?: string | null,
+};
+
+/**
+ *  OpenAI 兼容 provider：命名表的一项。步骤只写 provider 名 + model，
+ *  由 [`WorkflowInput::llm`] 解析出 base_url / api_key。
+ */
+export type LlmProvider_Serialize = {
+	/**  API base (含协议与 host，不含 /chat/completions) */
+	base_url: string,
+	/**  API key (Bearer)。缺失时回退环境变量 OPENAI_API_KEY。 */
+	api_key: string | null,
 };
 
 export type MemoryInfo = {
@@ -1575,6 +1622,8 @@ export type Steps_Deserialize = {
 	tts?: TtsArgs_Deserialize,
 	mix_audio?: MixAudioArgs_Deserialize,
 	mix_video?: MixVideoArgs_Deserialize,
+	/**  generate_meta 命令的 LLM 选择 (provider + model) */
+	meta?: GenerateMetaArgs_Deserialize,
 };
 
 /**
@@ -1599,6 +1648,8 @@ export type Steps_Serialize = {
 	tts: TtsArgs_Serialize,
 	mix_audio: MixAudioArgs_Serialize,
 	mix_video: MixVideoArgs_Serialize,
+	/**  generate_meta 命令的 LLM 选择 (provider + model) */
+	meta: GenerateMetaArgs_Serialize,
 };
 
 /**
@@ -1693,8 +1744,8 @@ export type TranslateArgs = TranslateArgs_Serialize | TranslateArgs_Deserialize;
  *  deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。
  */
 export type TranslateArgs_Deserialize = {
-	/**  OpenAI 兼容端点 */
-	base_url?: string,
+	/**  引用的 LLM provider 名 (见 input.llm_providers) */
+	provider?: string,
 	/**  翻译模型 */
 	model?: string,
 	/**  设为 false 跳过翻译, 直接使用原始识别文本 */
@@ -1712,8 +1763,8 @@ export type TranslateArgs_Deserialize = {
  *  deny_unknown_fields 让残留配置明确报错 (不能静默失效 -> 翻错语言)。
  */
 export type TranslateArgs_Serialize = {
-	/**  OpenAI 兼容端点 */
-	base_url: string,
+	/**  引用的 LLM provider 名 (见 input.llm_providers) */
+	provider: string,
 	/**  翻译模型 */
 	model: string,
 	/**  设为 false 跳过翻译, 直接使用原始识别文本 */

@@ -456,10 +456,15 @@ pub async fn step_asr_ocr_fix(
         // 源语言走统一的解析（`<asr>/out.json` > 配置 source_lang > 兜底空串）。
         // 不在这里内联回退链——否则与 `src_language` 各算各的，容易分叉。
         let lang_label = llm::lang_label(deps.source_lang.code());
+        let provider = input.llm(&args.ocr_fix.llm_fix.provider)?;
+        let api_key = provider
+            .api_key
+            .clone()
+            .or_else(config_rs::env::openai_api_key);
         info!(target: "asr_ocr",
-            "asr_ocr_fix: LLM fix {} segs (model={})", src_texts.len(), args.ocr_fix.llm_fix.llm_model
+            "asr_ocr_fix: LLM fix {} segs (model={})", src_texts.len(), args.ocr_fix.llm_fix.model
         );
-        match llm::ocr_llm_fix(&src_texts, &lang_label, &args.ocr_fix.llm_fix) {
+        match llm::ocr_llm_fix(&src_texts, &lang_label, &args.ocr_fix.llm_fix, &provider.base_url, api_key.as_deref()) {
             Ok(fixed) => {
                 for (seg, text) in final_segments.iter_mut().zip(fixed) {
                     seg.base.text = text;

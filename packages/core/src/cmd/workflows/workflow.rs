@@ -108,7 +108,7 @@ pub async fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
                 .video_dir
                 .clone()
                 .ok_or_else(|| anyhow::anyhow!("generate_meta 需要 input.workflow.video_dir"))?;
-            crate::cmd::workflows::meta::generate_meta(&video_dir).context("generate_meta 失败")?;
+            crate::cmd::workflows::meta::generate_meta(input, &video_dir).context("generate_meta 失败")?;
         }
         None => {
             // 缺省保留旧行为：导入并跑（原 start 分支的语义）。新 start 需显式指定。

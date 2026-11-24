@@ -227,8 +227,8 @@ mod tests {
     #[test]
     fn llm_fix_args_defaults() {
         let a = LlmFixArgs::default();
-        assert_eq!(a.llm_model, "gemma4:31b-cloud");
-        assert_eq!(a.llm_api_base, "http://localhost:11434/v1");
+        assert_eq!(a.model, "gemma4:31b-cloud");
+        assert_eq!(a.provider, "default");
         assert!(!a.llm_fix);
     }
 }
