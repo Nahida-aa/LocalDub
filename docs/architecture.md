@@ -10,13 +10,17 @@ LocalDub 是视频配音 / 字幕工具：Rust workspace 提供全部业务逻�
 ```mermaid
 flowchart LR
     import[import] --> separate[separate]
+    import --> sf_ocr_pre[sf_ocr_pre]
     separate --> separate_after[separate_after]
     separate --> split_audio[split_audio]
-    sf_ocr_pre[sf_ocr_pre] --> sf_ocr[sf_ocr] --> sf_ocr_fix[sf_ocr_fix] --> translate[translate]
+    sf_ocr_pre --> sf_ocr[sf_ocr] --> sf_ocr_fix[sf_ocr_fix] --> translate[translate]
     translate --> split_audio
     split_audio --> tts[tts] --> mix_audio[mix_audio] --> mix_video[mix_video]
     separate_after --> mix_video
 ```
+
+`import` 在引擎 DAG 之外先执行（`import_and_start` / `--action import`），所以 DAG 里
+`separate` 与 `sf_ocr_pre` 是两个入度为 0 的根节点，都只依赖 import 落下的原视频。
 
 实际执行的序列由 `output_mode`（`dub` / `subtitle`）与 `subtitle_source`
 （`asr` / `sf_ocr` / `asr_ocr`）决定，共 6 种组合；**单一真源**是
