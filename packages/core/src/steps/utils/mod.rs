@@ -33,6 +33,23 @@ pub fn truncate_utf8(s: &str, max_bytes: usize) -> &str {
     &s[..end]
 }
 
+/// 取字符串的「前 head 字节 + 省略号 + 末尾 tail 字节」，UTF-8 安全。
+/// 用于诊断 LLM 回复被截断：头尾各留一段能看到开头是否是合法 JSON、结尾是否
+/// 有 `}`。未超过 head+tail 时原样返回。
+pub fn truncate_utf8_around(s: &str, head: usize, tail: usize) -> String {
+    if s.len() <= head + tail {
+        return s.to_string();
+    }
+    let head_end = (0..=head)
+        .rev()
+        .find(|&i| s.is_char_boundary(i))
+        .unwrap_or(0);
+    let tail_start = (s.len() - tail..=s.len())
+        .find(|&i| s.is_char_boundary(i))
+        .unwrap_or(s.len());
+    format!("{} … {}", &s[..head_end], &s[tail_start..])
+}
+
 /// RFC3339 时间戳, 去毫秒 (镜像 TS `nowISO`, 形如 `2024-01-01T00:00:00Z`)。
 pub fn now_iso() -> String {
     // chrono 默认输出含毫秒 (`.%3f`), 这里截断到秒并补 `Z`。
@@ -889,6 +906,20 @@ mod tests {
         assert_eq!(truncate_utf8(s, 100), s);
         // 纯 ASCII 行为与字节切片一致
         assert_eq!(truncate_utf8("abcdef", 3), "abc");
+    }
+
+    #[test]
+    fn truncate_utf8_around_shows_head_and_tail() {
+        // 短串原样
+        assert_eq!(truncate_utf8_around("abc", 2, 2), "abc");
+        // 长串保留首尾，末尾能看到 JSON 的 } 是否被截断
+        let s = "0123456789";
+        assert_eq!(truncate_utf8_around(s, 3, 3), "012 … 789");
+        // 多字节字符不切进中间：head=3 落在 'đ' 中间 → 退到 "ab"；
+        // tail 取末尾 3 字节 = "zơ"（z 1 + ơ 2），起点恰在 char 边界。
+        let s = "abđxyzơ";
+        let out = truncate_utf8_around(s, 3, 3);
+        assert_eq!(out, "ab … zơ");
     }
 
 }

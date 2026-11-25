@@ -140,7 +140,8 @@ pub async fn translate_batch(
                 api_base: Some(api_base.to_string()),
                 system_prompt: system.to_string(),
                 api_key: api_key.map(str::to_string),
-                max_tokens: Some(3072),
+                // 不设 max_tokens：让服务端按模型上限生成，避免固定 3072 截断长批次 JSON。
+                max_tokens: None,
                 temperature: Some(0.2),
             },
         ).await {
@@ -155,8 +156,8 @@ pub async fn translate_batch(
             Ok(v) => v,
             Err(e) => {
                 last_err = format!(
-                    "回复无法解析为 JSON: {e}; 原始回复前 200 字符: {}",
-                    crate::steps::utils::truncate_utf8(&reply, 200)
+                    "回复无法解析为 JSON: {e}; 原始回复(前100/末尾100): {}",
+                    crate::steps::utils::truncate_utf8_around(&reply, 100, 100)
                 );
                 tracing::warn!(target: "translate", "batch attempt {} 失败: {}", attempt + 1, last_err);
                 continue;
@@ -166,7 +167,7 @@ pub async fn translate_batch(
             Some(a) => a,
             None => {
                 last_err = "LLM 回复缺少 dst 数组".to_string();
-                tracing::warn!(target: "translate", "batch attempt {} 失败: {}; 原始回复: {}", attempt + 1, last_err, crate::steps::utils::truncate_utf8(&reply, 200));
+                tracing::warn!(target: "translate", "batch attempt {} 失败: {}; 原始回复(前100/末尾100): {}", attempt + 1, last_err, crate::steps::utils::truncate_utf8_around(&reply, 100, 100));
                 if attempt == MAX_ATTEMPTS - 1 {
                     break;
                 }
