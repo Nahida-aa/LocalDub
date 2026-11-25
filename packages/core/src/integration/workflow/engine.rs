@@ -68,7 +68,13 @@ async fn drive(
     let video_dir = input.video_dir();
     let mut status = RunStatus::Running;
     while let Some(ev) = stream.next().await {
-        tracing::info!(target: "workflow_event", run_id = %run_id, ?ev, "引擎事件");
+        // 有 step_id 就带上（终端可见），没有则只打事件本身。
+        // 注：tracing 的 target: 必须是常量字面量，无法用运行时 step 名作 target，
+        // 这里用 step_id 字段承载；不重复 run_id，不加"引擎事件"文案。
+        match ev.step_id() {
+            Some(step) => tracing::info!(target: "workflow_event", step_id = %step, ?ev),
+            None => tracing::info!(target: "workflow_event", ?ev),
+        }
         apply_view_event(video_dir, &ev);
         status = status_for_event(&ev, status);
     }
