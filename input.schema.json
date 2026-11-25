@@ -1582,17 +1582,6 @@
           "type": "string",
           "description": " 已导入任务的目录（必填）。"
         },
-        "url": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " start 用：本地文件路径或远程 url（对已导入目录通常省略）。"
-        },
         "resume_from": {
           "type": "array",
           "items": {
@@ -1611,7 +1600,6 @@
       "required": [
         "action",
         "video_dir",
-        "url",
         "resume_from",
         "target_step"
       ],
@@ -2505,17 +2493,6 @@
         "video_dir": {
           "type": "string",
           "description": " 已导入任务的目录（必填）。"
-        },
-        "url": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " start 用：本地文件路径或远程 url（对已导入目录通常省略）。"
         },
         "resume_from": {
           "type": "array",

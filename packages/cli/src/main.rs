@@ -87,9 +87,6 @@ enum Command {
         /// 已导入任务的目录（必填）。
         #[arg(long)]
         video_dir: String,
-        /// url (start 用，可选)。
-        #[arg(long)]
-        url: Option<String>,
         /// 续跑起点集 (resume 用)。
         #[arg(long, value_enum, num_args = 1..)]
         resume_from: Vec<StepName>,
@@ -204,22 +201,17 @@ async fn main() {
         Some(Command::VideoAction {
             action,
             video_dir,
-            url,
             resume_from,
             target_step,
         }) => {
             let mut va = input.video_action.clone().unwrap_or(ld_core::input::VideoActionArgs {
                 action,
                 video_dir: video_dir.clone(),
-                url: None,
                 resume_from: Vec::new(),
                 target_step: Vec::new(),
             });
             va.action = action;
             va.video_dir = video_dir;
-            if let Some(u) = url {
-                va.url = Some(u);
-            }
             if !resume_from.is_empty() {
                 va.resume_from = resume_from;
             }

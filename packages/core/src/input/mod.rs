@@ -111,9 +111,6 @@ pub struct VideoActionArgs {
     pub action: VideoAction,
     /// 已导入任务的目录（必填）。
     pub video_dir: String,
-    /// start 用：本地文件路径或远程 url（对已导入目录通常省略）。
-    #[serde(default)]
-    pub url: Option<String>,
     /// resume 用：续跑起点集。
     #[serde(default)]
     pub resume_from: Vec<crate::workflow::args::StepName>,

@@ -2010,8 +2010,6 @@ export type VideoActionArgs_Deserialize = {
 	action: VideoAction,
 	/**  已导入任务的目录（必填）。 */
 	video_dir: string,
-	/**  start 用：本地文件路径或远程 url（对已导入目录通常省略）。 */
-	url?: string | null,
 	/**  resume 用：续跑起点集。 */
 	resume_from?: StepName[],
 	/**  resume 用：目标步骤集。 */
@@ -2023,8 +2021,6 @@ export type VideoActionArgs_Serialize = {
 	action: VideoAction,
 	/**  已导入任务的目录（必填）。 */
 	video_dir: string,
-	/**  start 用：本地文件路径或远程 url（对已导入目录通常省略）。 */
-	url: string | null,
 	/**  resume 用：续跑起点集。 */
 	resume_from: StepName[],
 	/**  resume 用：目标步骤集。 */

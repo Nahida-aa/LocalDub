@@ -71,9 +71,6 @@ fn base_input(args: &VideoActionArgs) -> anyhow::Result<Input> {
     let mut input = read_input(&args.video_dir).unwrap_or_default();
     let mut workflow = input.workflow.clone().unwrap_or_default();
     workflow.video_dir = Some(args.video_dir.clone());
-    if let Some(url) = &args.url {
-        workflow.url = Some(url.clone());
-    }
     if !args.resume_from.is_empty() {
         workflow.resume_from = args.resume_from.clone();
     }
