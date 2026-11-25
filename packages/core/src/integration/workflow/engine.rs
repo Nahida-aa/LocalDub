@@ -68,9 +68,65 @@ async fn drive(
     .instrument(span)
     .await;
 
+    // view.json 是给 UI 看的投影（UI 监听它刷新区块）。引擎真源是事件日志，
+    // 这里把事件流投影回 view.json 的 workflow 子树——否则它永远停在 import
+    // 写的 queued。status 沿用旧 pipeline 的值域（running/success/failed/paused）。
+    sync_view_from_events(input.video_dir(), &events);
+
     let status = status_from_events(&events);
     tracing::info!(target: "output_mode", run_id = %run_id, status = ?status, "引擎 run 结束");
     Ok(status)
+}
+
+/// 把引擎事件投影到 `<video_dir>/view.json` 的 workflow 子树（UI 读它刷新）。
+/// 用 set_workflow 的 RMW 合并，多次调用安全；失败只记日志，不影响引擎结果。
+fn sync_view_from_events(video_dir: &str, events: &[WorkflowEvent]) {
+    use crate::steps::utils::{WorkflowPatch, now_iso, set_workflow};
+
+    let apply = |patch: WorkflowPatch| {
+        if let Err(e) = set_workflow(video_dir, patch) {
+            tracing::warn!(target: "output_mode", "更新 view.json 失败 ({video_dir}): {e}");
+        }
+    };
+
+    for ev in events {
+        match ev {
+            WorkflowEvent::RunStarted { .. } => apply(WorkflowPatch {
+                status: Some("running".into()),
+                current_step: Some(None),
+                started_at: Some(now_iso()),
+                ..Default::default()
+            }),
+            WorkflowEvent::StepStarted { step_id, .. } => apply(WorkflowPatch {
+                current_step: Some(Some(step_id.clone())),
+                ..Default::default()
+            }),
+            WorkflowEvent::StepFinished { .. } => apply(WorkflowPatch {
+                current_step: Some(None),
+                ..Default::default()
+            }),
+            WorkflowEvent::RunFinished { .. } => apply(WorkflowPatch {
+                status: Some("success".into()),
+                current_step: Some(None),
+                completed_at: Some(now_iso()),
+                ..Default::default()
+            }),
+            WorkflowEvent::RunErrored { error, .. } => apply(WorkflowPatch {
+                status: Some("failed".into()),
+                current_step: Some(None),
+                completed_at: Some(now_iso()),
+                error_message: Some(error.message.clone()),
+                ..Default::default()
+            }),
+            WorkflowEvent::SignalAwaited { .. } | WorkflowEvent::ApprovalRequested { .. } => {
+                apply(WorkflowPatch {
+                    status: Some("paused".into()),
+                    ..Default::default()
+                })
+            }
+            _ => {}
+        }
+    }
 }
 
 /// 从终局事件推 RunStatus（TanStack core 测试的做法）：
