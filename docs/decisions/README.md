@@ -20,6 +20,7 @@ docs/decisions/
 |---|---|---|---|
 | [0001](0001-marginv-from-ocr.md) | 用 OCR y_stats 推断字幕 MarginV：PlayResY=288，参数 > 推断 > 默认 | accepted | 2026-11-25 |
 | [0002](0002-ocr-fix-output-format.md) | OCR 修正输出格式：自定义 `N: 文本` vs JSON（未决，只记录问题） | open | 2026-11-25 |
+| [0003](0003-workflow-log-routing.md) | 工作流日志路由：把「写哪个 log 文件」与运行绑定（span 传播已可用，设计未决） | open | 2026-11-26 |
 
 ## 实验索引
 
