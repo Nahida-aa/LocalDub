@@ -1564,7 +1564,7 @@
       "title": "VideoAction",
       "description": " `command=video_action` 的动作：针对已导入任务的**非工作流**操作（video_dir 必填）。\n\n 工作流执行（start / resume）归 `command=workflow`；这里只做状态读取与旁路产物生成，\n 不触碰引擎。"
     },
-    "VideoActionArgs_Serialize": {
+    "VideoActionArgs": {
       "type": "object",
       "properties": {
         "action": {
@@ -1573,29 +1573,13 @@
         "video_dir": {
           "type": "string",
           "description": " 已导入任务的目录（必填）。"
-        },
-        "resume_from": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/StepName"
-          },
-          "description": " resume 用：续跑起点集。"
-        },
-        "target_step": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/StepName"
-          },
-          "description": " resume 用：目标步骤集。"
         }
       },
       "required": [
         "action",
-        "video_dir",
-        "resume_from",
-        "target_step"
+        "video_dir"
       ],
-      "title": "VideoActionArgs_Serialize",
+      "title": "VideoActionArgs",
       "description": " `command=video_action` 的参数。video_dir 类型层必填（非 Option）。"
     },
     "QueryAction": {
@@ -2274,7 +2258,7 @@
         "video_action": {
           "anyOf": [
             {
-              "$ref": "#/$defs/VideoActionArgs_Serialize"
+              "$ref": "#/$defs/VideoActionArgs"
             },
             {
               "type": "null"
@@ -2475,38 +2459,6 @@
       },
       "title": "WorkflowArgs_Deserialize",
       "description": " workflow 参数 (镜像 workflowArgsSchema)"
-    },
-    "VideoActionArgs_Deserialize": {
-      "type": "object",
-      "properties": {
-        "action": {
-          "$ref": "#/$defs/VideoAction"
-        },
-        "video_dir": {
-          "type": "string",
-          "description": " 已导入任务的目录（必填）。"
-        },
-        "resume_from": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/StepName"
-          },
-          "description": " resume 用：续跑起点集。"
-        },
-        "target_step": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/StepName"
-          },
-          "description": " resume 用：目标步骤集。"
-        }
-      },
-      "required": [
-        "action",
-        "video_dir"
-      ],
-      "title": "VideoActionArgs_Deserialize",
-      "description": " `command=video_action` 的参数。video_dir 类型层必填（非 Option）。"
     },
     "ServerType_Deserialize": {
       "anyOf": [
@@ -2967,7 +2919,7 @@
         "video_action": {
           "anyOf": [
             {
-              "$ref": "#/$defs/VideoActionArgs_Deserialize"
+              "$ref": "#/$defs/VideoActionArgs"
             },
             {
               "type": "null"
@@ -3607,36 +3559,6 @@
       ],
       "title": "TtsArgs",
       "description": " tts 阶段参数 (镜像 TS `packages/core/steps/07_tts/args.ts` TtsStepArgsSchema)\n\n 枚举/字符串默认值 TS 在写入 state.json 前已落定 (zod `.prefault({})` / `.default(...)`),\n 这里只需处理「对象存在但字段缺」: 字段级 `#[serde(default…)]` 兜底即可。"
-    },
-    "VideoActionArgs": {
-      "anyOf": [
-        {
-          "type": "object",
-          "required": [
-            "Serialize"
-          ],
-          "properties": {
-            "Serialize": {
-              "$ref": "#/$defs/VideoActionArgs_Serialize"
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "required": [
-            "Deserialize"
-          ],
-          "properties": {
-            "Deserialize": {
-              "$ref": "#/$defs/VideoActionArgs_Deserialize"
-            }
-          },
-          "additionalProperties": false
-        }
-      ],
-      "title": "VideoActionArgs",
-      "description": " `command=video_action` 的参数。video_dir 类型层必填（非 Option）。"
     },
     "WorkflowArgs": {
       "anyOf": [

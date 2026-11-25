@@ -111,12 +111,6 @@ pub struct VideoActionArgs {
     pub action: VideoAction,
     /// 已导入任务的目录（必填）。
     pub video_dir: String,
-    /// resume 用：续跑起点集。
-    #[serde(default)]
-    pub resume_from: Vec<crate::workflow::args::StepName>,
-    /// resume 用：目标步骤集。
-    #[serde(default)]
-    pub target_step: Vec<crate::workflow::args::StepName>,
 }
 
 /// `command=query` 的查询动作（不针对单个任务）。

@@ -87,12 +87,6 @@ enum Command {
         /// 已导入任务的目录（必填）。
         #[arg(long)]
         video_dir: String,
-        /// 续跑起点集 (resume 用)。
-        #[arg(long, value_enum, num_args = 1..)]
-        resume_from: Vec<StepName>,
-        /// 目标步骤集 (resume 用)。
-        #[arg(long, value_enum, num_args = 1..)]
-        target_step: Vec<StepName>,
     },
     /// 纯查询 (等价 input.jsonc command=query)，只读不改状态。
     Query {
@@ -198,26 +192,13 @@ async fn main() {
             input.workflow = Some(workflow);
             input.command = InputCommand::Workflow;
         }
-        Some(Command::VideoAction {
-            action,
-            video_dir,
-            resume_from,
-            target_step,
-        }) => {
+        Some(Command::VideoAction { action, video_dir }) => {
             let mut va = input.video_action.clone().unwrap_or(ld_core::input::VideoActionArgs {
                 action,
                 video_dir: video_dir.clone(),
-                resume_from: Vec::new(),
-                target_step: Vec::new(),
             });
             va.action = action;
             va.video_dir = video_dir;
-            if !resume_from.is_empty() {
-                va.resume_from = resume_from;
-            }
-            if !target_step.is_empty() {
-                va.target_step = target_step;
-            }
             input.video_action = Some(va);
             input.command = InputCommand::VideoAction;
         }

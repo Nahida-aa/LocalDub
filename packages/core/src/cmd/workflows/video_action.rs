@@ -59,12 +59,6 @@ fn base_input(args: &VideoActionArgs) -> anyhow::Result<Input> {
     let mut input = read_input(&args.video_dir).unwrap_or_default();
     let mut workflow = input.workflow.clone().unwrap_or_default();
     workflow.video_dir = Some(args.video_dir.clone());
-    if !args.resume_from.is_empty() {
-        workflow.resume_from = args.resume_from.clone();
-    }
-    if !args.target_step.is_empty() {
-        workflow.target_step = args.target_step.clone();
-    }
     // run-kind 标记：步骤（如 tts）据此区分「全量」与「续跑」。
     // Status / GetWorkflowCtx 不走 base_input（直接读文件），这里只需覆盖可执行动作。
     if args.action == VideoAction::GenerateMeta {

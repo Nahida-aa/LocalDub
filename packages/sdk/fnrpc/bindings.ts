@@ -574,7 +574,7 @@ export type Input_Deserialize = {
 	/**  workflow 参数, 仅 command=workflow 时必须 */
 	workflow?: WorkflowArgs_Deserialize | null,
 	/**  video_action 参数, 仅 command=video_action 时必须 */
-	video_action?: VideoActionArgs_Deserialize | null,
+	video_action?: VideoActionArgs | null,
 	/**  query 参数, 仅 command=query 时必须 */
 	query?: QueryArgs | null,
 	/**  执行命令 (默认 env) */
@@ -597,7 +597,7 @@ export type Input_Serialize = {
 	/**  workflow 参数, 仅 command=workflow 时必须 */
 	workflow: WorkflowArgs_Serialize | null,
 	/**  video_action 参数, 仅 command=video_action 时必须 */
-	video_action: VideoActionArgs_Serialize | null,
+	video_action: VideoActionArgs | null,
 	/**  query 参数, 仅 command=query 时必须 */
 	query: QueryArgs | null,
 	/**  执行命令 (默认 env) */
@@ -2005,28 +2005,10 @@ export type VideoAction =
 "generate_meta";
 
 /**  `command=video_action` 的参数。video_dir 类型层必填（非 Option）。 */
-export type VideoActionArgs = VideoActionArgs_Serialize | VideoActionArgs_Deserialize;
-
-/**  `command=video_action` 的参数。video_dir 类型层必填（非 Option）。 */
-export type VideoActionArgs_Deserialize = {
+export type VideoActionArgs = {
 	action: VideoAction,
 	/**  已导入任务的目录（必填）。 */
 	video_dir: string,
-	/**  resume 用：续跑起点集。 */
-	resume_from?: StepName[],
-	/**  resume 用：目标步骤集。 */
-	target_step?: StepName[],
-};
-
-/**  `command=video_action` 的参数。video_dir 类型层必填（非 Option）。 */
-export type VideoActionArgs_Serialize = {
-	action: VideoAction,
-	/**  已导入任务的目录（必填）。 */
-	video_dir: string,
-	/**  resume 用：续跑起点集。 */
-	resume_from: StepName[],
-	/**  resume 用：目标步骤集。 */
-	target_step: StepName[],
 };
 
 export type VramInfo = VramInfo_Serialize | VramInfo_Deserialize;
