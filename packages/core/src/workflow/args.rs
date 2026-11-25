@@ -32,8 +32,6 @@ pub enum WorkflowAction {
     /// (目录是入队动作的入参, 队列粒度仍是单视频 start 事件。)
     #[serde(rename = "enqueue_dir")]
     EnqueueDir,
-    #[serde(rename = "cancel_queue")]
-    CancelQueue,
 }
 
 /// output_mode 阶段名。
@@ -220,8 +218,6 @@ pub struct WorkflowArgs {
     #[serde(default)]
     pub target_step: Vec<StepName>,
     pub video_dir: Option<String>,
-    /// 队列任务 ID (cancel_queue 指定要取消的队列项)
-    pub queue_id: Option<u64>,
     /// rerunStep 专业参数, 指定要重新运行的步骤
     pub step_name: Option<StepName>,
     /// 任务模式, dub 配音, subtitle 仅字幕

@@ -355,7 +355,9 @@ export type Command = "workflow" |
  */
 "videoaction" | 
 /**  纯查询命令：不针对单个任务（get_group_list / list_queue）。 */
-"query" | "env" | "servers" | "cookie" | "check" | "deviceInfo" | "listModels";
+"query" | 
+/**  主服务器任务队列操作（cancel_queue）。入队/列出仍归 workflow / query。 */
+"queue" | "env" | "servers" | "cookie" | "check" | "deviceInfo" | "listModels";
 
 /**  cookie 动作 */
 export type CookieAction = "set";
@@ -577,6 +579,8 @@ export type Input_Deserialize = {
 	video_action?: VideoActionArgs | null,
 	/**  query 参数, 仅 command=query 时必须 */
 	query?: QueryArgs | null,
+	/**  queue 参数, 仅 command=queue 时必须 */
+	queue?: QueueArgs | null,
 	/**  执行命令 (默认 env) */
 	command?: Command,
 	/**  服务端参数 (镜像 servers/args.ts), 仅 command=servers 时使用 */
@@ -600,6 +604,8 @@ export type Input_Serialize = {
 	video_action: VideoActionArgs | null,
 	/**  query 参数, 仅 command=query 时必须 */
 	query: QueryArgs | null,
+	/**  queue 参数, 仅 command=queue 时必须 */
+	queue: QueueArgs | null,
 	/**  执行命令 (默认 env) */
 	command: Command,
 	/**  服务端参数 (镜像 servers/args.ts), 仅 command=servers 时使用 */
@@ -1166,6 +1172,18 @@ export type QueryAction =
 /**  `command=query` 的参数。 */
 export type QueryArgs = {
 	action: QueryAction,
+};
+
+/**  `command=queue` 的动作（主服务器任务队列操作）。 */
+export type QueueAction = 
+/**  取消主服务器队列中待执行的任务 (fnrpc cancel_queue)。 */
+"cancel_queue";
+
+/**  `command=queue` 的参数。queue_id 类型层必填。 */
+export type QueueArgs = {
+	action: QueueAction,
+	/**  要取消的队列任务 ID（必填）。 */
+	queue_id: bigint,
 };
 
 /**
@@ -2059,7 +2077,7 @@ export type WorkflowAction =
  *  批量入队目录: 扫描本地目录顶层视频文件, 每个去重后入队一条 action=start 任务。
  *  (目录是入队动作的入参, 队列粒度仍是单视频 start 事件。)
  */
-"enqueue_dir" | "cancel_queue";
+"enqueue_dir";
 
 /**  workflow 参数 (镜像 workflowArgsSchema) */
 export type WorkflowArgs = WorkflowArgs_Serialize | WorkflowArgs_Deserialize;
@@ -2083,8 +2101,6 @@ export type WorkflowArgs_Deserialize = {
 	 */
 	target_step?: StepName[],
 	video_dir?: string | null,
-	/**  队列任务 ID (cancel_queue 指定要取消的队列项) */
-	queue_id?: bigint | null,
 	/**  rerunStep 专业参数, 指定要重新运行的步骤 */
 	step_name?: StepName | null,
 	/**  任务模式, dub 配音, subtitle 仅字幕 */
@@ -2117,8 +2133,6 @@ export type WorkflowArgs_Serialize = {
 	 */
 	target_step: StepName[],
 	video_dir: string | null,
-	/**  队列任务 ID (cancel_queue 指定要取消的队列项) */
-	queue_id: bigint | null,
 	/**  rerunStep 专业参数, 指定要重新运行的步骤 */
 	step_name: StepName | null,
 	/**  任务模式, dub 配音, subtitle 仅字幕 */

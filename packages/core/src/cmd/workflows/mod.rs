@@ -4,6 +4,7 @@ pub mod enqueue_dir;
 pub mod get_workflow;
 pub mod meta;
 pub mod query;
+pub mod queue;
 pub mod start;
 pub mod video_action;
 pub mod workflow;

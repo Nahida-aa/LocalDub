@@ -50,12 +50,6 @@ pub async fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
         Some(WorkflowAction::EnqueueDir) => {
             crate::cmd::workflows::enqueue::enqueue_dir(input).context("enqueue_dir 失败")?;
         }
-        Some(WorkflowAction::CancelQueue) => {
-            let id = workflow.queue_id.ok_or_else(|| {
-                anyhow::anyhow!("cancel_queue 需要 input.workflow.queueId 指定队列任务 ID")
-            })?;
-            crate::cmd::workflows::enqueue::cancel_queue(id).context("cancel_queue 失败")?;
-        }
         None => {
             // 缺省保留旧行为：导入并跑（原 start 分支的语义）。新 start 需显式指定。
             import_and_start_workflow(input)

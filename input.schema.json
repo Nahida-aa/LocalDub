@@ -912,6 +912,10 @@
           "description": " 纯查询命令：不针对单个任务（get_group_list / list_queue）。"
         },
         {
+          "const": "queue",
+          "description": " 主服务器任务队列操作（cancel_queue）。入队/列出仍归 workflow / query。"
+        },
+        {
           "const": "env"
         },
         {
@@ -1257,9 +1261,6 @@
         {
           "const": "enqueue_dir",
           "description": " 批量入队目录: 扫描本地目录顶层视频文件, 每个去重后入队一条 action=start 任务。\n (目录是入队动作的入参, 队列粒度仍是单视频 start 事件。)"
-        },
-        {
-          "const": "cancel_queue"
         }
       ],
       "title": "WorkflowAction",
@@ -1492,19 +1493,6 @@
             }
           ]
         },
-        "queue_id": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 18446744073709551615
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 队列任务 ID (cancel_queue 指定要取消的队列项)"
-        },
         "step_name": {
           "anyOf": [
             {
@@ -1537,7 +1525,6 @@
         "resume_from",
         "target_step",
         "video_dir",
-        "queue_id",
         "step_name",
         "output_mode",
         "subtitle_source",
@@ -1608,6 +1595,31 @@
       ],
       "title": "QueryArgs",
       "description": " `command=query` 的参数。"
+    },
+    "QueueAction": {
+      "const": "cancel_queue",
+      "description": " `command=queue` 的动作（主服务器任务队列操作）。\n\n 取消主服务器队列中待执行的任务 (fnrpc cancel_queue)。",
+      "title": "QueueAction"
+    },
+    "QueueArgs": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/QueueAction"
+        },
+        "queue_id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615,
+          "description": " 要取消的队列任务 ID（必填）。"
+        }
+      },
+      "required": [
+        "action",
+        "queue_id"
+      ],
+      "title": "QueueArgs",
+      "description": " `command=queue` 的参数。queue_id 类型层必填。"
     },
     "ServerAction": {
       "anyOf": [
@@ -2277,6 +2289,17 @@
           ],
           "description": " query 参数, 仅 command=query 时必须"
         },
+        "queue": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QueueArgs"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " queue 参数, 仅 command=queue 时必须"
+        },
         "command": {
           "$ref": "#/$defs/Command",
           "description": " 执行命令 (默认 env)"
@@ -2340,6 +2363,7 @@
         "workflow",
         "video_action",
         "query",
+        "queue",
         "command",
         "servers",
         "env",
@@ -2419,19 +2443,6 @@
               "type": "null"
             }
           ]
-        },
-        "queue_id": {
-          "anyOf": [
-            {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 18446744073709551615
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " 队列任务 ID (cancel_queue 指定要取消的队列项)"
         },
         "step_name": {
           "anyOf": [
@@ -2937,6 +2948,17 @@
             }
           ],
           "description": " query 参数, 仅 command=query 时必须"
+        },
+        "queue": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/QueueArgs"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": " queue 参数, 仅 command=queue 时必须"
         },
         "command": {
           "$ref": "#/$defs/Command",

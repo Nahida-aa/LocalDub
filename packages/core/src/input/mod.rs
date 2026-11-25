@@ -78,6 +78,8 @@ pub enum Command {
     VideoAction,
     /// 纯查询命令：不针对单个任务（get_group_list / list_queue）。
     Query,
+    /// 主服务器任务队列操作（cancel_queue）。入队/列出仍归 workflow / query。
+    Queue,
     Env,
     Servers,
     Cookie,
@@ -131,6 +133,24 @@ pub struct QueryArgs {
     pub action: QueryAction,
 }
 
+/// `command=queue` 的动作（主服务器任务队列操作）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type, clap::ValueEnum)]
+#[value(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum QueueAction {
+    /// 取消主服务器队列中待执行的任务 (fnrpc cancel_queue)。
+    CancelQueue,
+}
+
+/// `command=queue` 的参数。queue_id 类型层必填。
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub struct QueueArgs {
+    pub action: QueueAction,
+    /// 要取消的队列任务 ID（必填）。
+    pub queue_id: u64,
+}
+
 impl Default for Command {
     fn default() -> Self {
         Self::Env
@@ -148,6 +168,9 @@ pub struct Input {
     /// query 参数, 仅 command=query 时必须
     #[serde(default)]
     pub query: Option<QueryArgs>,
+    /// queue 参数, 仅 command=queue 时必须
+    #[serde(default)]
+    pub queue: Option<QueueArgs>,
     /// 执行命令 (默认 env)
     #[serde(default)]
     pub command: Command,
@@ -176,6 +199,7 @@ impl Default for Input {
             workflow: None,
             video_action: None,
             query: None,
+            queue: None,
             command: Command::default(),
             servers: None,
             env: None,
@@ -213,6 +237,9 @@ impl Input {
         }
         if self.command == Command::VideoAction && self.video_action.is_none() {
             return Err("command=video_action 时 video_action 必填".into());
+        }
+        if self.command == Command::Queue && self.queue.is_none() {
+            return Err("command=queue 时 queue 必填".into());
         }
         Ok(())
     }
@@ -441,6 +468,24 @@ mod tests {
         assert!(missing_dir.is_err(), "video_dir 必填应由反序列化拦下");
 
         let missing: Input = serde_json::from_str(r#"{"command":"video_action"}"#).unwrap();
+        assert!(missing.validate().is_err());
+
+        // command=queue 时 queue 必填，queue_id 类型层必填
+        let ok: Input = serde_json::from_str(
+            r#"{"command":"queue","queue":{"action":"cancel_queue","queue_id":42}}"#,
+        )
+        .unwrap();
+        assert!(ok.validate().is_ok());
+        assert_eq!(ok.command, Command::Queue);
+        assert_eq!(ok.queue.as_ref().unwrap().action, QueueAction::CancelQueue);
+        assert_eq!(ok.queue.as_ref().unwrap().queue_id, 42);
+
+        let missing_id: Result<Input, _> = serde_json::from_str(
+            r#"{"command":"queue","queue":{"action":"cancel_queue"}}"#,
+        );
+        assert!(missing_id.is_err(), "queue_id 必填应由反序列化拦下");
+
+        let missing: Input = serde_json::from_str(r#"{"command":"queue"}"#).unwrap();
         assert!(missing.validate().is_err());
     }
 

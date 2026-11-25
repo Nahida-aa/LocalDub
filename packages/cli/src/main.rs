@@ -4,8 +4,8 @@
 //! 1. 默认从仓库根目录读取 `input.jsonc` (优先) 或 `input.json`。
 //! 2. 剥离 JSONC 注释 (`//` 行注释 与 `/* */` 块注释)。
 //! 3. 反序列化为 `ld_core::input::Input`。
-//! 4. 调 `ld_core::cmd::workflows::workflow::cmd_workflow` 总派发 (镜像 TS `cmdTask`):
-//!    start / resume / status / get_group_list / get_workflow_ctx。
+//! 4. 按 `command` 字段派发: workflow (cmd_workflow) / video_action / query / queue /
+//!    env / servers / cookie / check / deviceInfo / listModels。
 //!
 //! 失败打印错误并以退出码 1 退出, 成功以 0 退出。
 
@@ -18,7 +18,7 @@ use ld_core::cmd::check::CheckType;
 use ld_core::cmd::env::args::EnvAction;
 use ld_core::cmd::workflows::workflow::cmd_workflow;
 use ld_core::input::Command as InputCommand;
-use ld_core::input::{Input, QueryAction, VideoAction};
+use ld_core::input::{Input, QueryAction, QueueAction, VideoAction};
 use ld_core::servers::args::ServerAction;
 use ld_core::workflow::args::{StepName, WorkflowAction};
 use paths::parse_repo_input;
@@ -29,7 +29,7 @@ use paths::parse_repo_input;
 /// `env`/`workflow` 子命令可用命令行参数直接触发。
 ///
 /// 设计意图:
-/// - `env`/`workflow`/`check` 做成 clap 子命令: 参数是标量 (action/url/video_dir/queueId/step/type),
+/// - `env`/`workflow`/`check`/`queue` 做成 clap 子命令: 参数是标量 (action/url/video_dir/queue_id/step/type),
 ///   适合命令行; 显式传的参数覆盖 input.jsonc, 缺失保留 (混合回退), 因此可以完全不改 input.jsonc 操作。
 /// - steps 等嵌套配置仍靠 input.jsonc (不适合命令行)。
 /// - 其余命令 (servers/cookie/deviceInfo/listModels 等) 继续靠 input.jsonc 的 `command` 字段派发;
@@ -69,9 +69,6 @@ enum Command {
         /// 任务目录 (resume/enqueue_resume/status 用)。
         #[arg(long)]
         video_dir: Option<String>,
-        /// 队列任务 ID (cancel_queue 用)。
-        #[arg(long)]
-        queue_id: Option<u64>,
         /// 续跑起点集 (resume/enqueue_resume 用)，多个起点取传递下游并集。
         #[arg(long, value_enum, num_args = 1..)]
         resume_from: Vec<StepName>,
@@ -93,6 +90,15 @@ enum Command {
         /// 查询动作: get_group_list / list_queue。
         #[arg(long, value_enum)]
         action: QueryAction,
+    },
+    /// 主服务器任务队列操作 (等价 input.jsonc command=queue)。
+    Queue {
+        /// 队列动作: cancel_queue。
+        #[arg(long, value_enum)]
+        action: QueueAction,
+        /// 队列任务 ID（必填）。
+        #[arg(long)]
+        queue_id: u64,
     },
     /// 服务器管理 (等价 input.jsonc command=servers)。
     Servers {
@@ -166,7 +172,6 @@ async fn main() {
             action,
             url,
             video_dir,
-            queue_id,
             resume_from,
             target_step,
         }) => {
@@ -179,9 +184,6 @@ async fn main() {
             }
             if let Some(d) = video_dir {
                 workflow.video_dir = Some(d);
-            }
-            if let Some(q) = queue_id {
-                workflow.queue_id = Some(q);
             }
             if !resume_from.is_empty() {
                 workflow.resume_from = resume_from;
@@ -207,6 +209,10 @@ async fn main() {
             query.action = action;
             input.query = Some(query);
             input.command = InputCommand::Query;
+        }
+        Some(Command::Queue { action, queue_id }) => {
+            input.queue = Some(ld_core::input::QueueArgs { action, queue_id });
+            input.command = InputCommand::Queue;
         }
         Some(Command::Servers {
             action,
@@ -270,6 +276,10 @@ async fn main() {
         InputCommand::Query => match input.query.as_ref() {
             Some(args) => ld_core::cmd::workflows::query::cmd_query(args).context("cmd_query 失败"),
             None => Err(anyhow::anyhow!("command=query 时 query 必填")),
+        },
+        InputCommand::Queue => match input.queue.as_ref() {
+            Some(args) => ld_core::cmd::workflows::queue::cmd_queue(args).context("cmd_queue 失败"),
+            None => Err(anyhow::anyhow!("command=queue 时 queue 必填")),
         },
         InputCommand::Env => ld_core::cmd::env::handler::cmd_env(&input).await.context("cmd_env 失败"),
         InputCommand::Servers => ld_core::cmd::servers::cmd_servers(&input)
