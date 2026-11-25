@@ -111,7 +111,6 @@ where
             return;
         };
         let log_path = Path::new(&video_dir).join(format!("{tid}.log"));
-        let step_prefix = fields.step.map(|s| format!("[{s}] ")).unwrap_or_default();
 
         // 取事件的 message 字段作为文本主体。
         let mut msg = String::new();
@@ -120,10 +119,11 @@ where
             return;
         }
 
-        let level = event.metadata().level();
-        // 文件日志带完整日期 + 微秒（终端只在 formatter 里显示时分秒，日期靠这里）
+        let meta = event.metadata();
+        // 文件日志带完整日期 + 微秒（终端只在 formatter 里显示时分秒，日期靠这里），
+        // target 直接取 tracing 的 target（通常是 step 名，如 tts / translate）。
         let ts = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.6fZ");
-        let entry = format!("[{ts}] [{level}] {step_prefix}{msg}\n");
+        let entry = format!("[{ts}] [{}] {}: {msg}\n", meta.level(), meta.target());
         if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&log_path) {
             let _ = f.write_all(entry.as_bytes());
         }
