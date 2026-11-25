@@ -14,6 +14,11 @@ version = "0.1.0"
 source = "git+https://github.com/Nahida-aa/aa_workflow.git?rev=9164f72afdbeefc0bbd6b8d9e9e1cfbd1ff4067d#9164f72afdbeefc0bbd6b8d9e9e1cfbd1ff4067d"
 
 [[package]]
+name = "aa_pacer"
+version = "0.1.0"
+source = "git+https://github.com/Nahida-aa/aa-pacer.git?rev=ff3cf8d36bf70596a2dc6846d21f583100095532#ff3cf8d36bf70596a2dc6846d21f583100095532"
+
+[[package]]
 name = "aa_workflow_core"
 version = "0.2.0"
 source = "git+https://github.com/Nahida-aa/aa_workflow.git?rev=9164f72afdbeefc0bbd6b8d9e9e1cfbd1ff4067d#9164f72afdbeefc0bbd6b8d9e9e1cfbd1ff4067d"
@@ -2663,6 +2668,7 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 name = "ld-core"
 version = "0.1.0"
 dependencies = [
+ "aa_pacer",
  "aa_workflow_core",
  "aa_workflow_middlewares",
  "anyhow",
@@ -2678,7 +2684,6 @@ dependencies = [
  "llm",
  "mdns-sd",
  "mdns-sd-discovery",
- "pacer-rs",
  "regex",
  "reqwest 0.12.28",
  "serde",
@@ -3399,10 +3404,6 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
 ]
-
-[[package]]
-name = "pacer-rs"
-version = "0.1.0"
 
 [[package]]
 name = "pango"

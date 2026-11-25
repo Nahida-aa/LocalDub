@@ -4,7 +4,7 @@ members = [
     "packages/bridge", "packages/config-rs", "packages/core", "packages/device-rs",
     "packages/time", "packages/app/src-tauri",
     "packages/fs", "packages/server",
-    "packages/sdk", "packages/cli", "packages/llm", "packages/pacer-rs",
+    "packages/sdk", "packages/cli", "packages/llm",
     "packages/paths",
 ]
 
@@ -22,7 +22,8 @@ device-rs = { path = "packages/device-rs" }
 fs = { path = "packages/fs" }
 ld-core = { path = "packages/core" }
 llm = { path = "packages/llm" }
-pacer-rs = { path = "packages/pacer-rs" }
+# Retryer (sync/async, 零依赖)：已从本仓迁至独立公开仓 aa-pacer，按 rev 固定。
+aa_pacer = { git = "https://github.com/Nahida-aa/aa-pacer.git", rev = "ff3cf8d36bf70596a2dc6846d21f583100095532" }
 paths = { path = "packages/paths" }
 server = { path = "packages/server" }
 time = { path = "packages/time" }

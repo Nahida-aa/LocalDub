@@ -375,7 +375,7 @@ pub async fn step_tts(sc: impl StepCtxView, deps: TtsDeps) -> anyhow::Result<Tts
             }
             Ok(())
         };
-        let retrier = pacer_rs::Retryer::new()
+        let retrier = aa_pacer::Retryer::new()
             .max_attempts(2)
             .base_wait_ms(500)
             .max_wait_ms(2000)
