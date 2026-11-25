@@ -78,11 +78,25 @@
 **关键洞察**：任何依赖「当前值」（thread-local）的载体——span、subscriber——都逃不过 spawn 断链。
 天然跨 task 的只有「跟事件走」（B）或「闭包捕获」（D）。区别只是要不要 step 内部的细节日志。
 
+### 用户的期望（2026-11-26）
+
+> 「关于写入哪些日志，我希望从已知 video_dir 的时候起 就开始写入日志」
+
+指向**运行级绑定**：一旦拿到 video_dir，把「写这个 log 文件」与这次运行绑定，
+此后该运行产生的日志都写进去——而不是让每条日志自己去找文件。
+
+当前 span 方案不满足这一点，实证：`drive()` 流式循环里打的
+`tracing::info!(target: "workflow_event", ...)`（`engine.rs`）在 driver task 上，
+不在 middleware 打开的 span 内 → 只进 stderr、不进 `<id>.log`；
+而 step 内部日志在 span 内 → 进文件。同一个任务，两种日志两种去向。
+
 ### 待决定
 
-- `<id>.log` 的定位是什么？只要步骤进展/错误（D 够用），还是要包含 step 内部日志（需要 B）？
+- `<id>.log` 的定位是什么？只要步骤进展/错误（D 够用），还是要包含 step 内部日志 + driver 侧日志（需要 B 或等价的运行时绑定）？
 - 若选 D，是否回退 aa-workflow 的 tracing 依赖与 scheduler 改动、删掉 LocalDub 的 view_span？
 - 若选 B，统一封装入口（宏/函数）以控制改动面，layer 改为「事件字段优先、span 兜底」？
+- 能否做到真正的「运行前绑定」：在拿到 video_dir 时构造 per-run 写入器，
+  且让它跨 spawn 自动生效（tracing 生态没有现成机制；需自己设计）？
 - 新增 DAG 节点 spawn 或新的上下文字段时，是否接受持续修改 `workflow_middlewares`？
 
 ## 相关事实
