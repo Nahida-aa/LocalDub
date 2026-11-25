@@ -73,10 +73,14 @@
 | A. span（当前） | 手动，每处 spawn 一次 | 不改 step 日志；符合 tracing 生态惯例 | 每加 spawn 点就要改调度器；调试隐蔽 |
 | B. 事件字段（step 日志自带 `video_dir`） | 天然 | 不依赖 span/thread-local；新 spawn 无需改 | 改几十处 step 日志调用；layer 要改为从事件字段取 |
 | C. per-run subscriber/layer（运行前绑定到具体文件） | 仍需在 spawn 处附加 | 最贴合「绑定一次、精确写入」的直觉 | tracing 的 subscriber 也是 thread-local，跨 spawn 同样要传；不比 A 省 |
-| D. `publish` 回调直接写文件 | 天然（闭包捕获 video_dir） | 运行前捕获一次；零 span/subscriber 传播；不改 dag 中间件 | 只有引擎事件（步骤级），没有 step 内部的细节日志 |
+
+**关于 publish 回调**：它只是「另一个拿 `WorkflowEvent` 的地方」，而 `drive()` 里的
+`while let Some(ev) = stream.next().await` 流消费循环已经逐条拿到同样的事件——
+publish 能做的一切都是流消费的子集，且流消费在 driver task 上下文里更好写、更好处理错误。
+**不单独列为一个方案**。
 
 **关键洞察**：任何依赖「当前值」（thread-local）的载体——span、subscriber——都逃不过 spawn 断链。
-天然跨 task 的只有「跟事件走」（B）或「闭包捕获」（D）。区别只是要不要 step 内部的细节日志。
+天然跨 task 的只有「跟事件走」（B）。区别只是要不要 step 内部的细节日志。
 
 ### 用户的期望（2026-11-26）
 
@@ -92,8 +96,8 @@
 
 ### 待决定
 
-- `<id>.log` 的定位是什么？只要步骤进展/错误（D 够用），还是要包含 step 内部日志 + driver 侧日志（需要 B 或等价的运行时绑定）？
-- 若选 D，是否回退 aa-workflow 的 tracing 依赖与 scheduler 改动、删掉 LocalDub 的 view_span？
+- `<id>.log` 的定位是什么？只要步骤进展/错误（在流消费循环里直接写文件即可），还是要包含 step 内部日志 + driver 侧日志（需要 B 或等价的运行时绑定）？
+- 若只写引擎事件到文件，是否回退 aa-workflow 的 tracing 依赖与 scheduler 改动、删掉 LocalDub 的 view_span？
 - 若选 B，统一封装入口（宏/函数）以控制改动面，layer 改为「事件字段优先、span 兜底」？
 - 能否做到真正的「运行前绑定」：在拿到 video_dir 时构造 per-run 写入器，
   且让它跨 spawn 自动生效（tracing 生态没有现成机制；需自己设计）？
