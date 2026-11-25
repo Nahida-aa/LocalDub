@@ -7,7 +7,7 @@
 use crate::LlmFixArgs;
 use anyhow::anyhow;
 
-/// 解析 LLM 的**稀疏**修正回复：只输出有改动的行号（"2: 修正文本"），未出现的
+/// 解析 LLM 的**压缩格式**修正回复：只输出有改动的行号（"2: 修正文本"），未出现的
 /// 行表示"无误、保持原文"。
 ///
 /// 返回与 `originals` 等长的列表：出现的 id 覆盖对应项，其余保持原文。
@@ -40,7 +40,7 @@ pub fn parse_fix(input: &str, originals: &[String]) -> anyhow::Result<Vec<String
 }
 
 /// 密集解析（供 ASR 修正用）：要求出现的行恰好覆盖 1..=expected_count 且顺序对应。
-/// 与 `parse_fix` 的稀疏语义不同——ASR 修正的调用方按位置 zip 回填，必须等长。
+/// 与 `parse_fix` 接纳压缩格式不同——ASR 修正的调用方按位置 zip 回填，必须等长。
 pub fn parse_lines(input: &str, expected_count: usize) -> Option<Vec<String>> {
     let placeholders = (0..expected_count).map(|_| String::new()).collect::<Vec<_>>();
     parse_fix(input, &placeholders).ok().filter(|v| {
@@ -177,8 +177,8 @@ mod tests {
     }
 
     #[test]
-    fn parse_fix_sparse_keeps_original_for_missing_ids() {
-        // 模型只输出有改动的行 (2/9)，其余保持原文。
+    fn parse_fix_compressed_keeps_original_for_missing_ids() {
+        // 模型用压缩格式只输出有改动的行 (2/9)，其余保持原文。
         let originals = origs(3);
         let got = parse_fix("2: 修正二", &originals).unwrap();
         assert_eq!(got, vec!["原文1", "修正二", "原文3"]);
