@@ -773,6 +773,10 @@ struct ReleaseBinSpec {
     windows_sha256: Option<&'static str>,
     /// 版本戳文件名 (与二进制同目录)。
     stamp: &'static str,
+    /// true: 该二进制独占 `bin_dir/<bin>/` 子目录，zip 解压/版本戳/LD 都落在其中，
+    ///       不与其它二进制共享 so（自包含，避免同名 so 冲突）。
+    /// false: 历史平铺布局，所有二进制与 so 混在 `bin_dir/`。
+    dir_layout: bool,
 }
 
 /// Linux 资产为静态链接版 zip (OpenCV 5.0 静态编进二进制, ffmpeg .so 随包平铺),
@@ -790,6 +794,7 @@ const SUBTITLE_FINDER: ReleaseBinSpec = ReleaseBinSpec {
     windows_asset: Some("subtitle-finder-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some("9dece5e3cd2a9d72716d5fab5ecec256406b5113e38a479f55c76c43635396cc"),
     stamp: ".subtitle_finder.version.json",
+    dir_layout: true, // 130 个 so 自包含，独占 data/bin/subtitle-finder/
 };
 
 const SUBTITLE_OCR: ReleaseBinSpec = ReleaseBinSpec {
@@ -805,6 +810,7 @@ const SUBTITLE_OCR: ReleaseBinSpec = ReleaseBinSpec {
     windows_asset: Some("subtitle-ocr-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some("7dfec92f6089b6213c0be9e69ee9c589a5730c5acb6dc6b33da96dffbf0389e7"),
     stamp: ".subtitle_ocr.version.json",
+    dir_layout: false,
 };
 
 const SUBTITLE_OCR_POST: ReleaseBinSpec = ReleaseBinSpec {
@@ -818,6 +824,7 @@ const SUBTITLE_OCR_POST: ReleaseBinSpec = ReleaseBinSpec {
     windows_asset: Some("subtitle-ocr-post-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some("f075f1655c4df0088ab49eaaecf78ff005fbfc2c5a54cd6f5527200d679df89d"),
     stamp: ".subtitle_ocr_post.version.json",
+    dir_layout: false,
 };
 
 const DEMUCS_BURN_TCH: ReleaseBinSpec = ReleaseBinSpec {
@@ -831,6 +838,7 @@ const DEMUCS_BURN_TCH: ReleaseBinSpec = ReleaseBinSpec {
     windows_asset: Some("demucs-burn-tch-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some("c974ccd160dd330c38f1f1776df353624d8fc913b89b9619c745b14607836f45"),
     stamp: ".demucs_burn_tch.version.json",
+    dir_layout: false,
 };
 
 const DEMUCS_BURN_WGPU: ReleaseBinSpec = ReleaseBinSpec {
@@ -844,6 +852,7 @@ const DEMUCS_BURN_WGPU: ReleaseBinSpec = ReleaseBinSpec {
     windows_asset: Some("demucs-burn-wgpu-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some("e2aa3855f07f6cbfda8507db3eeecf5d8fc2151af13fa2908a6ae005207b3592"),
     stamp: ".demucs_burn_wgpu.version.json",
+    dir_layout: false,
 };
 
 /// demucs-wgpu: 自研 WGSL/Vulkan kernel 路径 (不依赖 libtorch / ROCm 库)。
@@ -860,6 +869,7 @@ const DEMUCS_WGPU: ReleaseBinSpec = ReleaseBinSpec {
     windows_asset: Some("demucs-wgpu-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some("10000663d73f700c13ac7cef58c7e80e25e717954490ca2edba6853210986be4"),
     stamp: ".demucs_wgpu.version.json",
+    dir_layout: false,
 };
 
 /// demucs-tch: 独立 tch-rs 运行时 (不依赖 burn), 按设备分 cpu / cuda 变体。
@@ -878,6 +888,7 @@ const DEMUCS_TCH_CPU: ReleaseBinSpec = ReleaseBinSpec {
     windows_asset: Some("demucs-tch-cpu-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some(""),
     stamp: ".demucs_tch_cpu.version.json",
+    dir_layout: false,
 };
 
 const DEMUCS_TCH_CUDA: ReleaseBinSpec = ReleaseBinSpec {
@@ -891,6 +902,7 @@ const DEMUCS_TCH_CUDA: ReleaseBinSpec = ReleaseBinSpec {
     windows_asset: Some("demucs-tch-cuda-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some(""),
     stamp: ".demucs_tch_cuda.version.json",
+    dir_layout: false,
 };
 
 /// whisper-vulkan (vox-lab 预编译 whisper.cpp, GGML_VULKAN)。
@@ -909,6 +921,7 @@ const WHISPER_VULKAN: ReleaseBinSpec = ReleaseBinSpec {
     windows_asset: Some("whisper-vulkan-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some("1754cffc2132d7bbf303c65a27e7b01b578e76714afef97099e3d411d1cf9322"),
     stamp: ".whisper_vulkan.version.json",
+    dir_layout: false,
 };
 
 /// 当前平台的资产 (asset 名, sha256); 平台未发布返回 None。
@@ -934,16 +947,27 @@ fn platform_label() -> &'static str {
     }
 }
 
-/// 目标二进制路径:
-/// - zip: `bin_dir/<bin>` (Linux) / `bin_dir/<bin>.exe` (Windows), 解压平铺后的可执行;
-/// - 单文件: Linux `bin_dir/<linux_asset>` (资产名即本地文件名) / Windows `bin_dir/<bin>.exe`。
-fn release_bin_path(spec: &ReleaseBinSpec) -> PathBuf {
-    if cfg!(windows) {
-        bin_dir().join(format!("{}.exe", spec.bin))
-    } else if spec.zip {
+/// 二进制的落点根目录: dir_layout spec 独占 `bin_dir/<bin>/`, 其余平铺在 `bin_dir/`。
+fn release_root(spec: &ReleaseBinSpec) -> PathBuf {
+    if spec.dir_layout {
         bin_dir().join(spec.bin)
     } else {
-        bin_dir().join(spec.linux_asset)
+        bin_dir()
+    }
+}
+
+/// 目标二进制路径:
+/// - zip: `<root>/<bin>` (Linux) / `<root>/<bin>.exe` (Windows), 解压后的可执行;
+/// - 单文件: Linux `<root>/<linux_asset>` (资产名即本地文件名) / Windows `<root>/<bin>.exe`。
+/// `<root>` = dir_layout ? `bin_dir/<bin>` : `bin_dir`。
+fn release_bin_path(spec: &ReleaseBinSpec) -> PathBuf {
+    let root = release_root(spec);
+    if cfg!(windows) {
+        root.join(format!("{}.exe", spec.bin))
+    } else if spec.zip {
+        root.join(spec.bin)
+    } else {
+        root.join(spec.linux_asset)
     }
 }
 
@@ -951,10 +975,11 @@ fn release_bin_path(spec: &ReleaseBinSpec) -> PathBuf {
 /// - Windows: 落 zip 资产名 (解压前先校验 sha256, 解压后删除);
 /// - Linux: 落资产名 (zip 资产即 zip 本身, 单文件即二进制)。
 fn release_download_path(spec: &ReleaseBinSpec) -> PathBuf {
+    let root = release_root(spec);
     if cfg!(windows) {
-        bin_dir().join(spec.windows_asset.unwrap_or(spec.linux_asset))
+        root.join(spec.windows_asset.unwrap_or(spec.linux_asset))
     } else {
-        bin_dir().join(spec.linux_asset)
+        root.join(spec.linux_asset)
     }
 }
 
@@ -983,15 +1008,15 @@ fn extract_zip_flat(dest_dir: &Path, zip_path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// 解压 zip 资产 (vision-lab Windows zip / vox-lab demucs Linux+Windows zip) 平铺到 bin_dir。
-/// 已知的 demucs 类 zip 顶层即为 bin_dir 内容, 故解压到 bin_dir 而非其子目录。
-fn extract_zip_to_bin_dir(zip_path: &Path) -> Result<(), String> {
-    extract_zip_flat(&bin_dir(), zip_path)
+/// 解压 zip 资产到指定落点根目录 (dir_layout spec 是 `bin_dir/<bin>`, 其余是 `bin_dir`)。
+/// zip 内文件平铺 (只取 file_name 防 zip-slip): 二进制 + 全部运行时 dll/.so 同目录。
+fn extract_zip_to_bin_dir(zip_path: &Path, dest_dir: &Path) -> Result<(), String> {
+    extract_zip_flat(dest_dir, zip_path)
 }
 
 /// 版本戳文件路径
 fn release_version_path(spec: &ReleaseBinSpec) -> PathBuf {
-    bin_dir().join(spec.stamp)
+    release_root(spec).join(spec.stamp)
 }
 
 /// 下载 URL (资产名与本地文件名一致)。
@@ -1148,14 +1173,15 @@ async fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
         }
     }
 
-    // ldd 检查 (仅 Linux)。zip 平铺类 spec (demucs release) 的 libtorch 等 so 与 bin 同目录 (bin_dir),
-    // 需注入 LD_LIBRARY_PATH 才能命中, 否则 tch 恒报 missing_libs。
+    // ldd 检查 (仅 Linux)。运行时 so 与二进制同目录 (dir_layout = bin_dir/<bin>,
+    // 其余 = bin_dir), 需注入 LD_LIBRARY_PATH 指向该目录, 否则恒报 missing_libs。
+    // 与 ensure_bin_command 的注入保持一致 (都取二进制 parent)。
     #[cfg(target_os = "linux")]
     {
-        let bin_dir = bin_dir();
+        let lib_dir = path.parent().unwrap_or_else(|| std::path::Path::new("."));
         let lib_path = format!(
             "{}:{}",
-            bin_dir.display(),
+            lib_dir.display(),
             std::env::var("LD_LIBRARY_PATH").unwrap_or_default()
         );
         let mut cmd = Command::new("ldd");
@@ -1341,7 +1367,21 @@ async fn download_resumable(
 /// **报错保留用户文件**（不覆盖）。zip 资产若用户只放了已解压的二进制、没有
 /// 压缩包可校验 sha，则不认领——无法确认它不是被篡改/不完整的版本。
 async fn adopt_local_release(spec: &ReleaseBinSpec, sha256: &str) -> Option<CheckResult> {
-    let dl_path = release_download_path(spec);
+    // dir_layout spec 优先认领新目录里的资产；若不存在则回退历史平铺位置
+    // (bin_dir/<asset>)，让已有安装能从旧布局平滑迁移，sha 命中后解压进新目录。
+    let dl_new = release_download_path(spec);
+    let dl_path = if dl_new.exists() || !spec.dir_layout {
+        dl_new
+    } else {
+        let legacy = bin_dir().join(
+            if cfg!(windows) {
+                spec.windows_asset.unwrap_or(spec.linux_asset)
+            } else {
+                spec.linux_asset
+            },
+        );
+        if legacy.exists() { legacy } else { dl_new }
+    };
     let bin_path = release_bin_path(spec);
     let stamp_path = release_version_path(spec);
 
@@ -1371,7 +1411,16 @@ async fn adopt_local_release(spec: &ReleaseBinSpec, sha256: &str) -> Option<Chec
         }
         // sha 通过：zip 解压就位（单文件已在正确路径）
         if spec.zip {
-            if let Err(e) = extract_zip_to_bin_dir(&dl_path) {
+            let root = release_root(spec);
+            if let Err(e) = std::fs::create_dir_all(&root) {
+                return Some(CheckResult {
+                    key: spec.key.to_string(),
+                    status: CheckStatus::Fail,
+                    data: json!({ "msg": format!("创建落点目录失败: {e}") }),
+                    required: false,
+                });
+            }
+            if let Err(e) = extract_zip_to_bin_dir(&dl_path, &root) {
                 return Some(CheckResult {
                     key: spec.key.to_string(),
                     status: CheckStatus::Fail,
@@ -1525,9 +1574,10 @@ async fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
     }
 
     // zip 资产 (vision-lab Windows / vox-lab demucs Linux+Windows): 解压平铺到
-    // bin_dir, 校验通过后删除归档。单文件资产 (Linux vision-lab) 跳过。
+    // 落点根目录 (dir_layout = bin_dir/<bin>, 其余 = bin_dir), 校验通过后删除归档。
+    // 单文件资产 (Linux vision-lab) 跳过。
     if spec.zip {
-        if let Err(e) = extract_zip_to_bin_dir(&dl_path) {
+        if let Err(e) = extract_zip_to_bin_dir(&dl_path, &release_root(spec)) {
             let _ = std::fs::remove_file(&dl_path);
             return CheckResult {
                 key: spec.key.to_string(),

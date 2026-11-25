@@ -153,8 +153,8 @@ mod tests {
         // 预置 data/bin 一个"假" subtitle-finder + 版本戳, 让 check 通过 (避免触发真实下载),
         // 随后 spawn 在假视频上失败 → 报 subtitle-finder failed。
         //
-        // 注意: env ensure 的落盘目录是真实 data/bin (bin_dir 无 env 覆盖), 故测试
-        // 先备份现场、结束后恢复, 避免破坏真实下载的二进制。
+        // 注意: env ensure 的落盘目录是真实 data/bin/subtitle-finder/ (dir_layout,
+        // bin_dir 无 env 覆盖), 故测试先备份现场、结束后恢复, 避免破坏真实二进制。
         let dir = std::env::temp_dir()
             .join(format!("ld_sfpre_bin_{}", std::process::id()))
             .to_string_lossy()
@@ -164,11 +164,13 @@ mod tests {
         let video = std::path::Path::new(&dir).join("video_source.mp4");
         std::fs::write(&video, b"fake").unwrap();
 
-        // 备份 data/bin 现场
+        // 备份现场: subtitle-finder 是 dir_layout spec, 落点在 data/bin/subtitle-finder/。
+        // 该测试先备份、结束后恢复, 避免破坏真实下载的二进制 (bin_dir 无 env 覆盖)。
         let bin_dir = config_rs::path::models::bin_dir();
-        std::fs::create_dir_all(&bin_dir).unwrap();
-        let bin_path = bin_dir.join("subtitle-finder");
-        let stamp_path = bin_dir.join(".subtitle_finder.version.json");
+        let spec_dir = bin_dir.join("subtitle-finder");
+        std::fs::create_dir_all(&spec_dir).unwrap();
+        let bin_path = spec_dir.join("subtitle-finder");
+        let stamp_path = spec_dir.join(".subtitle_finder.version.json");
         let backup_bin = std::fs::read(&bin_path).ok();
         let backup_stamp = std::fs::read(&stamp_path).ok();
         let had_bin = bin_path.exists();
