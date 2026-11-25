@@ -5,3 +5,4 @@
 //   唯一执行路径；过渡的 parallel / exec_path 实验开关已下线。
 pub mod engine;
 pub mod engine_store;
+pub mod view_span;

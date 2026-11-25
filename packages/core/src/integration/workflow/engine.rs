@@ -18,7 +18,6 @@ use aa_workflow_core::define::MetaBag;
 use aa_workflow_core::{RunStatus, RunWorkflowOptions, WorkflowEvent, run_workflow};
 use aa_workflow_middlewares::{DagPlan, DagPlanKey};
 use anyhow::Context;
-use tracing::Instrument;
 
 use crate::input::WorkflowInput;
 
@@ -53,19 +52,16 @@ async fn drive(
     meta: MetaBag,
 ) -> anyhow::Result<RunStatus> {
     let input_value = serde_json::to_value(input).context("序列化 workflow input 失败")?;
-    // workflow span 带 video_dir：WorkflowFileLayer 靠它把日志落到 <video_dir>/<id>.log。
-    let span = tracing::info_span!("workflow", video_dir = input.video_dir());
-    let events = async {
-        run_workflow(
-            RunWorkflowOptions::new(wf, store)
-                .run_id(run_id.to_string())
-                .input(input_value)
-                .meta(meta),
-        )
-        .collect()
-        .await
-    }
-    .instrument(span)
+    // 注意：日志落盘的 workflow span 由 view_span middleware 在引擎 task 内打开。
+    // 这里不能靠 .instrument(span) 包住 collect()——run_workflow 内部 tokio::spawn
+    // 的引擎 task 不继承本 task 的 span，step 日志会拿不到 video_dir。
+    let events = run_workflow(
+        RunWorkflowOptions::new(wf, store)
+            .run_id(run_id.to_string())
+            .input(input_value)
+            .meta(meta),
+    )
+    .collect()
     .await;
 
     // view.json 是给 UI 看的投影（UI 监听它刷新区块）。引擎真源是事件日志，

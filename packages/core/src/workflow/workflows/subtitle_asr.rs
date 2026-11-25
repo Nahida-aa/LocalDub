@@ -76,6 +76,7 @@ pub fn subtitle_asr_spec() -> anyhow::Result<Arc<DagSpec<WorkflowInput, ()>>> {
 
 pub fn subtitle_asr_with_policies() -> anyhow::Result<aa_workflow_core::WorkflowDefinition<WorkflowInput, Value, ()>> {
     use aa_workflow_middlewares::dag_policies;
+    use crate::integration::workflow::view_span::view_span_middleware;
     let spec = subtitle_asr_spec()?;
     let shape = Arc::new(spec.shape().map_err(|e| anyhow::anyhow!("DAG 形状非法: {e}"))?);
     Ok(create_workflow(
@@ -90,7 +91,7 @@ pub fn subtitle_asr_with_policies() -> anyhow::Result<aa_workflow_core::Workflow
                 Ok(())
             }),
     )
-    .middleware(dag_policies(shape))
+    .middleware(view_span_middleware()).middleware(dag_policies(shape))
     .handler(dag_to_handler(spec)))
 }
 
