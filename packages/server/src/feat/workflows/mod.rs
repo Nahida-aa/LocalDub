@@ -5,6 +5,8 @@ pub mod tree;
 use std::collections::HashSet;
 use std::sync::{Mutex, OnceLock};
 
+use tracing::Instrument;
+
 use config_rs::{
     root::repo_root,
     // servers::ServerType
@@ -210,6 +212,7 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
     // 后台跑完整 DAG (不阻塞 RPC); 失败仅记日志, 任务页可续跑。
     // 与 CLI 直接执行/队列统一走引擎：真源是 workflow-store/<run_id>/logs.jsonl。
     let video_dir = abs_video_dir.clone();
+    let span = tracing::info_span!("workflow", video_dir = video_dir.as_str());
     tokio::spawn(async move {
         match ld_core::state::read_input(&video_dir) {
             Ok(input) => match ld_core::input::WorkflowInput::try_from(input) {
@@ -224,7 +227,8 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
             },
             Err(e) => tracing::error!("读取 {video_dir}/input.json 失败: {e}"),
         }
-    });
+    }
+    .instrument(span));
 
     // 返回相对 workfolder 的 video_dir (供前端导航 /group/<group>/<workflow>)。
     std::path::Path::new(&abs_video_dir)

@@ -1,6 +1,6 @@
 # 0003. 工作流日志路由：把「写哪个 log 文件」与运行绑定
 
-> 状态：open（已有一版可用实现，但设计未定——记录问题、已验证的事实与候选方案）
+> 状态：accepted（选 A：span 贯穿全程——从知道 video_dir 起绑定，每处上下文边界开同名 span）
 > 日期：2026-11-26
 > 关联：`packages/core/src/logging.rs`（`WorkflowFileLayer`）、
 > `packages/core/src/integration/workflow/view_span.rs`（tracing middleware）、
@@ -107,6 +107,23 @@ publish 能做的一切都是流消费的子集，且流消费在 driver task �
 
 - `WorkflowFileLayer` 当前只从 span 链取 `video_dir`，不从事件字段取（`logging.rs:97-105`）。
 - 引擎真源是 `workflow-store/<run_id>/logs.jsonl`；`view.json` 是给 UI 看的投影，
-  由 `sync_view_from_events` 从事件流派生（另见 engine.rs）。
+  由 `apply_view_event` 逐条从事件流派生（另见 engine.rs）。
 - 日志的 stderr 输出（fmt layer）不受 span 影响，一直可见——这也是为什么问题只表现为
   「终端有日志、文件没有」。
+
+## 结论（2026-11-26）
+
+选 **A：span 贯穿全程**。定位确认为「`<id>.log` = 所有日志，从知道 video_dir 起」，
+因此在每个上下文边界开**同名同字段**的 `workflow` span（`video_dir` 用裸 `&str`，走 `record_str`）：
+
+| 上下文边界 | 绑定方式 | 位置 |
+|---|---|---|
+| import（同步） | `span.enter()` guard 持有到函数结束 | `download.rs` 的 `let video_dir` 之后 |
+| CLI driver（async） | `async { ... }.instrument(span).await` | `run_from_imported` |
+| UI driver（spawn） | `tokio::spawn(async {...}.instrument(span))` | `server/feat/workflows/mod.rs` 的 `start_workflow` |
+| 引擎 task（spawn） | middleware 内 `info_span` + `instrument` | `view_span.rs` |
+| DAG 节点（JoinSet::spawn） | `Span::current()` + `.instrument` | aa-workflow `scheduler.rs` |
+
+效果：import 日志、driver 日志（引擎事件）、step 日志都写进同一个 `<id>.log`。
+代价：每新增一个 spawn / 上下文边界就开一次同名 span——这是 A 方案的固有维护成本，已接受。
+B（事件字段）作为备选保留：若要彻底免维护，可统一改 step 日志自带 video_dir、layer 从事件取。

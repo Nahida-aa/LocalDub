@@ -14,16 +14,24 @@
 
 use crate::input::{Input, WorkflowInput};
 use anyhow::Context;
+use tracing::Instrument;
 
 /// 驱动已构造的 run input（两入口共用；不含 import / setCtx）。
-async fn run_from_imported(wfi: WorkflowInput) -> anyhow::Result<()> {
-    println!("[cli] 引擎路径 (core 直驱, 真源事件日志)");
-    // 引擎如实返回 RunStatus；按 TanStack kind 语义，paused 与 finished 都非 error。
-    use aa_workflow_core::RunStatus;
-    match crate::integration::workflow::engine::run_engine(&wfi).await? {
-        RunStatus::Finished | RunStatus::Paused => Ok(()),
-        other => anyhow::bail!("引擎 run 未正常完成: {other:?}"),
+async fn run_from_imported(wfi: WorkflowInput, video_dir: &str) -> anyhow::Result<()> {
+    // 运行级绑定：driver 侧日志（引擎路径启动 / 事件 / 结束）也写进 <video_dir>/<id>.log。
+    // 裸 &str 走 record_str，别用 %（record_debug 会给路径加引号）。
+    let span = tracing::info_span!("workflow", video_dir = video_dir);
+    async move {
+        println!("[cli] 引擎路径 (core 直驱, 真源事件日志)");
+        // 引擎如实返回 RunStatus；按 TanStack kind 语义，paused 与 finished 都非 error。
+        use aa_workflow_core::RunStatus;
+        match crate::integration::workflow::engine::run_engine(&wfi).await? {
+            RunStatus::Finished | RunStatus::Paused => Ok(()),
+            other => anyhow::bail!("引擎 run 未正常完成: {other:?}"),
+        }
     }
+    .instrument(span)
+    .await
 }
 
 /// 导入视频 + 从头跑全量 pipeline（原 start 语义）。
@@ -35,7 +43,7 @@ pub async fn import_and_start_workflow(input: &Input) -> anyhow::Result<String> 
     println!("[cli] 导入完成, video_dir = {}", st.workflow.video_dir);
 
     let wfi = WorkflowInput::try_from(input.clone()).map_err(anyhow::Error::msg)?;
-    run_from_imported(wfi).await?;
+    run_from_imported(wfi, &st.workflow.video_dir).await?;
 
     println!("[cli] 完成: {}", st.workflow.video_dir);
     Ok(st.workflow.video_dir)
@@ -66,7 +74,7 @@ pub async fn start_workflow(input: &Input) -> anyhow::Result<String> {
     // 把相对路径写进 ffmpeg 列表、被相对列表文件目录二次拼接（双份路径）。
     let settled = crate::state::read_input(&video_dir).map_err(anyhow::Error::msg)?;
     let wfi = WorkflowInput::try_from(settled.clone()).map_err(anyhow::Error::msg)?;
-    run_from_imported(wfi).await?;
+    run_from_imported(wfi, &video_dir).await?;
 
     println!("[cli] 完成: {video_dir}");
     Ok(video_dir)

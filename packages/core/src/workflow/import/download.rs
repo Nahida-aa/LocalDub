@@ -44,8 +44,15 @@ pub fn import_video(input: &Input) -> anyhow::Result<(WorkflowState, Input)> {
     let source = auto.source;
     let yt_dlp_ext_args = auto.yt_dlp_ext_args;
 
-    info!("[import] group={group_id} workflow={video_id} source={source:?}");
     let video_dir = workfolder().join(&group_id).join(&video_id);
+    // 从知道 video_dir 那一刻起，把 import 阶段的日志绑定到 <video_dir>/<id>.log。
+    // 同步函数里 enter() 的 guard 可跨同步调用持有到函数结束；引擎阶段由外层
+    // 用同名 span + instrument 包住 async 部分（见 start.rs / engine.rs）。
+    // 裸 &str 走 record_str，别用 %（record_debug 会给路径加引号）。
+    let video_dir_str = video_dir.to_string_lossy().into_owned();
+    let span = tracing::info_span!("workflow", video_dir = video_dir_str.as_str());
+    let _entered = span.enter();
+    info!("[import] group={group_id} workflow={video_id} source={source:?}");
     std::fs::create_dir_all(&video_dir)
         .with_context(|| format!("创建 video_dir 失败: {video_dir:?}"))?;
 
@@ -91,7 +98,6 @@ pub fn import_video(input: &Input) -> anyhow::Result<(WorkflowState, Input)> {
         audio_source_path: Some(downloaded.audio_path.clone()),
     };
 
-    let video_dir_str = video_dir.to_string_lossy().into_owned();
     write_state(&video_dir_str, &state).map_err(anyhow::Error::msg)?;
     // 身份回填：input.json 与返回值里的 video_dir 都填成 import 落定的真实目录
     // （start 路径的 input 原本没有它——此前只有引擎注入这一种补法）。落盘的
