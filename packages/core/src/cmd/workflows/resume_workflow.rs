@@ -65,7 +65,13 @@ pub async fn resume_workflow(input: &Input) -> anyhow::Result<()> {
     let settled = crate::state::read_input(&video_dir).map_err(anyhow::Error::msg)?;
     let wfi = crate::input::WorkflowInput::try_from(settled).map_err(anyhow::Error::msg)?;
     println!("[cli] 引擎 resume (新 run + DagPlan, 真源事件日志)");
-    crate::integration::workflow::engine::run_engine_resume(&wfi).await?;
+    // 引擎如实返回 RunStatus；按 TanStack kind 语义，paused 与 finished 都非 error，
+    // errored / aborted 才报错。
+    use aa_workflow_core::RunStatus;
+    match crate::integration::workflow::engine::run_engine_resume(&wfi).await? {
+        RunStatus::Finished | RunStatus::Paused => {}
+        other => anyhow::bail!("引擎 resume 未正常完成: {other:?}"),
+    }
     println!("[cli] 完成: {}", video_dir);
     Ok(())
 }

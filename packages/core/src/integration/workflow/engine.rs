@@ -17,7 +17,7 @@ use std::sync::Arc;
 use aa_workflow_core::define::MetaBag;
 use aa_workflow_core::{RunStatus, RunWorkflowOptions, run_workflow};
 use aa_workflow_middlewares::{DagPlan, DagPlanKey};
-use anyhow::{Context, bail};
+use anyhow::Context;
 
 use crate::input::WorkflowInput;
 
@@ -42,14 +42,15 @@ fn next_run_id(base: &Path) -> String {
     (existing_run_ids(base).last().copied().unwrap_or(0) + 1).to_string()
 }
 
-/// 驱动一次引擎 run，按 status 判定结果。
+/// 驱动一次引擎 run，如实返回 RunStatus（对齐 TanStack：runWorkflow 只产出事件与
+/// 最终状态，不替调用方判定 paused 是成功还是失败；由上层按 kind 语义决定）。
 async fn drive(
     wf: aa_workflow_core::AnyWorkflowDefinition,
     store: Arc<dyn aa_workflow_core::RunStore>,
     run_id: &str,
     input: &WorkflowInput,
     meta: MetaBag,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<RunStatus> {
     let input_value = serde_json::to_value(input).context("序列化 workflow input 失败")?;
     let outcome = run_workflow(
         RunWorkflowOptions::new(wf, store)
@@ -61,13 +62,8 @@ async fn drive(
     .await
     .map_err(|e| anyhow::anyhow!("引擎 run {run_id} 失败: {e:?}"))?;
 
-    match outcome.status {
-        RunStatus::Finished => {
-            tracing::info!(target: "output_mode", run_id = %run_id, "引擎 run 完成");
-            Ok(())
-        }
-        other => bail!("引擎 run {run_id} 未正常完成: {other:?}"),
-    }
+    tracing::info!(target: "output_mode", run_id = %run_id, status = ?outcome.status, "引擎 run 结束");
+    Ok(outcome.status)
 }
 
 /// 按 (output_mode, subtitle_source) 选对应的 DAG 定义（6 种工作流各有独立 spec）。
@@ -104,7 +100,7 @@ fn workflow_label(wfi: &WorkflowInput) -> String {
 ///
 /// `wfi` 是 import 已回填身份的 run input。store 与 run_id 都在 async 上下文里
 /// 构造（`FsRunStore::new` 内部 `tokio::spawn` 要求 runtime）。
-pub async fn run_engine(wfi: &WorkflowInput) -> anyhow::Result<()> {
+pub async fn run_engine(wfi: &WorkflowInput) -> anyhow::Result<RunStatus> {
     let video_dir = PathBuf::from(wfi.video_dir());
     let store_base = video_dir.join("workflow-store");
     let run_id = next_run_id(&store_base);
@@ -120,7 +116,7 @@ pub async fn run_engine(wfi: &WorkflowInput) -> anyhow::Result<()> {
 ///
 /// `wfi.workflow.resume_from` 直接透传为 DagPlan.from（空 → None，引擎自动取
 /// 源日志里未成功的节点为失效种子）；`target_step` 透传为 goals。
-pub async fn run_engine_resume(wfi: &WorkflowInput) -> anyhow::Result<()> {
+pub async fn run_engine_resume(wfi: &WorkflowInput) -> anyhow::Result<RunStatus> {
     let video_dir = PathBuf::from(wfi.video_dir());
     let store_base = video_dir.join("workflow-store");
     let source = existing_run_ids(&store_base).last().copied();

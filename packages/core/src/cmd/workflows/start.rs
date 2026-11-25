@@ -18,7 +18,12 @@ use anyhow::Context;
 /// 驱动已构造的 run input（两入口共用；不含 import / setCtx）。
 async fn run_from_imported(wfi: WorkflowInput) -> anyhow::Result<()> {
     println!("[cli] 引擎路径 (core 直驱, 真源事件日志)");
-    crate::integration::workflow::engine::run_engine(&wfi).await
+    // 引擎如实返回 RunStatus；按 TanStack kind 语义，paused 与 finished 都非 error。
+    use aa_workflow_core::RunStatus;
+    match crate::integration::workflow::engine::run_engine(&wfi).await? {
+        RunStatus::Finished | RunStatus::Paused => Ok(()),
+        other => anyhow::bail!("引擎 run 未正常完成: {other:?}"),
+    }
 }
 
 /// 导入视频 + 从头跑全量 pipeline（原 start 语义）。
