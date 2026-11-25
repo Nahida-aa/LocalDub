@@ -67,11 +67,11 @@ export-series-0:
 export-series *args:
     bun scripts/export-series.ts {{args}}
 
-# 生成剧集上传清单 xlsx (数据源 out/<剧名>/<集数>.mp4)
+# 生成剧集上传清单 xlsx (仅生成表格, 不上传; 数据源 out/<剧名>/<集数>.mp4)
 # 列: 剧名 | 集数 | 姓名 | 时长 | 上传链接(网盘, 留空待填)
-#   just upload-sheet "师尊带我炸修真,梨落忘川雪" 安安
-#   just upload-sheet "师尊带我炸修真" 安安 --out tmp/清单.xlsx
-upload-sheet series name *args:
+#   just gen-upload-sheet "师尊带我炸修真,梨落忘川雪" 安安
+#   just gen-upload-sheet "师尊带我炸修真" 安安 --out tmp/清单.xlsx
+gen-upload-sheet series name *args:
     uv run --no-project --with openpyxl scripts/make-upload-sheet.py --series "{{series}}" --name "{{name}}" {{args}}
 
 stats:
