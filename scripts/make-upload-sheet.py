@@ -2,7 +2,8 @@
 """生成剧集上传清单 xlsx。
 
 数据来源: out/<剧名>/<集数>.mp4
-输出列: 剧名 | 集数 | 姓名 | 时长 | 上传链接(网盘)
+一行对应一部剧:
+    剧名 | 集数(总集数) | 姓名 | 时长(全剧求和) | 上传链接(网盘)
 上传链接列留空，供上传后手工/脚本回填。
 
 用法:
@@ -137,18 +138,24 @@ def main() -> int:
         if not episodes:
             print(f"✗ {series}: 没有 mp4 文件", file=sys.stderr)
             continue
-        for num, label, path in episodes:
+        total_sec = 0.0
+        failed = 0
+        for _, _, path in episodes:
             sec = ffprobe_duration(path)
             if sec is None:
                 print(f"  ! {series}/{path.name}: 读取时长失败", file=sys.stderr)
-            ws.cell(row=row, column=1, value=series)
-            ws.cell(row=row, column=2, value=num if num is not None else label)
-            ws.cell(row=row, column=3, value=args.name)
-            ws.cell(row=row, column=4, value=format_duration(sec) if sec else "")
-            ws.cell(row=row, column=5, value="")
-            row += 1
-            total += 1
-        print(f"✓ {series}: {len(episodes)} 集")
+                failed += 1
+                continue
+            total_sec += sec
+        ws.cell(row=row, column=1, value=series)
+        ws.cell(row=row, column=2, value=len(episodes))
+        ws.cell(row=row, column=3, value=args.name)
+        ws.cell(row=row, column=4, value=format_duration(total_sec) if total_sec else "")
+        ws.cell(row=row, column=5, value="")
+        row += 1
+        total += 1
+        note = f", {failed} 集时长缺失" if failed else ""
+        print(f"✓ {series}: {len(episodes)} 集, 总时长 {format_duration(total_sec)}{note}")
 
     if total == 0:
         print("没有任何剧集可写入，未生成文件", file=sys.stderr)
