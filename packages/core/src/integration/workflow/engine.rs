@@ -43,12 +43,18 @@ fn next_run_id(base: &Path) -> String {
 }
 
 /// 驱动一次引擎 run，按 status 判定结果。
+///
+/// `goals_pause_ok`: 设了 `target_step`（= DagPlan.goals）时，目标步骤全部达成后
+/// 中间件会主动泊车（`SIGNAL_AWAITED __interim-goal`），run 以 `Paused` 结束——
+/// 这是**预期成功**，不是失败。LocalDub 的 DAG 没有 approval/sleep 等其它挂起源，
+/// 故 goals 非空时的 Paused 可安全视为目标达成。
 async fn drive(
     wf: aa_workflow_core::AnyWorkflowDefinition,
     store: Arc<dyn aa_workflow_core::RunStore>,
     run_id: &str,
     input: &WorkflowInput,
     meta: MetaBag,
+    goals_pause_ok: bool,
 ) -> anyhow::Result<()> {
     let input_value = serde_json::to_value(input).context("序列化 workflow input 失败")?;
     let outcome = run_workflow(
@@ -64,6 +70,10 @@ async fn drive(
     match outcome.status {
         RunStatus::Finished => {
             tracing::info!(target: "output_mode", run_id = %run_id, "引擎 run 完成");
+            Ok(())
+        }
+        RunStatus::Paused if goals_pause_ok => {
+            tracing::info!(target: "output_mode", run_id = %run_id, "引擎 run 目标达成，泊车等待");
             Ok(())
         }
         other => bail!("引擎 run {run_id} 未正常完成: {other:?}"),
@@ -113,7 +123,7 @@ pub async fn run_engine(wfi: &WorkflowInput) -> anyhow::Result<()> {
     let wf = build_workflow(wfi)?;
 
     tracing::info!(target: "output_mode", run_id = %run_id, workflow = %workflow_label(wfi), "引擎路径启动");
-    drive(wf, store, &run_id, wfi, MetaBag::new()).await
+    drive(wf, store, &run_id, wfi, MetaBag::new(), false).await
 }
 
 /// 驱动一次引擎 resume（新 run + DagPlan 从源 run 复用未失效步骤）。
@@ -153,7 +163,9 @@ pub async fn run_engine_resume(wfi: &WorkflowInput) -> anyhow::Result<()> {
 
     tracing::info!(target: "output_mode",
         run_id = %run_id, source = %source_run_id, workflow = %workflow_label(wfi), "引擎 resume 启动");
-    drive(wf, store, &run_id, wfi, meta).await
+    // target_step 非空 = goals 已设，目标达成后的 Paused 是预期成功。
+    let goals_pause_ok = !wfi.workflow.target_step.is_empty();
+    drive(wf, store, &run_id, wfi, meta, goals_pause_ok).await
 }
 
 #[cfg(test)]
