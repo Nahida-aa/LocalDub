@@ -15,7 +15,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use aa_workflow_core::define::MetaBag;
-use aa_workflow_core::{RunStatus, RunWorkflowOptions, run_workflow};
+use aa_workflow_core::{RunStatus, RunWorkflowOptions, WorkflowEvent, run_workflow};
 use aa_workflow_middlewares::{DagPlan, DagPlanKey};
 use anyhow::Context;
 use tracing::Instrument;
@@ -43,8 +43,8 @@ fn next_run_id(base: &Path) -> String {
     (existing_run_ids(base).last().copied().unwrap_or(0) + 1).to_string()
 }
 
-/// 驱动一次引擎 run，如实返回 RunStatus（对齐 TanStack：runWorkflow 只产出事件与
-/// 最终状态，不替调用方判定 paused 是成功还是失败；由上层按 kind 语义决定）。
+/// 驱动一次引擎 run，消费事件流并从终局事件推 RunStatus（对齐 TanStack core：
+/// runWorkflow 只产出事件，没有 outcome API；调用方自己从事件判定结果）。
 async fn drive(
     wf: aa_workflow_core::AnyWorkflowDefinition,
     store: Arc<dyn aa_workflow_core::RunStore>,
@@ -54,24 +54,40 @@ async fn drive(
 ) -> anyhow::Result<RunStatus> {
     let input_value = serde_json::to_value(input).context("序列化 workflow input 失败")?;
     // workflow span 带 video_dir：WorkflowFileLayer 靠它把日志落到 <video_dir>/<id>.log。
-    // 旧 pipeline 用过同样的 span，切引擎时漏了，导致引擎路径不再写日志文件。
     let span = tracing::info_span!("workflow", video_dir = input.video_dir());
-    let outcome = async {
+    let events = async {
         run_workflow(
             RunWorkflowOptions::new(wf, store)
                 .run_id(run_id.to_string())
                 .input(input_value)
                 .meta(meta),
         )
-        .outcome()
+        .collect()
         .await
-        .map_err(|e| anyhow::anyhow!("引擎 run {run_id} 失败: {e:?}"))
     }
     .instrument(span)
-    .await?;
+    .await;
 
-    tracing::info!(target: "output_mode", run_id = %run_id, status = ?outcome.status, "引擎 run 结束");
-    Ok(outcome.status)
+    let status = status_from_events(&events);
+    tracing::info!(target: "output_mode", run_id = %run_id, status = ?status, "引擎 run 结束");
+    Ok(status)
+}
+
+/// 从终局事件推 RunStatus（TanStack core 测试的做法）：
+/// RUN_FINISHED → Finished；RUN_ERRORED → Errored；有挂起事件 → Paused；否则 Running。
+fn status_from_events(events: &[WorkflowEvent]) -> RunStatus {
+    if events.iter().any(|e| matches!(e, WorkflowEvent::RunFinished { .. })) {
+        RunStatus::Finished
+    } else if events.iter().any(|e| matches!(e, WorkflowEvent::RunErrored { .. })) {
+        RunStatus::Errored
+    } else if events.iter().any(|e| matches!(
+        e,
+        WorkflowEvent::SignalAwaited { .. } | WorkflowEvent::ApprovalRequested { .. }
+    )) {
+        RunStatus::Paused
+    } else {
+        RunStatus::Running
+    }
 }
 
 /// 按 (output_mode, subtitle_source) 选对应的 DAG 定义（6 种工作流各有独立 spec）。
