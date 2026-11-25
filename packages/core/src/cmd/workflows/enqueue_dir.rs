@@ -3,7 +3,7 @@
 //! 扫描本地目录**顶层**视频文件, 每个并行:
 //! - 用 `auto_group_id_and_video_id` 派生 group/video_id;
 //! - 若 `workfolder/<group>/<video_id>/state.json` 已存在 → 跳过 (幂等);
-//! - 否则基于 base_input 生成一条 action=start 的 Input (覆盖 url=绝对路径)。
+//! - 否则基于 base_input 生成一条 action=import_and_start 的 Input (覆盖 url=绝对路径)。
 //!
 //! 返回准备好的 Input 列表 + 摘要。队列入队动作由调用方 (server RPC) 执行。
 

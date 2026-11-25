@@ -2072,12 +2072,12 @@ export type WorkflowAction =
  *  只导入: 下载/拷贝视频 + 探测 + 写 view.json, 不跑 output_mode。
  *  批量场景可先批量导入, 之后用 resume 逐个续跑重活。
  */
-"import" | "enqueue_start" | "enqueue_resume" | "enqueue_import" | 
+"import" | 
 /**
- *  批量入队目录: 扫描本地目录顶层视频文件, 每个去重后入队一条 action=start 任务。
- *  (目录是入队动作的入参, 队列粒度仍是单视频 start 事件。)
+ *  批量按目录导入并跑: 扫描本地目录顶层视频文件, 每个去重后入队一条
+ *  import_and_start 任务（队列粒度仍是单视频）。与单条任务的 is_enqueue 正交。
  */
-"enqueue_dir";
+"import_and_start_by_dir";
 
 /**  workflow 参数 (镜像 workflowArgsSchema) */
 export type WorkflowArgs = WorkflowArgs_Serialize | WorkflowArgs_Deserialize;
@@ -2112,6 +2112,11 @@ export type WorkflowArgs_Deserialize = {
 	 *  注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。
 	 */
 	download_subtitles?: boolean,
+	/**
+	 *  true = 把 action 交给主服务器队列异步执行（enqueue），false = 本地直接执行。
+	 *  与 action 正交：同一个 import_and_start 可本地跑也可入队，不再用 enqueue_* 变体表达。
+	 */
+	is_enqueue?: boolean,
 };
 
 /**  workflow 参数 (镜像 workflowArgsSchema) */
@@ -2144,6 +2149,11 @@ export type WorkflowArgs_Serialize = {
 	 *  注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。
 	 */
 	download_subtitles: boolean,
+	/**
+	 *  true = 把 action 交给主服务器队列异步执行（enqueue），false = 本地直接执行。
+	 *  与 action 正交：同一个 import_and_start 可本地跑也可入队，不再用 enqueue_* 变体表达。
+	 */
+	is_enqueue: boolean,
 };
 
 export type WorkflowBrief = WorkflowBrief_Serialize | WorkflowBrief_Deserialize;

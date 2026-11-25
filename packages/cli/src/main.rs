@@ -60,19 +60,22 @@ enum Command {
     },
     /// 任务操作 (等价 input.jsonc command=workflow, 标量参数覆盖 input.jsonc)。
     Workflow {
-        /// 任务动作: import_and_start/start/resume/import/enqueue_*/cancel_queue/...
+        /// 任务动作: import_and_start / start / resume / import / import_and_start_by_dir。
         #[arg(long, value_enum)]
         action: Option<WorkflowAction>,
-        /// 本地文件路径或远程/云端 url (start/enqueue_start 用)。
+        /// 交给主服务器队列异步执行（与 action 正交；import_and_start_by_dir 强制入队）。
+        #[arg(long)]
+        enqueue: bool,
+        /// 本地文件路径或远程/云端 url (import_and_start 用)。
         #[arg(long)]
         url: Option<String>,
-        /// 任务目录 (resume/enqueue_resume/status 用)。
+        /// 任务目录 (resume 用)。
         #[arg(long)]
         video_dir: Option<String>,
-        /// 续跑起点集 (resume/enqueue_resume 用)，多个起点取传递下游并集。
+        /// 续跑起点集 (resume 用)，多个起点取传递下游并集。
         #[arg(long, value_enum, num_args = 1..)]
         resume_from: Vec<StepName>,
-        /// 目标步骤集 (resume/enqueue_resume 用)，全部达成才停。
+        /// 目标步骤集 (resume 用)，全部达成才停。
         #[arg(long, value_enum, num_args = 1..)]
         target_step: Vec<StepName>,
     },
@@ -206,6 +209,7 @@ async fn main() {
         }
         Some(Command::Workflow {
             action,
+            enqueue,
             url,
             video_dir,
             resume_from,
@@ -214,6 +218,9 @@ async fn main() {
             let mut workflow = input.workflow.clone().unwrap_or_default();
             if let Some(a) = action {
                 workflow.action = Some(a);
+            }
+            if enqueue {
+                workflow.is_enqueue = true;
             }
             if let Some(u) = url {
                 workflow.url = Some(u);
@@ -346,19 +353,24 @@ async fn main() {
     // - 其它命令 (enqueue 提交/servers/查询/video_action 等): 命令结束但任务未运行或无关
     //   -> command_done; 失败仍是 task_fail。
     let action = input.workflow.as_ref().and_then(|t| t.action);
-    let is_sync_workflow = matches!(
-        (input.command, action),
-        (
-            InputCommand::Workflow,
-            None
-                | Some(
-                    WorkflowAction::ImportAndStart
-                        | WorkflowAction::Start
-                        | WorkflowAction::Resume
-                        | WorkflowAction::Import
-                )
-        )
-    );
+    let is_enqueue = input
+        .workflow
+        .as_ref()
+        .is_some_and(|w| w.is_enqueue || w.action == Some(WorkflowAction::ImportAndStartByDir));
+    let is_sync_workflow = !is_enqueue
+        && matches!(
+            (input.command, action),
+            (
+                InputCommand::Workflow,
+                None
+                    | Some(
+                        WorkflowAction::ImportAndStart
+                            | WorkflowAction::Start
+                            | WorkflowAction::Resume
+                            | WorkflowAction::Import
+                    )
+            )
+        );
 
     match run_result {
         Ok(()) => {

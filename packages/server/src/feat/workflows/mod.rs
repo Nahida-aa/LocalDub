@@ -234,24 +234,22 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
 use crate::ctx::Ctx;
 use crate::feat::workflows::queue::QueueEntry;
 
-/// 加入一个新任务 (start): 入队完整 input (action=start), worker 串行执行
-/// (import 视频 + 完整 pipeline)。返回队列 ID。
+/// 入队 import_and_start（导入 + 完整 pipeline）。返回队列 ID。
 #[fnrpc::rpc_mutate]
 pub async fn enqueue_start(ctx: &Ctx, input: Input) -> Result<u64, String> {
     use ld_core::workflow::args::WorkflowAction;
     if input.workflow.as_ref().and_then(|t| t.action) != Some(WorkflowAction::ImportAndStart) {
-        return Err("enqueue_start 需要 input.workflow.action = start".to_string());
+        return Err("enqueue_start 需要 input.workflow.action = import_and_start".to_string());
     }
     Ok(ctx.state.queue.enqueue(input))
 }
 
-/// 加入一个续跑任务 (continue): 入队完整 input (action=continue), worker 串行执行
-/// (续跑已有任务)。返回队列 ID。
+/// 入队 resume（续跑已有任务）。返回队列 ID。
 #[fnrpc::rpc_mutate]
 pub async fn enqueue_resume(ctx: &Ctx, input: Input) -> Result<u64, String> {
     use ld_core::workflow::args::WorkflowAction;
     if input.workflow.as_ref().and_then(|t| t.action) != Some(WorkflowAction::Resume) {
-        return Err("enqueue_resume 需要 input.workflow.action = continue".to_string());
+        return Err("enqueue_resume 需要 input.workflow.action = resume".to_string());
     }
     Ok(ctx.state.queue.enqueue(input))
 }

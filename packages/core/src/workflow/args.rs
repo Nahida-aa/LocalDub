@@ -22,16 +22,18 @@ pub enum WorkflowAction {
     /// 批量场景可先批量导入, 之后用 resume 逐个续跑重活。
     #[serde(rename = "import")]
     Import,
-    #[serde(rename = "enqueue_start")]
-    EnqueueStart,
-    #[serde(rename = "enqueue_resume")]
-    EnqueueResume,
-    #[serde(rename = "enqueue_import")]
-    EnqueueImport,
-    /// 批量入队目录: 扫描本地目录顶层视频文件, 每个去重后入队一条 action=start 任务。
-    /// (目录是入队动作的入参, 队列粒度仍是单视频 start 事件。)
-    #[serde(rename = "enqueue_dir")]
-    EnqueueDir,
+    /// 批量按目录导入并跑: 扫描本地目录顶层视频文件, 每个去重后入队一条
+    /// import_and_start 任务（队列粒度仍是单视频）。与单条任务的 is_enqueue 正交。
+    #[serde(rename = "import_and_start_by_dir")]
+    ImportAndStartByDir,
+}
+
+impl WorkflowAction {
+    /// 该动作是否可入队（is_enqueue=true 时按此决定是否走 enqueue 路径）。
+    /// 批量目录动作自带入队语义，不走 is_enqueue 标志。
+    pub const fn enqueueable(self) -> bool {
+        matches!(self, Self::ImportAndStart | Self::Resume | Self::Import)
+    }
 }
 
 /// output_mode 阶段名。
@@ -230,6 +232,10 @@ pub struct WorkflowArgs {
     /// 注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。
     #[serde(default)]
     pub download_subtitles: bool,
+    /// true = 把 action 交给主服务器队列异步执行（enqueue），false = 本地直接执行。
+    /// 与 action 正交：同一个 import_and_start 可本地跑也可入队，不再用 enqueue_* 变体表达。
+    #[serde(default)]
+    pub is_enqueue: bool,
 }
 
 #[cfg(test)]

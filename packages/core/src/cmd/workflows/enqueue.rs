@@ -1,7 +1,7 @@
-//! 任务入队: CLI 通过主服务器的 fnrpc 把 start/continue 任务加入队列。
+//! 任务入队: CLI 通过主服务器的 fnrpc 把任务加入队列。
 //!
-//! 流程: 用服务器发现找主服务器 → reqwest POST `/fnrpc/enqueue_start` 或
-//! `/fnrpc/enqueue_resume`, body 为序列化的 `Input`。主服务器 worker 串行执行。
+//! 流程: 用服务器发现找主服务器 → reqwest POST `/fnrpc/<rpc_method>`, body 为序列化的
+//! `Input`（含真实 `workflow.action`，不再改写）。主服务器 worker 串行执行。
 
 use crate::input::Input;
 use crate::servers::discovery::find_server_via_mdns_all;
@@ -57,22 +57,15 @@ pub fn enqueue_dir(input: &Input) -> anyhow::Result<String> {
     Ok(summary)
 }
 
-fn enqueue_with(input: &Input, action: &str) -> anyhow::Result<String> {
+/// `rpc_method`: 入队用的 fnrpc 方法名（start / resume / import）。
+/// body 保持 `input` 原样——真实 `workflow.action` 由调用方设好，服务端按它校验。
+fn enqueue_with(input: &Input, rpc_method: &str) -> anyhow::Result<String> {
     // 用服务器发现找主服务器地址 (优先 IPv4, 避免 link-local IPv6 无法连接)。
     let (host, port) = discover_server();
-    // 入队命令名与动作同名: enqueue_start / enqueue_resume / enqueue_import
-    let url = format!("http://{host}:{port}/fnrpc/enqueue_{action}");
+    let url = format!("http://{host}:{port}/fnrpc/enqueue_{rpc_method}");
 
-    let mut body_value =
+    let body =
         serde_json::to_value(input).map_err(|e| anyhow::anyhow!("序列化 input 失败: {e}"))?;
-    // 入队的是「任务本身」: 把 CLI 的 enqueue_* 命令动作
-    // 还原为 worker 实际执行的动作 (队列项按 action 分派执行)。
-    if let Some(workflow) = body_value.get_mut("workflow") {
-        if let Some(t) = workflow.get_mut("action") {
-            *t = serde_json::Value::String(action.to_string());
-        }
-    }
-    let body = body_value;
 
     let client = http_client()?;
 
@@ -99,6 +92,12 @@ fn enqueue_with(input: &Input, action: &str) -> anyhow::Result<String> {
         .get("json")
         .and_then(|v| v.as_str())
         .map(String::from)
+        .unwrap_or_else(|| "?".to_string());
+    let action = input
+        .workflow
+        .as_ref()
+        .and_then(|w| w.action)
+        .map(|a| format!("{a:?}"))
         .unwrap_or_else(|| "?".to_string());
     println!("[cli] 已加入队列 (id={queue_id}): {action}");
     Ok(queue_id)

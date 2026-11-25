@@ -1250,17 +1250,8 @@
           "description": " 只导入: 下载/拷贝视频 + 探测 + 写 view.json, 不跑 output_mode。\n 批量场景可先批量导入, 之后用 resume 逐个续跑重活。"
         },
         {
-          "const": "enqueue_start"
-        },
-        {
-          "const": "enqueue_resume"
-        },
-        {
-          "const": "enqueue_import"
-        },
-        {
-          "const": "enqueue_dir",
-          "description": " 批量入队目录: 扫描本地目录顶层视频文件, 每个去重后入队一条 action=start 任务。\n (目录是入队动作的入参, 队列粒度仍是单视频 start 事件。)"
+          "const": "import_and_start_by_dir",
+          "description": " 批量按目录导入并跑: 扫描本地目录顶层视频文件, 每个去重后入队一条\n import_and_start 任务（队列粒度仍是单视频）。与单条任务的 is_enqueue 正交。"
         }
       ],
       "title": "WorkflowAction",
@@ -1515,6 +1506,10 @@
         "download_subtitles": {
           "type": "boolean",
           "description": " 是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。\n 注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。"
+        },
+        "is_enqueue": {
+          "type": "boolean",
+          "description": " true = 把 action 交给主服务器队列异步执行（enqueue），false = 本地直接执行。\n 与 action 正交：同一个 import_and_start 可本地跑也可入队，不再用 enqueue_* 变体表达。"
         }
       },
       "required": [
@@ -1528,7 +1523,8 @@
         "step_name",
         "output_mode",
         "subtitle_source",
-        "download_subtitles"
+        "download_subtitles",
+        "is_enqueue"
       ],
       "title": "WorkflowArgs_Serialize",
       "description": " workflow 参数 (镜像 workflowArgsSchema)"
@@ -2466,6 +2462,10 @@
         "download_subtitles": {
           "type": "boolean",
           "description": " 是否下载平台自带字幕 (YouTube/Bilibili 的官方/自动字幕)。\n 注意: YouTube 现要求 PO token, 无 bgutil 服务时下载会失败 (best-effort, 不阻断主流程)。"
+        },
+        "is_enqueue": {
+          "type": "boolean",
+          "description": " true = 把 action 交给主服务器队列异步执行（enqueue），false = 本地直接执行。\n 与 action 正交：同一个 import_and_start 可本地跑也可入队，不再用 enqueue_* 变体表达。"
         }
       },
       "title": "WorkflowArgs_Deserialize",
