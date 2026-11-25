@@ -817,14 +817,14 @@ const SUBTITLE_OCR_POST: ReleaseBinSpec = ReleaseBinSpec {
     key: "subtitle_ocr_post_bin",
     bin: "subtitle-ocr-post",
     repo: "Nahida-aa/vision-lab",
-    tag: "subtitle-ocr-post-v0.1.3",
+    tag: "subtitle-ocr-post-v0.1.4",
     zip: false,
     linux_asset: "subtitle-ocr-post-x86_64-unknown-linux-gnu",
-    linux_sha256: "2a4bddbb573410e1f10d60490ca71734e3b58b57e963fb7a641f97923f680939",
+    linux_sha256: "1dad6bccfb7df772bef7ca29681a80cbb02b3553d884cf4c4690ffa7735b34be",
     windows_asset: Some("subtitle-ocr-post-x86_64-pc-windows-msvc.zip"),
-    windows_sha256: Some("f075f1655c4df0088ab49eaaecf78ff005fbfc2c5a54cd6f5527200d679df89d"),
+    windows_sha256: Some("aaa88b1c807c3afeeef646c3ed8a178c1a36728c2009735afef0d4473ff8b600"),
     stamp: ".subtitle_ocr_post.version.json",
-    dir_layout: false,
+    dir_layout: true, // 单文件也独占目录：data/bin/subtitle-ocr-post/<asset>
 };
 
 const DEMUCS_BURN_TCH: ReleaseBinSpec = ReleaseBinSpec {
@@ -1426,17 +1426,17 @@ async fn adopt_local_release(spec: &ReleaseBinSpec, sha256: &str) -> Option<Chec
                 required: false,
             });
         }
-        // sha 通过：zip 解压就位（单文件已在正确路径）
+        // sha 通过：zip 解压就位；单文件若认领自旧平铺位置则移动到新目录。
+        let root = release_root(spec);
+        if let Err(e) = std::fs::create_dir_all(&root) {
+            return Some(CheckResult {
+                key: spec.key.to_string(),
+                status: CheckStatus::Fail,
+                data: json!({ "msg": format!("创建落点目录失败: {e}") }),
+                required: false,
+            });
+        }
         if spec.zip {
-            let root = release_root(spec);
-            if let Err(e) = std::fs::create_dir_all(&root) {
-                return Some(CheckResult {
-                    key: spec.key.to_string(),
-                    status: CheckStatus::Fail,
-                    data: json!({ "msg": format!("创建落点目录失败: {e}") }),
-                    required: false,
-                });
-            }
             if let Err(e) = extract_zip_to_bin_dir(&dl_path, &root) {
                 return Some(CheckResult {
                     key: spec.key.to_string(),
@@ -1446,6 +1446,16 @@ async fn adopt_local_release(spec: &ReleaseBinSpec, sha256: &str) -> Option<Chec
                 });
             }
             let _ = std::fs::remove_file(&dl_path);
+        } else if spec.dir_layout && dl_path != bin_path {
+            // dir_layout 单文件从旧平铺位置迁移：rename 到新目录的 bin_path。
+            if let Err(e) = std::fs::rename(&dl_path, &bin_path) {
+                return Some(CheckResult {
+                    key: spec.key.to_string(),
+                    status: CheckStatus::Fail,
+                    data: json!({ "msg": format!("迁移本地资产失败: {e}") }),
+                    required: false,
+                });
+            }
         }
         #[cfg(unix)]
         set_executable(&bin_path);
