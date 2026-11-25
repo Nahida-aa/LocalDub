@@ -120,7 +120,8 @@ where
             return;
         }
 
-        let entry = format!("[{}] {step_prefix}{msg}\n", now_iso());
+        let level = event.metadata().level();
+        let entry = format!("[{}] [{level}] {step_prefix}{msg}\n", now_iso());
         if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&log_path) {
             let _ = f.write_all(entry.as_bytes());
         }
