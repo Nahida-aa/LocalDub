@@ -909,7 +909,7 @@
         },
         {
           "const": "query",
-          "description": " 纯查询命令：不针对单个任务（目前只有 get_group_list）。"
+          "description": " 纯查询命令：不针对单个任务（get_group_list / list_queue）。"
         },
         {
           "const": "env"
@@ -1257,9 +1257,6 @@
         {
           "const": "enqueue_dir",
           "description": " 批量入队目录: 扫描本地目录顶层视频文件, 每个去重后入队一条 action=start 任务。\n (目录是入队动作的入参, 队列粒度仍是单视频 start 事件。)"
-        },
-        {
-          "const": "list_queue"
         },
         {
           "const": "cancel_queue"
@@ -1622,9 +1619,18 @@
       "description": " `command=video_action` 的参数。video_dir 类型层必填（非 Option）。"
     },
     "QueryAction": {
-      "const": "get_group_list",
-      "description": " `command=query` 的查询动作（不针对单个任务）。\n\n 列出所有任务分组。",
-      "title": "QueryAction"
+      "anyOf": [
+        {
+          "const": "get_group_list",
+          "description": " 列出所有任务分组。"
+        },
+        {
+          "const": "list_queue",
+          "description": " 列出主服务器任务队列 (fnrpc list_queue)。"
+        }
+      ],
+      "title": "QueryAction",
+      "description": " `command=query` 的查询动作（不针对单个任务）。"
     },
     "QueryArgs": {
       "type": "object",

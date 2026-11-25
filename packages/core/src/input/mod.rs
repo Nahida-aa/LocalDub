@@ -75,7 +75,7 @@ pub enum Command {
     /// 对某个已导入视频任务的动作（start/resume/status/get_workflow_ctx/generate_meta）。
     /// video_dir 必填——由 VideoActionArgs 的类型保证，不再是运行时检查。
     VideoAction,
-    /// 纯查询命令：不针对单个任务（目前只有 get_group_list）。
+    /// 纯查询命令：不针对单个任务（get_group_list / list_queue）。
     Query,
     Env,
     Servers,
@@ -129,6 +129,8 @@ pub struct VideoActionArgs {
 pub enum QueryAction {
     /// 列出所有任务分组。
     GetGroupList,
+    /// 列出主服务器任务队列 (fnrpc list_queue)。
+    ListQueue,
 }
 
 /// `command=query` 的参数。
@@ -418,11 +420,15 @@ mod tests {
         let env: Input = serde_json::from_str(r#"{"command":"env"}"#).unwrap();
         assert!(env.validate().is_ok());
 
-        // command=query 时 query 必填（现在只有 get_group_list）
+        // command=query 时 query 必填（get_group_list / list_queue）
         let ok: Input = serde_json::from_str(r#"{"command":"query","query":{"action":"get_group_list"}}"#).unwrap();
         assert!(ok.validate().is_ok());
         assert_eq!(ok.command, Command::Query);
         assert_eq!(ok.query.as_ref().unwrap().action, QueryAction::GetGroupList);
+
+        let ok: Input = serde_json::from_str(r#"{"command":"query","query":{"action":"list_queue"}}"#).unwrap();
+        assert!(ok.validate().is_ok());
+        assert_eq!(ok.query.as_ref().unwrap().action, QueryAction::ListQueue);
 
         let missing: Input = serde_json::from_str(r#"{"command":"query"}"#).unwrap();
         assert!(missing.validate().is_err());

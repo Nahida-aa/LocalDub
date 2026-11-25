@@ -353,7 +353,7 @@ export type Command = "workflow" |
  *  video_dir 必填——由 VideoActionArgs 的类型保证，不再是运行时检查。
  */
 "videoaction" | 
-/**  纯查询命令：不针对单个任务（目前只有 get_group_list）。 */
+/**  纯查询命令：不针对单个任务（get_group_list / list_queue）。 */
 "query" | "env" | "servers" | "cookie" | "check" | "deviceInfo" | "listModels";
 
 /**  cookie 动作 */
@@ -1158,7 +1158,9 @@ export type ProbeResult = "ok" | "fail";
 /**  `command=query` 的查询动作（不针对单个任务）。 */
 export type QueryAction = 
 /**  列出所有任务分组。 */
-"get_group_list";
+"get_group_list" | 
+/**  列出主服务器任务队列 (fnrpc list_queue)。 */
+"list_queue";
 
 /**  `command=query` 的参数。 */
 export type QueryArgs = {
@@ -2078,7 +2080,7 @@ export type WorkflowAction =
  *  批量入队目录: 扫描本地目录顶层视频文件, 每个去重后入队一条 action=start 任务。
  *  (目录是入队动作的入参, 队列粒度仍是单视频 start 事件。)
  */
-"enqueue_dir" | "list_queue" | "cancel_queue";
+"enqueue_dir" | "cancel_queue";
 
 /**  workflow 参数 (镜像 workflowArgsSchema) */
 export type WorkflowArgs = WorkflowArgs_Serialize | WorkflowArgs_Deserialize;

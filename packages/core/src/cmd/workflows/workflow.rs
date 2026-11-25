@@ -1,8 +1,9 @@
 //! workflow 顶层派发器 (镜像 TS `packages/core/cmd/workflows/workflow.ts` 的 `cmdTask`)。
 //!
 //! 根据 `input.workflow.action` 分派执行/队列类动作（start / resume / enqueue_* 等）。
-//! 纯查询动作（status / get_workflow_ctx / get_group_list）已拆到
-//! [`crate::cmd::workflows::query`]（`command=query`）。
+//! 纯查询动作（get_group_list / list_queue）已拆到
+//! [`crate::cmd::workflows::query`]（`command=query`）；针对单任务的查询
+//! （status / get_workflow_ctx）归到 [`crate::cmd::workflows::video_action`]。
 //!
 //! 这是 `cmd/workflows` 的执行总入口, 对应 TS `run-workflow.ts` 里对 `cmdTask` 的调用。
 
@@ -44,9 +45,6 @@ pub async fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
         }
         Some(WorkflowAction::EnqueueDir) => {
             crate::cmd::workflows::enqueue::enqueue_dir(input).context("enqueue_dir 失败")?;
-        }
-        Some(WorkflowAction::ListQueue) => {
-            crate::cmd::workflows::enqueue::list_queue().context("list_queue 失败")?;
         }
         Some(WorkflowAction::CancelQueue) => {
             let id = workflow.queue_id.ok_or_else(|| {

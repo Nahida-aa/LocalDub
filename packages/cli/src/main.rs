@@ -60,7 +60,7 @@ enum Command {
     },
     /// 任务操作 (等价 input.jsonc command=workflow, 标量参数覆盖 input.jsonc)。
     Workflow {
-        /// 任务动作: start/resume/enqueue_start/enqueue_resume/list_queue/cancel_queue/...
+        /// 任务动作: import_and_start/import/enqueue_start/enqueue_resume/enqueue_dir/cancel_queue/...
         #[arg(long, value_enum)]
         action: Option<WorkflowAction>,
         /// 本地文件路径或远程/云端 url (start/enqueue_start 用)。
@@ -99,7 +99,7 @@ enum Command {
     },
     /// 纯查询 (等价 input.jsonc command=query)，只读不改状态。
     Query {
-        /// 查询动作: get_group_list。
+        /// 查询动作: get_group_list / list_queue。
         #[arg(long, value_enum)]
         action: QueryAction,
     },

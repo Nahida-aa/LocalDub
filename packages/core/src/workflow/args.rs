@@ -33,8 +33,6 @@ pub enum WorkflowAction {
     /// (目录是入队动作的入参, 队列粒度仍是单视频 start 事件。)
     #[serde(rename = "enqueue_dir")]
     EnqueueDir,
-    #[serde(rename = "list_queue")]
-    ListQueue,
     #[serde(rename = "cancel_queue")]
     CancelQueue,
 }

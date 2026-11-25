@@ -26,7 +26,6 @@ const WORKFLOW_ACTIONS = keysOf({
   enqueue_resume: "",
   enqueue_import: "",
   enqueue_dir: "",
-  list_queue: "",
   cancel_queue: "",
   status: "",
   get_group_list: "",
