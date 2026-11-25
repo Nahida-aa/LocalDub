@@ -8,6 +8,7 @@
 数据来源: out/<剧名>/<集数>.mp4
 一行对应一部剧, 末尾一行总计:
     剧名 | 集数(总集数) | 姓名 | 时长(全剧求和) | 上传链接(网盘)
+明细行时长用 mm:ss, 总计行用纯分钟数(十进制小数, 不进位到小时)。
 上传链接列留空，供上传后手工/脚本回填。
 
 依赖由 PEP 723 内联声明, 不写入项目 pyproject.toml。
@@ -176,11 +177,11 @@ def main() -> int:
         return 1
 
     data_end_row = row - 1
-    # 总计行: 集数与时长求和, 姓名/链接留空
+    # 总计行: 集数与时长求和, 姓名/链接留空; 时长为纯分钟数(十进制小数, 不进位到小时)
     ws.cell(row=row, column=1, value="总计")
     ws.cell(row=row, column=2, value=sum_eps)
     ws.cell(row=row, column=3, value="")
-    ws.cell(row=row, column=4, value=format_duration(sum_sec) if sum_sec else "")
+    ws.cell(row=row, column=4, value=round(sum_sec / 60, 2) if sum_sec else "")
     ws.cell(row=row, column=5, value="")
 
     style_sheet(ws, data_end_row)
@@ -188,7 +189,10 @@ def main() -> int:
     out_path = Path(args.out) if args.out else root / f"上传清单_{args.name}.xlsx"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out_path)
-    print(f"\n输出: {out_path} ({total} 部剧, {sum_eps} 集, 总时长 {format_duration(sum_sec)})")
+    print(
+        f"\n输出: {out_path} ({total} 部剧, {sum_eps} 集, "
+        f"总时长 {sum_sec / 60:.2f} 分钟)"
+    )
     if missing:
         print(f"缺失剧名: {', '.join(missing)}", file=sys.stderr)
     return 0
