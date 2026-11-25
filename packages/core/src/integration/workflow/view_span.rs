@@ -25,7 +25,10 @@ pub fn view_span_middleware() -> Middleware {
             .to_string();
         // 诊断：确认 middleware 在引擎 task 内执行且拿到 video_dir。
         tracing::info!(target: "env", "view_span middleware: video_dir={video_dir}");
-        let span = tracing::info_span!("workflow", video_dir = %video_dir);
+        // 注意用裸值（不用 % / ?）：% 走 record_debug，SpanFields 的 record_debug
+        // 用 {:?} 会给路径加上引号 → 拼出的 log 路径带引号 → 写不进任何文件。
+        // 旧 pipeline 的 `video_dir = video_dir` 走 record_str，是干净的字符串。
+        let span = tracing::info_span!("workflow", video_dir = video_dir.as_str());
         args.next(None).instrument(span).await
     })
 }

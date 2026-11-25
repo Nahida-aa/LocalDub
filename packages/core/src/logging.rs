@@ -36,9 +36,17 @@ impl Visit for SpanFields {
     }
 
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
+        // % / ? 修饰的字段会走这里，{:?} 会给字符串加引号——去掉首尾引号，
+        // 免得拼出的 log 路径带引号写不进文件。
+        let raw = format!("{value:?}");
+        let unquoted = raw
+            .strip_prefix('"')
+            .and_then(|s| s.strip_suffix('"'))
+            .unwrap_or(&raw)
+            .to_string();
         match field.name() {
-            "video_dir" => self.video_dir = Some(format!("{value:?}")),
-            "step" => self.step = Some(format!("{value:?}")),
+            "video_dir" => self.video_dir = Some(unquoted),
+            "step" => self.step = Some(unquoted),
             _ => {}
         }
     }
