@@ -82,7 +82,8 @@ pub async fn generate_meta(input: &crate::input::Input, video_dir: &str) -> anyh
             .api_key
             .clone()
             .or_else(config_rs::env::openai_api_key),
-        max_tokens: Some(4096),
+        // 不设 max_tokens：让服务端按模型上限生成，避免固定 4096 截断。
+        max_tokens: None,
         temperature: Some(0.3),
     };
     println!(

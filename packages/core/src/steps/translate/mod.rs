@@ -121,7 +121,8 @@ async fn run_preprocess(
             api_base: Some(api_base.to_string()),
             system_prompt: "You output strict JSON only.".to_string(),
             api_key: api_key.map(str::to_string),
-            max_tokens: Some(2048),
+            // 不设 max_tokens：让服务端按模型上限生成，避免固定上限截断。
+            max_tokens: None,
             temperature: Some(0.2),
         },
     ).await {
