@@ -18,6 +18,7 @@ use aa_workflow_core::define::MetaBag;
 use aa_workflow_core::{RunStatus, RunWorkflowOptions, WorkflowEvent, run_workflow};
 use aa_workflow_middlewares::{DagPlan, DagPlanKey};
 use anyhow::Context;
+use futures::StreamExt;
 
 use crate::input::WorkflowInput;
 
@@ -53,92 +54,81 @@ async fn drive(
 ) -> anyhow::Result<RunStatus> {
     let input_value = serde_json::to_value(input).context("序列化 workflow input 失败")?;
     // 注意：日志落盘的 workflow span 由 view_span middleware 在引擎 task 内打开。
-    // 这里不能靠 .instrument(span) 包住 collect()——run_workflow 内部 tokio::spawn
+    // 这里不能靠 .instrument(span) 包住流——run_workflow 内部 tokio::spawn
     // 的引擎 task 不继承本 task 的 span，step 日志会拿不到 video_dir。
-    let events = run_workflow(
+
+    // 真正流式消费事件：每来一条就投影到 view.json（UI 实时刷新），不攒数组。
+    // 对齐 TanStack core 的 `for await (const ev of runWorkflow(...))`。
+    let mut stream = run_workflow(
         RunWorkflowOptions::new(wf, store)
             .run_id(run_id.to_string())
             .input(input_value)
             .meta(meta),
-    )
-    .collect()
-    .await;
+    );
+    let video_dir = input.video_dir();
+    let mut status = RunStatus::Running;
+    while let Some(ev) = stream.next().await {
+        apply_view_event(video_dir, &ev);
+        status = status_for_event(&ev, status);
+    }
 
-    // view.json 是给 UI 看的投影（UI 监听它刷新区块）。引擎真源是事件日志，
-    // 这里把事件流投影回 view.json 的 workflow 子树——否则它永远停在 import
-    // 写的 queued。status 沿用旧 pipeline 的值域（running/success/failed/paused）。
-    sync_view_from_events(input.video_dir(), &events);
-
-    let status = status_from_events(&events);
     tracing::info!(target: "output_mode", run_id = %run_id, status = ?status, "引擎 run 结束");
     Ok(status)
 }
 
-/// 把引擎事件投影到 `<video_dir>/view.json` 的 workflow 子树（UI 读它刷新）。
+/// 把单条引擎事件投影到 `<video_dir>/view.json` 的 workflow 子树（UI 读它刷新）。
 /// 用 set_workflow 的 RMW 合并，多次调用安全；失败只记日志，不影响引擎结果。
-fn sync_view_from_events(video_dir: &str, events: &[WorkflowEvent]) {
+fn apply_view_event(video_dir: &str, ev: &WorkflowEvent) {
     use crate::steps::utils::{WorkflowPatch, now_iso, set_workflow};
 
-    let apply = |patch: WorkflowPatch| {
-        if let Err(e) = set_workflow(video_dir, patch) {
-            tracing::warn!(target: "output_mode", "更新 view.json 失败 ({video_dir}): {e}");
-        }
-    };
-
-    for ev in events {
-        match ev {
-            WorkflowEvent::RunStarted { .. } => apply(WorkflowPatch {
-                status: Some("running".into()),
-                current_step: Some(None),
-                started_at: Some(now_iso()),
+    let patch = match ev {
+        WorkflowEvent::RunStarted { .. } => WorkflowPatch {
+            status: Some("running".into()),
+            current_step: Some(None),
+            started_at: Some(now_iso()),
+            ..Default::default()
+        },
+        WorkflowEvent::StepStarted { step_id, .. } => WorkflowPatch {
+            current_step: Some(Some(step_id.clone())),
+            ..Default::default()
+        },
+        WorkflowEvent::StepFinished { .. } => WorkflowPatch {
+            current_step: Some(None),
+            ..Default::default()
+        },
+        WorkflowEvent::RunFinished { .. } => WorkflowPatch {
+            status: Some("success".into()),
+            current_step: Some(None),
+            completed_at: Some(now_iso()),
+            ..Default::default()
+        },
+        WorkflowEvent::RunErrored { error, .. } => WorkflowPatch {
+            status: Some("failed".into()),
+            current_step: Some(None),
+            completed_at: Some(now_iso()),
+            error_message: Some(error.message.clone()),
+            ..Default::default()
+        },
+        WorkflowEvent::SignalAwaited { .. } | WorkflowEvent::ApprovalRequested { .. } => {
+            WorkflowPatch {
+                status: Some("paused".into()),
                 ..Default::default()
-            }),
-            WorkflowEvent::StepStarted { step_id, .. } => apply(WorkflowPatch {
-                current_step: Some(Some(step_id.clone())),
-                ..Default::default()
-            }),
-            WorkflowEvent::StepFinished { .. } => apply(WorkflowPatch {
-                current_step: Some(None),
-                ..Default::default()
-            }),
-            WorkflowEvent::RunFinished { .. } => apply(WorkflowPatch {
-                status: Some("success".into()),
-                current_step: Some(None),
-                completed_at: Some(now_iso()),
-                ..Default::default()
-            }),
-            WorkflowEvent::RunErrored { error, .. } => apply(WorkflowPatch {
-                status: Some("failed".into()),
-                current_step: Some(None),
-                completed_at: Some(now_iso()),
-                error_message: Some(error.message.clone()),
-                ..Default::default()
-            }),
-            WorkflowEvent::SignalAwaited { .. } | WorkflowEvent::ApprovalRequested { .. } => {
-                apply(WorkflowPatch {
-                    status: Some("paused".into()),
-                    ..Default::default()
-                })
             }
-            _ => {}
         }
+        _ => return,
+    };
+    if let Err(e) = set_workflow(video_dir, patch) {
+        tracing::warn!(target: "output_mode", "更新 view.json 失败 ({video_dir}): {e}");
     }
 }
 
-/// 从终局事件推 RunStatus（TanStack core 测试的做法）：
-/// RUN_FINISHED → Finished；RUN_ERRORED → Errored；有挂起事件 → Paused；否则 Running。
-fn status_from_events(events: &[WorkflowEvent]) -> RunStatus {
-    if events.iter().any(|e| matches!(e, WorkflowEvent::RunFinished { .. })) {
-        RunStatus::Finished
-    } else if events.iter().any(|e| matches!(e, WorkflowEvent::RunErrored { .. })) {
-        RunStatus::Errored
-    } else if events.iter().any(|e| matches!(
-        e,
-        WorkflowEvent::SignalAwaited { .. } | WorkflowEvent::ApprovalRequested { .. }
-    )) {
-        RunStatus::Paused
-    } else {
-        RunStatus::Running
+/// 单条事件对 RunStatus 的影响（终局事件覆盖之前的推断）。
+fn status_for_event(ev: &WorkflowEvent, current: RunStatus) -> RunStatus {
+    match ev {
+        WorkflowEvent::RunFinished { .. } => RunStatus::Finished,
+        WorkflowEvent::RunErrored { .. } => RunStatus::Errored,
+        WorkflowEvent::SignalAwaited { .. } | WorkflowEvent::ApprovalRequested { .. } => RunStatus::Paused,
+        _ => current,
     }
 }
 
