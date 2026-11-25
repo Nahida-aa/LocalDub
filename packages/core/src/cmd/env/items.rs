@@ -1252,6 +1252,10 @@ async fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
     if let Some(latest) = fetch_latest_tag(spec).await {
         if latest != spec.tag {
             data["latest_tag"] = json!(latest);
+            data["latest_url"] = json!(format!(
+                "https://github.com/{}/releases/tag/{latest}",
+                spec.repo
+            ));
         }
     }
     CheckResult {

@@ -353,7 +353,13 @@ pub fn format_result(r: &CheckResult) -> String {
     }
     if let Some(t) = r.data.get("latest_tag").and_then(|v| v.as_str()) {
         if !t.is_empty() {
-            extras.push(format!("    upstream: {t} (有新版可更新)"));
+            let mut line = format!("    upstream: {t} (有新版可更新)");
+            if let Some(u) = r.data.get("latest_url").and_then(|v| v.as_str()) {
+                if !u.is_empty() {
+                    line.push_str(&format!("\n        {u}"));
+                }
+            }
+            extras.push(line);
         }
     }
 
