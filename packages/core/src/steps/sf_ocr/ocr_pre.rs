@@ -29,7 +29,7 @@ pub struct SfOcrPreOutput {
 /// 故无 `deps` 参数——与 `separate` 同款。视频路径按约定从 `video_dir` 拼出。
 pub async fn step_sf_ocr_pre(sc: impl StepCtxView) -> anyhow::Result<SfOcrPreOutput> {
     let video_dir = sc.ctx().input().video_dir().to_string();
-    tracing::info!(target: "sf_ocr", "start");
+    tracing::info!(target: "sf_ocr_pre", "start");
 
     set_step_anyhow(
         &video_dir,
@@ -59,7 +59,7 @@ pub async fn step_sf_ocr_pre(sc: impl StepCtxView) -> anyhow::Result<SfOcrPreOut
     let out_dir = sf_ocr_pre_dir(&video_dir);
     ensure_dir(&out_dir)?;
 
-    tracing::info!(target: "sf_ocr", "subtitle-finder {} --out {}", video_path.display(), out_dir.display());
+    tracing::info!(target: "sf_ocr_pre", "subtitle-finder {} --out {}", video_path.display(), out_dir.display());
 
     cmd.arg(&video_path).arg("--out").arg(&out_dir);
 
@@ -90,7 +90,7 @@ pub async fn step_sf_ocr_pre(sc: impl StepCtxView) -> anyhow::Result<SfOcrPreOut
         serde_json::Value::Array(vec![])
     };
     let n = keyframes.as_array().map(|a| a.len()).unwrap_or(0);
-    tracing::info!(target: "sf_ocr",
+    tracing::info!(target: "sf_ocr_pre",
         "[sf_ocr_pre] {n} keyframes -> {}",
         out_dir.display()
     );
@@ -106,7 +106,7 @@ pub async fn step_sf_ocr_pre(sc: impl StepCtxView) -> anyhow::Result<SfOcrPreOut
             ..Default::default()
         },
     )?;
-    tracing::info!(target: "sf_ocr", "done");
+    tracing::info!(target: "sf_ocr_pre", "done");
     Ok(SfOcrPreOutput {
         out_dir: out_dir.clone(),
         frames_dir: frame_dir.as_path().to_path_buf(),

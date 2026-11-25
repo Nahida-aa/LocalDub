@@ -24,7 +24,7 @@ pub async fn step_sf_ocr_fix(
 ) -> anyhow::Result<SfOcrFixOutput> {
     let input = sc.ctx().input();
     let video_dir = input.video_dir().to_string();
-    tracing::info!(target: "sf_ocr", "start");
+    tracing::info!(target: "sf_ocr_fix", "start");
 
     let frames_file = deps.frames_path.as_path();
     if !frames_file.exists() {
@@ -58,7 +58,7 @@ pub async fn step_sf_ocr_fix(
         "--stop-at".to_string(),
         "filter-segment".to_string(),
     ];
-    tracing::info!(target: "sf_ocr", "subtitle-ocr-post {}", post_args.join(" "));
+    tracing::info!(target: "sf_ocr_fix", "subtitle-ocr-post {}", post_args.join(" "));
     let status = Command::new(&bin)
         .args(&post_args)
         .status()
@@ -83,7 +83,7 @@ pub async fn step_sf_ocr_fix(
         .and_then(|s| s.as_array())
         .cloned()
         .unwrap_or_default();
-    tracing::info!(target: "sf_ocr",
+    tracing::info!(target: "sf_ocr_fix",
         "subtitle-ocr-post → {} segments (filtered)",
         segments.len()
     );
@@ -105,7 +105,7 @@ pub async fn step_sf_ocr_fix(
             .clone()
             .or_else(config_rs::env::openai_api_key);
         let model = provider.resolve_model(args.llm_fix.model.as_deref(), &args.llm_fix.provider)?;
-        tracing::info!(target: "sf_ocr",
+        tracing::info!(target: "sf_ocr_fix",
             "sf_ocr_fix: LLM 修正 {} segs (model={})",
             src_texts.len(),
             model
@@ -120,7 +120,7 @@ pub async fn step_sf_ocr_fix(
                 }
             }
             Err(e) => {
-                tracing::warn!(target: "sf_ocr", "sf_ocr_fix LLM 修正失败, 保留原文: {e}");
+                tracing::warn!(target: "sf_ocr_fix", "sf_ocr_fix LLM 修正失败, 保留原文: {e}");
             }
         }
     }

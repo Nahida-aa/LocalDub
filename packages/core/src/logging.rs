@@ -147,6 +147,48 @@ impl<'a> Visit for MsgVisitor<'a> {
     }
 }
 
+/// 终端 event formatter：span 只显示 video_dir 的 basename（如 `90:`），
+/// 不显示 `workflow{video_dir=完整路径}` 这层壳。其它（时间戳/等级/target/message）照旧。
+struct ShortSpanFormat;
+
+impl<S, N> tracing_subscriber::fmt::format::FormatEvent<S, N> for ShortSpanFormat
+where
+    S: tracing::Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
+    N: for<'a> tracing_subscriber::fmt::format::FormatFields<'a> + 'static,
+{
+    fn format_event(
+        &self,
+        ctx: &tracing_subscriber::fmt::FmtContext<'_, S, N>,
+        mut writer: tracing_subscriber::fmt::format::Writer<'_>,
+        event: &tracing::Event<'_>,
+    ) -> std::fmt::Result {
+        use std::fmt::Write as _;
+        use tracing_subscriber::fmt::format::FormatFields as _;
+        let meta = event.metadata();
+        write!(writer, "{} ", crate::steps::utils::now_iso())?;
+        write!(writer, "{} ", meta.level())?;
+
+        // span 部分：只取 video_dir 字段的 basename，输出 `90:`。
+        if let Some(scope) = ctx.event_scope() {
+            for span in scope.from_root() {
+                let ext = span.extensions();
+                if let Some(fields) = ext.get::<tracing_subscriber::fmt::FormattedFields<N>>() {
+                    // 字段形如 `video_dir=/path/90`（自定义 fmt_fields 已截成 basename）。
+                    for part in fields.as_str().split_whitespace() {
+                        if let Some(val) = part.strip_prefix("video_dir=") {
+                            write!(writer, "{val}: ")?;
+                        }
+                    }
+                }
+            }
+        }
+
+        write!(writer, "{}: ", meta.target())?;
+        ctx.format_fields(writer.by_ref(), event)?;
+        writeln!(writer)
+    }
+}
+
 /// 统一初始化 tracing: fmt (stderr) + 任务文件落盘 + EnvFilter。
 ///
 /// 二进制入口 (`cli`/`server`/`app`) 调用一次即可, 取代各自内联的
@@ -183,7 +225,8 @@ pub fn init() -> anyhow::Result<()> {
             tracing_subscriber::fmt::layer()
                 .with_writer(std::io::stderr)
                 .with_target(true)
-                .fmt_fields(short_fields),
+                .fmt_fields(short_fields)
+                .event_format(ShortSpanFormat),
         )
         .with(WorkflowFileLayer)
         .with(
