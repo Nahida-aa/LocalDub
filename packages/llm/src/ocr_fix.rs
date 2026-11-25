@@ -121,7 +121,8 @@ pub async fn ocr_llm_fix(
         api_base: Some(api_base.to_string()),
         system_prompt: system,
         api_key: api_key.map(str::to_string),
-        max_tokens: Some(4096),
+        // 不设 max_tokens：让服务端按模型默认上限生成，避免固定 4096 截断长回复。
+        max_tokens: None,
         temperature: Some(0.1),
     };
     let fixed = crate::chat_completions(&prompt, &opts).await?;

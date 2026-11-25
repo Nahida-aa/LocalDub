@@ -53,7 +53,7 @@ pub struct ChatOptions {
     pub system_prompt: String,
     /// API key (Authorization Bearer), 缺省空
     pub api_key: Option<String>,
-    /// 最大生成 token, 缺省 4096
+    /// 最大生成 token；None = 不发送该字段，由服务端按模型默认上限决定（不硬编码截断）。
     pub max_tokens: Option<u32>,
     /// 采样温度, 缺省 0.1
     pub temperature: Option<f64>,
@@ -66,7 +66,7 @@ impl Default for ChatOptions {
             api_base: Some("http://localhost:11434/v1".to_string()),
             system_prompt: String::new(),
             api_key: None,
-            max_tokens: Some(4096),
+            max_tokens: None,
             temperature: Some(0.1),
         }
     }
@@ -76,7 +76,9 @@ impl Default for ChatOptions {
 #[derive(serde::Serialize)]
 struct ChatRequest {
     model: String,
-    max_tokens: u32,
+    /// None = 不发送该字段，由服务端用模型默认上限（不再硬编码 4096 截断）。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_tokens: Option<u32>,
     temperature: f64,
     messages: Vec<ChatMessage>,
 }
@@ -126,7 +128,7 @@ pub async fn chat_completions(prompt: &str, opts: &ChatOptions) -> anyhow::Resul
         .model
         .clone()
         .ok_or_else(|| anyhow::anyhow!("chat_completions: 未指定 model"))?;
-    let max_tokens = opts.max_tokens.unwrap_or(4096);
+    let max_tokens = opts.max_tokens;
     let temperature = opts.temperature.unwrap_or(0.1);
 
     let url = format!("{api_base}/chat/completions");
@@ -221,8 +223,30 @@ mod tests {
         let o = ChatOptions::default();
         assert_eq!(o.model, None); // model 必填，由调用方解析后传入
         assert_eq!(o.api_base.as_deref(), Some("http://localhost:11434/v1"));
-        assert_eq!(o.max_tokens, Some(4096));
+        assert_eq!(o.max_tokens, None);
         assert_eq!(o.temperature, Some(0.1));
+    }
+
+    #[test]
+    fn chat_request_omits_max_tokens_when_none() {
+        // None 必须不出现在请求体里——否则服务端拿不到"用默认上限"的语义。
+        let body = ChatRequest {
+            model: "m".into(),
+            max_tokens: None,
+            temperature: 0.1,
+            messages: vec![],
+        };
+        let v = serde_json::to_value(&body).unwrap();
+        assert!(v.get("max_tokens").is_none(), "max_tokens=None 不应序列化: {v}");
+
+        let body = ChatRequest {
+            model: "m".into(),
+            max_tokens: Some(123),
+            temperature: 0.1,
+            messages: vec![],
+        };
+        let v = serde_json::to_value(&body).unwrap();
+        assert_eq!(v.get("max_tokens").and_then(|x| x.as_u64()), Some(123));
     }
 
     #[test]
