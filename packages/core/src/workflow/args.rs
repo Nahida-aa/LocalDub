@@ -22,17 +22,20 @@ pub enum WorkflowAction {
     /// 批量场景可先批量导入, 之后用 resume 逐个续跑重活。
     #[serde(rename = "import")]
     Import,
-    /// 批量按目录导入并跑: 扫描本地目录顶层视频文件, 每个去重后入队一条
-    /// import_and_start 任务（队列粒度仍是单视频）。与单条任务的 is_enqueue 正交。
+    /// 批量按目录导入并跑: 扫描本地目录顶层视频文件, 每个去重后跑一条
+    /// import_and_start（粒度仍是单视频）。与 is_enqueue 正交：本地串行执行或入队。
     #[serde(rename = "import_and_start_by_dir")]
     ImportAndStartByDir,
 }
 
 impl WorkflowAction {
     /// 该动作是否可入队（is_enqueue=true 时按此决定是否走 enqueue 路径）。
-    /// 批量目录动作自带入队语义，不走 is_enqueue 标志。
+    /// 与 is_enqueue 正交：同一动作可本地执行也可入队。
     pub const fn enqueueable(self) -> bool {
-        matches!(self, Self::ImportAndStart | Self::Resume | Self::Import)
+        matches!(
+            self,
+            Self::ImportAndStart | Self::Resume | Self::Import | Self::ImportAndStartByDir
+        )
     }
 }
 

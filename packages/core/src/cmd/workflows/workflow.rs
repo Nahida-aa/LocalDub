@@ -19,13 +19,6 @@ pub async fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
     let workflow = input.workflow.clone().unwrap_or_default();
     let action = workflow.action.unwrap_or(WorkflowAction::ImportAndStart);
 
-    // 批量按目录导入并跑：自带入队语义，必须走队列（与 is_enqueue 无关）。
-    if action == WorkflowAction::ImportAndStartByDir {
-        return crate::cmd::workflows::enqueue::enqueue_dir(input)
-            .map(|_| ())
-            .context("import_and_start_by_dir 失败");
-    }
-
     if workflow.is_enqueue {
         // is_enqueue 与 action 正交；不可入队的 action 在这里明确报错。
         if !action.enqueueable() {
@@ -54,7 +47,18 @@ pub async fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
                 .map(|_| ())
                 .context("import_video 失败")?;
         }
-        WorkflowAction::ImportAndStartByDir => unreachable!("已在上方处理"),
+        WorkflowAction::ImportAndStartByDir => {
+            let r = crate::cmd::workflows::enqueue_dir::run_dir_locally(input)
+                .await
+                .context("import_and_start_by_dir 本地批量执行失败")?;
+            println!(
+                "[cli] 批量完成: scanned={} done={} failed={} skipped={} errors={}",
+                r.scanned, r.done, r.failed, r.skipped, r.errors
+            );
+            if !r.failed_videos.is_empty() {
+                println!("[cli] 失败视频: {}", r.failed_videos.join(", "));
+            }
+        }
     }
     Ok(())
 }
@@ -71,6 +75,9 @@ fn enqueue(input: &Input, action: WorkflowAction) -> anyhow::Result<()> {
         WorkflowAction::Import => crate::cmd::workflows::enqueue::enqueue_import(input)
             .map(|_| ())
             .context("入队 import 失败"),
+        WorkflowAction::ImportAndStartByDir => crate::cmd::workflows::enqueue::enqueue_dir(input)
+            .map(|_| ())
+            .context("入队 import_and_start_by_dir 失败"),
         _ => anyhow::bail!("action {action:?} 不支持入队"),
     }
 }

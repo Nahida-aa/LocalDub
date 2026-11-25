@@ -63,7 +63,7 @@ enum Command {
         /// 任务动作: import_and_start / start / resume / import / import_and_start_by_dir。
         #[arg(long, value_enum)]
         action: Option<WorkflowAction>,
-        /// 交给主服务器队列异步执行（与 action 正交；import_and_start_by_dir 强制入队）。
+        /// 交给主服务器队列异步执行（与 action 正交；false = 本地执行）。
         #[arg(long)]
         enqueue: bool,
         /// 本地文件路径或远程/云端 url (import_and_start 用)。
@@ -356,7 +356,7 @@ async fn main() {
     let is_enqueue = input
         .workflow
         .as_ref()
-        .is_some_and(|w| w.is_enqueue || w.action == Some(WorkflowAction::ImportAndStartByDir));
+        .is_some_and(|w| w.is_enqueue);
     let is_sync_workflow = !is_enqueue
         && matches!(
             (input.command, action),
@@ -368,6 +368,7 @@ async fn main() {
                             | WorkflowAction::Start
                             | WorkflowAction::Resume
                             | WorkflowAction::Import
+                            | WorkflowAction::ImportAndStartByDir
                     )
             )
         );

@@ -2074,8 +2074,8 @@ export type WorkflowAction =
  */
 "import" | 
 /**
- *  批量按目录导入并跑: 扫描本地目录顶层视频文件, 每个去重后入队一条
- *  import_and_start 任务（队列粒度仍是单视频）。与单条任务的 is_enqueue 正交。
+ *  批量按目录导入并跑: 扫描本地目录顶层视频文件, 每个去重后跑一条
+ *  import_and_start（粒度仍是单视频）。与 is_enqueue 正交：本地串行执行或入队。
  */
 "import_and_start_by_dir";
 

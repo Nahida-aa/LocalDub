@@ -99,6 +99,66 @@ pub fn scan_dir_videos(dir: &Path, wf_root: &Path, base_input: &Input) -> DirSca
     }
 }
 
+/// 本地批量执行结果（与队列的 EnqueueDirResult 对应，但 done/failed 代替 enqueued）。
+#[derive(Debug, Clone)]
+pub struct LocalBatchResult {
+    pub scanned: u32,
+    pub done: u32,
+    pub failed: u32,
+    pub skipped: u32,
+    pub errors: u32,
+    pub failed_videos: Vec<String>,
+}
+
+/// 本地串行扫描并执行目录里每个视频：与队列 worker 一致——逐条独立，某条失败
+/// 记录后继续下一条。与 `enqueue_dir`（发 RPC 入队）是同一动作的两种执行方式。
+pub async fn run_dir_locally(input: &Input) -> anyhow::Result<LocalBatchResult> {
+    let dir_str = input
+        .workflow
+        .as_ref()
+        .and_then(|w| w.url.as_deref())
+        .ok_or_else(|| anyhow::anyhow!("import_and_start_by_dir 需要 workflow.url (本地目录路径)"))?;
+    let dir = std::path::Path::new(dir_str)
+        .canonicalize()
+        .map_err(|e| anyhow::anyhow!("目录不存在或无法访问 ({dir_str}): {e}"))?;
+    if !dir.is_dir() {
+        return Err(anyhow::anyhow!("{dir_str} 不是目录"));
+    }
+
+    let wf_root = config_rs::path::paths::workfolder();
+    let DirScanOutput { inputs, result } = scan_dir_videos(&dir, &wf_root, input);
+    let mut out = LocalBatchResult {
+        scanned: result.scanned,
+        done: 0,
+        failed: 0,
+        skipped: result.skipped,
+        errors: result.errors,
+        failed_videos: Vec::new(),
+    };
+
+    for video_input in inputs {
+        let name = video_input
+            .workflow
+            .as_ref()
+            .and_then(|w| w.url.as_deref())
+            .unwrap_or("?")
+            .to_string();
+        match super::import_and_start_workflow(&video_input).await {
+            Ok(_) => {
+                out.done += 1;
+                tracing::info!(target: "batch", "完成: {name}");
+            }
+            Err(e) => {
+                out.failed += 1;
+                out.failed_videos.push(name.clone());
+                // 与队列 worker 一致：失败不阻断后续条目。
+                tracing::error!(target: "batch", "失败: {name}: {e:#}");
+            }
+        }
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
