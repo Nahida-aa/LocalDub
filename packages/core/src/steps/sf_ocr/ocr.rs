@@ -56,6 +56,10 @@ pub async fn step_sf_ocr(sc: impl StepCtxView, deps: SfOcrDeps) -> anyhow::Resul
     })?;
 
     let mut cmd = Command::new(&bin);
+    // 传绝对 model_dir：二进制靠 current_exe_repo_root() 推导仓库根, 目录版布局
+    // (bin_dir/<bin>/) 下会多算一层得到 data/data；绝对路径在二进制内原样使用。
+    let model_dir = config_rs::path::models::model_cache_dir().join("rapidocr");
+    cmd.arg("--model-dir").arg(&model_dir);
     cmd.arg("--dir").arg(&frame_dir);
     cmd.arg("--out").arg(frames_file.as_path());
     cmd.arg("--text-confidence-threshold");

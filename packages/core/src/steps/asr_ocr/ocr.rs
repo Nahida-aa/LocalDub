@@ -53,6 +53,9 @@ pub async fn step_asr_ocr(sc: impl StepCtxView, deps: AsrOcrDeps) -> Result<AsrO
     let out_file = asr_ocr::FramesPath::new(&video_dir);
 
     let mut cmd = Command::new(&bin);
+    // 目录版布局下二进制的 current_exe_repo_root() 会多算一层，传绝对 model_dir 绕开。
+    let model_dir = config_rs::path::models::model_cache_dir().join("rapidocr");
+    cmd.arg("--model-dir").arg(&model_dir);
     cmd.arg("--dir").arg(&frame_dir);
     cmd.arg("--out").arg(out_file.as_path());
     cmd.arg("--text-confidence-threshold");
