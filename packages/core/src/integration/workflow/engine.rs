@@ -18,6 +18,7 @@ use aa_workflow_core::define::MetaBag;
 use aa_workflow_core::{RunStatus, RunWorkflowOptions, run_workflow};
 use aa_workflow_middlewares::{DagPlan, DagPlanKey};
 use anyhow::Context;
+use tracing::Instrument;
 
 use crate::input::WorkflowInput;
 
@@ -52,15 +53,22 @@ async fn drive(
     meta: MetaBag,
 ) -> anyhow::Result<RunStatus> {
     let input_value = serde_json::to_value(input).context("序列化 workflow input 失败")?;
-    let outcome = run_workflow(
-        RunWorkflowOptions::new(wf, store)
-            .run_id(run_id.to_string())
-            .input(input_value)
-            .meta(meta),
-    )
-    .outcome()
-    .await
-    .map_err(|e| anyhow::anyhow!("引擎 run {run_id} 失败: {e:?}"))?;
+    // workflow span 带 video_dir：WorkflowFileLayer 靠它把日志落到 <video_dir>/<id>.log。
+    // 旧 pipeline 用过同样的 span，切引擎时漏了，导致引擎路径不再写日志文件。
+    let span = tracing::info_span!("workflow", video_dir = input.video_dir());
+    let outcome = async {
+        run_workflow(
+            RunWorkflowOptions::new(wf, store)
+                .run_id(run_id.to_string())
+                .input(input_value)
+                .meta(meta),
+        )
+        .outcome()
+        .await
+        .map_err(|e| anyhow::anyhow!("引擎 run {run_id} 失败: {e:?}"))
+    }
+    .instrument(span)
+    .await?;
 
     tracing::info!(target: "output_mode", run_id = %run_id, status = ?outcome.status, "引擎 run 结束");
     Ok(outcome.status)
