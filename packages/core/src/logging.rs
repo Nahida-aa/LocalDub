@@ -17,7 +17,7 @@ use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::Layer;
 
-use crate::steps::utils::{now_iso, video_id};
+use crate::steps::utils::video_id;
 
 /// 存在 span extensions 里的字段值, 供 on_event 读取。
 #[derive(Default, Clone)]
@@ -121,7 +121,9 @@ where
         }
 
         let level = event.metadata().level();
-        let entry = format!("[{}] [{level}] {step_prefix}{msg}\n", now_iso());
+        // 文件日志带完整日期 + 微秒（终端只在 formatter 里显示时分秒，日期靠这里）
+        let ts = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.6fZ");
+        let entry = format!("[{ts}] [{level}] {step_prefix}{msg}\n");
         if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&log_path) {
             let _ = f.write_all(entry.as_bytes());
         }
