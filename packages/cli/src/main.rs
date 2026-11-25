@@ -60,7 +60,7 @@ enum Command {
     },
     /// 任务操作 (等价 input.jsonc command=workflow, 标量参数覆盖 input.jsonc)。
     Workflow {
-        /// 任务动作: import_and_start/import/enqueue_start/enqueue_resume/enqueue_dir/cancel_queue/...
+        /// 任务动作: import_and_start/start/resume/import/enqueue_*/cancel_queue/...
         #[arg(long, value_enum)]
         action: Option<WorkflowAction>,
         /// 本地文件路径或远程/云端 url (start/enqueue_start 用)。
@@ -79,9 +79,9 @@ enum Command {
         #[arg(long, value_enum, num_args = 1..)]
         target_step: Vec<StepName>,
     },
-    /// 对某个已导入视频任务的动作 (等价 command=video_action)，video_dir 必填。
+    /// 对某个已导入视频任务的非工作流动作 (等价 command=video_action)，video_dir 必填。
     VideoAction {
-        /// 动作: start / resume / status / get_workflow_ctx / generate_meta。
+        /// 动作: status / get_workflow_ctx / generate_meta。
         #[arg(long, value_enum)]
         action: VideoAction,
         /// 已导入任务的目录（必填）。
@@ -314,20 +314,23 @@ async fn main() {
     };
 
     // 提示音语义: 任务完成 ≠ 命令完成。
-    // - 同步任务命令 (import_and_start/import 走 workflow，start/resume 走 video_action):
+    // - 同步任务命令 (import_and_start/start/resume/import 走 workflow):
     //   命令完成 = 任务完成 -> workflow_success / task_fail。
-    // - 其它命令 (enqueue 提交/servers/查询/status 等): 命令结束但任务未运行或无关
+    // - 其它命令 (enqueue 提交/servers/查询/video_action 等): 命令结束但任务未运行或无关
     //   -> command_done; 失败仍是 task_fail。
     let action = input.workflow.as_ref().and_then(|t| t.action);
     let is_sync_workflow = matches!(
         (input.command, action),
         (
             InputCommand::Workflow,
-            None | Some(WorkflowAction::ImportAndStart | WorkflowAction::Import)
+            None
+                | Some(
+                    WorkflowAction::ImportAndStart
+                        | WorkflowAction::Start
+                        | WorkflowAction::Resume
+                        | WorkflowAction::Import
+                )
         )
-    ) || matches!(
-        input.video_action.as_ref().map(|v| v.action),
-        Some(VideoAction::Start | VideoAction::Resume)
     );
 
     match run_result {

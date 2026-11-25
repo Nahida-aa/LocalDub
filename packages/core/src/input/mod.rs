@@ -72,8 +72,9 @@ pub fn resolve_llm_provider<'a>(
 #[serde(rename_all = "lowercase")]
 pub enum Command {
     Workflow,
-    /// 对某个已导入视频任务的动作（start/resume/status/get_workflow_ctx/generate_meta）。
+    /// 对某个已导入视频任务的**非工作流**动作（status/get_workflow_ctx/generate_meta）。
     /// video_dir 必填——由 VideoActionArgs 的类型保证，不再是运行时检查。
+    /// 工作流执行（start/resume）归 `Command::Workflow`。
     VideoAction,
     /// 纯查询命令：不针对单个任务（get_group_list / list_queue）。
     Query,
@@ -87,15 +88,14 @@ pub enum Command {
     ListModels,
 }
 
-/// `command=video_action` 的动作：都针对一个已导入的视频任务（video_dir 必填）。
+/// `command=video_action` 的动作：针对已导入任务的**非工作流**操作（video_dir 必填）。
+///
+/// 工作流执行（start / resume）归 `command=workflow`；这里只做状态读取与旁路产物生成，
+/// 不触碰引擎。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type, clap::ValueEnum)]
 #[value(rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum VideoAction {
-    /// 对已导入目录从头跑全量（不 import、不 setCtx、不跳过）。
-    Start,
-    /// 续跑（setCtx + DagPlan 从源 run 复用未失效步骤）。
-    Resume,
     /// 打印 view.json 里的 workflow.status + 各 step 状态。
     Status,
     /// 打印 view.json / input.json / 各 <step>/state.json 三份状态。

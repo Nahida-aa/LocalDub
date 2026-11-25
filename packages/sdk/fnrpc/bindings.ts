@@ -349,8 +349,9 @@ export type CheckType = "video" | "asr" | "font";
  */
 export type Command = "workflow" | 
 /**
- *  对某个已导入视频任务的动作（start/resume/status/get_workflow_ctx/generate_meta）。
+ *  对某个已导入视频任务的**非工作流**动作（status/get_workflow_ctx/generate_meta）。
  *  video_dir 必填——由 VideoActionArgs 的类型保证，不再是运行时检查。
+ *  工作流执行（start/resume）归 `Command::Workflow`。
  */
 "videoaction" | 
 /**  纯查询命令：不针对单个任务（get_group_list / list_queue）。 */
@@ -1989,12 +1990,13 @@ export type Value = null | boolean | number | string | Value[] | { [key in strin
 
 export type Vendor = "amd" | "nvidia" | "intel" | "unknown";
 
-/**  `command=video_action` 的动作：都针对一个已导入的视频任务（video_dir 必填）。 */
+/**
+ *  `command=video_action` 的动作：针对已导入任务的**非工作流**操作（video_dir 必填）。
+ * 
+ *  工作流执行（start / resume）归 `command=workflow`；这里只做状态读取与旁路产物生成，
+ *  不触碰引擎。
+ */
 export type VideoAction = 
-/**  对已导入目录从头跑全量（不 import、不 setCtx、不跳过）。 */
-"start" | 
-/**  续跑（setCtx + DagPlan 从源 run 复用未失效步骤）。 */
-"resume" | 
 /**  打印 view.json 里的 workflow.status + 各 step 状态。 */
 "status" | 
 /**  打印 view.json / input.json / 各 <step>/state.json 三份状态。 */
@@ -2059,13 +2061,12 @@ export type WorkflowAction =
 /**  导入视频 → 从头跑全量 pipeline (原 start 的语义)。import 在 workflow 之外。 */
 "import_and_start" | 
 /**
- *  内部 run-kind 标记：对已导入目录的全量重跑（不含 import）。
- *  命令面已移到 `command=video_action` 的 `VideoAction::Start`；
- *  此变体仅作为 `WorkflowInput.workflow.action` 上的标记供步骤读取
+ *  对已导入目录的全量重跑（不含 import）——命令面 `command=workflow --action start`。
+ *  同时作为 `WorkflowInput.workflow.action` 上的 run-kind 标记供步骤读取
  *  （如 tts 用它区分「首次全量」与「续跑」以决定是否忽略 regenIndices）。
  */
 "start" | 
-/**  内部 run-kind 标记：续跑（命令面为 `VideoAction::Resume`）。 */
+/**  续跑（setCtx + DagPlan 从源 run 复用未失效步骤）——命令面 `command=workflow --action resume`。 */
 "resume" | 
 /**
  *  只导入: 下载/拷贝视频 + 探测 + 写 view.json, 不跑 output_mode。

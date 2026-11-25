@@ -10,13 +10,12 @@ pub enum WorkflowAction {
     /// 导入视频 → 从头跑全量 pipeline (原 start 的语义)。import 在 workflow 之外。
     #[serde(rename = "import_and_start")]
     ImportAndStart,
-    /// 内部 run-kind 标记：对已导入目录的全量重跑（不含 import）。
-    /// 命令面已移到 `command=video_action` 的 `VideoAction::Start`；
-    /// 此变体仅作为 `WorkflowInput.workflow.action` 上的标记供步骤读取
+    /// 对已导入目录的全量重跑（不含 import）——命令面 `command=workflow --action start`。
+    /// 同时作为 `WorkflowInput.workflow.action` 上的 run-kind 标记供步骤读取
     /// （如 tts 用它区分「首次全量」与「续跑」以决定是否忽略 regenIndices）。
     #[serde(rename = "start")]
     Start,
-    /// 内部 run-kind 标记：续跑（命令面为 `VideoAction::Resume`）。
+    /// 续跑（setCtx + DagPlan 从源 run 复用未失效步骤）——命令面 `command=workflow --action resume`。
     #[serde(rename = "resume")]
     Resume,
     /// 只导入: 下载/拷贝视频 + 探测 + 写 view.json, 不跑 output_mode。

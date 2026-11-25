@@ -1,13 +1,14 @@
 //! workflow 顶层派发器 (镜像 TS `packages/core/cmd/workflows/workflow.ts` 的 `cmdTask`)。
 //!
-//! 根据 `input.workflow.action` 分派执行/队列类动作（start / resume / enqueue_* 等）。
-//! 纯查询动作（get_group_list / list_queue）已拆到
-//! [`crate::cmd::workflows::query`]（`command=query`）；针对单任务的查询
-//! （status / get_workflow_ctx）归到 [`crate::cmd::workflows::video_action`]。
+//! 根据 `input.workflow.action` 分派工作流动作（start / resume / import_and_start /
+//! enqueue_* 等）。纯查询动作（get_group_list / list_queue）已拆到
+//! [`crate::cmd::workflows::query`]（`command=query`）；针对单任务的非工作流动作
+//! （status / get_workflow_ctx / generate_meta）归到
+//! [`crate::cmd::workflows::video_action`]。
 //!
 //! 这是 `cmd/workflows` 的执行总入口, 对应 TS `run-workflow.ts` 里对 `cmdTask` 的调用。
 
-use crate::cmd::workflows::import_and_start_workflow;
+use crate::cmd::workflows::{import_and_start_workflow, resume_workflow, start_workflow};
 use crate::input::Input;
 use crate::workflow::args::WorkflowAction;
 use anyhow::Context;
@@ -22,10 +23,13 @@ pub async fn cmd_workflow(input: &Input) -> anyhow::Result<()> {
                 .await
                 .context("import_and_start_workflow 失败")?;
         }
-        // Start / Resume 是内部 run-kind 标记（供步骤读），命令面已移到
-        // command=video_action；若真从 workflow action 进来说明配置有误。
-        Some(WorkflowAction::Start) | Some(WorkflowAction::Resume) => {
-            anyhow::bail!("start / resume 请用 command=video_action（video_dir 必填）");
+        // 对已导入目录的执行动作：start=从头全量（不 import、不 setCtx），
+        // resume=setCtx + DagPlan 续跑。video_dir 运行时检查（WorkflowArgs 里是 Option）。
+        Some(WorkflowAction::Start) => {
+            start_workflow(input).await.context("start_workflow 失败")?;
+        }
+        Some(WorkflowAction::Resume) => {
+            resume_workflow(input).await.context("resume_workflow 失败")?;
         }
         Some(WorkflowAction::Import) => {
             crate::workflow::import::download::import_video(input)

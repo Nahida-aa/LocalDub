@@ -1,8 +1,8 @@
 //! `command=video_action` 派发器：对某个已导入视频任务的动作（video_dir 必填）。
 //!
-//! 从 `command=workflow` 里拆出 start/resume/status/get_workflow_ctx/generate_meta——
-//! 它们都针对一个已导入目录，`video_dir` 由 [`VideoActionArgs`] 类型层保证必填，
-//! 不再像旧路径那样每个 handler 运行时检查。
+//! 针对一个已导入目录的**非工作流**动作——status/get_workflow_ctx/generate_meta。
+//! 工作流执行（start/resume）归 `command=workflow`（[`crate::cmd::workflows::workflow`]）。
+//! `video_dir` 由 [`VideoActionArgs`] 类型层保证必填，不再像旧路径那样运行时检查。
 //!
 //! 实现策略：`VideoActionArgs` 带的是任务级参数（video_dir + 可选执行参数），
 //! 步骤配置（steps / llm_providers / 其它 workflow 参数）仍来自磁盘 input.json
@@ -13,18 +13,6 @@ use crate::state::{read_input, read_state, read_steps_state};
 
 pub async fn cmd_video_action(args: &VideoActionArgs) -> anyhow::Result<()> {
     match args.action {
-        VideoAction::Start => {
-            let base = base_input(args)?;
-            crate::cmd::workflows::start_workflow(&base)
-                .await
-                .context("start_workflow 失败")?;
-        }
-        VideoAction::Resume => {
-            let base = base_input(args)?;
-            crate::cmd::workflows::resume_workflow(&base)
-                .await
-                .context("resume_workflow 失败")?;
-        }
         VideoAction::Status => {
             let video_dir = &args.video_dir;
             let wf = read_state(video_dir)
@@ -79,14 +67,8 @@ fn base_input(args: &VideoActionArgs) -> anyhow::Result<Input> {
     }
     // run-kind 标记：步骤（如 tts）据此区分「全量」与「续跑」。
     // Status / GetWorkflowCtx 不走 base_input（直接读文件），这里只需覆盖可执行动作。
-    match args.action {
-        VideoAction::Start | VideoAction::GenerateMeta => {
-            workflow.action = Some(crate::workflow::args::WorkflowAction::Start)
-        }
-        VideoAction::Resume => {
-            workflow.action = Some(crate::workflow::args::WorkflowAction::Resume)
-        }
-        VideoAction::Status | VideoAction::GetWorkflowCtx => {}
+    if args.action == VideoAction::GenerateMeta {
+        workflow.action = Some(crate::workflow::args::WorkflowAction::Start)
     }
     input.workflow = Some(workflow);
     input.command = crate::input::Command::Workflow;
