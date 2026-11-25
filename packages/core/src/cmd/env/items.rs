@@ -810,7 +810,7 @@ const SUBTITLE_OCR: ReleaseBinSpec = ReleaseBinSpec {
     windows_asset: Some("subtitle-ocr-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some("7dfec92f6089b6213c0be9e69ee9c589a5730c5acb6dc6b33da96dffbf0389e7"),
     stamp: ".subtitle_ocr.version.json",
-    dir_layout: false,
+    dir_layout: true,
 };
 
 const SUBTITLE_OCR_POST: ReleaseBinSpec = ReleaseBinSpec {
@@ -838,7 +838,7 @@ const DEMUCS_BURN_TCH: ReleaseBinSpec = ReleaseBinSpec {
     windows_asset: Some("demucs-burn-tch-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some("c974ccd160dd330c38f1f1776df353624d8fc913b89b9619c745b14607836f45"),
     stamp: ".demucs_burn_tch.version.json",
-    dir_layout: false,
+    dir_layout: true,
 };
 
 const DEMUCS_BURN_WGPU: ReleaseBinSpec = ReleaseBinSpec {
@@ -852,7 +852,7 @@ const DEMUCS_BURN_WGPU: ReleaseBinSpec = ReleaseBinSpec {
     windows_asset: Some("demucs-burn-wgpu-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some("e2aa3855f07f6cbfda8507db3eeecf5d8fc2151af13fa2908a6ae005207b3592"),
     stamp: ".demucs_burn_wgpu.version.json",
-    dir_layout: false,
+    dir_layout: true,
 };
 
 /// demucs-wgpu: 自研 WGSL/Vulkan kernel 路径 (不依赖 libtorch / ROCm 库)。
@@ -869,7 +869,7 @@ const DEMUCS_WGPU: ReleaseBinSpec = ReleaseBinSpec {
     windows_asset: Some("demucs-wgpu-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some("10000663d73f700c13ac7cef58c7e80e25e717954490ca2edba6853210986be4"),
     stamp: ".demucs_wgpu.version.json",
-    dir_layout: false,
+    dir_layout: true,
 };
 
 /// demucs-tch: 独立 tch-rs 运行时 (不依赖 burn), 按设备分 cpu / cuda 变体。
@@ -888,7 +888,7 @@ const DEMUCS_TCH_CPU: ReleaseBinSpec = ReleaseBinSpec {
     windows_asset: Some("demucs-tch-cpu-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some(""),
     stamp: ".demucs_tch_cpu.version.json",
-    dir_layout: false,
+    dir_layout: true,
 };
 
 const DEMUCS_TCH_CUDA: ReleaseBinSpec = ReleaseBinSpec {
@@ -902,7 +902,7 @@ const DEMUCS_TCH_CUDA: ReleaseBinSpec = ReleaseBinSpec {
     windows_asset: Some("demucs-tch-cuda-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some(""),
     stamp: ".demucs_tch_cuda.version.json",
-    dir_layout: false,
+    dir_layout: true,
 };
 
 /// whisper-vulkan (vox-lab 预编译 whisper.cpp, GGML_VULKAN)。
@@ -921,7 +921,7 @@ const WHISPER_VULKAN: ReleaseBinSpec = ReleaseBinSpec {
     windows_asset: Some("whisper-vulkan-x86_64-pc-windows-msvc.zip"),
     windows_sha256: Some("1754cffc2132d7bbf303c65a27e7b01b578e76714afef97099e3d411d1cf9322"),
     stamp: ".whisper_vulkan.version.json",
-    dir_layout: false,
+    dir_layout: true,
 };
 
 /// 当前平台的资产 (asset 名, sha256); 平台未发布返回 None。

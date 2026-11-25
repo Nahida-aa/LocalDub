@@ -159,18 +159,21 @@ pub async fn step_asr(sc: impl StepCtxView, deps: AsrDeps) -> anyhow::Result<()>
     );
 
     let t0 = std::time::Instant::now();
-    // vox-lab release zip 把 libwhisper/libggml/libparakeet .so 平铺在 bin_dir,
-    // 需注入 LD_LIBRARY_PATH 才能命中 (镜像 demucs-tch 的 libtorch 处理)。
+    // vox-lab release zip 把 libwhisper/libggml/libparakeet .so 与二进制同目录,
+    // 需注入 LD_LIBRARY_PATH 指向该目录才能命中 (dir_layout = bin_dir/whisper-vulkan/;
+    // 兼容旧平铺 = bin_dir)。镜像 demucs-tch 的 libtorch 处理。
     let mut cmd = Command::new(&whisper_cli);
     cmd.args(&whisper_args);
     #[cfg(target_os = "linux")]
     {
-        let bin_dir = config_rs::path::models::bin_dir();
+        let lib_dir = whisper_cli
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new("."));
         let existing = std::env::var("LD_LIBRARY_PATH").unwrap_or_default();
         let lib_path = if existing.is_empty() {
-            bin_dir.to_string_lossy().into_owned()
+            lib_dir.to_string_lossy().into_owned()
         } else {
-            format!("{}:{}", bin_dir.display(), existing)
+            format!("{}:{}", lib_dir.display(), existing)
         };
         cmd.env("LD_LIBRARY_PATH", lib_path);
     }

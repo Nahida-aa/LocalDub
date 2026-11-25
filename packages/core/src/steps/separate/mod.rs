@@ -21,13 +21,19 @@ pub use after::step_separate_after;
 pub use after_args::SeparateAfterArgs;
 pub use args::SeparateArgs;
 
-/// 定位 demucs 二进制: `data/bin/<binary>` (release 下载, vox-lab zip 平铺)。
+/// 定位 demucs 二进制: `data/bin/<binary>/<binary>` (release 下载, 每二进制独占目录,
+/// so 自包含)。兼容旧平铺布局 `data/bin/<binary>` (迁移前的安装)。
 ///
 /// 源码构建的产物不放这里 (各运行时是 vox-lab 的独立 workspace, 产物在
 /// `vox-lab/packages/<pkg>/target`), 故未命中即视为未安装, 交由调用方报错。
 fn demucs_bin_path(binary: &str) -> Option<PathBuf> {
-    let p = config_rs::path::models::bin_dir().join(binary);
-    p.exists().then_some(p)
+    let bin_dir = config_rs::path::models::bin_dir();
+    let dir_layout = bin_dir.join(binary).join(binary);
+    if dir_layout.exists() {
+        return Some(dir_layout);
+    }
+    let flat = bin_dir.join(binary);
+    flat.exists().then_some(flat)
 }
 
 /// 手工解析 stdout 中的 `(xx%)` 进度 (镜像 TS `/\(\s*(\d+(?:\.\d+)?)%\)/`), 无 regex 依赖。
@@ -46,16 +52,20 @@ fn parse_progress_pct(s: &str) -> Option<i32> {
 /// 镜像 TS `separateBurn` 的 spawn + 进度解析 (`/\((\s*\d+(?:\.\d+)?)%\)/`).
 /// 定位 LibTorch 共享库目录 (tch 后端运行时必须)。
 ///
-/// 优先 release 下载场景: vox-lab 的 demucs-burn-tch zip 把 libtorch_cpu.so 等平铺在
-/// `bin_dir()` (data/bin), 与二进制同目录。回退源码构建场景:
-/// `target/{release,debug}/build/torch-sys-*/out/libtorch/libtorch/lib` (镜像 TS
-/// `wrapper.ts` 的 `findLibtorchPath`)。
+/// 优先 release 下载场景: vox-lab 的 demucs-burn-tch zip 把 libtorch_cpu.so 等与二进制
+/// 同目录 (dir_layout = `data/bin/demucs-burn-tch/`; 兼容旧平铺 `data/bin/`)。回退源码
+/// 构建场景: `target/{release,debug}/build/torch-sys-*/out/libtorch/libtorch/lib`
+/// (镜像 TS `wrapper.ts` 的 `findLibtorchPath`)。
 ///
 /// 若找不到, 返回 None (调用方据此在错误信息中提示先构建/下载 tch 后端)。
 fn find_libtorch_lib_dir() -> Option<PathBuf> {
-    let bin = config_rs::path::models::bin_dir();
-    if bin.join("libtorch_cpu.so").exists() {
-        return Some(bin);
+    let bin_dir = config_rs::path::models::bin_dir();
+    let dir_layout = bin_dir.join("demucs-burn-tch");
+    if dir_layout.join("libtorch_cpu.so").exists() {
+        return Some(dir_layout);
+    }
+    if bin_dir.join("libtorch_cpu.so").exists() {
+        return Some(bin_dir);
     }
     let repo = config_rs::root::repo_root();
     for profile in ["release", "debug"] {
