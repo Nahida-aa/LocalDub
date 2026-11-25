@@ -171,7 +171,7 @@ pub async fn step_sf_ocr_fix(
             ..Default::default()
         },
     )?;
-    tracing::info!(target: "sf_ocr", "done");
+    tracing::info!(target: "sf_ocr_fix", "done");
     Ok(SfOcrFixOutput {
         out_dir: out_dir.as_path().to_path_buf(),
         llm_fix_path: args

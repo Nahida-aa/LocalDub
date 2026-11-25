@@ -165,7 +165,8 @@ where
         use std::fmt::Write as _;
         use tracing_subscriber::fmt::format::FormatFields as _;
         let meta = event.metadata();
-        write!(writer, "{} ", crate::steps::utils::now_iso())?;
+        // 终端只显示时分秒 + 微秒（日期只在文件日志里）
+        write!(writer, "{} ", chrono::Utc::now().format("%H:%M:%S%.6f"))?;
         write!(writer, "{} ", meta.level())?;
 
         // span 部分：只取 video_dir 字段的 basename，输出 `90:`。
