@@ -1048,6 +1048,18 @@ async fn fetch_latest_tag(spec: &ReleaseBinSpec) -> Option<String> {
         .map(|t| t.to_string())
 }
 
+/// 版本戳是否命中期望的 tag + sha256（纯函数，便于钉住认领门槛）。
+fn version_stamp_matches(stamp: &Option<serde_json::Value>, tag: &str, sha256: &str) -> bool {
+    stamp
+        .as_ref()
+        .and_then(|v| v.get("tag").and_then(|t| t.as_str()))
+        == Some(tag)
+        && stamp
+            .as_ref()
+            .and_then(|v| v.get("sha256").and_then(|s| s.as_str()))
+            == Some(sha256)
+}
+
 /// 读取版本戳
 fn read_version_stamp(path: &Path) -> Option<serde_json::Value> {
     if path.exists() {
@@ -1091,6 +1103,24 @@ async fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
             required: false,
         };
     };
+    // 版本戳校验先行：戳匹配 = 已认领/已下载并校验过，直接走常规检查，不再碰本地资产。
+    // 戳不匹配时才有必要尝试认领——否则对 Linux 单文件 spec (dl_path == bin_path)，
+    // 会把已装好的二进制当成"用户放的资产"再校验一次 sha，误伤正常安装。
+    let stamp_path = release_version_path(spec);
+    let stamp_ok = |stamp: &Option<serde_json::Value>| version_stamp_matches(stamp, spec.tag, sha256);
+
+    // 认领前置：仅当版本戳未匹配时，看用户是否手动放进 bin_dir 一个合法资产
+    // (sha256 命中 spec)。命中就就地认领 (解压 / 补执行位 / 写戳)，让 check 当场报
+    // Pass，而不是先报缺失、等 ensure 偷偷认领——check 与 ensure 从此看到同一真相。
+    // 资产存在但 sha 不符 → 认领返回 Fail，原样上报 (不覆盖用户文件)。
+    if !stamp_ok(&read_version_stamp(&stamp_path)) {
+        if let Some(adopted) = adopt_local_release(spec, sha256).await {
+            if adopted.status == CheckStatus::Fail {
+                return adopted;
+            }
+        }
+    }
+
     let path = release_bin_path(spec);
     if !path.exists() {
         return CheckResult {
@@ -1149,18 +1179,19 @@ async fn check_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
         }
     }
 
-    // 版本戳校验
-    let stamp = read_version_stamp(&release_version_path(spec));
-    let tag_ok = stamp
-        .as_ref()
-        .and_then(|v| v.get("tag").and_then(|t| t.as_str()))
-        == Some(spec.tag);
-    let sha_ok = stamp
-        .as_ref()
-        .and_then(|v| v.get("sha256").and_then(|s| s.as_str()))
-        == Some(sha256);
-
-    if !tag_ok || !sha_ok {
+    // 版本戳校验（认领可能刚写过戳，这里重读）
+    let stamp = read_version_stamp(&stamp_path);
+    if !stamp_ok(&stamp) {
+        let (tag_ok, sha_ok) = (
+            stamp
+                .as_ref()
+                .and_then(|v| v.get("tag").and_then(|t| t.as_str()))
+                == Some(spec.tag),
+            stamp
+                .as_ref()
+                .and_then(|v| v.get("sha256").and_then(|s| s.as_str()))
+                == Some(sha256),
+        );
         let missing = match (tag_ok, sha_ok) {
             (false, false) => "版本戳缺失/不匹配",
             (false, true) => "tag 不匹配",
@@ -1407,10 +1438,8 @@ async fn ensure_release_bin(spec: &ReleaseBinSpec) -> CheckResult {
         };
     }
 
-    // 先认领用户手动放到 bin_dir 的文件（资产或已解压二进制），命中就直接返回，不下载。
-    if let Some(result) = adopt_local_release(spec, sha256).await {
-        return result;
-    }
+    // 认领已前置到 check_release_bin: check 命中合法本地资产会就地认领并报 Pass,
+    // run_ensure / ensure_bin 先跑 check 因而不会再走到这里。ensure 现在只负责下载。
 
     let bin_path = release_bin_path(spec);
     let dl_path = release_download_path(spec);
@@ -1731,6 +1760,19 @@ mod tests {
     use std::io::Write as _;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn version_stamp_matches_tag_and_sha() {
+        let stamp = serde_json::json!({ "tag": "v1", "sha256": "abc", "downloaded_at": "t" });
+        assert!(version_stamp_matches(&Some(stamp.clone()), "v1", "abc"));
+        // tag 不匹配、sha 不匹配、戳缺失 → 都判为未认领，需要尝试认领
+        assert!(!version_stamp_matches(&Some(stamp.clone()), "v2", "abc"));
+        assert!(!version_stamp_matches(&Some(stamp), "v1", "def"));
+        assert!(!version_stamp_matches(&None, "v1", "abc"));
+        // 缺字段
+        let partial = serde_json::json!({ "tag": "v1" });
+        assert!(!version_stamp_matches(&Some(partial), "v1", "abc"));
+    }
 
     #[test]
     fn tag_product_matching_does_not_confuse_ocr_and_ocr_post() {
