@@ -159,6 +159,9 @@ pub async fn step_tts(sc: impl StepCtxView, deps: TtsDeps) -> anyhow::Result<Tts
                     tracing::info!(target: "tts",
                         "[TTS] 段 {idx} 不在 regenIndices 中, 复用有效旧结果"
                     );
+                    // set_message 是持久的；不覆盖会让进度条一直显示上一段真实合成
+                    // 留下的 RTF，误以为本段也合成了。复用段如实标"跳过"。
+                    pb.set_message("上一段 跳过");
                     tts_segments.push(existing_segments.get(&seg_idx).unwrap().clone());
                     continue;
                 }
