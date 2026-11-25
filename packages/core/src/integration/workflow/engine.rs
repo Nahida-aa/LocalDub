@@ -68,6 +68,7 @@ async fn drive(
     let video_dir = input.video_dir();
     let mut status = RunStatus::Running;
     while let Some(ev) = stream.next().await {
+        tracing::info!(target: "workflow_event", run_id = %run_id, ?ev, "引擎事件");
         apply_view_event(video_dir, &ev);
         status = status_for_event(&ev, status);
     }
