@@ -68,11 +68,12 @@ export-series *args:
     bun scripts/export-series.ts {{args}}
 
 # 生成剧集上传清单 xlsx (仅生成表格, 不上传; 数据源 out/<剧名>/<集数>.mp4)
-# 列: 剧名 | 集数 | 姓名 | 时长 | 上传链接(网盘, 留空待填)
+# 列: 剧名 | 集数(总集数) | 姓名 | 时长(全剧求和) | 上传链接(网盘, 留空待填)
+# 末尾一行总计; 依赖由脚本内 PEP 723 声明 (openpyxl), 不写入项目 pyproject.toml
 #   just make-upload-sheet "师尊带我炸修真,梨落忘川雪" 安安
 #   just make-upload-sheet "师尊带我炸修真" 安安 --out tmp/清单.xlsx
 make-upload-sheet series name *args:
-    uv run --no-project --with openpyxl scripts/make-upload-sheet.py --series "{{series}}" --name "{{name}}" {{args}}
+    uv run --no-project scripts/make-upload-sheet.py --series "{{series}}" --name "{{name}}" {{args}}
 
 stats:
     scc . --exclude-dir node_modules,dist,build,target,venv,.venv,__pycache__,.git,vendor,out,cmake-build-debug,CMakeFiles --exclude-ext lock,json,md,yaml,yml,toml,ini,conf

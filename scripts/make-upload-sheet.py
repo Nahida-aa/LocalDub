@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.12"
+# dependencies = ["openpyxl>=3.1"]
+# ///
 """生成剧集上传清单 xlsx。
 
 数据来源: out/<剧名>/<集数>.mp4
-一行对应一部剧:
+一行对应一部剧, 末尾一行总计:
     剧名 | 集数(总集数) | 姓名 | 时长(全剧求和) | 上传链接(网盘)
 上传链接列留空，供上传后手工/脚本回填。
 
+依赖由 PEP 723 内联声明, 不写入项目 pyproject.toml。
+
 用法:
-    uv run --no-project --with openpyxl scripts/make-upload-sheet.py \
+    uv run --no-project scripts/make-upload-sheet.py \
         --series "师尊带我炸修真,梨落忘川雪" --name 安安
 """
 
@@ -83,7 +89,7 @@ def collect_episodes(series_dir: Path) -> list[tuple[int | None, str, Path]]:
     return eps
 
 
-def style_sheet(ws) -> None:
+def style_sheet(ws, data_end_row: int) -> None:
     header_font = Font(bold=True)
     header_fill = PatternFill("solid", fgColor="DDEBF7")
     for idx, title in enumerate(HEADERS, start=1):
@@ -93,7 +99,11 @@ def style_sheet(ws) -> None:
         cell.alignment = Alignment(horizontal="center", vertical="center")
         ws.column_dimensions[get_column_letter(idx)].width = COLUMN_WIDTHS[idx - 1]
     ws.freeze_panes = "A2"
-    ws.auto_filter.ref = f"A1:{get_column_letter(len(HEADERS))}{ws.max_row}"
+    # 筛选只覆盖明细行, 不含总计行
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(HEADERS))}{data_end_row}"
+    # 总计行加粗
+    for cell in ws[ws.max_row]:
+        cell.font = header_font
 
 
 def main() -> int:
@@ -127,6 +137,8 @@ def main() -> int:
 
     row = 2
     total = 0
+    sum_eps = 0
+    sum_sec = 0.0
     missing: list[str] = []
     for series in series_list:
         series_dir = root / series
@@ -154,6 +166,8 @@ def main() -> int:
         ws.cell(row=row, column=5, value="")
         row += 1
         total += 1
+        sum_eps += len(episodes)
+        sum_sec += total_sec
         note = f", {failed} 集时长缺失" if failed else ""
         print(f"✓ {series}: {len(episodes)} 集, 总时长 {format_duration(total_sec)}{note}")
 
@@ -161,12 +175,20 @@ def main() -> int:
         print("没有任何剧集可写入，未生成文件", file=sys.stderr)
         return 1
 
-    style_sheet(ws)
+    data_end_row = row - 1
+    # 总计行: 集数与时长求和, 姓名/链接留空
+    ws.cell(row=row, column=1, value="总计")
+    ws.cell(row=row, column=2, value=sum_eps)
+    ws.cell(row=row, column=3, value="")
+    ws.cell(row=row, column=4, value=format_duration(sum_sec) if sum_sec else "")
+    ws.cell(row=row, column=5, value="")
+
+    style_sheet(ws, data_end_row)
 
     out_path = Path(args.out) if args.out else root / f"上传清单_{args.name}.xlsx"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out_path)
-    print(f"\n输出: {out_path} ({total} 行)")
+    print(f"\n输出: {out_path} ({total} 部剧, {sum_eps} 集, 总时长 {format_duration(sum_sec)})")
     if missing:
         print(f"缺失剧名: {', '.join(missing)}", file=sys.stderr)
     return 0
