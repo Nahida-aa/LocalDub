@@ -165,11 +165,25 @@ where
         event: &tracing::Event<'_>,
     ) -> std::fmt::Result {
         use std::fmt::Write as _;
+        use tracing::Level;
         use tracing_subscriber::fmt::format::FormatFields as _;
         let meta = event.metadata();
+
+        // ANSI 颜色（tracing-subscriber 的 paint API 是 crate-private，手写 escape）
+        const DIM: &str = "\x1b[2m";
+        const BOLD: &str = "\x1b[1m";
+        const RESET: &str = "\x1b[0m";
+        let level_color = match *meta.level() {
+            Level::INFO => "\x1b[32m",
+            Level::WARN => "\x1b[33m",
+            Level::ERROR => "\x1b[31m",
+            Level::DEBUG => "\x1b[34m",
+            Level::TRACE => "\x1b[35m",
+        };
+
         // 终端只显示时分秒 + 微秒（日期只在文件日志里）
-        write!(writer, "{} ", chrono::Utc::now().format("%H:%M:%S%.6f"))?;
-        write!(writer, "{} ", meta.level())?;
+        write!(writer, "{DIM}{}{RESET} ", chrono::Utc::now().format("%H:%M:%S%.6f"))?;
+        write!(writer, "{level_color}{}{RESET} ", meta.level())?;
 
         // span 部分：只取 video_dir 字段的 basename，输出 `90:`。
         if let Some(scope) = ctx.event_scope() {
@@ -179,14 +193,14 @@ where
                     // 字段形如 `video_dir=/path/90`（自定义 fmt_fields 已截成 basename）。
                     for part in fields.as_str().split_whitespace() {
                         if let Some(val) = part.strip_prefix("video_dir=") {
-                            write!(writer, "{val}: ")?;
+                            write!(writer, "{BOLD}{val}{RESET}{DIM}:{RESET} ")?;
                         }
                     }
                 }
             }
         }
 
-        write!(writer, "{}: ", meta.target())?;
+        write!(writer, "{DIM}{}{RESET}{DIM}:{RESET} ", meta.target())?;
         ctx.format_fields(writer.by_ref(), event)?;
         writeln!(writer)
     }

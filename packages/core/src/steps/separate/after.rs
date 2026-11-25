@@ -22,7 +22,7 @@ pub async fn step_separate_after(
 ) -> anyhow::Result<SeparateAfterOutput> {
     let input = sc.ctx().input();
     let video_dir = input.video_dir().to_string();
-    tracing::info!(target: "separate", "start");
+    tracing::info!(target: "separate_after", "start");
 
     set_step_anyhow(
         &video_dir,
@@ -54,7 +54,7 @@ pub async fn step_separate_after(
     // 1. 由 stems 重建 target_bgm.wav (修复 amix normalize bug)
     let all_stems_exist = stems[..3].iter().all(|(_, p)| p.exists());
     if all_stems_exist {
-        tracing::info!(target: "separate", "Generating target_bgm.wav (amix normalize=0)...");
+        tracing::info!(target: "separate_after", "Generating target_bgm.wav (amix normalize=0)...");
         ffmpeg(&[
             "-i".into(),
             stems[0].1.to_string_lossy().into_owned(),
@@ -69,9 +69,9 @@ pub async fn step_separate_after(
             bgm_dst.to_string_lossy().into_owned(),
         ])?;
     } else if bgm_dst.exists() {
-        tracing::info!(target: "separate", "target_bgm.wav exists, reusing (stems not all found)");
+        tracing::info!(target: "separate_after", "target_bgm.wav exists, reusing (stems not all found)");
     } else {
-        tracing::info!(target: "separate", "No stems or BGM found, skipping BGM generation");
+        tracing::info!(target: "separate_after", "No stems or BGM found, skipping BGM generation");
     }
 
     // 2. 按本步骤专属混音参数生成 sidechain 混音人声
@@ -97,7 +97,7 @@ pub async fn step_separate_after(
         }
         match mix_mode {
             MixMode::RawSum => {
-                tracing::info!(target: "separate",
+                tracing::info!(target: "separate_after",
                     "[SeparateAfter] raw-sum: mixing vocals + BGM at {reduce_bgm}dB..."
                 );
                 ffmpeg(&[
@@ -129,7 +129,7 @@ pub async fn step_separate_after(
                 } else {
                     "bgm_sc"
                 };
-                tracing::info!(target: "separate",
+                tracing::info!(target: "separate_after",
                     "[SeparateAfter] sidechain: {sc_params}, bgmReduce={reduce_bgm}dB"
                 );
                 let filter = format!(
@@ -154,7 +154,7 @@ pub async fn step_separate_after(
     // 3. 可选 silence gate
     if use_gate && mixed_dst.as_path().exists() {
         let gated_path = GatedVocalsPath::new(&video_dir);
-        tracing::info!(target: "separate", "Applying silence gate...");
+        tracing::info!(target: "separate_after", "Applying silence gate...");
         ffmpeg(&[
             "-i".into(),
             mixed_dst.as_path().to_string_lossy().into_owned(),
@@ -175,7 +175,7 @@ pub async fn step_separate_after(
             ..Default::default()
         },
     )?;
-    tracing::info!(target: "separate", "done");
+    tracing::info!(target: "separate_after", "done");
     // 以文件是否实际存在为准，精确反映本次产出了哪些（bgm 可能沿用旧文件）。
     let mixed_path = Target3VocalsMixedPath::new(&video_dir);
     let gated_path = GatedVocalsPath::new(&video_dir);
