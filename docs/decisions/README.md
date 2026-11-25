@@ -19,7 +19,7 @@ docs/decisions/
 | 编号 | 决策 | 状态 | 日期 |
 |---|---|---|---|
 | [0001](0001-marginv-from-ocr.md) | 用 OCR y_stats 推断字幕 MarginV：PlayResY=288，参数 > 推断 > 默认 | accepted | 2026-11-25 |
-| [0002](0002-ocr-fix-output-format.md) | OCR 修正输出格式：自定义 `N: 文本` vs JSON（暂保持 text） | proposed | 2026-11-25 |
+| [0002](0002-ocr-fix-output-format.md) | OCR 修正输出格式：自定义 `N: 文本` vs JSON（未决，只记录问题） | open | 2026-11-25 |
 
 ## 实验索引
 
