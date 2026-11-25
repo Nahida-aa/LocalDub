@@ -2,10 +2,7 @@
 
 pub mod args;
 pub mod import;
-pub mod pipeline;
 pub mod step_ctx;
 pub mod workflows;
 
 pub use workflows::dub_sf_ocr::{dub_sf_ocr, dub_sf_ocr_spec};
-
-pub use pipeline::run_pipeline;

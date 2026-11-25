@@ -8,11 +8,18 @@ dev-cli:
 dev-cli-ts:
     cd packages/cli && bun run tauri dev
 
+# 导入并跑全量 (import_and_start)。--url 可传本地路径或远程链接。
 dev-cli-workflow-start *url:
-    cargo run -p cli -- workflow --action start {{if url != "" { "--url " + url } else { "" }}}
+    cargo run -p cli -- workflow --action import_and_start {{if url != "" { "--url " + url } else { "" }}}
 
-dev-cli-workflow-enqueue-dir *url:
-    cargo run -p cli -- workflow --action enqueue_dir {{if url != "" { "--url " + url } else { "" }}}
+# 批量按目录导入并跑。--enqueue 交给服务器队列；默认本地串行执行。
+dev-cli-workflow-import-dir *url:
+    cargo run -p cli -- workflow --action import_and_start_by_dir {{if url != "" { "--url " + url } else { "" }}}
+
+# 单步重跑：resume_from 与 target_step 填同一个 step（旧的 step_name 参数已删除）。
+# 例：just dev-cli-workflow-resume-step workfolder/x tts
+dev-cli-workflow-resume-step video_dir step:
+    cargo run -p cli -- workflow --action resume --video-dir {{video_dir}} --resume-from {{step}} --target-step {{step}}
 
 dev-cli-discovery-server:
     cargo run -p cli -- servers --action discovery --name main

@@ -1484,17 +1484,6 @@
             }
           ]
         },
-        "step_name": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/StepName"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " rerunStep 专业参数, 指定要重新运行的步骤"
-        },
         "output_mode": {
           "$ref": "#/$defs/OutputMode",
           "description": " 任务模式, dub 配音, subtitle 仅字幕"
@@ -1520,7 +1509,6 @@
         "resume_from",
         "target_step",
         "video_dir",
-        "step_name",
         "output_mode",
         "subtitle_source",
         "download_subtitles",
@@ -2439,17 +2427,6 @@
               "type": "null"
             }
           ]
-        },
-        "step_name": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/StepName"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": " rerunStep 专业参数, 指定要重新运行的步骤"
         },
         "output_mode": {
           "$ref": "#/$defs/OutputMode",

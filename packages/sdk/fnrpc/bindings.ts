@@ -2101,8 +2101,6 @@ export type WorkflowArgs_Deserialize = {
 	 */
 	target_step?: StepName[],
 	video_dir?: string | null,
-	/**  rerunStep 专业参数, 指定要重新运行的步骤 */
-	step_name?: StepName | null,
 	/**  任务模式, dub 配音, subtitle 仅字幕 */
 	output_mode?: OutputMode,
 	/**  字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合) */
@@ -2138,8 +2136,6 @@ export type WorkflowArgs_Serialize = {
 	 */
 	target_step: StepName[],
 	video_dir: string | null,
-	/**  rerunStep 专业参数, 指定要重新运行的步骤 */
-	step_name: StepName | null,
 	/**  任务模式, dub 配音, subtitle 仅字幕 */
 	output_mode: OutputMode,
 	/**  字幕源: asr (whisper, 默认), sf_ocr (关键帧策略硬字幕提取), asr_ocr (ASR 时序+OCR 文本融合) */

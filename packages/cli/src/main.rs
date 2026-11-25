@@ -405,7 +405,7 @@ mod tests {
     /// 解析一段 JSONC, 验证 JSONC 剥离 + Input 反序列化 + mix_video/mix_audio 小数生效。
     ///
     /// 用独立的 JSONC 字符串而非仓库根 input.jsonc, 避免与用户真实配置耦合
-    /// (用户改 input.jsonc 不影响本测试)。不触发 import_video / run_pipeline。
+    /// (用户改 input.jsonc 不影响本测试)。不触发 import_video / 引擎 run。
     #[test]
     fn parses_repo_input_jsonc_and_mix_video_decimals() {
         let raw = r#"{

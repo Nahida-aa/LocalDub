@@ -223,8 +223,6 @@ pub struct WorkflowArgs {
     #[serde(default)]
     pub target_step: Vec<StepName>,
     pub video_dir: Option<String>,
-    /// rerunStep 专业参数, 指定要重新运行的步骤
-    pub step_name: Option<StepName>,
     /// 任务模式, dub 配音, subtitle 仅字幕
     #[serde(default)]
     pub output_mode: OutputMode,
