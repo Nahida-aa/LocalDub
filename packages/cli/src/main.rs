@@ -21,7 +21,7 @@ use ld_core::input::Command as InputCommand;
 use ld_core::input::{Input, QueryAction, QueueAction, VideoAction};
 use ld_core::servers::args::ServerAction;
 use ld_core::workflow::args::{StepName, WorkflowAction};
-use paths::{parse_repo_input, resolve_input_path};
+use paths::parse_repo_input;
 
 /// LocalDub CLI。
 ///
@@ -129,11 +129,45 @@ enum Command {
     ListModels,
 }
 
+/// 若 GITHUB_TOKEN 未设，从已登录的 `gh auth token` 取 token 注入进程环境。
+///
+/// GitHub API 匿名请求会被限流（403），使 release 版本检查静默漏报。CLI 在 main
+/// 早期单线程阶段调用，故 `set_var` 的 unsafe 在此无竞态；gh 未安装/未登录则
+/// 静默跳过，不阻断命令。
+fn inject_gh_token() {
+    if std::env::var("GITHUB_TOKEN")
+        .ok()
+        .is_some_and(|v| !v.trim().is_empty())
+    {
+        return;
+    }
+    let Ok(out) = std::process::Command::new("gh")
+        .args(["auth", "token"])
+        .output()
+    else {
+        return;
+    };
+    if !out.status.success() {
+        return;
+    }
+    let token = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if token.is_empty() {
+        return;
+    }
+    // SAFETY: 在 #[tokio::main] 启动后的单线程阶段调用，此时无其他线程读取环境变量。
+    unsafe { std::env::set_var("GITHUB_TOKEN", token) };
+}
+
 #[tokio::main]
 async fn main() {
     // 统一初始化 tracing: fmt(stderr) + 任务文件落盘 + EnvFilter。
     // 重复 init 会失败, 故仅当尚未初始化时才装 (测试/嵌套调用安全)。
     let _ = ld_core::logging::init();
+
+    // GitHub API 匿名请求极易触发限流 (403), 导致 release 版本检查静默漏报。
+    // GITHUB_TOKEN 未设时, 从已登录的 `gh auth token` 取 token 注入进程环境,
+    // 让所有走 reqwest + GITHUB_TOKEN 的地方 (fetch_latest_tag 等) 自动受益。
+    inject_gh_token();
 
     // 分发 (镜像 TS run-workflow.ts 的 switch(cmd)):
     // 1. 读 input.jsonc 得到基础 Input;

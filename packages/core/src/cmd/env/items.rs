@@ -1060,11 +1060,24 @@ async fn fetch_latest_tag(spec: &ReleaseBinSpec) -> Option<String> {
             req = req.header("Authorization", format!("Bearer {token}"));
         }
     }
-    let resp = req.send().await.ok()?;
+    let resp = match req.send().await {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::debug!(target: "env", "fetch_latest_tag {} 请求失败: {e}", spec.bin);
+            return None;
+        }
+    };
     if !resp.status().is_success() {
+        tracing::debug!(target: "env", "fetch_latest_tag {} HTTP {}", spec.bin, resp.status().as_u16());
         return None;
     }
-    let releases: serde_json::Value = resp.json().await.ok()?;
+    let releases: serde_json::Value = match resp.json().await {
+        Ok(v) => v,
+        Err(e) => {
+            tracing::debug!(target: "env", "fetch_latest_tag {} 解析失败: {e}", spec.bin);
+            return None;
+        }
+    };
     let mut tags = releases
         .as_array()?
         .iter()
