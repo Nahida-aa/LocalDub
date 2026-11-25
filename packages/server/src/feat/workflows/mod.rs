@@ -207,17 +207,21 @@ pub async fn start_workflow(url: String) -> Result<String, String> {
         Err(e) => return Err(format!("import 任务崩溃: {e}")),
     };
 
-    // 后台跑完整 pipeline (不阻塞 RPC); 失败仅记日志, 任务页可续跑。
+    // 后台跑完整 DAG (不阻塞 RPC); 失败仅记日志, 任务页可续跑。
+    // 与 CLI 直接执行/队列统一走引擎：真源是 workflow-store/<run_id>/logs.jsonl。
     let video_dir = abs_video_dir.clone();
     tokio::spawn(async move {
-        // pipeline 吃 input（video_dir 从 input.workflow.video_dir 取）：input 从
-        // import 落好的 input.json 读回，身份回填已把 video_dir 写在里面。
         match ld_core::state::read_input(&video_dir) {
-            Ok(input) => {
-                if let Err(e) = ld_core::workflow::pipeline::run_pipeline(&input).await {
-                    tracing::error!("start_workflow pipeline 失败 ({video_dir}): {e:#}");
+            Ok(input) => match ld_core::input::WorkflowInput::try_from(input) {
+                Ok(wfi) => {
+                    if let Err(e) =
+                        ld_core::integration::workflow::engine::run_engine(&wfi).await
+                    {
+                        tracing::error!("start_workflow 引擎 run 失败 ({video_dir}): {e:#}");
+                    }
                 }
-            }
+                Err(e) => tracing::error!("构造 WorkflowInput 失败 ({video_dir}): {e}"),
+            },
             Err(e) => tracing::error!("读取 {video_dir}/input.json 失败: {e}"),
         }
     });
