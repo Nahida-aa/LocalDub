@@ -21,7 +21,7 @@ use ld_core::input::Command as InputCommand;
 use ld_core::input::{Input, QueryAction, QueueAction, VideoAction};
 use ld_core::servers::args::ServerAction;
 use ld_core::workflow::args::{StepName, WorkflowAction};
-use paths::parse_repo_input;
+use paths::{parse_repo_input, resolve_input_path};
 
 /// LocalDub CLI。
 ///
@@ -144,11 +144,13 @@ async fn main() {
     //    input 解析失败直接报错退出。
     let cli = Cli::parse();
 
+    // input.jsonc 存在就必须解析成功——配置写错却静默回退默认 Input, 会让 check/enqueue
+    // 等命令按默认值跑出"看似正常实则全错"的结果。只有**文件不存在**时才允许用默认
+    // (全新环境跑 `cli env --action check` 等不依赖配置的场景)。
+    let input_file_exists = paths::resolve_input_path().is_ok();
     let mut input = match parse_repo_input() {
         Ok(input) => input,
-        // 有 cli 子命令 (如 `cli env`): input.jsonc 可选, 用默认 Input 作为基础
-        Err(_) if cli.command.is_some() => Input::default(),
-        // 无 cli 子命令: 必须读 input.jsonc 才知道跑什么命令
+        Err(_) if !input_file_exists && cli.command.is_some() => Input::default(),
         Err(e) => {
             eprintln!("[cli] 读取 input 失败: {e:#}");
             exit(1);
