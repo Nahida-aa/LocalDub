@@ -154,11 +154,36 @@ impl<'a> Visit for MsgVisitor<'a> {
 /// 故返回 `anyhow::Result` 由调用方按需忽略。
 pub fn init() -> anyhow::Result<()> {
     use tracing_subscriber::prelude::*;
+    // 终端日志：video_dir 字段只显示 basename（如 82），不显示完整路径——
+    // 完整路径在文件日志里用于定位 <id>.log，终端看见视频号就够。
+    let short_fields = tracing_subscriber::fmt::format::debug_fn(
+        |writer: &mut tracing_subscriber::fmt::format::Writer<'_>,
+         field: &tracing::field::Field,
+         value: &dyn std::fmt::Debug|
+         -> std::fmt::Result {
+            if field.name() == "message" {
+                // message 是日志正文：默认格式显示纯文本，不带 `message=` 前缀和引号。
+                let raw = format!("{value:?}");
+                write!(writer, "{}", raw.trim_matches('"'))
+            } else if field.name() == "video_dir" {
+                let raw = format!("{value:?}");
+                let unquoted = raw.trim_matches('"');
+                let base = std::path::Path::new(unquoted)
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or(unquoted);
+                write!(writer, "{}={}", field, base)
+            } else {
+                write!(writer, "{}={:?}", field, value)
+            }
+        },
+    );
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::fmt::layer()
                 .with_writer(std::io::stderr)
-                .with_target(true),
+                .with_target(true)
+                .fmt_fields(short_fields),
         )
         .with(WorkflowFileLayer)
         .with(
