@@ -7,34 +7,57 @@
 use crate::LlmFixArgs;
 use anyhow::anyhow;
 
-/// 解析 LLM 按行号返回的修正文本。
+/// 解析 LLM 的**稀疏**修正回复：只输出有改动的行号（"2: 修正文本"），未出现的
+/// 行表示"无误、保持原文"。
 ///
-/// 镜像 TS `parseLines`: 匹配 `^\s*\d+\s*[):.]\s*(.+)` 逐行提取, 行数必须等于
-/// `expected_count` 才返回, 否则返回 `None` (调用方回退原文)。
-pub fn parse_lines(input: &str, expected_count: usize) -> Option<Vec<String>> {
-    let mut texts: Vec<String> = Vec::with_capacity(expected_count);
+/// 返回与 `originals` 等长的列表：出现的 id 覆盖对应项，其余保持原文。
+/// 模型即使输出全部行（密集）也照样工作。仅在以下情况报错：
+/// - id 越界（不在 1..=len）
+/// - id 重复
+/// - 一行都解析不出（格式全错，避免把"模型完全没照格式"误当成"全部无误"）
+pub fn parse_fix(input: &str, originals: &[String]) -> anyhow::Result<Vec<String>> {
+    let mut fixed = originals.to_vec();
+    let mut seen = vec![false; originals.len()];
+    let mut any = false;
     for line in input.trim().split('\n') {
-        if let Some(m) = line.match_ocr_line() {
-            texts.push(m);
+        let Some((id, text)) = line.match_ocr_line() else {
+            continue;
+        };
+        if id == 0 || id > originals.len() {
+            return Err(anyhow!("OCR 修正 id 越界: {id} (有效 1..={})", originals.len()));
         }
+        if seen[id - 1] {
+            return Err(anyhow!("OCR 修正 id 重复: {id}"));
+        }
+        seen[id - 1] = true;
+        fixed[id - 1] = text;
+        any = true;
     }
-    if texts.len() == expected_count {
-        Some(texts)
-    } else {
-        None
+    if !any {
+        return Err(anyhow!("OCR 修正回复无有效行 (需至少一行 N: 文本)"));
     }
+    Ok(fixed)
 }
 
-/// 把 "1: 文本" / "1) 文本" / "1. 文本" 的行提取为文本, 否则返回 None。
+/// 密集解析（供 ASR 修正用）：要求出现的行恰好覆盖 1..=expected_count 且顺序对应。
+/// 与 `parse_fix` 的稀疏语义不同——ASR 修正的调用方按位置 zip 回填，必须等长。
+pub fn parse_lines(input: &str, expected_count: usize) -> Option<Vec<String>> {
+    let placeholders = (0..expected_count).map(|_| String::new()).collect::<Vec<_>>();
+    parse_fix(input, &placeholders).ok().filter(|v| {
+        // 密集：所有 id 都必须出现（parse_fix 把未出现的留成空串）。
+        v.iter().all(|s| !s.is_empty())
+    })
+}
+
+/// 把 "1: 文本" / "1) 文本" / "1. 文本" 的行提取为 `(行号, 文本)`, 否则返回 None。
 trait OcrLine {
-    fn match_ocr_line(&self) -> Option<String>;
+    fn match_ocr_line(&self) -> Option<(usize, String)>;
 }
 
 impl OcrLine for str {
-    fn match_ocr_line(&self) -> Option<String> {
+    fn match_ocr_line(&self) -> Option<(usize, String)> {
         let t = self.trim();
         let mut chars = t.char_indices();
-        // 前导数字
         let mut end = None;
         for (i, c) in &mut chars {
             if c.is_ascii_digit() {
@@ -44,9 +67,9 @@ impl OcrLine for str {
             }
         }
         let end = end?;
+        let id: usize = t[..end].parse().ok()?;
         let rest = &t[end..];
         let sep = rest.trim_start_matches([' ', '\t']);
-        // 分隔符须为 ):.
         let first = sep.chars().next()?;
         if !matches!(first, ')' | ':' | '.') {
             return None;
@@ -55,7 +78,7 @@ impl OcrLine for str {
         if text.is_empty() {
             return None;
         }
-        Some(text.to_string())
+        Some((id, text.to_string()))
     }
 }
 
@@ -127,15 +150,15 @@ pub async fn ocr_llm_fix(
     };
     let result = crate::chat_completions_detailed(&prompt, &opts).await?;
     let fixed = result.content;
-    parse_lines(&fixed, segments.len()).ok_or_else(|| {
-        // 诊断：失败时把原始回复与 finish_reason 打出来，否则只知道"行数不匹配"，
-        // 无法区分模型合并/拆句、格式错、还是被长度截断（finish_reason=length）。
+    parse_fix(&fixed, segments).map_err(|e| {
+        // 诊断：失败时把原始回复与 finish_reason 打出来，否则只知道解析失败，
+        // 无法区分 id 越界/重复、格式全错、还是被长度截断（finish_reason=length）。
         let preview: String = fixed.chars().take(2000).collect();
         tracing::warn!(target: "llm",
-            "OCR 修正解析失败: 期望 {} 行, finish_reason={:?}, 原始回复(前2000字符)=\n{}",
-            segments.len(), result.finish_reason, preview
+            "OCR 修正解析失败: {}, finish_reason={:?}, 原始回复(前2000字符)=\n{}",
+            e, result.finish_reason, preview
         );
-        anyhow!("LLM 回复行数不匹配 (期望 {} 行)", segments.len())
+        e
     })
 }
 
@@ -143,25 +166,41 @@ pub async fn ocr_llm_fix(
 mod tests {
     use super::*;
 
+    fn origs(n: usize) -> Vec<String> {
+        (1..=n).map(|i| format!("原文{i}")).collect()
+    }
+
     #[test]
-    fn parse_lines_matches_numbered() {
-        let inp = "1: 万一件事情\n2) 凭什么给你看\n3. 想干什么";
-        let got = parse_lines(inp, 3).unwrap();
+    fn parse_fix_dense_matches_numbered() {
+        let got = parse_fix("1: 万一件事情\n2) 凭什么给你看\n3. 想干什么", &origs(3)).unwrap();
         assert_eq!(got, vec!["万一件事情", "凭什么给你看", "想干什么"]);
     }
 
     #[test]
-    fn parse_lines_rejects_wrong_count() {
-        let inp = "1: a\n2: b";
-        assert!(parse_lines(inp, 3).is_none());
-        assert!(parse_lines(inp, 2).is_some());
+    fn parse_fix_sparse_keeps_original_for_missing_ids() {
+        // 模型只输出有改动的行 (2/9)，其余保持原文。
+        let originals = origs(3);
+        let got = parse_fix("2: 修正二", &originals).unwrap();
+        assert_eq!(got, vec!["原文1", "修正二", "原文3"]);
     }
 
     #[test]
-    fn parse_lines_ignores_unnumbered() {
-        // 无行号的行被忽略, 导致数量不足 -> None
-        let inp = "万一件事情\n凭什么给你看";
-        assert!(parse_lines(inp, 2).is_none());
+    fn parse_fix_ignores_unnumbered_lines() {
+        let got = parse_fix("以下是修正：\n2: 修正二\n谢谢", &origs(3)).unwrap();
+        assert_eq!(got, vec!["原文1", "修正二", "原文3"]);
+    }
+
+    #[test]
+    fn parse_fix_rejects_out_of_range_and_duplicate_ids() {
+        assert!(parse_fix("4: 越界", &origs(3)).is_err());
+        assert!(parse_fix("2: a\n2: b", &origs(3)).is_err());
+        assert!(parse_fix("0: 零", &origs(3)).is_err());
+    }
+
+    #[test]
+    fn parse_fix_rejects_no_valid_lines() {
+        // 全是无编号行 → 不能当成"全部无误"，应报错让调用方回退原文。
+        assert!(parse_fix("万一件事情\n凭什么给你看", &origs(2)).is_err());
     }
 
     #[test]

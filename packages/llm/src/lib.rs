@@ -8,7 +8,9 @@ mod llm_fix_args;
 mod ocr_fix;
 
 pub use llm_fix_args::LlmFixArgs;
-pub use ocr_fix::{build_ocr_fix_system_prompt, ocr_llm_fix, ocr_segments_to_prompt, parse_lines};
+pub use ocr_fix::{
+    build_ocr_fix_system_prompt, ocr_llm_fix, ocr_segments_to_prompt, parse_fix, parse_lines,
+};
 
 /// 语言代码 -> 展示名 (供 LLM 系统提示), 镜像 TS `t(source_lang)`。
 /// 覆盖 const/lang.rs 的 23 种支持语言; 未命中时**透传语言码** ——
