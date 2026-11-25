@@ -69,7 +69,9 @@ async fn drive(
     let mut status = RunStatus::Running;
     while let Some(ev) = stream.next().await {
         // 事件本身已带 step_id，不再重复打印；不设 run_id、不加文案。
-        tracing::info!(target: "workflow_event", ?ev);
+        // 字段必须叫 message：WorkflowFileLayer 只取 message 字段落盘，且
+        // 自定义 formatter 对 message 直接输出值（不带 `ev=` 前缀）。
+        tracing::info!(target: "workflow_event", message = ?ev);
         apply_view_event(video_dir, &ev);
         status = status_for_event(&ev, status);
     }

@@ -184,6 +184,12 @@ mod tests {
             .middleware(Middleware::new())
             .handler(|ctx: BaseCtx<serde_json::Value, serde_json::Value>| async move {
                 tracing::info!(target: "test", "STEP LOG MARKER");
+                let ev = aa_workflow_core::WorkflowEvent::RunStarted {
+                    ts: 0,
+                    run_id: "test".into(),
+                    thread_id: None,
+                };
+                tracing::info!(target: "test", message = ?ev);
                 let _ = ctx;
                 Ok(serde_json::Value::Null)
             });
