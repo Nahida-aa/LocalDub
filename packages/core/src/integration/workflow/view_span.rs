@@ -23,6 +23,8 @@ pub fn view_span_middleware() -> Middleware {
             .and_then(|v| v.as_str())
             .unwrap_or("?")
             .to_string();
+        // 诊断：确认 middleware 在引擎 task 内执行且拿到 video_dir。
+        tracing::info!(target: "env", "view_span middleware: video_dir={video_dir}");
         let span = tracing::info_span!("workflow", video_dir = %video_dir);
         args.next(None).instrument(span).await
     })
