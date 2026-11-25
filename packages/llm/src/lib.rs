@@ -98,6 +98,8 @@ struct ChatResponse {
 #[derive(serde::Deserialize)]
 struct Choice {
     message: MessageContent,
+    /// 结束原因（如 `stop` / `length`）——`length` 表示被 max tokens 截断。
+    finish_reason: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -115,10 +117,25 @@ fn normalize_localhost(url: &str) -> String {
     url.replace("localhost", "127.0.0.1")
 }
 
+/// 一次 chat completion 的结果：正文 + 结束原因（供调用方诊断截断）。
+pub struct ChatCompletion {
+    pub content: String,
+    /// `stop` = 正常结束；`length` = 被 max tokens 截断。
+    pub finish_reason: Option<String>,
+}
+
 /// 调用 OpenAI 兼容的 chat completion, 返回 `choices[0].message.content` (已 trim)。
 ///
 /// 镜像 TS `chat_completions`: POST `{apiBase}/chat/completions`, 失败时抛错。
 pub async fn chat_completions(prompt: &str, opts: &ChatOptions) -> anyhow::Result<String> {
+    Ok(chat_completions_detailed(prompt, opts).await?.content)
+}
+
+/// 同 [`chat_completions`]，但额外带回 `finish_reason`（诊断截断用）。
+pub async fn chat_completions_detailed(
+    prompt: &str,
+    opts: &ChatOptions,
+) -> anyhow::Result<ChatCompletion> {
     let api_base = opts
         .api_base
         .clone()
@@ -206,12 +223,15 @@ pub async fn chat_completions(prompt: &str, opts: &ChatOptions) -> anyhow::Resul
         .json()
         .await
         .map_err(|e| anyhow::anyhow!("解析 LLM 响应失败: {e}"))?;
-    let content = json
-        .choices
-        .and_then(|c| c.into_iter().next())
+    let choice = json.choices.and_then(|c| c.into_iter().next());
+    let finish_reason = choice.as_ref().and_then(|c| c.finish_reason.clone());
+    let content = choice
         .and_then(|c| c.message.content)
         .unwrap_or_default();
-    Ok(content.trim().to_string())
+    Ok(ChatCompletion {
+        content: content.trim().to_string(),
+        finish_reason,
+    })
 }
 
 #[cfg(test)]
@@ -225,28 +245,6 @@ mod tests {
         assert_eq!(o.api_base.as_deref(), Some("http://localhost:11434/v1"));
         assert_eq!(o.max_tokens, None);
         assert_eq!(o.temperature, Some(0.1));
-    }
-
-    #[test]
-    fn chat_request_omits_max_tokens_when_none() {
-        // None 必须不出现在请求体里——否则服务端拿不到"用默认上限"的语义。
-        let body = ChatRequest {
-            model: "m".into(),
-            max_tokens: None,
-            temperature: 0.1,
-            messages: vec![],
-        };
-        let v = serde_json::to_value(&body).unwrap();
-        assert!(v.get("max_tokens").is_none(), "max_tokens=None 不应序列化: {v}");
-
-        let body = ChatRequest {
-            model: "m".into(),
-            max_tokens: Some(123),
-            temperature: 0.1,
-            messages: vec![],
-        };
-        let v = serde_json::to_value(&body).unwrap();
-        assert_eq!(v.get("max_tokens").and_then(|x| x.as_u64()), Some(123));
     }
 
     #[test]

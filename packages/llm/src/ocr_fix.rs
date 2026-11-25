@@ -125,9 +125,18 @@ pub async fn ocr_llm_fix(
         max_tokens: None,
         temperature: Some(0.1),
     };
-    let fixed = crate::chat_completions(&prompt, &opts).await?;
-    parse_lines(&fixed, segments.len())
-        .ok_or_else(|| anyhow!("LLM 回复行数不匹配 (期望 {} 行)", segments.len()))
+    let result = crate::chat_completions_detailed(&prompt, &opts).await?;
+    let fixed = result.content;
+    parse_lines(&fixed, segments.len()).ok_or_else(|| {
+        // 诊断：失败时把原始回复与 finish_reason 打出来，否则只知道"行数不匹配"，
+        // 无法区分模型合并/拆句、格式错、还是被长度截断（finish_reason=length）。
+        let preview: String = fixed.chars().take(2000).collect();
+        tracing::warn!(target: "llm",
+            "OCR 修正解析失败: 期望 {} 行, finish_reason={:?}, 原始回复(前2000字符)=\n{}",
+            segments.len(), result.finish_reason, preview
+        );
+        anyhow!("LLM 回复行数不匹配 (期望 {} 行)", segments.len())
+    })
 }
 
 #[cfg(test)]

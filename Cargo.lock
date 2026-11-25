@@ -2800,6 +2800,7 @@ dependencies = [
  "serde",
  "specta",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
