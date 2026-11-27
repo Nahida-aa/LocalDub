@@ -1,106 +1,14 @@
-//! 批量翻译: 一次 LLM 调用翻一批句子, 失败按**子集**重试 (镜像 TS `translateBatch`)。
+//! 批量翻译: 用 tool loop 让模型把译文作为 tool call 的 arguments 输出, 再归一化成
+//! `{"1":"译1",...}`。
 //!
-//! 重试策略: 若某次返回的译文数量与 batch 不符, 已匹配的句直接保留, 后续 attempt
-//! 只对**缺失的句子**重新请求 —— 避免像 49/50 这种情况因为一句话抽风而整批重来。
-//! 但**不**无脑兜底: 重试耗尽仍有缺失则返回 [`TranslateBatchError`] (携带已译部分),
-//! 交由调用方写 partial 落盘并暴露缺失, 而不会把原文当译文塞回去。
-
-use serde_json::{json, Value};
+//! 架构（见 `packages/llm` 的 `chat_with_tool_loop` + `TranslationToolHandler`）：
+//! - 模型被要求调用 `submit` tool，arguments 是逐句译文。
+//! - handler 用归一化器把 provider 自造结构（agnes 实测 argument/arguments/content/
+//!   param1/编号行等）解析成标准 `{"1":...}`；失败把 feedback 回传，模型在同上下文重试。
+//! - 归一化成功即 tool loop 终止（透穿结果）；外层再逐句 `check_sentence` 校验质量。
+//! - 重试耗尽仍有缺失则返回 [`TranslateBatchError`] (携带已译部分), 由调用方写 partial。
 
 use crate::steps::translate::parse_json_reply;
-use crate::steps::utils::lang_name;
-
-/// 构造本轮 function calling 的 tool 定义：key 为句子序号（字符串），value 为译文。
-///
-/// 序号用**原始 1-based**（`i + 1`），与 `pending` 里的原始索引一致，重试子集也用
-/// 原序号。`required` 列全 + `additionalProperties:false` 是给"遵守 schema"的
-/// provider 的强提示——但 **agnes 实测不遵守**（同一批返回过 `param1..25` /
-/// `{"argument":"<json>"}` / `{"parameter_name":"1","value":..}`），所以解析侧
-/// 另有 [`collect_translations`] 多层兜底，不依赖 key 一定是 `"1".."N"`。
-fn build_translate_tool(pending: &[usize]) -> Vec<Value> {
-    let mut properties = serde_json::Map::new();
-    let mut required = Vec::with_capacity(pending.len());
-    for &i in pending {
-        let key = (i + 1).to_string();
-        properties.insert(key.clone(), json!({ "type": "string" }));
-        required.push(Value::String(key));
-    }
-    vec![json!({
-        "type": "function",
-        "function": {
-            "name": "emit_translation",
-            "description": "逐句翻译结果。key 为句子序号（字符串），value 为对应译文。全员必填。",
-            "parameters": {
-                "type": "object",
-                "properties": properties,
-                "required": required,
-                "additionalProperties": false
-            }
-        }
-    })]
-}
-
-/// 从模型返回的 JSON 里按序号捞译文，不假设 key 一定是 `"1".."N"`。
-///
-/// 背景（2026-11-26，agnes provider）：tool schema 要求 key 为 `"1".."25"`，
-/// 但同一批连续三次返回三种畸形结构——
-/// 1. `{"param1":"译1", ..., "param25":"译25"}` — 自造 key 名，但尾数字是序号
-/// 2. `{"argument":"{\"1\":\"译1\", ...}"}` — 整包塞进一个字符串（双层 JSON）
-/// 3. `{"parameter_name":"1","value":"译1"}` — 单条 kv 对象
-///
-/// 策略（按可信度）：
-/// - 对象 key 是纯数字串 → 直接当序号（理想 schema）
-/// - 对象 key 带数字尾巴（`param7`/`seg_12`）→ 取尾数字当序号
-/// - value 本身是 JSON 字符串 → 解开递归（应对双层包裹）
-/// - 数组 → 位置即序号（1-based）
-///
-/// 只收 `pending` 里的序号，别的忽略。序号统一按 `i + 1`（1-based）。
-fn collect_translations(v: &Value, pending: &[usize], out: &mut std::collections::HashMap<usize, String>) {
-    let wanted: std::collections::HashSet<usize> = pending.iter().map(|&i| i + 1).collect();
-    fn digits(s: &str) -> Option<usize> {
-        let tail: String = s.chars().rev().take_while(|c| c.is_ascii_digit()).collect();
-        if tail.is_empty() {
-            None
-        } else {
-            tail.chars().rev().collect::<String>().parse().ok()
-        }
-    }
-    fn walk(v: &Value, wanted: &std::collections::HashSet<usize>, out: &mut std::collections::HashMap<usize, String>) {
-        match v {
-            Value::Object(m) => {
-                for (k, val) in m {
-                    match val {
-                        Value::String(s) => {
-                            if let Some(n) = digits(k) {
-                                if wanted.contains(&n) {
-                                    out.entry(n).or_insert_with(|| s.trim().to_string());
-                                }
-                            } else if s.trim_start().starts_with('{') || s.trim_start().starts_with('[') {
-                                // value 是 JSON 字符串 → 解开递归（双层包裹）
-                                if let Ok(inner) = crate::steps::translate::parse_json_reply(s) {
-                                    walk(&inner, wanted, out);
-                                }
-                            }
-                        }
-                        _ => walk(val, wanted, out),
-                    }
-                }
-            }
-            Value::Array(a) => {
-                for (idx, val) in a.iter().enumerate() {
-                    if let Some(s) = val.as_str() {
-                        let n = idx + 1;
-                        if wanted.contains(&n) {
-                            out.entry(n).or_insert_with(|| s.trim().to_string());
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    walk(v, &wanted, out);
-}
 
 /// 重试次数 (镜像 TS 的 3 次)。
 pub const MAX_ATTEMPTS: usize = 3;
@@ -187,7 +95,11 @@ fn describe_missing(
         .collect()
 }
 
-/// 批量翻译 (含 [`MAX_ATTEMPTS`] 次重试), 返回与 `batch` 等长的译文。
+/// 批量翻译 (含 [`MAX_ATTEMPTS`] 轮外层重试), 返回与 `batch` 等长的译文。
+///
+/// 每轮：tool loop 让模型输出译文 → 归一化成 `{"1":...}` → 逐句质量校验。
+/// tool loop 内部负责"输出形状收敛"（归一化失败 feedback 回传重试），
+/// 外层负责"译文质量收敛"（含中文/空句在下一轮重来）。
 pub async fn translate_batch(
     batch: &[String],
     system: &str,
@@ -203,99 +115,56 @@ pub async fn translate_batch(
         .collect::<Vec<_>>()
         .join("\n");
 
+    let opts = llm::ChatOptions {
+        model: Some(model.to_string()),
+        api_base: Some(api_base.to_string()),
+        system_prompt: system.to_string(),
+        api_key: api_key.map(str::to_string),
+        max_tokens: None,
+        temperature: Some(0.2),
+        tools: None,
+        tool_choice: None,
+    };
+    let handler = llm::TranslationToolHandler::new(batch.len());
+
     // filled[i] 为已成功翻译的句子 (None = 待翻译)
     let mut filled: Vec<Option<String>> = vec![None; batch.len()];
-    let mut pending: Vec<usize> = (0..batch.len()).collect();
     let mut batch_err = "未知原因 (LLM 未返回可用结果)".to_string();
-    // 每句独立的失败原因（终局错误按句展示，避免 last_err 互相覆盖）。
     let mut reasons: std::collections::HashMap<usize, String> = std::collections::HashMap::new();
 
     for attempt in 0..MAX_ATTEMPTS {
-        // 构造本轮待翻译子集的编号文本
-        let subset_numbered: String = pending
-            .iter()
-            .map(|&i| format!("{}. {}", i + 1, batch[i]))
-            .collect::<Vec<_>>()
-            .join("\n");
-        let user_msg = if attempt > 0 {
-            format!(
-                "{subset_numbered}\n\n（注意：以上回复包含中文！必须全部输出{lang}译文，不得包含任何中文。）",
-                subset_numbered = subset_numbered,
-                lang = lang_name(target_lang)
-            )
-        } else if pending.len() == batch.len() {
-            // 首轮用全量编号, 后续轮用子集编号
-            numbered.clone()
-        } else {
-            subset_numbered
-        };
-
-        let completion = match llm::chat_completions_detailed(
-            &user_msg,
-            &llm::ChatOptions {
-                model: Some(model.to_string()),
-                api_base: Some(api_base.to_string()),
-                system_prompt: system.to_string(),
-                api_key: api_key.map(str::to_string),
-                // 不设 max_tokens：让服务端按模型上限生成，避免固定上限截断。
-                max_tokens: None,
-                temperature: Some(0.2),
-                tools: Some(build_translate_tool(&pending)),
-                tool_choice: Some(json!({
-                    "type": "function",
-                    "function": { "name": "emit_translation" }
-                })),
-            },
-        ).await {
-            Ok(c) => c,
-            Err(e) => {
-                batch_err = format!("LLM 调用失败: {e}");
-                tracing::warn!(target: "translate", "batch attempt {} 失败: {}", attempt + 1, batch_err);
-                continue;
-            }
-        };
-        // 结构化输出走 tool_calls.arguments；provider 不支持 function calling 时退回正文。
-        let reply = completion
-            .tool_calls
-            .first()
-            .map(|tc| tc.function.arguments.clone())
-            .unwrap_or_else(|| completion.content.clone());
-        let finish_reason = completion.finish_reason.as_deref().unwrap_or("(none)");
-        let parsed: Value = match parse_json_reply(&reply) {
-            Ok(v) => v,
-            Err(e) => {
-                batch_err = format!(
-                    "回复无法解析为 JSON: {e}; finish_reason={finish_reason}; 原始回复(前100/末尾100): {}",
-                    crate::steps::utils::truncate_utf8_around(&reply, 100, 100)
-                );
-                tracing::warn!(target: "translate", "batch attempt {} 失败: {}", attempt + 1, batch_err);
-                continue;
-            }
-        };
-
-        // 诊断：模型实际返回了什么结构（顶层 key + 原文片段）。连续整批缺失时
-        // 用来区分「schema 没被遵循」还是「key 被填成空串」还是「译文含中文被否」。
-        let parsed_keys: Vec<&str> = parsed
-            .as_object()
-            .map(|m| m.keys().map(|k| k.as_str()).collect())
-            .unwrap_or_default();
-        tracing::info!(
-            target: "translate",
-            "batch attempt {} reply head={} parsed_keys={:?}",
-            attempt + 1,
-            crate::steps::utils::truncate_utf8(&reply, 300),
-            parsed_keys
-        );
-
-        // 本轮成功解析 → 清掉上一轮遗留的逐句原因，只反映本轮结果。
         reasons.clear();
 
-        // 从任意形状里按序号捞译文（agnes 不遵守 schema，实测三种畸形结构）。
-        let mut extracted: std::collections::HashMap<usize, String> = std::collections::HashMap::new();
-        collect_translations(&parsed, &pending, &mut extracted);
-        let mut still_pending: Vec<usize> = Vec::with_capacity(pending.len());
-        for &i in pending.iter() {
-            let d = extracted.get(&(i + 1)).cloned().unwrap_or_default();
+        // tool loop: 归一化成功即终止，返回标准 JSON 字符串 {"1":"译1",...}。
+        let tool_output = match llm::chat_with_tool_loop(
+            system,
+            &numbered,
+            &handler,
+            &opts,
+            MAX_ATTEMPTS,
+        ).await {
+            Ok(out) => out,
+            Err(e) => {
+                batch_err = format!("tool loop 失败: {e}");
+                tracing::warn!(target: "translate", "batch attempt {} 失败: {}", attempt + 1, batch_err);
+                continue;
+            }
+        };
+
+        // 归一化结果解析成序号→译文（handler 已保证是 {"1":...} 标准形态）。
+        let parsed: serde_json::Value = match parse_json_reply(&tool_output) {
+            Ok(v) => v,
+            Err(e) => {
+                batch_err = format!("归一化结果解析失败: {e}; output={tool_output}");
+                tracing::warn!(target: "translate", "batch attempt {} 失败: {}", attempt + 1, batch_err);
+                continue;
+            }
+        };
+
+        let mut still_pending: Vec<usize> = Vec::new();
+        for i in 0..batch.len() {
+            let key = (i + 1).to_string();
+            let d = parsed.get(&key).and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
             match check_sentence(&d, i, target_lang) {
                 Ok(()) => {
                     filled[i] = Some(d);
@@ -307,46 +176,28 @@ pub async fn translate_batch(
                 }
             }
         }
-        pending = still_pending;
 
-        // 每轮都记一次 finish_reason，便于区分 stop / length / tool_calls。
-        tracing::info!(
-            target: "translate",
-            "batch attempt {} finish_reason={} tool_calls={} pending={}",
-            attempt + 1,
-            finish_reason,
-            completion.tool_calls.len(),
-            pending.len()
-        );
-
-        if pending.is_empty() {
-            // 全部补齐
-            return Ok(filled
-                .iter()
-                .map(|o| o.clone().unwrap_or_default())
-                .collect());
+        if still_pending.is_empty() {
+            return Ok(filled.into_iter().map(|o| o.unwrap_or_default()).collect());
         }
 
-        // 暴露具体缺失哪句 + 原文, 供评估而非无脑兜底
-        let missing_detail = describe_missing(batch, &pending, &reasons, "", 40);
+        let pending_detail = still_pending.iter().map(|&i| i + 1).collect::<Vec<_>>();
         tracing::warn!(
             target: "translate",
-            "batch attempt {} 后仍有 {} 句未翻译: {}",
+            "batch attempt {} 后仍有 {} 句未通过质量校验: {:?}",
             attempt + 1,
-            pending.len(),
-            missing_detail.join("; ")
+            still_pending.len(),
+            pending_detail
         );
-        if attempt == MAX_ATTEMPTS - 1 {
-            break;
-        }
     }
 
-    // 重试耗尽仍有缺失: 返回携带已译部分的错误 (filled 已含 Some/None), 不兜底
+    // 重试耗尽仍有缺失: 返回携带已译部分的错误, 不兜底
+    let pending: Vec<usize> = (0..batch.len()).filter(|&i| filled[i].is_none()).collect();
     if !pending.is_empty() {
         let missing_detail = describe_missing(batch, &pending, &reasons, &batch_err, 60);
         return Err(TranslateBatchError {
             message: format!(
-                "批量翻译 {} 次重试后仍缺失 {} 句 (期望 {}/{} 句, 期望语言 {}): {}",
+                "批量翻译 {} 轮后仍缺失 {} 句 (期望 {}/{} 句, 期望语言 {}): {}",
                 MAX_ATTEMPTS,
                 pending.len(),
                 batch.len() - pending.len(),
@@ -364,75 +215,6 @@ pub async fn translate_batch(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// tool schema 的每个 key 是原始 1-based 序号，required 列全（schema 层面要求每句都输出）。
-    #[test]
-    fn build_translate_tool_keys_and_required_are_one_based() {
-        let tools = build_translate_tool(&[0, 2, 4]);
-        let f = &tools[0]["function"];
-        assert_eq!(f["name"], "emit_translation");
-        let props = f["parameters"]["properties"].as_object().unwrap();
-        assert_eq!(props.len(), 3);
-        assert!(props.contains_key("1"));
-        assert!(props.contains_key("3"));
-        assert!(props.contains_key("5"));
-        assert!(!props.contains_key("2")); // 不在 pending 里
-        let required = f["parameters"]["required"].as_array().unwrap();
-        let keys: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
-        assert_eq!(keys, vec!["1", "3", "5"]);
-    }
-
-    /// agnes 实测的三种畸形结构 + 理想 schema，都要能按序号捞到译文。
-    #[test]
-    fn collect_translations_handles_provider_shapes() {
-        fn get(v: &Value, pending: &[usize]) -> Vec<Option<String>> {
-            let mut out = std::collections::HashMap::new();
-            collect_translations(v, pending, &mut out);
-            pending.iter().map(|&i| out.get(&(i + 1)).cloned()).collect()
-        }
-
-        let pending = vec![0usize, 1, 2]; // 想要第 1/2/3 句
-
-        // 理想 schema：纯数字 key
-        let ideal = serde_json::json!({"1": "译1", "2": "译2", "3": "译3"});
-        assert_eq!(
-            get(&ideal, &pending),
-            vec![Some("译1".into()), Some("译2".into()), Some("译3".into())]
-        );
-
-        // agnes 形态 1：自造 key 名 + 尾数字
-        let param = serde_json::json!({"param1": "甲", "param2": "乙", "param3": "丙"});
-        assert_eq!(
-            get(&param, &pending),
-            vec![Some("甲".into()), Some("乙".into()), Some("丙".into())]
-        );
-
-        // agnes 形态 2：整包塞进一个字符串（双层 JSON）
-        let wrapped = serde_json::json!({"argument": "{\"1\":\"x\",\"2\":\"y\",\"3\":\"z\"}"});
-        assert_eq!(
-            get(&wrapped, &pending),
-            vec![Some("x".into()), Some("y".into()), Some("z".into())]
-        );
-
-        // agnes 形态 3：单条 kv 对象（模型只回 1 句，且无可靠序号映射）→ 全 None，
-        // 靠重试拿到形态 1/2 的完整结果，不硬解这种脆弱结构。
-        let kv = serde_json::json!({"parameter_name": "2", "value": "只有第二句"});
-        let got = get(&kv, &pending);
-        assert!(got.iter().all(|x| x.is_none()));
-
-        // 数组：位置即序号
-        let arr = serde_json::json!(["A", "B", "C"]);
-        assert_eq!(
-            get(&arr, &pending),
-            vec![Some("A".into()), Some("B".into()), Some("C".into())]
-        );
-
-        // 只收 pending 内的序号
-        let extra = serde_json::json!({"1": "a", "9": "不该收"});
-        let got = get(&extra, &pending);
-        assert_eq!(got[0], Some("a".into()));
-        assert!(got.iter().all(|x| x.as_deref() != Some("不该收")));
-    }
 
     #[test]
     fn chinese_ratio_detects_cjk() {

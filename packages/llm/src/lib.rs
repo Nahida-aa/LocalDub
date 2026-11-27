@@ -6,6 +6,9 @@
 
 mod llm_fix_args;
 mod ocr_fix;
+#[cfg(test)]
+mod tool_loop_tests;
+pub mod translation_normalize;
 
 pub use llm_fix_args::LlmFixArgs;
 pub use ocr_fix::{
@@ -97,10 +100,39 @@ struct ChatRequest {
     tool_choice: Option<serde_json::Value>,
 }
 
-#[derive(serde::Serialize)]
-struct ChatMessage {
-    role: &'static str,
-    content: String,
+/// 一条 chat 消息。tool loop 需要多轮历史，所以支持三种 OpenAI 兼容形态：
+/// - `system` / `user` / `assistant`：纯文本，`content` 必填
+/// - `assistant` with `tool_calls`：模型发起的工具调用，`tool_calls` 必填
+/// - `tool`：`tool_call_id` + `content`（工具结果/校验 feedback 回传）
+#[derive(serde::Serialize, Clone, Debug)]
+pub struct ChatMessage {
+    pub role: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<serde_json::Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+}
+
+impl ChatMessage {
+    pub fn system(text: impl Into<String>) -> Self {
+        Self { role: "system".into(), content: Some(text.into()), tool_calls: None, tool_call_id: None }
+    }
+    pub fn user(text: impl Into<String>) -> Self {
+        Self { role: "user".into(), content: Some(text.into()), tool_calls: None, tool_call_id: None }
+    }
+    pub fn assistant(text: impl Into<String>) -> Self {
+        Self { role: "assistant".into(), content: Some(text.into()), tool_calls: None, tool_call_id: None }
+    }
+    /// assistant 发起工具调用（content 可为 None）。
+    pub fn assistant_tool_calls(calls: Vec<serde_json::Value>) -> Self {
+        Self { role: "assistant".into(), content: None, tool_calls: Some(calls), tool_call_id: None }
+    }
+    /// 工具结果回传。
+    pub fn tool(call_id: impl Into<String>, content: impl Into<String>) -> Self {
+        Self { role: "tool".into(), content: Some(content.into()), tool_calls: None, tool_call_id: Some(call_id.into()) }
+    }
 }
 
 /// `/chat/completions` 响应体 (仅解析用到的字段)。
@@ -124,9 +156,11 @@ struct MessageContent {
     tool_calls: Vec<ToolCall>,
 }
 
-/// 一次 function calling 的返回（`name` + JSON 字符串 `arguments`）。
+/// 一次 function calling 的返回（`id` + `name` + JSON 字符串 `arguments`）。
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct ToolCall {
+    /// 调用 id，tool result 必须带它回传。
+    pub id: String,
     pub function: ToolCallFunction,
 }
 
@@ -148,6 +182,7 @@ fn normalize_localhost(url: &str) -> String {
 }
 
 /// 一次 chat completion 的结果：正文 + 结束原因 + tool calls（供调用方诊断截断）。
+#[derive(Clone)]
 pub struct ChatCompletion {
     pub content: String,
     /// `stop` = 正常结束；`length` = 被 max tokens 截断。
@@ -166,6 +201,185 @@ pub async fn chat_completions(prompt: &str, opts: &ChatOptions) -> anyhow::Resul
 /// 同 [`chat_completions`]，但额外带回 `finish_reason`（诊断截断用）。
 pub async fn chat_completions_detailed(
     prompt: &str,
+    opts: &ChatOptions,
+) -> anyhow::Result<ChatCompletion> {
+    let messages = vec![
+        ChatMessage::system(opts.system_prompt.clone()),
+        ChatMessage::user(prompt),
+    ];
+    send_chat_request(messages, opts).await
+}
+
+/// 用完整 messages 数组调用（tool loop 多轮历史用）。
+pub async fn chat_completions_messages(
+    messages: Vec<ChatMessage>,
+    opts: &ChatOptions,
+) -> anyhow::Result<ChatCompletion> {
+    send_chat_request(messages, opts).await
+}
+
+/// 可选钩子：把工具 arguments 的原始形状归一化成工具 Input schema 期望的形状。
+///
+/// 勾在「arguments 字符串反序列化为 `Value` 之后、工具 Input 反序列化之前」这一层：
+/// `arguments (&str) → serde_json::from_str → Value → [ToolInputNormalizer] → Value → tool Input → typed`
+/// provider 若严格遵守 schema，这个钩子跳过（raw 原样传给工具）；形状不可信时由
+/// 特定工具提供归一化逻辑（如把 agnes 自造的 `{"arguments":"..."}` 解包成标准对象）。
+///
+/// 这是扩展系统的一种实现形式：钩子可选、每个工具可提供不同实现。
+pub trait ToolInputNormalizer: Send + Sync {
+    /// 归一化：Ok 返回符合工具 Input schema 形状的 Value；Err 返回 feedback 让模型重试。
+    fn normalize(&self, raw: &serde_json::Value) -> Result<serde_json::Value, String>;
+}
+
+/// 通用 tool loop 的回调：处理一次 tool call 的 arguments。
+///
+/// - `Ok(output)`：成功，loop 立即终止，返回 output。
+/// - `Err(feedback)`：失败，feedback 作为 tool result 回传给模型，下一轮修正。
+pub trait ToolHandler: Send + Sync {
+    /// tool 名（给 LLM 看的 token）。
+    fn name(&self) -> &str;
+    /// tool 描述。
+    fn description(&self) -> &str;
+    /// 入参 JSON Schema。
+    fn schema(&self) -> serde_json::Value;
+    /// 可选输入归一化钩子，默认 None（遵守 schema 的 provider 直接跳过）。
+    fn input_normalizer(&self) -> Option<&dyn ToolInputNormalizer> {
+        None
+    }
+    /// 执行工具，接收归一化后的 Input Value：Ok 终止并返回值，Err 作为 feedback 回传重试。
+    fn handle(&self, input: &serde_json::Value) -> Result<String, String>;
+}
+
+/// 自己实现的 tool loop：驱动「模型调 tool → handler 处理 → 结果/feedback 回传」，
+/// 直到 handler 成功（终止）或 max_turns 用尽。
+///
+/// 比框架 output tool 模式的优势：handler 可做自定义归一化/校验（如把 agnes 自造结构
+/// 解析成目标格式），不被框架内置的 schema 校验绑死。
+pub async fn chat_with_tool_loop(
+    system: &str,
+    user: &str,
+    handler: &dyn ToolHandler,
+    opts: &ChatOptions,
+    max_turns: usize,
+) -> anyhow::Result<String> {
+    chat_with_tool_loop_inner(system, user, handler, opts, max_turns, |messages, opts| {
+        let opts = opts.clone();
+        let messages = messages.clone();
+        Box::pin(async move { chat_completions_messages(messages, &opts).await })
+    }).await
+}
+
+/// tool loop 核心，发送函数可注入（测试时喂 fake provider）。
+async fn chat_with_tool_loop_inner<F>(
+    system: &str,
+    user: &str,
+    handler: &dyn ToolHandler,
+    opts: &ChatOptions,
+    max_turns: usize,
+    send: F,
+) -> anyhow::Result<String>
+where
+    F: for<'a> Fn(
+        &'a Vec<ChatMessage>,
+        &'a ChatOptions,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<ChatCompletion>> + Send + 'a>>,
+{
+    let tool_def = serde_json::json!({
+        "type": "function",
+        "function": {
+            "name": handler.name(),
+            "description": handler.description(),
+            "parameters": handler.schema(),
+        }
+    });
+    let mut opts = opts.clone();
+    opts.system_prompt = system.to_string();
+    opts.tools = Some(vec![tool_def]);
+    opts.tool_choice = Some(serde_json::json!({
+        "type": "function",
+        "function": { "name": handler.name() }
+    }));
+
+    let mut messages = vec![ChatMessage::system(system), ChatMessage::user(user)];
+
+    for turn in 0..max_turns {
+        let completion = send(&messages, &opts).await?;
+        if completion.tool_calls.is_empty() {
+            // 模型没调 tool：若有正文就当最终答复，否则继续（最多 max_turns）。
+            if !completion.content.is_empty() {
+                return Ok(completion.content);
+            }
+            messages.push(ChatMessage::assistant("(no tool call)"));
+            continue;
+        }
+
+        // 本轮所有 tool call：逐个处理，拼 assistant(tool_calls) + tool result 回传。
+        let mut assistant_calls = Vec::new();
+        let mut results = Vec::new();
+        let mut success_outputs = Vec::new();
+        for call in &completion.tool_calls {
+            assistant_calls.push(serde_json::json!({
+                "id": call.id,
+                "type": "function",
+                "function": { "name": call.function.name, "arguments": call.function.arguments }
+            }));
+
+            // ① arguments 字符串 → Value（纯 JSON 解析）
+            let raw: serde_json::Value = match serde_json::from_str(&call.function.arguments) {
+                Ok(v) => v,
+                Err(e) => {
+                    let fb = format!("arguments 不是合法 JSON: {e}");
+                    tracing::warn!(target: "llm", tool = handler.name(), turn, "{fb}");
+                    results.push((call.id.clone(), fb));
+                    continue;
+                }
+            };
+
+            // ② 可选输入归一化钩子（特定工具提供；把不可信形状归一到 Input schema）
+            let input = match handler.input_normalizer() {
+                Some(n) => match n.normalize(&raw) {
+                    Ok(v) => v,
+                    Err(fb) => {
+                        tracing::warn!(target: "llm", tool = handler.name(), turn, "归一化失败: {fb}");
+                        results.push((call.id.clone(), fb));
+                        continue;
+                    }
+                },
+                None => raw,
+            };
+
+            // ③ 工具执行（接收归一化后的 Input Value）
+            match handler.handle(&input) {
+                Ok(output) => {
+                    tracing::info!(target: "llm", tool = handler.name(), turn, "tool call succeeded");
+                    results.push((call.id.clone(), output.clone()));
+                    success_outputs.push(output);
+                }
+                Err(feedback) => {
+                    tracing::warn!(target: "llm", tool = handler.name(), turn, "tool call rejected: {feedback}");
+                    results.push((call.id.clone(), feedback));
+                }
+            }
+        }
+
+        // 回填 assistant(tool_calls) + 每条 tool result，让模型看到自己做了什么。
+        messages.push(ChatMessage::assistant_tool_calls(assistant_calls));
+        for (id, content) in results {
+            messages.push(ChatMessage::tool(id, content));
+        }
+
+        if !success_outputs.is_empty() && success_outputs.len() == completion.tool_calls.len() {
+            // 本轮所有 tool call 都成功 → 第一个成功结果即最终译文（透穿）。
+            return Ok(success_outputs.remove(0));
+        }
+    }
+
+    Err(anyhow::anyhow!("tool loop 用尽 max_turns={max_turns} 轮仍未成功"))
+}
+
+/// 实际发起 HTTP 请求。所有公开入口都走这里。
+async fn send_chat_request(
+    messages: Vec<ChatMessage>,
     opts: &ChatOptions,
 ) -> anyhow::Result<ChatCompletion> {
     let api_base = opts
@@ -189,16 +403,7 @@ pub async fn chat_completions_detailed(
         temperature,
         tools,
         tool_choice,
-        messages: vec![
-            ChatMessage {
-                role: "system",
-                content: opts.system_prompt.clone(),
-            },
-            ChatMessage {
-                role: "user",
-                content: prompt.to_string(),
-            },
-        ],
+        messages,
     };
 
     // 本地 LLM (Ollama 等) 通常监听 127.0.0.1/localhost, 不应走系统代理
@@ -273,6 +478,77 @@ pub async fn chat_completions_detailed(
         finish_reason,
         tool_calls,
     })
+}
+
+/// 翻译场景的输入归一化钩子：把 provider 自造结构 → `{"1":"译1",...}`。
+///
+/// `n` = 期望句数（每个视频不同，运行时传入）。这是挂在 TranslationToolHandler 上的
+/// 可选钩子，勾在 arguments 解析成 Value 之后、工具 Input 反序列化之前。
+pub struct TranslationInputNormalizer {
+    n: usize,
+}
+
+impl ToolInputNormalizer for TranslationInputNormalizer {
+    fn normalize(&self, raw: &serde_json::Value) -> Result<serde_json::Value, String> {
+        match translation_normalize::normalize(raw, self.n) {
+            Ok(out) => serde_json::to_value(&out)
+                .map_err(|e| format!("序列化归一化结果失败: {e}")),
+            Err(e) => Err(format!(
+                "无法解析译文。请用 {{\"1\": \"译1\", ...}} 或编号行 \"1. 译1\"。问题: {}",
+                e.0
+            )),
+        }
+    }
+}
+
+/// 翻译场景的 ToolHandler：提供归一化钩子 + 透穿归一化后的 input。
+pub struct TranslationToolHandler {
+    n: usize,
+    normalizer: TranslationInputNormalizer,
+}
+
+impl TranslationToolHandler {
+    pub fn new(n: usize) -> Self {
+        Self {
+            n,
+            normalizer: TranslationInputNormalizer { n },
+        }
+    }
+}
+
+impl ToolHandler for TranslationToolHandler {
+    fn name(&self) -> &str {
+        "submit"
+    }
+
+    fn description(&self) -> &str {
+        "Submit the sentence-by-sentence translations. Keys are sentence numbers (1..N), values are translations. Every key is required."
+    }
+
+    fn schema(&self) -> serde_json::Value {
+        let mut properties = serde_json::Map::new();
+        let mut required = Vec::new();
+        for i in 1..=self.n {
+            let k = i.to_string();
+            properties.insert(k.clone(), serde_json::json!({ "type": "string" }));
+            required.push(serde_json::json!(k));
+        }
+        serde_json::json!({
+            "type": "object",
+            "properties": properties,
+            "required": required,
+            "additionalProperties": false
+        })
+    }
+
+    fn input_normalizer(&self) -> Option<&dyn ToolInputNormalizer> {
+        Some(&self.normalizer)
+    }
+
+    fn handle(&self, input: &serde_json::Value) -> Result<String, String> {
+        // 归一化已由钩子完成，这里透穿成字符串（tool loop 据此终止）。
+        serde_json::to_string(input).map_err(|e| format!("序列化结果失败: {e}"))
+    }
 }
 
 #[cfg(test)]
