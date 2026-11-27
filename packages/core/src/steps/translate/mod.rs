@@ -259,6 +259,10 @@ pub async fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow
 
         let total_batches = texts.chunks(partial::BATCH_SIZE).count();
         let partial_path = translation_partial_path(&video_dir, &target_lang);
+        // 归一化失败诊断留档：模型随机失败不可复现，攒几次才能看出失败模式分布。
+        let failure_log = Path::new(&video_dir)
+            .join("translate")
+            .join(format!("{}.normalize-failures.jsonl", target_lang));
 
         // 阶段内续跑: 读已有 partial, 恢复已完成 batch 与已译句
         let (mut completed, partial_segs) = partial::read_partial(&partial_path);
@@ -300,7 +304,7 @@ pub async fn step_translate(sc: impl StepCtxView, deps: TranslateDeps) -> anyhow
             }
             let batch: Vec<String> = chunk.to_vec();
             tracing::info!(target: "translate", "batch {}/{}: {} 句", i + 1, total_batches, batch.len());
-            match batch::translate_batch(&batch, &system, &target_lang, &api_base, api_key.as_deref(), &model).await {
+            match batch::translate_batch(&batch, &system, &target_lang, &api_base, api_key.as_deref(), &model, Some(&failure_log)).await {
                 Ok(results) => {
                     for (k, r) in results.into_iter().enumerate() {
                         let gi = i * partial::BATCH_SIZE + k;

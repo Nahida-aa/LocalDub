@@ -107,6 +107,7 @@ pub async fn translate_batch(
     api_base: &str,
     api_key: Option<&str>,
     model: &str,
+    failure_log: Option<&std::path::Path>,
 ) -> Result<Vec<String>, TranslateBatchError> {
     let numbered: String = batch
         .iter()
@@ -125,7 +126,10 @@ pub async fn translate_batch(
         tools: None,
         tool_choice: None,
     };
-    let handler = llm::TranslationToolHandler::new(batch.len());
+    let handler = llm::TranslationToolHandler::with_failure_log(
+        batch.len(),
+        failure_log.map(|p| p.to_path_buf()),
+    );
 
     // filled[i] 为已成功翻译的句子 (None = 待翻译)
     let mut filled: Vec<Option<String>> = vec![None; batch.len()];

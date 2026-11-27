@@ -507,6 +507,9 @@ async fn send_chat_request(
 /// 可选钩子，勾在 arguments 解析成 Value 之后、工具 Input 反序列化之前。
 pub struct TranslationInputNormalizer {
     n: usize,
+    /// 失败诊断持久化路径（可选）。每次归一化失败 append 一行 JSON，
+    /// 让不可复现的模型随机失败也能留档分析。
+    failure_log: Option<std::path::PathBuf>,
 }
 
 impl ToolInputNormalizer for TranslationInputNormalizer {
@@ -514,10 +517,42 @@ impl ToolInputNormalizer for TranslationInputNormalizer {
         match translation_normalize::normalize(raw, self.n) {
             Ok(out) => serde_json::to_value(&out)
                 .map_err(|e| format!("序列化归一化结果失败: {e}")),
-            Err(e) => Err(format!(
-                "无法解析译文。请用 {{\"1\": \"译1\", ...}} 或编号行 \"1. 译1\"。问题: {}",
-                e.0
-            )),
+            Err(e) => {
+                let feedback = format!(
+                    "无法解析译文。请用 {{\"1\": \"译1\", ...}} 或编号行 \"1. 译1\"。问题: {}",
+                    e.0
+                );
+                // 失败留档：模型随机失败不可复现，攒几次才能看出失败模式分布。
+                if let Some(path) = &self.failure_log {
+                    self.append_failure(path, raw, &feedback);
+                }
+                Err(feedback)
+            }
+        }
+    }
+}
+
+impl TranslationInputNormalizer {
+    fn append_failure(&self, path: &std::path::Path, raw: &serde_json::Value, feedback: &str) {
+        use std::io::Write;
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs_f64())
+            .unwrap_or(0.0);
+        let line = serde_json::json!({
+            "ts_unix": ts,
+            "expected_n": self.n,
+            "raw_arguments": raw,
+            "feedback": feedback,
+        });
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        match std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            Ok(mut f) => {
+                let _ = writeln!(f, "{}", line);
+            }
+            Err(e) => tracing::warn!(target: "llm", "写归一化失败诊断失败: {e}"),
         }
     }
 }
@@ -530,9 +565,14 @@ pub struct TranslationToolHandler {
 
 impl TranslationToolHandler {
     pub fn new(n: usize) -> Self {
+        Self::with_failure_log(n, None)
+    }
+
+    /// `failure_log`：归一化失败时 append 诊断 JSONL 的路径（可选）。
+    pub fn with_failure_log(n: usize, failure_log: Option<std::path::PathBuf>) -> Self {
         Self {
             n,
-            normalizer: TranslationInputNormalizer { n },
+            normalizer: TranslationInputNormalizer { n, failure_log },
         }
     }
 }
