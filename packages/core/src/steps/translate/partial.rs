@@ -23,11 +23,10 @@ use crate::steps::translate::out::{
 /// partial 里段的归组方式。以前 `step_translate` 与 `write_partial` 各写了一个
 /// 常量, 一旦只改一处, 续跑时段的 batch 归属就会错位 (静默错误)。
 ///
-/// 50 → 25：function calling 的 schema 是「一句一个 property」，50 句的
-/// properties + required 数组太长，单次输出越大越容易漏句/漏闭合符；拆小后
-/// 每批结构更短、定位更准。partial 本就是可丢弃重建的中间态，改这个值不影响
-/// 已有进度正确性（续跑时 `completed` 会重新据此归组）。
-pub const BATCH_SIZE: usize = 25;
+/// 暂时改回 50（从 25）：分批意味着每批各自跑一次完整 tool loop（各自 feedback
+/// 重试），增加 LLM 调用开销与延迟。后续应按「输入/输出最大 token 限制」动态
+/// 计算批大小，而非固定小批次；在此之前用 50 减少批次数。
+pub const BATCH_SIZE: usize = 50;
 
 /// 读 partial: 返回已完成 batch 集合与已记录的段。
 ///
