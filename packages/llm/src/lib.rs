@@ -178,6 +178,15 @@ pub struct ToolCallFunction {
 /// 而 Ollama 等本地服务通常只监听 IPv4, 导致连接被拒 (error sending request),
 /// 且瞬间失败而非超时。curl / Node 对 localhost 的解析更宽容 (优先 IPv4), 故 TS 版
 /// 能连而 Rust 版不能。统一换成 127.0.0.1 与 curl/Node 行为对齐。
+/// 日志截断：UTF-8 安全，超长加 "..."。
+fn truncate_for_log(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        return s.to_string();
+    }
+    let end = (0..=max).rev().find(|&i| s.is_char_boundary(i)).unwrap_or(0);
+    format!("{}...", &s[..end])
+}
+
 fn normalize_localhost(url: &str) -> String {
     url.replace("localhost", "127.0.0.1")
 }
@@ -330,8 +339,13 @@ where
             let raw: serde_json::Value = match arguments_parse::parse_arguments_json(&call.function.arguments) {
                 Ok(v) => v,
                 Err(e) => {
+                    // 打原始 arguments 全文（截断到 2000 字符）——看到模型到底填了什么，
+                    // 方便改进钩子/容错解析。
                     let fb = format!("arguments 不是合法 JSON: {e}");
-                    tracing::warn!(target: "llm", tool = handler.name(), turn, "{fb}");
+                    tracing::warn!(
+                        target: "llm", tool = handler.name(), turn,
+                        "{fb}; 原始 arguments={}", truncate_for_log(&call.function.arguments, 2000)
+                    );
                     results.push((call.id.clone(), fb));
                     continue;
                 }
@@ -342,7 +356,12 @@ where
                 Some(n) => match n.normalize(&raw) {
                     Ok(v) => v,
                     Err(fb) => {
-                        tracing::warn!(target: "llm", tool = handler.name(), turn, "归一化失败: {fb}");
+                        // 打归一化前的原始 Value 全文——这是改进钩子的关键诊断信息。
+                        let raw_json = serde_json::to_string(&raw).unwrap_or_default();
+                        tracing::warn!(
+                            target: "llm", tool = handler.name(), turn,
+                            "归一化失败: {fb}; 原始 arguments Value={}", truncate_for_log(&raw_json, 2000)
+                        );
                         results.push((call.id.clone(), fb));
                         continue;
                     }

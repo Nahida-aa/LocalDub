@@ -15,10 +15,24 @@ pub fn normalize(args: &serde_json::Value, n: usize) -> Result<BTreeMap<String, 
     // 能 parse 成 JSON 对象/数组的候选优先（译文通常是 JSON 字符串）。
     candidates.sort_by_key(|s| if is_json_container(s) { 0 } else { 1 });
     let mut first_err = None;
-    for c in candidates {
-        match parse_carrier(&c, n) {
+    for (i, c) in candidates.iter().enumerate() {
+        match parse_carrier(c, n) {
             Ok(out) => return Ok(out),
-            Err(e) => if first_err.is_none() { first_err = Some(e) },
+            Err(e) => {
+                // 每个候选的失败原因都打出来——改进归一化规则时能看到全貌，
+                // 而不是只看到第一个候选的错误。
+                tracing::debug!(
+                    target: "llm",
+                    "归一化候选[{i}] 失败: {}; 内容={}",
+                    e.0,
+                    {
+                        let s = c.trim();
+                        let end = (0..=s.len().min(300)).rev().find(|&j| s.is_char_boundary(j)).unwrap_or(0);
+                        if s.len() > 300 { format!("{}...", &s[..end]) } else { s.to_string() }
+                    }
+                );
+                if first_err.is_none() { first_err = Some(e) }
+            }
         }
     }
     Err(first_err.unwrap_or_else(|| Issue("找不到译文载体".into())))
