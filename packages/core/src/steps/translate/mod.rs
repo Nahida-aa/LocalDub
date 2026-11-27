@@ -124,6 +124,8 @@ async fn run_preprocess(
             // 不设 max_tokens：让服务端按模型上限生成，避免固定上限截断。
             max_tokens: None,
             temperature: Some(0.2),
+            tools: None,
+            tool_choice: None,
         },
     ).await {
         Ok(raw) => match parse_json_reply(&raw) {
@@ -166,8 +168,20 @@ pub fn parse_json_reply(raw: &str) -> anyhow::Result<Value> {
     if let (Some(s), Some(e)) = (start, end) {
         if e > s {
             let sub = &raw[s..=e];
-            return serde_json::from_str::<Value>(sub)
-                .map_err(|e| anyhow::anyhow!("解析 LLM 回复 JSON 失败: {e}"));
+            if let Ok(v) = serde_json::from_str::<Value>(sub) {
+                return Ok(v);
+            }
+        }
+    }
+    // 再退回: 模型漏写结尾 `}` / `]}` / 闭合引号时补全后重试。
+    // 这是纯提示词 / 不支持 function calling 的 provider 的真实失败模式
+    // （见 102 任务：36 句全在，唯独末尾缺 `}`）。
+    if let Some(s) = start {
+        let head = raw[s..].trim_end();
+        for closing in ["}", "]}", "\"}"] {
+            if let Ok(v) = serde_json::from_str::<Value>(&format!("{head}{closing}")) {
+                return Ok(v);
+            }
         }
     }
     Err(anyhow::anyhow!(
@@ -432,6 +446,14 @@ mod tests {
         let v = parse_json_reply("前言 blah {\"dst\": [\"a\",\"b\"]} 后缀").unwrap();
         let arr = v.get("dst").and_then(|d| d.as_array()).unwrap();
         assert_eq!(arr.len(), 2);
+    }
+
+    /// 模型漏写结尾 `}`（102 任务的真实失败模式）时应补全解析成功。
+    #[test]
+    fn parse_json_reply_repairs_missing_closing_brace() {
+        let v = parse_json_reply("{\"1\": \"a\", \"2\": \"b\"").unwrap();
+        assert_eq!(v.get("1").and_then(|s| s.as_str()), Some("a"));
+        assert_eq!(v.get("2").and_then(|s| s.as_str()), Some("b"));
     }
 
     #[tokio::test]

@@ -85,6 +85,8 @@ pub async fn generate_meta(input: &crate::input::Input, video_dir: &str) -> anyh
         // 不设 max_tokens：让服务端按模型上限生成，避免固定 4096 截断。
         max_tokens: None,
         temperature: Some(0.3),
+        tools: None,
+        tool_choice: None,
     };
     println!(
         "[generate_meta] 调用 LLM 生成 meta.md ({} 段字幕)...",

@@ -33,7 +33,7 @@ pub fn build_translate_system(
 2) 逐句对齐。一句对一句。\n\
 3) 人名、地名、品牌、型号、缩写默认保留；文件名、路径、URL 一律保留原样。\n\
 4) 使用{dst_lang_name}标点；破折号禁用，改用逗号或括号。\n\
-5) 输出格式：{{\"dst\": [\"<对应{dst_lang_name}译文>\", \"<对应{dst_lang_name}译文>\", ...]}}\n\n\
+5) 输出格式：{{\"1\": \"<第1句{dst_lang_name}译文>\", \"2\": \"<第2句{dst_lang_name}译文>\", ...}} —— key 是句子序号（从 1 开始的字符串），value 是对应译文；每句都要有，不得遗漏。\n\n\
 用户消息会发送一个编号列表，请严格按顺序逐句翻译，每句一条。",
         dst_lang_name = dst_lang_name,
         src_lang_name = src_lang_name,

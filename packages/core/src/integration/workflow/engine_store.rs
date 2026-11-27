@@ -277,10 +277,9 @@ mod tests {
         dir
     }
 
-    fn event(run_id: &str, step: &str) -> WorkflowEvent {
+    fn event(step: &str) -> WorkflowEvent {
         WorkflowEvent::StepFinished {
             ts: 1,
-            run_id: run_id.to_string(),
             step_id: step.to_string(),
             result: None,
             attempts: vec![],
@@ -315,11 +314,11 @@ mod tests {
         assert_eq!(reloaded.status, aa_workflow_core::RunStatus::Finished);
 
         store
-            .append_event("r1", 0, &event("r1", "a"))
+            .append_event("r1", 0, &event("a"))
             .await
             .unwrap();
         store
-            .append_event("r1", 1, &event("r1", "b"))
+            .append_event("r1", 1, &event("b"))
             .await
             .unwrap();
         let evs = store.get_events("r1").await.unwrap();
@@ -332,11 +331,11 @@ mod tests {
         let dir = temp_dir("cas");
         let store = FsRunStore::new(&dir);
         store
-            .append_event("r1", 0, &event("r1", "a"))
+            .append_event("r1", 0, &event("a"))
             .await
             .unwrap();
         let err = store
-            .append_event("r1", 0, &event("r1", "b"))
+            .append_event("r1", 0, &event("b"))
             .await
             .unwrap_err();
         assert!(matches!(

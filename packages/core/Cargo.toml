@@ -45,7 +45,7 @@ tokio = { version = "1", default-features = false, features = ["rt", "sync", "ti
 aa_workflow_core.workspace = true
 aa_workflow_middlewares.workspace = true
 # FsRunStore 实现 async RunStore trait（trait object 需 async_trait box）
-async-trait = "0.1"
+async-trait.workspace = true
 # 流式消费 RunEventStream（futures_core::Stream）需要 StreamExt::next
 futures = { version = "0.3", default-features = false, features = ["async-await"] }
 

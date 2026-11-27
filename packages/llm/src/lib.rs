@@ -59,6 +59,12 @@ pub struct ChatOptions {
     pub max_tokens: Option<u32>,
     /// 采样温度, 缺省 0.1
     pub temperature: Option<f64>,
+    /// OpenAI 兼容的 `tools`（function calling 定义），用 schema 约束模型输出结构。
+    /// None = 不发送该字段，退回纯提示词约定。
+    pub tools: Option<Vec<serde_json::Value>>,
+    /// 强制调用指定 tool（如 `{"type":"function","function":{"name":"emit"}}`）。
+    /// None = 不发送，由模型自行决定。
+    pub tool_choice: Option<serde_json::Value>,
 }
 
 impl Default for ChatOptions {
@@ -70,6 +76,8 @@ impl Default for ChatOptions {
             api_key: None,
             max_tokens: None,
             temperature: Some(0.1),
+            tools: None,
+            tool_choice: None,
         }
     }
 }
@@ -83,6 +91,10 @@ struct ChatRequest {
     max_tokens: Option<u32>,
     temperature: f64,
     messages: Vec<ChatMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tools: Option<Vec<serde_json::Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_choice: Option<serde_json::Value>,
 }
 
 #[derive(serde::Serialize)]
@@ -107,6 +119,22 @@ struct Choice {
 #[derive(serde::Deserialize)]
 struct MessageContent {
     content: Option<String>,
+    /// function calling 的返回；模型按 schema 输出时正文在 arguments 里。
+    #[serde(default)]
+    tool_calls: Vec<ToolCall>,
+}
+
+/// 一次 function calling 的返回（`name` + JSON 字符串 `arguments`）。
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct ToolCall {
+    pub function: ToolCallFunction,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct ToolCallFunction {
+    pub name: String,
+    /// JSON 字符串（模型按 schema 填的参数）。
+    pub arguments: String,
 }
 
 /// 把 `localhost` 规范化为 `127.0.0.1`。
@@ -119,11 +147,13 @@ fn normalize_localhost(url: &str) -> String {
     url.replace("localhost", "127.0.0.1")
 }
 
-/// 一次 chat completion 的结果：正文 + 结束原因（供调用方诊断截断）。
+/// 一次 chat completion 的结果：正文 + 结束原因 + tool calls（供调用方诊断截断）。
 pub struct ChatCompletion {
     pub content: String,
     /// `stop` = 正常结束；`length` = 被 max tokens 截断。
     pub finish_reason: Option<String>,
+    /// function calling 返回（模型按 schema 结构化输出时正文在 `arguments`）。
+    pub tool_calls: Vec<ToolCall>,
 }
 
 /// 调用 OpenAI 兼容的 chat completion, 返回 `choices[0].message.content` (已 trim)。
@@ -149,12 +179,16 @@ pub async fn chat_completions_detailed(
         .ok_or_else(|| anyhow::anyhow!("chat_completions: 未指定 model"))?;
     let max_tokens = opts.max_tokens;
     let temperature = opts.temperature.unwrap_or(0.1);
+    let tools = opts.tools.clone();
+    let tool_choice = opts.tool_choice.clone();
 
     let url = format!("{api_base}/chat/completions");
     let body = ChatRequest {
         model,
         max_tokens,
         temperature,
+        tools,
+        tool_choice,
         messages: vec![
             ChatMessage {
                 role: "system",
@@ -227,12 +261,17 @@ pub async fn chat_completions_detailed(
         .map_err(|e| anyhow::anyhow!("解析 LLM 响应失败: {e}"))?;
     let choice = json.choices.and_then(|c| c.into_iter().next());
     let finish_reason = choice.as_ref().and_then(|c| c.finish_reason.clone());
+    let tool_calls = choice
+        .as_ref()
+        .map(|c| c.message.tool_calls.clone())
+        .unwrap_or_default();
     let content = choice
         .and_then(|c| c.message.content)
         .unwrap_or_default();
     Ok(ChatCompletion {
         content: content.trim().to_string(),
         finish_reason,
+        tool_calls,
     })
 }
 

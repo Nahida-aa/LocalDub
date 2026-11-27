@@ -147,6 +147,8 @@ pub async fn ocr_llm_fix(
         // 不设 max_tokens：让服务端按模型默认上限生成，避免固定 4096 截断长回复。
         max_tokens: None,
         temperature: Some(0.1),
+        tools: None,
+        tool_choice: None,
     };
     let result = crate::chat_completions_detailed(&prompt, &opts).await?;
     let fixed = result.content;
