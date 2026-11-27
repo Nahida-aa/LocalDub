@@ -4,6 +4,7 @@
 //! 等 step 的 LLM 修正使用。参数来源为各 step 的 `LlmFixArgs` (llmModel / llmApiBase),
 //! 不依赖全局 env 单例 (与 Rust core 设计一致)。
 
+mod arguments_parse;
 mod llm_fix_args;
 mod ocr_fix;
 #[cfg(test)]
@@ -324,8 +325,9 @@ where
                 "function": { "name": call.function.name, "arguments": call.function.arguments }
             }));
 
-            // ① arguments 字符串 → Value（纯 JSON 解析）
-            let raw: serde_json::Value = match serde_json::from_str(&call.function.arguments) {
+            // ① arguments 字符串 → Value（容错解析：repair_json + partial 补括号，
+            //    参考 rig；保证进入 normalizer 的一定是合法 JSON）。
+            let raw: serde_json::Value = match arguments_parse::parse_arguments_json(&call.function.arguments) {
                 Ok(v) => v,
                 Err(e) => {
                     let fb = format!("arguments 不是合法 JSON: {e}");
